@@ -1,0 +1,2729 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 587 439 N "_3DFace" 0
+"main()
+{
+  if(hvSys==\"\")
+    hvSys=RPCfwSupervisor_getComponent(\"EndcapHV\");
+  if(lvSys==\"\")
+    lvSys=RPCfwSupervisor_getComponent(\"EndcapLV\");
+ 
+  findMAOChannels(lvSys,mao_chs);
+  findMAOChannels(hvSys,maj_chs);
+  
+  //DebugN(\"mao_chs  \",mao_chs,\"maj_chs  \",maj_chs);      
+}
+
+  " 0
+ E E E E 1 -1 -1 0  10 230
+""0  1
+E " #uses \"CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl\"
+
+
+string hvSys, lvSys;
+dyn_dyn_string mao_chs;
+dyn_dyn_string maj_chs;
+dyn_string dpPopup;
+
+// void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+// {
+// bool hasDebug, hasControl;
+// dyn_string exceptionInfo;
+// revoke all previous rights:
+// DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+// fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+// fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+// if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+// if (hasControl) enableControl();
+// if (hasDebug) enableDebug();
+// }
+
+void findMAOChannels(string sys, dyn_dyn_string & channels )
+{
+
+    string alias;
+  dyn_string exInfo,nodes, children;
+   fwNode_getNodes(sys, fwDevice_LOGICAL, nodes, exInfo);
+
+   for(int i = 1; i <= dynlen(nodes); i++)
+      {
+        alias = dpGetAlias(nodes[i] + \".\");
+	nodes[i] = sys + alias;
+  
+            
+      if(strpos(nodes[i],\"MAO\")>-1) 
+        {
+        if(strpos(nodes[i],\"MAO/T\")<0) 
+        fwDevice_getChildren(nodes[i], fwDevice_LOGICAL, children, exInfo);		                        
+        }
+      }
+     for(int i = 1; i<=dynlen(children);i++)
+     {
+       dynAppend(channels[1],sys+fwDU_getPhysicalName(children[i])); 
+       dynAppend(channels[2],children[i]); 
+       }    
+//           DebugN(\"Scope  channels\",channels[1],channels[2]);
+}
+
+void checkCommand(string channel, int value)
+{
+  //DisableAllInPanel();
+  //poptext.visible = \"true\";
+  delay(1,0);
+  int read;
+  for(int i =1 ;i<=3;i++ )
+  {
+  dpGet(channel + \".actual.isOn\",read);
+  if(read == value)
+    break;
+  else
+    delay(1,0);
+  }
+  //poptext.visible = \"false\";
+  
+  //enableDebug();  
+
+}
+// void DisableAllInPanel()
+// {
+// 
+//   
+// setValue(\"00F2\",\"enabled\",false);  
+// setValue(\"00F1\",\"enabled\",false);  
+// setValue(\"00N2\",\"enabled\",false);  
+// setValue(\"00N1\",\"enabled\",false);  
+// M1F1.enabled = false;
+// M1F2.enabled = false;
+// M1N1.enabled = false;
+// M1N2.enabled = false;
+// M2F1.enabled = false;
+// M2F2.enabled = false;
+// M2N1.enabled = false;
+// M2N2.enabled = false;
+// P1F1.enabled = false;
+// P1F2.enabled = false;
+// P1N1.enabled = false;
+// P1N2.enabled = false;
+// P2F1.enabled = false;
+// P2F2.enabled = false;
+// P2N1.enabled = false;
+// P2N2.enabled = false;
+// P1H.enabled = false;
+// P2H.enabled = false;
+// P0H.enabled = false;
+// M1H.enabled = false;
+// M2H.enabled = false;
+// 
+//   
+//   
+//   }
+
+// void enableControl(){
+//  
+//   }
+
+// void enableDebug(){
+//   
+//   
+// setValue(\"00F2\",\"enabled\",true);  
+// setValue(\"00F1\",\"enabled\",true);  
+// setValue(\"00N2\",\"enabled\",true);  
+// setValue(\"00N1\",\"enabled\",true);  
+// M1F1.enabled = true;
+// M1F2.enabled = true;
+// M1N1.enabled = true;
+// M1N2.enabled = true;
+// M2F1.enabled = true;
+// M2F2.enabled = true;
+// M2N1.enabled = true;
+// M2N2.enabled = true;
+// P1F1.enabled = true;
+// P1F2.enabled = true;
+// P1N1.enabled = true;
+// P1N2.enabled = true;
+// P2F1.enabled = true;
+// P2F2.enabled = true;
+// P2N1.enabled = true;
+// P2N2.enabled = true;
+// P1H.enabled = true;
+// P2H.enabled = true;
+// P0H.enabled = true;
+// M1H.enabled = true;
+// M2H.enabled = true;
+// 
+//     }
+
+string findChannel(string name)
+{
+  
+  string search;
+//  DebugN(mao_chs);
+  if(dynlen(mao_chs)<1)
+  {
+    findMAOChannels(lvSys,mao_chs);
+    }
+  //DebugN(\"mao_chs \",mao_chs,\"mao_chs[1]\",mao_chs[1],\"dyn_len(mao_chs)\",dynlen(mao_chs[1]));
+  for(int i = 1; i<=dynlen(mao_chs[1]);i++)
+  {
+   // search = \"\"+name[0]+name[1]+name[2]+\"_E\"+name[5]+name[6]+\"_\"+name[8]+name[9]+name[10]+\"MAOCh0\"+name[17];
+
+ //   search = name[1]+name[2]+name[3]+name[4]+\"Y\"+name[5]+name[6]+name[7]+\"_\"+name[8]+name[9]+name[10]+\"MAOCh0\"+name[18];
+ //   DebugN(\"search  \",search);
+  //  if(strpos(mao_chs[2][i],search)>0)
+        if(strpos(mao_chs[2][i],name)>0)
+    {
+      return mao_chs[1][i];
+      DebugN(mao_chs[1][i]);
+    }
+    
+  }
+}
+dyn_string findChannelMaj(string name)
+{
+  
+  string search;
+  dyn_string chann;
+  if(dynlen(maj_chs)<1)
+  {
+    findMAOChannels(hvSys,maj_chs);
+    }
+  for(int i = 1; i<=dynlen(maj_chs[1]);i++)
+  {
+    search = \"\"+name[0]+name[1];
+    //DebugN(name,name[0],name[1],search);
+    if(strpos(maj_chs[2][i],search)>0)
+    {
+      dynAppend(chann,maj_chs[1][i]);
+    }
+    
+  }
+  return chann;
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 1
+"PUSH_BUTTON1"
+""
+1 456 22 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 454 20 578 54
+
+T 
+1
+LANG:1 6 Close
+
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+2 49
+"PRIMITIVE_TEXT1"
+""
+1 293 90 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 293 90 329 114
+0 2 2 "0s" 0 0 0 65 0 0  293 90 1
+1
+LANG:1 99 -*-Arial Black-bold-r-normal-*-15-*-100-100-*-*-iso8859-1|-15,0,0,0,879,0,0,0,0,0,0,0,0,Arial Black
+0 ""
+1
+LANG:1 3 EP1
+2 60
+"PRIMITIVE_TEXT6"
+""
+1 64 154 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+98 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 70 136 155.990566037736 182
+0 2 2 "0s" 0 0 0 65 0 0  70 136 3
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 6 LV    
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 9 AC/DC    
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 12 POSITIVE    
+2 62
+"PRIMITIVE_TEXT7"
+""
+1 68 307 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+102 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 72 257 158.985849056604 303
+0 2 2 "0s" 0 0 0 65 0 0  72 257 3
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 3 LV 
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 6 AC/DC 
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 9 NEGATIVE 
+2 71
+"PRIMITIVE_TEXT10"
+""
+1 353 90 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+119 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 353 90 389 114
+0 2 2 "0s" 0 0 0 65 0 0  353 90 1
+1
+LANG:1 99 -*-Arial Black-bold-r-normal-*-15-*-100-100-*-*-iso8859-1|-15,0,0,0,879,0,0,0,0,0,0,0,0,Arial Black
+0 ""
+1
+LANG:1 3 EP2
+13 72
+"RPC_YEP3_X3FMAOCh01"
+""
+1 450 121 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+121 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 448 119 478 147
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string name = this.name;
+  string ch = findChannel(name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value)
+{
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+2 79
+"PRIMITIVE_TEXT11"
+""
+1 470 90 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+135 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 470 90 506 114
+0 2 2 "0s" 0 0 0 65 0 0  470 90 1
+1
+LANG:1 99 -*-Arial Black-bold-r-normal-*-15-*-100-100-*-*-iso8859-1|-15,0,0,0,879,0,0,0,0,0,0,0,0,Arial Black
+0 ""
+1
+LANG:1 3 EP3
+13 80
+"RPC_YEP3_X3NMAOCh01"
+""
+1 500 121 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+137 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 498 119 528 147
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+  if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 102
+"RPC_YEP3_X3FMAOCh00"
+""
+1 450 166 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+181 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 448 164 478 192
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+  if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 103
+"RPC_YEP3_X3NMAOCh00"
+""
+1 500 166 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+183 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 498 164 528 192
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+ if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 115
+"NNX4"
+""
+1 590.210171001679 221 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+207 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 588 219 616 247
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+//    string ch= findChannel(this.name);
+//   if(this.text==\"ON\")
+//    {
+//     dpSet(ch+\".settings.onOff\",0);
+//     checkCommand(ch,0);
+//   }
+//   else if(this.text==\"OFF\")
+//   {
+//     dpSet(ch+\".settings.onOff\",1);
+//     checkCommand(ch,1);
+//   }
+}" 0
+ E E "main()
+{
+//   this.enabled = false;
+//   delay(0,500);
+//   string ch= findChannel(this.name);
+//   
+  //dpConnect(\"refresh\",ch+\".actual.status\");
+//   this.enabled = true;
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 120
+"NFX4"
+""
+1 590.210171001679 255 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+217 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 588 253 616 281
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+// if(this.text==\"ON\")
+//    {
+//     dpSet(ch+\".settings.onOff\",0);
+//     checkCommand(ch,0);
+//   }
+//   else if(this.text==\"OFF\")
+//   {
+//     dpSet(ch+\".settings.onOff\",1);
+//     checkCommand(ch,1);
+//   }
+  
+}" 0
+ E E "main()
+{
+//   this.enabled = false;
+//   delay(0,500);
+//   string ch= findChannel(this.name);
+//   
+  //dpConnect(\"refresh\",ch+\".actual.status\");
+//   this.enabled = true;
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 124
+"RPC_EN_CH01_HV"
+""
+1 290 337 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+225 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 288 335 492 363
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+  dyn_string ch= findChannelMaj(this.name);
+  bool isOn;
+if(this.text==\"ON\")
+    isOn = true;
+ else if(this.text==\"OFF\")
+   isOn = false; 
+  //DebugN(this.name,ch);
+  for(int i =1;i<=dynlen(ch);i++)
+  {
+  if(isOn)
+    {
+    dpSet(ch[1]+\".settings.onOff\",0);
+    checkCommand(ch[1],0);
+  }else
+  {
+    dpSet(ch[1]+\".settings.onOff\",1);
+    checkCommand(ch[1],1);
+  }
+  
+  }
+    
+}" 0
+ E E "dyn_string ch;
+main()
+{
+  this.enabled = false;
+  delay(0,500);
+  ch = findChannelMaj(this.name);
+  //DebugN(\"Positive ch \",ch,\"this.name\",this.name);
+  
+  
+  dpConnect(\"refresh\",ch[1]+\".actual.status\");
+  
+  
+  this.enabled = true;
+}
+refresh(string dpe, int value)
+{
+  dyn_string temp;
+  int newval;
+  if(value == 0)
+  {
+    this.backCol = \"FwStateOKNotPhysics\";
+    this.text = \"OFF\";
+  }
+  else if(value == 1)
+  {
+    temp = ch[1];
+    dynRemove(temp,dpSubStr(dpe,DPSUB_SYS_DP));
+    if(dynlen(temp)==0)
+    {
+     this.backCol = \"FwStateOKPhysics\";
+     this.text = \"ON\";
+    }
+    else
+    {
+    dpGet(temp[1]+\".actual.status\",newval);
+    if(newval == 1)
+    {
+     this.backCol = \"FwStateOKPhysics\";
+     this.text = \"ON\";
+      
+    }
+    else if(newval == 0)
+    {
+        this.backCol = \"FwStateOKNotPhysics\";
+         this.text = \"OFF\";
+      
+      }else this.backCol = \"FwStateAttention3\";
+      }
+ }
+    else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 125
+"RPC_EP_CH00_HV"
+""
+1 290 377 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+227 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 288 375 492 403
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+  dyn_string ch= findChannelMaj(this.name);
+  bool isOn;
+if(this.text==\"ON\")
+    isOn = true;
+ else if(this.text==\"OFF\")
+   isOn = false; 
+  //DebugN(this.name,ch);
+  for(int i =1;i<=dynlen(ch);i++)
+  {
+  if(isOn)
+    {
+    dpSet(ch[2]+\".settings.onOff\",0);
+    checkCommand(ch[2],0);
+  }else
+  {
+    dpSet(ch[2]+\".settings.onOff\",1);
+    checkCommand(ch[2],1);
+  }
+  
+  }
+    
+}" 0
+ E E "dyn_string ch;
+main()
+{
+  this.enabled = false;
+  delay(0,500);
+  ch = findChannelMaj(this.name);
+  //DebugN(\"Negative  ch\",ch,this.name);
+
+  
+  dpConnect(\"refresh\",ch[2]+\".actual.status\");
+  
+  
+  this.enabled = true;
+}
+refresh(string dpe, int value){
+  dyn_string temp;
+  int newval;
+  if(value == 0)
+  {
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+ }
+  else if(value == 1){
+    temp = ch[2];
+    dynRemove(temp,dpSubStr(dpe,DPSUB_SYS_DP));
+    if(dynlen(temp)==0)
+    {
+     this.backCol = \"FwStateOKPhysics\";
+   this.text = \"ON\";
+      
+      
+   }else{
+    dpGet(temp[1]+\".actual.status\",newval);
+    if(newval == 1)
+    {
+     this.backCol = \"FwStateOKPhysics\";
+   this.text = \"ON\";
+      
+      }
+    else if(newval == 0)
+    {
+        this.backCol = \"FwStateOKNotPhysics\";
+         this.text = \"OFF\";
+      
+      }else this.backCol = \"FwStateAttention3\";
+      }
+ }
+    else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+2 126
+"PRIMITIVE_TEXT14"
+""
+1 36 26 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+228 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  dyn_string exceptionInfo;
+  fwAccessControl_setupPanel( \"ApplyPanelAccessControl\", exceptionInfo);
+}" 0
+ E 0 1 1 2 1 E U  1 E 36 26 404 76
+0 2 4 "0s" 0 0 0 64 0 0  36 26 2
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 35 SERVICE POWER SYSTEM SUMMARY STATUS
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 FOR ENDCAP
+30 133
+"FRAME2"
+""
+1 16 107 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+240 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.11111111111112 0 1.03426791277259 12.2222222222222 -26.6666666666667 0 E 16 107 485 429
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 20 Easy Crate 48V power
+2 140
+"PRIMITIVE_TEXT17"
+""
+1 180 130 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+247 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 180 130 270 160
+0 2 2 "0s" 0 0 0 64 0 0  180 130 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 3 FEB
+2 141
+"PRIMITIVE_TEXT18"
+""
+1 182 174 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+249 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 182 174 272 204
+0 2 2 "0s" 0 0 0 64 0 0  182 174 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 3 LBB
+2 144
+"PRIMITIVE_TEXT21"
+""
+1 293 212 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+255 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 293 212 329 236
+0 2 2 "0s" 0 0 0 65 0 0  293 212 1
+1
+LANG:1 99 -*-Arial Black-bold-r-normal-*-15-*-100-100-*-*-iso8859-1|-15,0,0,0,879,0,0,0,0,0,0,0,0,Arial Black
+0 ""
+1
+LANG:1 3 EN1
+2 145
+"PRIMITIVE_TEXT22"
+""
+1 356 212 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+257 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 356 212 392 236
+0 2 2 "0s" 0 0 0 65 0 0  356 212 1
+1
+LANG:1 99 -*-Arial Black-bold-r-normal-*-15-*-100-100-*-*-iso8859-1|-15,0,0,0,879,0,0,0,0,0,0,0,0,Arial Black
+0 ""
+1
+LANG:1 3 EN2
+2 146
+"PRIMITIVE_TEXT23"
+""
+1 470 212 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+259 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 470 212 506 236
+0 2 2 "0s" 0 0 0 65 0 0  470 212 1
+1
+LANG:1 99 -*-Arial Black-bold-r-normal-*-15-*-100-100-*-*-iso8859-1|-15,0,0,0,879,0,0,0,0,0,0,0,0,Arial Black
+0 ""
+1
+LANG:1 3 EN3
+2 147
+"PRIMITIVE_TEXT24"
+""
+1 182 349 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+261 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 182 349 272 379
+0 2 2 "0s" 0 0 0 64 0 0  182 349 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 15 Positive Endcap
+2 148
+"PRIMITIVE_TEXT25"
+""
+1 182 379 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+263 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 182 379 272 409
+0 2 2 "0s" 0 0 0 64 0 0  182 379 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 15 Negative Endcap
+2 151
+"PRIMITIVE_TEXT28"
+""
+1 60.0141509433962 306 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+267 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 72 354 159 383
+0 2 2 "0s" 0 0 0 65 0 0  72 354 3
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 4 HV  
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 7 AC/DC  
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 2   
+13 158
+"RPC_YEP1_X2FMAOCh00"
+""
+1 250 121 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+281 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 248 119 278 147
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+  string ch= findChannel(this.name);
+if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }    
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch = findChannel(this.name);
+  //DebugN(\"LV X4 00\",ch);
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value)
+{
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 159
+"RPC_YEP1_X2NMAOCh01"
+""
+1 300 121 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+283 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 298 119 328 147
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+ // DebugN(\"LV 3\",ch);
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 161
+"RPC_YEP1_X2FMAOCh01"
+""
+1 250 166 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+287 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 248 164 278 192
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+ if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  //DebugN(\"LV 2\",ch);
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 162
+"RPC_YEP1_X2NMAOCh00"
+""
+1 300 166 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+289 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 298 164 328 192
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+  if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 176
+"RPC_YEP1_X4FMAOCh00"
+""
+1 350 121 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+317 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 348 119 378 147
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch = findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value)
+{
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 177
+"RPC_YEP1_X4NMAOCh01"
+""
+1 400 121 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+319 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 398 119 428 147
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+  if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 178
+"RPC_YEP1_X4FMAOCh01"
+""
+1 350 166 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+321 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 348 164 378 192
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+  if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 179
+"RPC_YEP1_X4NMAOCh00"
+""
+1 400 170 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+323 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 398 168 428 196
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+ if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 180
+"RPC_YEN1_X4NMAOCh01"
+""
+1 400 242 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+325 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 398 240 428 268
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+  string ch= findChannel(this.name);
+if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }    
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 181
+"RPC_YEN3_X3FMAOCh01"
+""
+1 450 243 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+327 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 448 241 478 269
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 182
+"RPC_YEN3_X3NMAOCh00"
+""
+1 500 243 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+329 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 498 241 528 269
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+  if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 183
+"RPC_YEN1_X4NMAOCh00"
+""
+1 400 286 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+331 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 398 284 428 312
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+ if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 184
+"RPC_YEN3_X3FMAOCh00"
+""
+1 450 286 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+333 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 448 284 478 312
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+  if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 185
+"RPC_YEN3_X3NMAOCh01"
+""
+1 500 286 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+335 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 498 284 528 312
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+ if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 186
+"RPC_YEN1_X2FMAOCh01"
+""
+1 250 242 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+337 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 248 240 278 268
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+  string ch= findChannel(this.name);
+if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }    
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  //DebugN(\"P 00\",ch);
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 187
+"RPC_YEN1_X2NMAOCh01"
+""
+1 300 242 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+339 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 298 240 328 268
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 188
+"RPC_YEN1_X4FMAOCh01"
+""
+1 350 243 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+341 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 348 241 378 269
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+  if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 189
+"RPC_YEN1_X2FMAOCh00"
+""
+1 250 287 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+343 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 248 285 278 313
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+ if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 190
+"RPC_YEN1_X2NMAOCh00"
+""
+1 300 287 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+345 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 298 285 328 313
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+  if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+13 191
+"RPC_YEN1_X4FMAOCh00"
+""
+1 350 287 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+347 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 348 285 378 313
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+   string ch= findChannel(this.name);
+ if(this.text==\"ON\")
+   {
+    dpSet(ch+\".settings.onOff\",0);
+    checkCommand(ch,0);
+  }
+  else if(this.text==\"OFF\")
+  {
+    dpSet(ch+\".settings.onOff\",1);
+    checkCommand(ch,1);
+  }}" 0
+ E E "main()
+{
+  this.enabled = false;
+  delay(0,500);
+  string ch= findChannel(this.name);
+  
+  dpConnect(\"refresh\",ch+\".actual.status\");
+  
+  this.enabled = true;
+  
+}
+refresh(string dpe, int value){
+  
+  if(value == 1)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+  else if(value == 0){
+    this.backCol = \"FwStateOKNotPhysics\";
+   this.text = \"OFF\";
+  }else  this.backCol = \"FwStateAttention3\";
+   
+  
+  
+  }
+" 0
+
+2 192
+"PRIMITIVE_TEXT29"
+""
+1 180 250 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+349 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 180 250 270 280
+0 2 2 "0s" 0 0 0 64 0 0  180 250 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 3 FEB
+2 193
+"PRIMITIVE_TEXT30"
+""
+1 182 294 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+351 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 182 294 272 324
+0 2 2 "0s" 0 0 0 64 0 0  182 294 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 3 LBB
+30 194
+"FRAME3"
+""
+1 250 113 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+352 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.03333333333333 0 1.23376623376623 -17.3333333333334 -34.4155844155844 0 E 250 113 341 191
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 2 X2
+30 195
+"FRAME4"
+""
+1 250 113 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+354 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.03333333333333 0 1.23376623376623 83.6666666666666 -34.4155844155844 0 E 250 113 341 191
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 2 X4
+30 196
+"FRAME5"
+""
+1 250 113 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+356 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.03333333333333 0 1.23376623376623 185.666666666667 -34.4155844155844 0 E 250 113 341 191
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 2 X3
+30 197
+"FRAME6"
+""
+1 250 113 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+358 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.03333333333333 0 1.19480519480519 -17.3333333333325 92.9870129870136 0 E 250 113 341 191
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 2 X2
+30 198
+"FRAME7"
+""
+1 250 113 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+360 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.03333333333333 0 1.19480519480519 84.6666666666666 92.987012987013 0 E 250 113 341 191
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 2 X4
+30 199
+"FRAME8"
+""
+1 250 113 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+362 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.03333333333333 0 1.19480519480519 185.666666666667 92.9870129870136 0 E 250 113 341 191
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 2 X3
+2 200
+"PRIMITIVE_TEXT31"
+""
+1 253 270 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+364 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 253 270 343 300
+0 2 2 "0s" 0 0 0 64 0 0  253 270 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 18 Far           Near
+2 201
+"PRIMITIVE_TEXT32"
+""
+1 352 272 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+366 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 352 272 442 302
+0 2 2 "0s" 0 0 0 64 0 0  352 272 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 18 Far           Near
+2 202
+"PRIMITIVE_TEXT33"
+""
+1 452 272 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+368 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 452 272 542 302
+0 2 2 "0s" 0 0 0 64 0 0  452 272 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 18 Far           Near
+2 203
+"PRIMITIVE_TEXT34"
+""
+1 252 149 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+370 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 252 149 342 179
+0 2 2 "0s" 0 0 0 64 0 0  252 149 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 18 Far           Near
+2 204
+"PRIMITIVE_TEXT35"
+""
+1 352 149 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+372 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 352 149 442 179
+0 2 2 "0s" 0 0 0 64 0 0  352 149 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 18 Far           Near
+2 205
+"PRIMITIVE_TEXT36"
+""
+1 452 148 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+374 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 452 148 542 178
+0 2 2 "0s" 0 0 0 64 0 0  452 148 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 18 Far           Near
+2 206
+"PRIMITIVE_TEXT37"
+""
+1 322 90 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+376 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 322 90 358 114
+0 2 2 "0s" 0 0 0 65 0 0  322 90 1
+1
+LANG:1 99 -*-Arial Black-bold-r-normal-*-15-*-100-100-*-*-iso8859-1|-15,0,0,0,879,0,0,0,0,0,0,0,0,Arial Black
+0 ""
+1
+LANG:1 1 &
+2 207
+"PRIMITIVE_TEXT38"
+""
+1 323 212 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+378 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 323 212 359 236
+0 2 2 "0s" 0 0 0 65 0 0  323 212 1
+1
+LANG:1 99 -*-Arial Black-bold-r-normal-*-15-*-100-100-*-*-iso8859-1|-15,0,0,0,879,0,0,0,0,0,0,0,0,Arial Black
+0 ""
+1
+LANG:1 1 &
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

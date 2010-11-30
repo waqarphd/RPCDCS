@@ -1,0 +1,1264 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 1175 650 N "_3DFace" 0
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "dyn_string log2phy;
+dyn_string types;
+dyn_dyn_string maskedAlerts, dpes;
+void RPCfwSupervisor_getAllChannelsByType(string type,string sysName, dyn_string & channels)
+{
+// To get channels starting from logical name
+  //  dyn_string channels ;
+  string alias;
+  dyn_string exInfo,nodes, children;
+  fwNode_getNodes(sysName, fwDevice_LOGICAL, nodes, exInfo);
+   
+     for(int i = 1; i <= dynlen(nodes); i++)
+      {
+        alias = dpGetAlias(nodes[i] + \".\");
+	//DebugN(nodes[i], alias);
+	nodes[i] = sysName + alias;
+      
+      if(strpos(nodes[i],type)>1)  
+        fwDevice_getChildren(nodes[i], fwDevice_LOGICAL, children, exInfo);		                        
+      
+      }
+     //DebugN(nodes,children);
+     for(int i = 1; i<=dynlen(children);i++)
+     {
+              dynAppend(channels,sysName + fwDU_getPhysicalName(children[i]));      
+     }
+  
+  
+}
+int filltable(dyn_string dps, string table, int type){
+ 
+  //DebugN(\"stat\",sys,type);
+  
+  
+//  dynClear(lines);
+  string alias;
+  int ack;
+  int toAck = 0;
+  setValue(table,\"deleteAllLines\");
+  bool mask;
+  for(int i = 1; i<=dynlen(dps);i++)
+  {
+  dpGet(dps[i]+\":_alert_hdl.._active\", mask);
+  if(!mask){
+    dynAppend(maskedAlerts[type],dps[i]);
+  }
+  dpGet(dps[i]+\":_alert_hdl.._act_state\",ack);
+  if(ack>0)
+  { 
+   string logna = fwDU_getLogicalName(dpSubStr(dps[i],DPSUB_SYS_DP))+substr(dps[i],strpos(dps[i],\".\"));
+   setValue(table,\"appendLine\",\"dpe\",logna);
+   toAck++;
+   dynAppend(log2phy,logna);
+   dynAppend(log2phy,dps[i]);
+   //DebugN(logna,dps[i],ack);   
+   ack = 0;
+  }       
+  }
+  
+  return toAck;
+
+}
+
+
+
+
+void getChannels(string sys, string type, dyn_string & channels){
+  
+  dyn_dyn_string obj;
+  dyn_string dpt;
+  switch (type){
+    case \"HVE\":
+      dpt = makeDynString(\"HV\");
+      obj[1] = makeDynString(\".actual.Trip\",\".actual.OvC\",\".actual.OvV\",
+                   \".actual.UnV\",\".actual.UnC\",\".actual.overHvMax\",\".actual.iMon\");
+      
+    case \"HVB\":
+      dpt = makeDynString(\"HV\");
+      obj[1] = makeDynString(\".actual.Trip\",\".actual.OvC\",\".actual.OvV\",
+                   \".actual.UnV\",\".actual.UnC\",\".actual.overHvMax\",\".actual.iMon\");
+      break;
+    case \"LVE\":
+      dpt = makeDynString(\"LV\",\"T\",\"LBB\");
+      obj[1] = makeDynString(\".actual.Trip\",\".actual.OvC\",\".actual.OvV\",
+                   \".actual.UnV\",\".actual.UnC\",\".actual.overHvMax\",\".actual.iMon\");
+      obj[2] = makeDynString(\".actual.temperature\");
+      obj[3] = makeDynString(\".actual.Trip\",\".actual.OvC\",\".actual.OvV\",
+                   \".actual.UnV\",\".actual.UnC\",\".actual.overHvMax\",\".actual.iMon\");
+      break;
+    case \"LVB\":
+      dpt = makeDynString(\"LV\",\"T\",\"LBB\");
+      obj[1] = makeDynString(\".actual.Trip\",\".actual.OvC\",\".actual.OvV\",
+                   \".actual.UnV\",\".actual.UnC\",\".actual.overHvMax\",\".actual.iMon\");
+      obj[2] = makeDynString(\".actual.temperature\");
+      obj[3] = makeDynString(\".actual.Trip\",\".actual.OvC\",\".actual.OvV\",
+                   \".actual.UnV\",\".actual.UnC\",\".actual.overHvMax\",\".actual.iMon\");
+      break;
+    case \"SER\":
+      dynClear(channels);
+      getFlowcell(sys,channels);
+      break;
+    }
+  if(type !=\"SER\"){
+  dyn_string elements;
+  for(int i = 1; i<=dynlen(dpt);i++)
+  {
+    dynClear(elements);
+    RPCfwSupervisor_getAllChannelsByType(dpt[i],sys, elements);
+    for(int k = 1;k<=dynlen(elements);k++)
+    {  
+    for(int j = 1;j<=dynlen(obj[i]);j++)
+    {
+      dynAppend(channels,elements[k]+ obj[i][j]);
+      }
+    }
+  }
+}
+  
+    
+  }
+void getFlowcell(string sys,dyn_string & channels){
+  
+  dyn_string temp = dpNames(sys+\"*\",\"RPCGasChannel\");
+  
+  for(int i = 1; i<=dynlen(temp);i++){
+    dynAppend(channels,temp[i]+\".flowIn\");
+    dynAppend(channels,temp[i]+\".flowOut\");
+    dynAppend(channels,temp[i]+\".difference\");
+    }
+  dynClear(temp);
+   temp = dpNames(sys+\"*\",\"RPCGasParameterStatus\");
+  //DebugN(dynlen(temp));
+  for(int i = 1; i<=dynlen(temp);i++){
+    dynAppend(channels,temp[i]+\".state\");
+    
+    }
+  
+  
+  }
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"bhvtable"
+""
+1 20 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 78 362 272
+E"main(int row, string column, string value)
+{
+    dyn_string exInfo;
+  if(column == \"dpe\")
+  {
+   string dp = this.cellValueRC(row, column);
+ // DebugN(coolingAck[row+1]); 
+   int pos = dynContains(log2phy,dp);
+   if(pos>0){
+  ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorAlertAction.pnl\",
+      \"\",
+      makeDynString(\"$sDpeName:\" + log2phy[pos+1])); 
+    }
+     
+  }
+  
+}" 0
+ 1 0 1 1 0 "dpe" 49 1 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+450 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+25 2
+"blvtable"
+""
+1 20 350.5000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 349 362 543
+E"main(int row, string column, string value)
+{
+    dyn_string exInfo;
+  if(column == \"dpe\")
+  {
+   string dp = this.cellValueRC(row, column);
+ // DebugN(coolingAck[row+1]); 
+   int pos = dynContains(log2phy,dp);
+   if(pos>0){
+  ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorAlertAction.pnl\",
+      \"\",
+      makeDynString(\"$sDpeName:\" + log2phy[pos+1])); 
+    }
+     
+  }
+  
+}" 0
+ 1 0 1 1 0 "dpe" 49 1 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+450 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 6
+"PUSH_BUTTON1"
+""
+1 520 600 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  518 598 652 632
+
+T 
+1
+LANG:1 5 Close
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+30 7
+"FRAME1"
+""
+1 10 323 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+7 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.9700374531835205 0 17.21540262172292 0 E 10 323 371 591
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Barrel LV
+30 8
+"FRAME2"
+""
+1 10 323 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+8 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.9737827715355805 0 -254.5318352059925 0 E 10 323 371 591
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Barrel HV
+13 9
+"bhvack"
+""
+1 120 260 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  18 278 111 306
+
+T 
+1
+LANG:1 15 Acklowledge All
+"main()
+{
+// this.enabled = false;
+ dyn_int todel;
+ int tot = bhvtable.lineCount(); 
+ dyn_anytype lines;
+ bool ack; 
+ dyn_string exInfo;
+ 
+ for(int i =0;i<tot;i++){ 
+   lines = bhvtable.getLineN(i);
+  if(dynlen(lines)==1)
+   {
+  int pos = dynContains(log2phy,lines[1]);
+  if(pos>0) {
+  dpGet(log2phy[pos+1]+\":_alert_hdl.._ack_possible\",ack);
+  if(ack) {fwAlertConfig_acknowledge(log2phy[pos+1],exInfo);
+    dynAppend(todel,i); 
+    }  
+   }  
+  }
+ }
+//DebugN(tot,todel);
+for(int i = dynlen(todel);i>0;i--)
+ {
+    //DebugN(todel[i],i);
+  bhvtable.deleteLineN(todel[i]);
+} 
+ 
+this.enabled = true; 
+bhvinfo.text=\" Active Alerts: 0\";
+}
+
+" 0
+ E E E
+2 11
+"bhvinfo"
+""
+1 263 284 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 263 284 358 304
+0 2 2 "0s" 0 0 0 65 0 0  263 284 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Active Alerts: 0
+25 15
+"suptable"
+""
+1 410.0000000000001 79.93212669683257 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  408 78 752 272
+E"main(int row, string column, string value)
+{
+    dyn_string exInfo;
+  if(column == \"dpe\")
+  {
+   string dp = this.cellValueRC(row, column);
+ // DebugN(coolingAck[row+1]); 
+   int pos = dynContains(log2phy,dp);
+   if(pos>0){
+  ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorAlertAction.pnl\",
+      \"\",
+      makeDynString(\"$sDpeName:\" + log2phy[pos+1])); 
+    }
+     
+  }
+  
+}" 0
+ 1 0 1 1 0 "dpe" 49 1 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+450 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+25 16
+"sertable"
+""
+1 410.0000000000001 350.5 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  408 349 752 543
+E"main(int row, string column, string value)
+{
+    dyn_string exInfo;
+  if(column == \"dpe\")
+  {
+   string dp = this.cellValueRC(row, column);
+ // DebugN(coolingAck[row+1]); 
+   int pos = dynContains(log2phy,dp);
+   if(pos>0){
+  ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorAlertAction.pnl\",
+      \"\",
+      makeDynString(\"$sDpeName:\" + log2phy[pos+1])); 
+    }
+     
+  }
+  
+}" 0
+ 1 0 1 1 0 "dpe" 49 1 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+450 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+30 17
+"FRAME3"
+""
+1 10 323 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+17 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.9736140724946694 390 15.5226545842218 0 E 10 323 371 591
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Services
+30 18
+"FRAME4"
+""
+1 10 323 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.9773587420042642 390 -256.220802238806 0 E 10 323 371 591
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Supervisor
+25 23
+"ehvtable"
+""
+1 800 79.93212669683257 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  798 78 1142 272
+E"main(int row, string column, string value)
+{
+    dyn_string exInfo;
+  if(column == \"dpe\")
+  {
+   string dp = this.cellValueRC(row, column);
+ // DebugN(coolingAck[row+1]); 
+   int pos = dynContains(log2phy,dp);
+   if(pos>0){
+  ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorAlertAction.pnl\",
+      \"\",
+      makeDynString(\"$sDpeName:\" + log2phy[pos+1])); 
+    }
+     
+  }
+  
+}" 0
+ 1 0 1 1 0 "dpe" 49 1 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+450 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+25 24
+"elvtable"
+""
+1 800 350.5 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  798 349 1142 543
+E"main(int row, string column, string value)
+{
+    dyn_string exInfo;
+  if(column == \"dpe\")
+  {
+   string dp = this.cellValueRC(row, column);
+ // DebugN(coolingAck[row+1]); 
+   int pos = dynContains(log2phy,dp);
+   if(pos>0){
+  ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorAlertAction.pnl\",
+      \"\",
+      makeDynString(\"$sDpeName:\" + log2phy[pos+1])); 
+    }
+     
+  }
+  
+}" 0
+ 1 0 1 1 0 "dpe" 49 1 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+450 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+30 25
+"FRAME5"
+""
+1 10 323 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+25 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.9736140724946694 780 15.5226545842218 0 E 10 323 371 591
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Endcap LV
+30 26
+"FRAME6"
+""
+1 10 323 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+26 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.9773587420042642 780 -256.220802238806 0 E 10 323 371 591
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Endcap HV
+2 31
+"PRIMITIVE_TEXT6"
+""
+1 400 12 E E E 1 E 1 E N "FwTrendingTrendBackground" E N "_ETM" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"#uses \"CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl\"
+
+main()
+{
+  dynClear(log2phy);
+  //this.selectedPos = 2;
+  string sup,uxc,usc,exc,esc,psx;
+  //delay(1,0);
+  sup = RPCfwSupervisor_getSupervisorSys();
+  uxc = RPCfwSupervisor_getComponent(\"BarrelLV\");
+  usc = RPCfwSupervisor_getComponent(\"BarrelHV\");
+  
+  exc = RPCfwSupervisor_getComponent(\"EndcapLV\");
+  esc = RPCfwSupervisor_getComponent(\"EndcapHV\");
+  psx = RPCfwSupervisor_getComponent(\"Services\");
+ // DebugN(psx);
+ 
+  if(sup==\"\")
+  {
+  delay(4,0);
+  sup = RPCfwSupervisor_getSupervisorSys();
+  uxc = RPCfwSupervisor_getComponent(\"BarrelLV\");
+  usc = RPCfwSupervisor_getComponent(\"BarrelHV\");
+  
+  exc = RPCfwSupervisor_getComponent(\"EndcapLV\");
+  esc = RPCfwSupervisor_getComponent(\"EndcapHV\");
+    
+  psx = RPCfwSupervisor_getComponent(\"Services\");
+    
+    }
+
+ dyn_string syss = makeDynString(psx,usc,uxc,sup,esc,exc); 
+ 
+ types = makeDynString(\"SER\",\"HVB\",\"LVB\",\"SUP\",\"HVE\",\"LVE\"); 
+
+ dyn_string tables = makeDynString(\"sertable\",\"bhvtable\",\"blvtable\",\"suptable\",\"ehvtable\",\"elvtable\"); 
+  dyn_string ackk = makeDynString(\"serack\",\"bhvack\",\"blvack\",\"supack\",\"ehvack\",\"elvack\"); 
+ dyn_string refresh = makeDynString(\"serref\",\"bhvref\",\"blvref\",\"supref\",\"ehvref\",\"elvref\"); 
+ dyn_string infos = makeDynString(\"serinfo\",\"bhvinfo\",\"blvinfo\",\"supinfo\",\"ehvinfo\",\"elvinfo\"); 
+
+ for(int i = 1;i<=dynlen(refresh);i++) 
+     setValue(refresh[i],\"visible\", true); 
+// dyn_dyn_string dpes;
+dynClear(dpes);
+  int ack = 0; 
+ 
+ for(int i = 1;i<=dynlen(types);i++){
+ 
+  getChannels(syss[i],types[i],dpes[i]);
+  ack = 0;
+  if(dynlen(dpes[i])>0)
+  {
+//    DebugN(dynlen(dpes[i]),dynlen(dynUnique(dpes[i])));    
+    ack = filltable(dpes[i],tables[i],i); 
+
+  }
+  setValue(refresh[i],\"visible\", false);          
+  setValue(infos[i],\"text\",\" Active Alerts: \"+ ack);
+  setValue(ackk[i],\"enabled\",true);
+ } 
+delay(600,0);
+ while(1){
+ 
+ for(int i = 1;i<=dynlen(types);i++){
+ 
+  ack = 0;
+  setValue(refresh[i],\"visible\", true);          
+  setValue(ackk[i],\"enabled\",false);
+  setValue(infos[i],\"text\",\" Calculating...\");
+  if(dynlen(dpes[i])>0)
+  {
+   setValue(tables[i],\"deleteAllLines\");
+   ack = filltable(dpes[i],tables[i],i); 
+
+  }
+  setValue(refresh[i],\"visible\", false);          
+  setValue(infos[i],\"text\",\" Active Alerts: \"+ ack);
+  setValue(ackk[i],\"enabled\",true);
+  delay(10,0); 
+  }
+ 
+ 
+ delay(600,0);
+ }
+  
+ //DebugN(maskedAlerts);
+}
+" 0
+ E 0 1 1 2 1 E U  1 E 400 12 760 42
+0 2 2 "0s" 0 0 0 65 0 0  400 12 1
+1
+LANG:1 26 Arial,12,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 21 RPC DCS ALERT SUMMARY
+13 32
+"blvack"
+""
+1 120 529.5 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  18 548 111 576
+
+T 
+1
+LANG:1 15 Acklowledge All
+"main()
+{
+ this.enabled = false;
+ dyn_int todel;
+ int tot = blvtable.lineCount(); 
+ dyn_anytype lines;
+ bool ack; 
+ dyn_string exInfo;
+ 
+ for(int i =0;i<tot;i++){ 
+   lines = blvtable.getLineN(i);
+  if(dynlen(lines)==1)
+   {
+  int pos = dynContains(log2phy,lines[1]);
+  if(pos>0) {
+  dpGet(log2phy[pos+1]+\":_alert_hdl.._ack_possible\",ack);
+  if(ack) {fwAlertConfig_acknowledge(log2phy[pos+1],exInfo);
+    dynAppend(todel,i); 
+    }  
+   }  
+  }
+}
+
+for(int i = dynlen(todel);i>0;i--)
+ {
+ // DebugN(todel[i],i);
+  blvtable.deleteLineN(todel[i]);
+} 
+ 
+this.enabled = true; 
+blvinfo.text=\" Active Alerts: 0\";
+}
+
+" 0
+ E E E
+2 33
+"blvinfo"
+""
+1 263 551.5 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 263 551.5 358 571.5
+0 2 2 "0s" 0 0 0 65 0 0  263 551.5 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Active Alerts: 0
+2 34
+"serinfo"
+""
+1 653 551.5 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 653 551.5 748 571.5
+0 2 2 "0s" 0 0 0 65 0 0  653 551.5 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Active Alerts: 0
+13 35
+"serack"
+""
+1 510 529.5 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  408 548 501 576
+
+T 
+1
+LANG:1 15 Acklowledge All
+"main()
+{
+ this.enabled = false;
+ dyn_int todel;
+ int tot = sertable.lineCount(); 
+ dyn_anytype lines;
+ bool ack; 
+ dyn_string exInfo;
+
+ for(int i =0;i<tot;i++){ 
+   lines = sertable.getLineN(i);
+  if(dynlen(lines)==1)
+   {
+  int pos = dynContains(log2phy,lines[1]);
+  if(pos>0) {
+  dpGet(log2phy[pos+1]+\":_alert_hdl.._ack_possible\",ack);
+  if(ack) {fwAlertConfig_acknowledge(log2phy[pos+1],exInfo);
+    dynAppend(todel,i); 
+    }  
+   }  
+  }
+}
+
+for(int i = dynlen(todel);i>0;i--)
+ {
+
+  sertable.deleteLineN(todel[i]);
+} 
+
+this.enabled = true; 
+serinfo.text =\" Active Alerts: 0\";
+}
+" 0
+ E E E
+2 36
+"elvinfo"
+""
+1 1043 551.5 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 1043 551.5 1138 571.5
+0 2 2 "0s" 0 0 0 65 0 0  1043 551.5 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Active Alerts: 0
+13 37
+"elvack"
+""
+1 900 529.5 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  798 548 891 576
+
+T 
+1
+LANG:1 15 Acklowledge All
+"  main()
+{
+ //this.enabled = false;
+ dyn_int todel;
+ int tot = elvtable.lineCount(); 
+ dyn_anytype lines;
+ bool ack; 
+ dyn_string exInfo;
+ 
+ for(int i =0;i<tot;i++){ 
+   lines = elvtable.getLineN(i);
+  if(dynlen(lines)==1)
+   {
+  int pos = dynContains(log2phy,lines[1]);
+  if(pos>0) {
+  dpGet(log2phy[pos+1]+\":_alert_hdl.._ack_possible\",ack);
+  if(ack) {fwAlertConfig_acknowledge(log2phy[pos+1],exInfo);
+    dynAppend(todel,i); 
+    }  
+   }  
+  }
+}
+
+for(int i = dynlen(todel);i>0;i--)
+ {
+  elvtable.deleteLineN(todel[i]);
+} 
+ 
+this.enabled = true; 
+elvinfo.text=\" Active Alerts: 0\";
+}" 0
+ E E E
+2 38
+"ehvinfo"
+""
+1 1043 282 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 1043 282 1138 302
+0 2 2 "0s" 0 0 0 65 0 0  1043 282 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Active Alerts: 0
+13 39
+"ehvack"
+""
+1 900 260 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  798 278 891 306
+
+T 
+1
+LANG:1 15 Acklowledge All
+"main()
+{
+ //this.enabled = false;
+ dyn_int todel;
+ int tot = ehvtable.lineCount(); 
+ dyn_anytype lines;
+ bool ack; 
+ dyn_string exInfo;
+ 
+ for(int i =0;i<tot;i++){ 
+   lines = ehvtable.getLineN(i);
+  if(dynlen(lines)==1)
+   {
+  int pos = dynContains(log2phy,lines[1]);
+  if(pos>0) {
+  dpGet(log2phy[pos+1]+\":_alert_hdl.._ack_possible\",ack);
+  if(ack) {fwAlertConfig_acknowledge(log2phy[pos+1],exInfo);
+    dynAppend(todel,i); 
+    }  
+   }  
+  }
+}
+
+for(int i = dynlen(todel);i>0;i--)
+ {
+  ehvtable.deleteLineN(todel[i]);
+} 
+
+this.enabled = true;
+ehvinfo.text=\" Active Alerts: 0\";
+}" 0
+ E E E
+2 40
+"supinfo"
+""
+1 653 284 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 653 284 748 304
+0 2 2 "0s" 0 0 0 65 0 0  653 284 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Active Alerts: 0
+13 41
+"supack"
+""
+1 510 262 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  408 280 501 308
+
+T 
+1
+LANG:1 15 Acklowledge All
+"main()
+{
+ //this.enabled = false;
+ dyn_int todel;
+ int tot = suptable.lineCount(); 
+ dyn_anytype lines;
+ bool ack; 
+ dyn_string exInfo;
+ 
+ for(int i =0;i<tot;i++){ 
+   lines = suptable.getLineN(i);
+  if(dynlen(lines)==1)
+   {
+  dpGet(lines[1]+\":_alert_hdl.._ack_possible\",ack);
+  if(ack){ fwAlertConfig_acknowledge(lines[1],exInfo);
+     dynAppend(todel,i); 
+  }  
+  }
+  }
+ 
+for(int i = dynlen(todel);i==1;i--)
+ {
+  suptable.deleteLineN(todel[i]);
+}
+this.enabled = true;
+supinfo.text=\" Active Alerts: 0\";
+}
+" 0
+ E E E
+2 42
+"bhvref"
+""
+1 130 284 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.visible = false;
+}" 0
+ E 0 1 1 2 1 E U  1 E 130 284 250 304
+0 2 2 "0s" 0 0 0 65 0 0  130 284 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 REFRESHING...
+2 44
+"supref"
+""
+1 522 286 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+    
+}" 0
+ E 0 1 1 2 1 E U  1 E 522 286 642 306
+0 2 2 "0s" 0 0 0 65 0 0  522 286 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 REFRESHING...
+2 45
+"ehvref"
+""
+1 912 284 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+    this.visible = false;
+}" 0
+ E 0 1 1 2 1 E U  1 E 912 284 1032 304
+0 2 2 "0s" 0 0 0 65 0 0  912 284 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 REFRESHING...
+2 46
+"elvref"
+""
+1 912 553 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+    this.visible = false;
+}" 0
+ E 0 1 1 2 1 E U  1 E 912 553 1032 573
+0 2 2 "0s" 0 0 0 65 0 0  912 553 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 REFRESHING...
+2 47
+"serref"
+""
+1 522 553 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+    this.visible = false;
+}" 0
+ E 0 1 1 2 1 E U  1 E 522 553 642 573
+0 2 2 "0s" 0 0 0 65 0 0  522 553 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 REFRESHING...
+2 48
+"blvref"
+""
+1 132 553 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+    this.visible = false;
+}" 0
+ E 0 1 1 2 1 E U  1 E 132 553 252 573
+0 2 2 "0s" 0 0 0 65 0 0  132 553 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 REFRESHING...
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0
