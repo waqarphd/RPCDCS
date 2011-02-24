@@ -1,8 +1,8 @@
 /******************************************************
 *  Script for automatic actions among different systems
 *  author: G. Polese (Unknown University of Nowhere)
-*  version: 1.3
-*  Last Update: 15/11/2010
+*  version: 1.4
+*  Last Update: 15/01/2011
 *  
 *  
 *******************************************************/  
@@ -14,6 +14,7 @@ bit legenda
    Add alert2cDCS
    Add sms2Alert
    Add GasInfrastructures
+   FSM Sectors control
 *******/
 #uses "CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl"
 #uses "CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc"
@@ -241,6 +242,8 @@ int res = 0;
        t2 = getCurrentTime();
        float di = t2-t1;
        if(di>300) {res = 1; break;}
+     }else if (i==9){
+     if(val==reference[i][j]) {res = 1; break;}
      }else{
        if(val!=reference[i][j]) {res = 1; break;}
      }   
@@ -340,7 +343,7 @@ void init(){
   dpstatus= makeDynString("RPC_DCSStatus","RPC_HWCommunication",
                                       "RPC_PCStatus","RPC_DSSStatus",
                                       "RPC_GASStatus","RPC_HWTemperature",
-                                      "RPC_Cooling","RPC_FsmNotUpdated");
+                                      "RPC_Cooling","RPC_FsmNotUpdated","RPC_SectorInError");
   dyn_string temp;
   string sup,uxc,usc,exc,esc,psx;
   sup = RPCfwSupervisor_getSupervisorSys();
@@ -454,6 +457,17 @@ dyn_string fsmnames;
   
   }
   
-  
-
+  // 9: page1 status
+  dyn_string rpcsects;
+  dyn_string objs = dpNames(sup+"*RPCTop_Tree","RPCVector");
+  if(dynlen(objs)>0){  
+    dpGet(objs[1]+".svalue",rpcsects);
+    if(dynlen(rpcsects)>0){
+       for(int j = 1;j<=dynlen(rpcsects);j++){
+       dynAppend(chs2mon[9],rpcsects[j]);
+       dynAppend(reference[9],"ERROR");
+     }
+        
+    }
+   }
   }
