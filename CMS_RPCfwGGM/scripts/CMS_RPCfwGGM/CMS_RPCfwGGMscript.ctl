@@ -11,7 +11,7 @@ timedFunc("GGMsystemCheck","RPC_GGM_cron");
 
 void GGMsystemCheck() {
  
- float temp, ;
+ float temp;
  int pres, hv1, volt, auto3, auto4, auto5, auto6, auto7, auto8;
  int hv3, hv4, hv5, hv6, hv7, hv8, rc;
      
