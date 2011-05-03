@@ -41,6 +41,11 @@ void GGMsystemCheck() {
      }
    }
  }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel004.settings.v0", hv3);
+ }
+ 
+ 
  
  if (auto4==1) {
    volt = hv4*(1010/pres)+((temp+273)/293);
@@ -50,6 +55,10 @@ void GGMsystemCheck() {
      }
    }
  }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel005.settings.v0", hv4);
+ }
+ 
  
  if (auto5==1) { 
    volt = hv5*(1010/pres)+((temp+273)/293);
@@ -59,6 +68,11 @@ void GGMsystemCheck() {
      }
    }
  }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel000.settings.v0", hv5);
+ }
+ 
+ 
  
  if (auto6==1) {
    volt = hv6*(1010/pres)+((temp+273)/293);
@@ -68,6 +82,10 @@ void GGMsystemCheck() {
      }
    }
  }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel001.settings.v0", hv6);
+ }
+ 
  
  if (auto7==1) {
    volt = hv7*(1010/pres)+((temp+273)/293);
@@ -77,6 +95,10 @@ void GGMsystemCheck() {
      }
    }
  }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel002.settings.v0", hv7);
+ }
+ 
  
  if (auto8==1) {
    volt = hv8*(1010/pres)+((temp+273)/293);
@@ -87,6 +109,10 @@ void GGMsystemCheck() {
    }
  }
 }
+else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", hv8);
+}
+
 
 string RPCGGM_getSysName(){
  
