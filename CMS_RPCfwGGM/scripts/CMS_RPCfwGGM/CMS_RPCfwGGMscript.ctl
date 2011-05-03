@@ -107,12 +107,10 @@ void GGMsystemCheck() {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", volt); 
      }
    }
- }
-}
-else {
+ }else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", hv8);
 }
-
+}
 
 string RPCGGM_getSysName(){
  
