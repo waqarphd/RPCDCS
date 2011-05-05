@@ -1,5 +1,4 @@
 
-
 main() {
 
 // Start the timed functions
@@ -11,10 +10,10 @@ timedFunc("GGMsystemCheck","RPC_GGM_cron");
 
 void GGMsystemCheck() {
  
- float temp;
- int pres, hv1, volt, auto3, auto4, auto5, auto6, auto7, auto8;
- int hv3, hv4, hv5, hv6, hv7, hv8, rc;
-     
+ float temp, volt, pres, hv3, hv4, hv5, hv6, hv7, hv8;
+ bool auto3, auto4, auto5, auto6, auto7, auto8;
+ int rc;
+ 
  rc=dpGet(RPCGGM_getSysName()+"sensors.temperature_box",temp);  
  rc=dpGet(RPCGGM_getSysName()+"sensors.pressure_box",pres);  
 
@@ -36,7 +35,7 @@ void GGMsystemCheck() {
  if (auto3==1) {
    volt = hv3*(1010/pres)+((temp+273)/293);
    if (volt>8000) {
-     if (volt<10250) {
+     if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel004.settings.v0", volt);
      }
    }
@@ -50,7 +49,7 @@ void GGMsystemCheck() {
  if (auto4==1) {
    volt = hv4*(1010/pres)+((temp+273)/293);
    if (volt>8000) {
-     if (volt<10250) {
+     if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel005.settings.v0", volt);
      }
    }
@@ -63,7 +62,7 @@ void GGMsystemCheck() {
  if (auto5==1) { 
    volt = hv5*(1010/pres)+((temp+273)/293);
    if (volt>8000) {
-     if (volt<10250) {
+     if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel000.settings.v0", volt);
      }
    }
@@ -77,7 +76,7 @@ void GGMsystemCheck() {
  if (auto6==1) {
    volt = hv6*(1010/pres)+((temp+273)/293);
    if (volt>8000) {
-     if (volt<10250) {
+     if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel001.settings.v0", volt);
      }
    }
@@ -90,7 +89,7 @@ void GGMsystemCheck() {
  if (auto7==1) {
    volt = hv7*(1010/pres)+((temp+273)/293);
    if (volt>8000) {
-     if (volt<10250) {
+     if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel002.settings.v0", volt);
      }
    }
@@ -103,13 +102,15 @@ void GGMsystemCheck() {
  if (auto8==1) {
    volt = hv8*(1010/pres)+((temp+273)/293);
    if (volt>8000) {
-     if (volt<10250) {
+     if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", volt); 
      }
    }
- }else {
+ }
+ else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", hv8);
-}
+ }
+ 
 }
 
 string RPCGGM_getSysName(){
@@ -132,5 +133,7 @@ void checkDpTimed(string dp,int sec)
     dpCreate(dp,"_TimedFunc");
     dpSet(dp+".syncTime",-1);
     dpSet(dp+".interval",sec);
+    dpSet(dp+".time",0);
+    
   }
 }
