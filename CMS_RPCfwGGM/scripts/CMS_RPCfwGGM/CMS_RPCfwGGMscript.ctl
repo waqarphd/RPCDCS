@@ -1,4 +1,5 @@
 
+
 main() {
 
 // Start the timed functions
@@ -10,30 +11,117 @@ timedFunc("GGMsystemCheck","RPC_GGM_cron");
 
 void GGMsystemCheck() {
  
- float temp, volt, pres, hv3, hv4, hv5, hv6, hv7, hv8;
- bool auto3, auto4, auto5, auto6, auto7, auto8;
+ float temp, volt, pres, hv1, hv2, hv3, hv4, hv5, hv6, hv7, hv8, hv_trg0, hv_trg1, hv_trg2, hv_trg3;
+ bool auto1, auto2, auto3, auto4, auto5, auto6, auto7, auto8, auto_trg0, auto_trg1, auto_trg2, auto_trg3;
  int rc;
  
  rc=dpGet(RPCGGM_getSysName()+"sensors.temperature_box",temp);  
  rc=dpGet(RPCGGM_getSysName()+"sensors.pressure_box",pres);  
 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.hv",hv1);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.hv",hv2); 
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.hv",hv3);  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.hv",hv4);  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.hv",hv5);  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.hv",hv6);  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.hv",hv7);  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.hv",hv8);  
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg0.hv",hv_trg0); 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg1.hv",hv_trg1); 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg2.hv",hv_trg2); 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg3.hv",hv_trg3); 
 
+ 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.autohv",auto1); 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.autohv",auto2); 
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.autohv",auto3);  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.autohv",auto4);  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.autohv",auto5);  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.autohv",auto6);  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.autohv",auto7);  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.autohv",auto8);  
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg0.autohv",auto_trg0); 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg1.autohv",auto_trg1); 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg2.autohv",auto_trg2); 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg3.autohv",auto_trg3); 
 
+ if (auto_trg0==1) {
+   volt = hv_trg0*(965/pres)+((temp+273)/293);
+   if (volt>8000) {
+     if (volt<10400) {
+       dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel000.settings.v0", volt);
+     }
+   }
+ }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel000.settings.v0", hv_trg0);
+ }  
+ 
+ if (auto_trg1==1) {
+   volt = hv_trg1*(965/pres)+((temp+273)/293);
+   if (volt>8000) {
+     if (volt<10400) {
+       dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel001.settings.v0", volt);
+     }
+   }
+ }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel001.settings.v0", hv_trg1);
+ }   
+ 
+ if (auto_trg2==1) {
+   volt = hv_trg2*(965/pres)+((temp+273)/293);
+   if (volt>8000) {
+     if (volt<10400) {
+       dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel004.settings.v0", volt);
+     }
+   }
+ }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel004.settings.v0", hv_trg2);
+ }   
+ 
+ if (auto_trg3==1) {
+   volt = hv_trg3*(965/pres)+((temp+273)/293);
+   if (volt>8000) {
+     if (volt<10400) {
+       dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel005.settings.v0", volt);
+     }
+   }
+ }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel005.settings.v0", hv_trg3);
+ }    
+ 
+ 
+ if (auto1==1) {
+   volt = hv1*(965/pres)+((temp+273)/293);
+   if (volt>8000) {
+     if (volt<10400) {
+       dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel002.settings.v0", volt);
+     }
+   }
+ }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel002.settings.v0", hv1);
+ }  
+ 
 
+  if (auto2==1) {
+   volt = hv2*(965/pres)+((temp+273)/293);
+   if (volt>8000) {
+     if (volt<10400) {
+       dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel003.settings.v0", volt);
+     }
+   }
+ }
+ else {
+   dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel003.settings.v0", hv2);
+ }
+ 
+ 
  if (auto3==1) {
-   volt = hv3*(1010/pres)+((temp+273)/293);
+   volt = hv3*(965/pres)+((temp+273)/293);
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel004.settings.v0", volt);
@@ -47,7 +135,7 @@ void GGMsystemCheck() {
  
  
  if (auto4==1) {
-   volt = hv4*(1010/pres)+((temp+273)/293);
+   volt = hv4*(965/pres)+((temp+273)/293);
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel005.settings.v0", volt);
@@ -60,7 +148,7 @@ void GGMsystemCheck() {
  
  
  if (auto5==1) { 
-   volt = hv5*(1010/pres)+((temp+273)/293);
+   volt = hv5*(965/pres)+((temp+273)/293);
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel000.settings.v0", volt);
@@ -74,7 +162,7 @@ void GGMsystemCheck() {
  
  
  if (auto6==1) {
-   volt = hv6*(1010/pres)+((temp+273)/293);
+   volt = hv6*(965/pres)+((temp+273)/293);
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel001.settings.v0", volt);
@@ -87,7 +175,7 @@ void GGMsystemCheck() {
  
  
  if (auto7==1) {
-   volt = hv7*(1010/pres)+((temp+273)/293);
+   volt = hv7*(965/pres)+((temp+273)/293);
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel002.settings.v0", volt);
@@ -100,7 +188,7 @@ void GGMsystemCheck() {
  
  
  if (auto8==1) {
-   volt = hv8*(1010/pres)+((temp+273)/293);
+   volt = hv8*(965/pres)+((temp+273)/293);
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", volt); 
