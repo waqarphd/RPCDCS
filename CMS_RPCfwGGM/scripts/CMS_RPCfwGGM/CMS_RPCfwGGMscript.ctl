@@ -7,6 +7,9 @@ main() {
 checkDpTimed("RPC_GGM_cron",240);
 timedFunc("GGMsystemCheck","RPC_GGM_cron");
 
+checkDpTimed("RPC_GGM_cron",900);
+timedFunc("GGMsystemCheckWP","RPC_GGM_wpcron");
+
 }
 
 void GGMsystemCheck() {
@@ -225,3 +228,187 @@ void checkDpTimed(string dp,int sec)
     
   }
 }
+
+void GGMsystemCheckWP() {
+
+ float wpc3, wpc4, wpc5, wpc6, wpc7, wpc8, charge1, charge2, charge3, charge4, charge5, charge6, charge7, charge8;
+ float ava1, ava2, ava3, ava4, ava5, ava6, ava7, ava8;
+ float str1, str2, str3, str4, str5, str6, str7, str8;
+ float rat1, rat2, rat3, rat4, rat5, rat6, rat7, rat8;
+ float effi1, effi2, effi3, effi4, effi5, effi6, effi7, effi8; 
+ float wpa3, wpa4, wpa5, wpa6, wpa7, wpa8;
+ float wps3, wps4, wps5, wps6, wps7, wps8;
+ float wpe3, wpe4, wpe5, wpe6, wpe7, wpe8;
+ float wpr3, wpr4, wpr5, wpr6, wpr7, wpr8;
+ int rc;
+ 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.daq.charge",charge1);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.daq.charge",charge2);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.charge",charge3);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.charge",charge4);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.charge",charge5);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.charge",charge6);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.charge",charge7);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.charge",charge8);
+
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.daq.avalanche",ava1);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.daq.avalanche",ava2);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.avalanche",ava3);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.avalanche",ava4);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.avalanche",ava5);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.avalanche",ava6);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.avalanche",ava7);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.avalanche",ava8);
+
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.daq.streamer",str1);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.daq.streamer",str2);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.streamer",str3);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.streamer",str4);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.streamer",str5);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.streamer",str6);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.streamer",str7);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.streamer",str8);
+
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.daq.ratio",rat1);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.daq.ratio",rat2);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.ratio",rat3);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.ratio",rat4);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.ratio",rat5);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.ratio",rat6);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.ratio",rat7);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.ratio",rat8);
+
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.daq.efficiency",effi1);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.daq.efficiency",effi2);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.efficiency",effi3);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.efficiency",effi4);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.efficiency",effi5);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.efficiency",effi6);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.efficiency",effi7);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.efficiency",effi8);
+
+ //CHARGE
+ if (charge2>0) { 
+   wpc3 = charge3 / charge2;
+   wpc4 = charge4 / charge2;
+   wpc5 = charge5 / charge2;
+   wpc6 = charge6 / charge2;
+   wpc7 = charge7 / charge2;
+   wpc8 = charge8 / charge2;
+ }
+ else {
+   wpc3 = 0;
+   wpc4 = 0;
+   wpc5 = 0;
+   wpc6 = 0;
+   wpc7 = 0;
+   wpc8 = 0;  
+ } 
+ 
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.WP.charge", wpc3);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.WP.charge", wpc4);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.WP.charge", wpc5);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.WP.charge", wpc6);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.WP.charge", wpc7);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.charge", wpc8);
+
+ //AVALANCHE
+ if (ava2>0) { 
+   wpa3 = ava3 / ava2;
+   wpa4 = ava4 / ava2;
+   wpa5 = ava5 / ava2;
+   wpa6 = ava6 / ava2;
+   wpa7 = ava7 / ava2;
+   wpa8 = ava8 / ava2;
+ }
+ else {
+   wpa3 = 0;
+   wpa4 = 0;
+   wpa5 = 0;
+   wpa6 = 0;
+   wpa7 = 0;
+   wpa8 = 0;  
+ } 
+
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.WP.avalanche", wpa3);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.WP.avalanche", wpa4);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.WP.avalanche", wpa5);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.WP.avalanche", wpa6);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.WP.avalanche", wpa7);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.avalanche", wpa8);
+
+ //STREAMER
+ if (str2>0) { 
+   wps3 = str3 / str2;
+   wps4 = str4 / str2;
+   wps5 = str5 / str2;
+   wps6 = str6 / str2;
+   wps7 = str7 / str2;
+   wps8 = str8 / str2;
+ }
+ else {
+   wps3 = 0;
+   wps4 = 0;
+   wps5 = 0;
+   wps6 = 0;
+   wps7 = 0;
+   wps8 = 0;  
+ } 
+ 
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.WP.streamer", wps3);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.WP.streamer", wps4);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.WP.streamer", wps5);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.WP.streamer", wps6);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.WP.streamer", wps7);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.streamer", wps8);
+
+ //STREAMER AV RATIO
+ if (rat2>0) { 
+   wpr3 = rat3 / rat2;
+   wpr4 = rat4 / rat2;
+   wpr5 = rat5 / rat2;
+   wpr6 = rat6 / rat2;
+   wpr7 = rat7 / rat2;
+   wpr8 = rat8 / rat2;
+ }
+ else {
+   wpr3 = 0;
+   wpr4 = 0;
+   wpr5 = 0;
+   wpr6 = 0;
+   wpr7 = 0;
+   wpr8 = 0;  
+ }
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.WP.ratio", wpr3);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.WP.ratio", wpr4);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.WP.ratio", wpr5);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.WP.ratio", wpr6);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.WP.ratio", wpr7);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.ratio", wpr8);
+
+ //EFFICIENCY
+ if (effi2>0) { 
+   wpe3 = effi3 / effi2;
+   wpe4 = effi4 / effi2;
+   wpe5 = effi5 / effi2;
+   wpe6 = effi6 / effi2;
+   wpe7 = effi7 / effi2;
+   wpe8 = effi8 / effi2;
+ }
+ else {
+   wpe3 = 0;
+   wpe4 = 0;
+   wpe5 = 0;
+   wpe6 = 0;
+   wpe7 = 0;
+   wpe8 = 0;  
+ }
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.WP.efficiency", wpe3);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.WP.efficiency", wpe4);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.WP.efficiency", wpe5);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.WP.efficiency", wpe6);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.WP.efficiency", wpe7);
+ dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.efficiency", wpe8);
+ 
+}
+
