@@ -7,7 +7,7 @@ main() {
 checkDpTimed("RPC_GGM_cron",240);
 timedFunc("GGMsystemCheck","RPC_GGM_cron");
 
-checkDpTimed("RPC_GGM_cron",900);
+checkDpTimed("RPC_GGM_wpcron",900);
 timedFunc("GGMsystemCheckWP","RPC_GGM_wpcron");
 
 }
@@ -50,6 +50,8 @@ void GGMsystemCheck() {
 
  if (auto_trg0==1) {
    volt = hv_trg0*(pres/965)*(293/(temp+273));
+   //volt = hv_trg0*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel000.settings.v0", volt);
@@ -62,6 +64,8 @@ void GGMsystemCheck() {
  
  if (auto_trg1==1) {
    volt = hv_trg1*(pres/965)*(293/(temp+273));
+   //volt = hv_trg1*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel001.settings.v0", volt);
@@ -74,6 +78,8 @@ void GGMsystemCheck() {
  
  if (auto_trg2==1) {
    volt = hv_trg2*(pres/965)*(293/(temp+273));
+   //volt = hv_trg2*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel004.settings.v0", volt);
@@ -86,6 +92,8 @@ void GGMsystemCheck() {
  
  if (auto_trg3==1) {
    volt = hv_trg3*(pres/965)*(293/(temp+273));
+   //volt = hv_trg3*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel005.settings.v0", volt);
@@ -99,6 +107,8 @@ void GGMsystemCheck() {
  
  if (auto1==1) {
    volt = hv1*(pres/965)*(293/(temp+273));
+   //volt = hv1*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel002.settings.v0", volt);
@@ -112,6 +122,8 @@ void GGMsystemCheck() {
 
   if (auto2==1) {
    volt = hv2*(pres/965)*(293/(temp+273));
+   //volt = hv2*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel003.settings.v0", volt);
@@ -125,6 +137,8 @@ void GGMsystemCheck() {
  
  if (auto3==1) {
    volt = hv3*(pres/965)*(293/(temp+273));
+   //volt = hv3*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel004.settings.v0", volt);
@@ -139,6 +153,8 @@ void GGMsystemCheck() {
  
  if (auto4==1) {
    volt = hv4*(pres/965)*(293/(temp+273));
+   //volt = hv4*(pres/965);
+   
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel005.settings.v0", volt);
@@ -152,6 +168,8 @@ void GGMsystemCheck() {
  
  if (auto5==1) { 
    volt = hv5*(pres/965)*(293/(temp+273));
+   //volt = hv5*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel000.settings.v0", volt);
@@ -166,6 +184,8 @@ void GGMsystemCheck() {
  
  if (auto6==1) {
    volt = hv6*(pres/965)*(293/(temp+273));
+   //volt = hv6*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel001.settings.v0", volt);
@@ -179,6 +199,8 @@ void GGMsystemCheck() {
  
  if (auto7==1) {
    volt = hv7*(pres/965)*(293/(temp+273));
+   //volt = hv7*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel002.settings.v0", volt);
@@ -192,6 +214,8 @@ void GGMsystemCheck() {
  
  if (auto8==1) {
    volt = hv8*(pres/965)*(293/(temp+273));
+   //volt = hv8*(pres/965);
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", volt); 
