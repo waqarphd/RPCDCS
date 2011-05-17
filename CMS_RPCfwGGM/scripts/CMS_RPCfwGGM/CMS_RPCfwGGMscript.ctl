@@ -7,8 +7,8 @@ main() {
 checkDpTimed("RPC_GGM_cron",240);
 timedFunc("GGMsystemCheck","RPC_GGM_cron");
 
-checkDpTimed("RPC_GGM_cronw",600);
-timedFunc("GGMsystemCheckWP","RPC_GGM_cronw");
+//checkDpTimed("RPC_GGM_cronw",600);
+//timedFunc("GGMsystemCheckWP","RPC_GGM_cronw");
 
 }
 
@@ -16,6 +16,15 @@ void GGMsystemCheck() {
  
  float temp, volt, pres, hv1, hv2, hv3, hv4, hv5, hv6, hv7, hv8, hv_trg0, hv_trg1, hv_trg2, hv_trg3;
  bool auto1, auto2, auto3, auto4, auto5, auto6, auto7, auto8, auto_trg0, auto_trg1, auto_trg2, auto_trg3;
+ float wpc3, wpc4, wpc5, wpc6, wpc7, wpc8, charge1, charge2, charge3, charge4, charge5, charge6, charge7, charge8;
+ float ava1, ava2, ava3, ava4, ava5, ava6, ava7, ava8;
+ float str1, str2, str3, str4, str5, str6, str7, str8;
+ float rat1, rat2, rat3, rat4, rat5, rat6, rat7, rat8;
+ float effi1, effi2, effi3, effi4, effi5, effi6, effi7, effi8; 
+ float wpa3, wpa4, wpa5, wpa6, wpa7, wpa8;
+ float wps3, wps4, wps5, wps6, wps7, wps8;
+ float wpe3, wpe4, wpe5, wpe6, wpe7, wpe8;
+ float wpr3, wpr4, wpr5, wpr6, wpr7, wpr8;
  int rc;
  
  rc=dpGet(RPCGGM_getSysName()+"sensors.temperature_box",temp);  
@@ -225,46 +234,7 @@ void GGMsystemCheck() {
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", hv8);
  }
- 
-}
 
-string RPCGGM_getSysName(){
- 
-dyn_string systemNumber;
-fwInstallation_getApplicationSystem("CMS_RPCfwGGM",systemNumber);
-if(dynlen(systemNumber)!=0)
-return systemNumber[1];
-else
-      {
-      //return "Error";
-      //DebugN("Component not found");
-      }
-}
-
-void checkDpTimed(string dp,int sec)
-{
-  if(!dpExists(dp))
-  {
-    dpCreate(dp,"_TimedFunc");
-    dpSet(dp+".syncTime",-1);
-    dpSet(dp+".interval",sec);
-    dpSet(dp+".time",0);
-    
-  }
-}
-
-void GGMsystemCheckWP() {
-
- float wpc3, wpc4, wpc5, wpc6, wpc7, wpc8, charge1, charge2, charge3, charge4, charge5, charge6, charge7, charge8;
- float ava1, ava2, ava3, ava4, ava5, ava6, ava7, ava8;
- float str1, str2, str3, str4, str5, str6, str7, str8;
- float rat1, rat2, rat3, rat4, rat5, rat6, rat7, rat8;
- float effi1, effi2, effi3, effi4, effi5, effi6, effi7, effi8; 
- float wpa3, wpa4, wpa5, wpa6, wpa7, wpa8;
- float wps3, wps4, wps5, wps6, wps7, wps8;
- float wpe3, wpe4, wpe5, wpe6, wpe7, wpe8;
- float wpr3, wpr4, wpr5, wpr6, wpr7, wpr8;
- int rc;
  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.daq.charge",charge1);
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.daq.charge",charge2);
@@ -433,6 +403,37 @@ void GGMsystemCheckWP() {
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.WP.efficiency", wpe6);
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.WP.efficiency", wpe7);
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.efficiency", wpe8);
+
+
  
 }
+
+string RPCGGM_getSysName(){
+ 
+dyn_string systemNumber;
+fwInstallation_getApplicationSystem("CMS_RPCfwGGM",systemNumber);
+if(dynlen(systemNumber)!=0)
+return systemNumber[1];
+else
+      {
+      //return "Error";
+      //DebugN("Component not found");
+      }
+}
+
+void checkDpTimed(string dp,int sec)
+{
+  if(!dpExists(dp))
+  {
+    dpCreate(dp,"_TimedFunc");
+    dpSet(dp+".syncTime",-1);
+    dpSet(dp+".interval",sec);
+    dpSet(dp+".time",0);
+    
+  }
+}
+
+//void GGMsystemCheckWP() {
+ 
+//}
 
