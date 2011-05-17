@@ -7,8 +7,8 @@ main() {
 checkDpTimed("RPC_GGM_cron",240);
 timedFunc("GGMsystemCheck","RPC_GGM_cron");
 
-checkDpTimed("RPC_GGM_wpcron",900);
-timedFunc("GGMsystemCheckWP","RPC_GGM_wpcron");
+checkDpTimed("RPC_GGM_cronw",600);
+timedFunc("GGMsystemCheckWP","RPC_GGM_cronw");
 
 }
 
