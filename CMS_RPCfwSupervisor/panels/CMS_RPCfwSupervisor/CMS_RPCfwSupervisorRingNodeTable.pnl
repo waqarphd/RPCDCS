@@ -1,4 +1,4 @@
-V 11
+V 10
 1
 LANG:1 12 trendButton5
 PANEL,-1 -1 742 540 N "_3DFace" 2
@@ -138,8 +138,9 @@ LANG:1 0
 
 0
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0  608 434 682 468
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 608 434 682 468
 
 T 
 1
@@ -303,8 +304,9 @@ LANG:1 0
 
 0
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0  518 434 592 468
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 518 434 592 468
 
 T 
 1
@@ -511,18 +513,19 @@ LANG:1 0
 
 0
 1
-LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
-0  28 18 692 402
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 18 692 402
 "/*This script is used to visualize main infos about all sector chambers;this reads all children
  and gives an overview of the main parameters and of the status of the System.
  
  Date Creation:14/07/2004
  
- @author Giovanni Polese (INFN Naples) and Hassan Shahzad (NCP pakistan) */
+ @author Giovanni Polese (INFN Naples) */
 #uses \"CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl\"
 string DETECTOR,COMPONENT;
 //string HARDWARE_COMPONENT;
-string sernum,channelname;
+
 //string LV_COMPONENT;
 //string T_COMPONENT;
 main()
@@ -539,7 +542,7 @@ string hardType;   //hassan
 char model;
 int nicha,nvcha,v;
 bool isOn,lbb = false;
-	string offset;
+	
 	//dyn_string InfoPanel = strsplit($2,\"|\");
 //DebugN(\"----->\",$sHvOrLv);//Checked warning $sHvOrLv
 if($sHvOrLv == \"Hv\")
@@ -727,25 +730,10 @@ for (int j=1;j<=dynlen(channelsName[HARD]);j++)
 			status=\"ERROR\";
 			//this.cellBackColRC(i-1,\"status\") = \"FwStateAttention3\";
 			}
-    ///////////////////////////////
-    ///////////////////////////////////
-				if(hardType == \"HV\")
-                {
-   //           DebugN(\"inside hardtype=HV in offset func...\");
-                  this.columnVisibility(9,true);
-                  offset = getOffset(channelsName[HARD][i]);
-               //   DebugN(\"offset=\", offset);
-                  pos=strpos(offset,\".\");
-		if(pos>-1)
-		offset = substr(offset,0,(pos+nicha));
-                  }
-                else
-                  this.columnVisibility(9,false);
-/////////////// /////////////////////////////
-///////////////////////////////////////////////
+		
 		//DebugN(\"SS\",status,flag);
 		
-		this.appendLine(\"channelDp\", channelsName[HARD][i],\"onOff\",statusChannel, \"Chamber\",rbChildren, \"vMon\", values[1], \"offset\",offset,
+		this.appendLine(\"channelDp\", channelsName[HARD][i],\"onOff\",statusChannel, \"Chamber\",rbChildren, \"vMon\", values[1], 
 										\"iMon\", values[2],\"status\",status,\"v0\",values[5],\"i0\",values[6],\"details\",\"  ...\");
 										
 		if(statusChannel==\"ON\" && status ==\"OK\")
@@ -771,84 +759,6 @@ for (int j=1;j<=dynlen(channelsName[HARD]);j++)
 	
 }
 
-////////////////////////////////////////////////
-string getDp(string sys, string num){
-  dyn_string channels = dpNames(sys+\"*\",\"RpcBoardOffset\");
-  //DebugN(channels);
-  bool find = false;
-  string channel;
-  int i = 1;
-  string serial,empty;
-  while(!find)
-  {
-    dpGet(channels[i]+\".serial\",serial);
-    //DebugN(serial,\"<>\",num);
-    if(serial == num)
-    {
-      find = true;
-      channel = channels[i];
-    }else
-    { 
-     if((serial == \"\")&&(empty == \"\"))
-       empty = i;
-       i++;
-     }
-    if(i>dynlen(channels))
-      {
-      find = true;
-      DebugN(\"Serial not existed yet\");
-      return \"\";
-      }    
-    }
-  //DebugN(channel,num,\"dddd\");
-  return channel;
-  
-  }
-
-string getOffset(string channel){
-  string parent,sys,serial;
-  dyn_string exInfo,children;
-  
-  
-  
-  fwDevice_getParent(channel,parent,exInfo);
-  
-  sys = dpSubStr(channel,DPSUB_SYS);
-  dpGet(parent + \".Information.SerNum\",serial);
-  int pun = strpos(serial,\".\"); 
-  if(pun>-1)
-    serial = substr(serial,0,pun);
-  //DebugN(serial);
-  if(sernum!=serial)
-  {
-  channelname = getDp(sys,serial);
-  sernum= serial;
-  }
-//  DebugN(channel);
-  dyn_string channels;
-  if(channelname!=\"\")
-  {
-  dpGet(channelname+\".offset\",children);
-  fwDevice_getChildren(parent,fwDevice_HARDWARE,channels,exInfo);
-  //DebugN(channels);
-  
-  int pos = dynContains(channels,channel);
-  if((pos>0)&&(dynlen(children)>1))
-  {
-    return(children[pos]);
-    
-    }
-  else
-    return \"nd\";
-  }else
-  return \"nd\";
-}
-
-
-
-
-///////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////
 
 refreshKill(string dpe,bool value)
 {
@@ -1125,25 +1035,25 @@ DebugN(\"dpes\",dpes,\"row\",row);
 	}
 
 }" 0
- 1 0 1 10 1 "Chamber" 8 1 0 "s" 1
+ 1 0 1 9 1 "Chamber" 10 1 0 "s" 1
 LANG:1 7 Chamber
 E
 1
 LANG:1 0 
 
-100 "channelDp" 24 0 0 "s" 1
+120 "channelDp" 24 0 0 "s" 1
 LANG:1 9 channelDp
 E
 1
 LANG:1 0 
 
-274 "onOff" 5 1 0 "s" 1
+274 "onOff" 6 1 0 "s" 1
 LANG:1 6 On/Off
 E
 1
 LANG:1 0 
 
-70 "v0" 5 1 0 "s" 1
+80 "v0" 5 1 0 "s" 1
 LANG:1 2 v0
 E
 1
@@ -1167,31 +1077,26 @@ E
 1
 LANG:1 0 
 
-70 "status" 8 1 0 "s" 1
+70 "status" 9 1 0 "s" 1
 LANG:1 6 Status
 E
 1
 LANG:1 0 
 
-100 "details" 3 1 0 "s" 1
+110 "details" 4 1 0 "s" 1
 LANG:1 7 Details
 E
 1
 LANG:1 0 
 
-50 "offset" 2 1 0 "s" 1
-LANG:1 6 offset
-E
-1
-LANG:1 0 
-
-40 
+60 
 26 26 "" 1 1
 LANG:1 2 #1
 8 30
 1
-LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
-0 0 1 1 1 7
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
 1 0
 13 7
 "trendButton3"
@@ -1206,8 +1111,9 @@ LANG:1 0
 
 0
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0  398 434 472 468
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 398 434 472 468
 
 T 
 1
@@ -1389,8 +1295,9 @@ LANG:1 0
 
 0
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0  308 434 382 468
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 308 434 382 468
 
 T 
 1
@@ -1542,8 +1449,9 @@ LANG:1 0
 
 0
 1
-LANG:1 26 Arial,-1,11,5,75,1,0,0,0,0
-0  28 428 142 472
+LANG:1 87 -*-Arial-bold-i-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,758,1,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 428 142 472
 
 T 
 1
@@ -1568,8 +1476,9 @@ LANG:1 0
 
 0
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0  608 484 682 518
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 608 484 682 518
 
 T 
 1
@@ -1637,8 +1546,9 @@ LANG:1 0
 
 0
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0  518 484 592 518
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 518 484 592 518
 
 T 
 1
@@ -1699,8 +1609,9 @@ LANG:1 0
 
 0
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0  398 484 472 518
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 398 484 472 518
 
 T 
 1
@@ -1756,8 +1667,9 @@ LANG:1 0
 
 0
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0  308 484 382 518
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 308 484 382 518
 
 T 
 1
@@ -1819,8 +1731,9 @@ LANG:1 0
 "dashclr"N "_Transparent"
 E E 0 0 1 0 1 E 0.666666666666667 0 0.850746268656716 223.333333333333 67.6417910447761 0 E 430 413 701 481
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0 1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
 LANG:1 11 Frame Title
 30 15
 "FRAME2"
@@ -1837,8 +1750,9 @@ LANG:1 0
 "dashclr"N "_Transparent"
 E E 0 0 1 0 1 E 0.666666666666667 0 0.850746268656716 13.3333333333334 67.6417910447761 0 E 430 413 701 481
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0 1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
 LANG:1 11 Frame Title
 30 16
 "FRAME3"
@@ -1855,8 +1769,9 @@ LANG:1 0
 "dashclr"N "_Transparent"
 E E 0 0 1 0 1 E 0.45 0 1.61194029850746 379.5 -247.731343283582 0 E 290 413 691 481
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0 1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
 LANG:1 11 Frame Title
 30 17
 "FRAME4"
@@ -1873,8 +1788,9 @@ LANG:1 0
 "dashclr"N "_Transparent"
 E E 0 0 1 0 1 E 0.45 0 1.61194029850746 169.5 -245.731343283581 0 E 290 413 691 481
 1
-LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
-0 1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
 LANG:1 11 Frame Title
 0
 LAYER, 1 

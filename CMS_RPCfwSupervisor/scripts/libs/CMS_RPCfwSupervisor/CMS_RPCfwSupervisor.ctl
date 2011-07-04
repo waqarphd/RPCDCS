@@ -1,6 +1,6 @@
 /******************************************************
   
-  RPC Supervisor Library  v1.5
+  RPC Supervisor Library  v1.6
 
 *************************************************************/
 
@@ -28,12 +28,28 @@ global string _sersys;
 bool _initSupervisor = false;
 
 global bool STATUSVALUES_G = TRUE;
+const string RPCfwSupervisor_HVCorrDpType = "RPCHVCorrection";
+
 
 /** 
 
 initialization of the system name for Supervisor machine  
   
 */
+
+void RPCfwSupervisor_getAllHVChannels(dyn_string & channels){
+
+  dyn_string temp;
+  dynClear(channels);
+  RPCfwSupervisor_getSupervisorInit();
+  
+  RPCfwSupervisor_getAllChannelsFromType(_hvbsys,"HV",channels);
+  
+  RPCfwSupervisor_getAllChannelsFromType(_hvesys,"HV",temp);
+  dynAppend(channels,temp);
+
+}
+
 void RPCfwSupervisor_getSupervisorInit(){
 
   if(!_initSupervisor){
@@ -48,6 +64,16 @@ void RPCfwSupervisor_getSupervisorInit(){
   _initSupervisor = true;  
   }
   
+
+}
+
+int RPCfwSupervisor_getHVCorrectionDps(dyn_string & dps){
+
+  dynClear(dps);
+  dps = dpNames(RPCfwSupervisor_getSupervisorSys()+"*_VBEST",RPCfwSupervisor_HVCorrDpType);
+  if(dynlen(dps)==0) return -1;
+  
+  return 0;
 
 }
 
@@ -159,6 +185,7 @@ RPCfwSupervisor_getChannelsFromName(string name, string type,string sysName, dyn
 
 string RPCfwSupervisor_getComponent(string type){
 
+  //Possible types BarrelHV, BarrelLV, Services, EndcapHV, EndcapLV
 string value;
 dyn_string systemNumber;
 

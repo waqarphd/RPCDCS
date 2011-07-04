@@ -1,11 +1,12 @@
 /*
 * Created by Giovanni Polese (Lappeenranta University of Technology
 *	date:08/03/2007
-*	LastChange:17/10/2009
+*	LastChange:27/06/2011
 *
 *        Reset Alert script
 *        Fixed bug MAO
          cdcs removed
+         Added Vmon/Imon barrel and endcap avg
          
 */
 #uses "CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl"
@@ -137,6 +138,7 @@ void createTypePerc(){
 
 void statusRefresh(){
 
+bool stable = false;  
 dyn_int value;  
 
   createTypePerc();
@@ -197,11 +199,46 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
   }
   
   
-  if(j % 2 ==0)
+  if(j % 2 ==0){
     write(j/2,on,sum);
+    if((type=="HV")&&(sum-on<10)) stable = true;
+   }
 //  DebugTN(sum,on);
 }
-
+  
+  
+  //refresh vmon /imon
+  if(stable){//chamber not ramping
+  dyn_int vmon;
+  dyn_int imon;
+  dyn_string dpN = makeDynString("HVBarrelAvg","HVEndcapAvg");
+  delay(2,0);
+  for(int i = 1; i<=2;i++){
+     for(int j = 1;j<=channels[i];j++){
+    
+        dpGet(channels[i][j]+".actual.vmon",vmon[i],
+              channels[i][j]+".actual.imon",imon[i]);
+       
+     }
+     int avg = dynAvg(vmon);
+     if(avg>8000){//I suppose that most of the chambers are on
+     
+       if(!dpExists(dpN[i]+"Vmon")){
+        dpCreate(dpN[i]+"Vmon","RPCGlobalPerc");
+        fwArchive_set(getSystemName()+dpN[i]+"Vmon","RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,
+                      DPATTR_TIME_AND_VALUE_SMOOTH,5,10000,exInfo);
+      }
+       if(!dpExists(dpN[i]+"Imon")){
+        dpCreate(dpN[i]+"Imon","RPCGlobalPerc");
+        fwArchive_set(getSystemName()+dpN[i]+"Imon","RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,
+                      DPATTR_TIME_AND_VALUE_SMOOTH,0.5,10000,exInfo);
+      }
+      dpSet(dpN[i]+"Vmon.total",avg, dpN[i]+"Imon.total",dynAvg(imon));
+     }
+   dynClear(vmon);
+   dynClear(imon);
+  }
+ }
 }
 
 void write(int pos, int ok, int total){
