@@ -133,9 +133,9 @@ void smsSumAlertConfig(){
     
   // **************** Add user to notificatio
   
-  CMSfwAlertSystemUtil_addNotificationToUser(user1,notifType,"EMAIL",50);
-  CMSfwAlertSystemUtil_addNotificationToUser(user1,notifType,"SMS",50);
-  CMSfwAlertSystemUtil_addNotificationToUser(user2,notifType,"SMS",50);
+  CMSfwAlertSystemUtil_addNotificationToUser("CMSAlertSystem/Users/"+user1,notifType,"EMAIL",50);
+  CMSfwAlertSystemUtil_addNotificationToUser("CMSAlertSystem/Users/"+user1,notifType,"SMS",50);
+  CMSfwAlertSystemUtil_addNotificationToUser("CMSAlertSystem/Users/"+user2,notifType,"SMS",50);
 
 fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
 
