@@ -279,8 +279,8 @@ string info;
   case 13: info = "v0 value too high or too low for chamber On state"; break;
   case 14: info = "vBest calculate higher than the vMaxAllowed"; break;
   case 15: info = "vBest calculate lower than the vMinAllowed"; break;
-  case 16: info = "HV correction disabled";break;
-  case 17: info = "Hardware dp unreachable";break;
+  case 16: info = "Hardware dp unreachable";break;
+  case 2: info = "HV correction disabled";break;
   case 1: info = "Chamber ON, Additional correction is required for this chamber (more than "+CMSRPCHVCor_correctionThrInVoltage+" V)";break;
   default : info = "Value Ready to be applied. Chamber in STB"; break;   
   }
@@ -340,12 +340,12 @@ int calculateV(string dp,float p){
 
    
   if(!enabled) {
-    generateError(dp,16);
+    generateError(dp,2);
    return -1;
   }  
    
    if(!dpExistsDPE(ch+CMSRPCHVCor_dpe)){
-      generateError(dp,17);
+      generateError(dp,16);
    return -1;   
    }else {
           
