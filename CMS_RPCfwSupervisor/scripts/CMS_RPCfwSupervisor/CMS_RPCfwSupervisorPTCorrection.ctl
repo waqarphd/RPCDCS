@@ -8,6 +8,8 @@
 */
 
 #uses "CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl"
+#uses "CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl"
+#uses "CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc"
 
 const int CMSRPCHVCor_vMaxAllowed = 9700;
 const int CMSRPCHVCor_vMinAllowed = 8800;
@@ -127,13 +129,13 @@ void smsSumAlertConfig(){
 
                   
  
- CMSfwAlertSystemUtil_addAlertToNotification(CMSRPCHVCor_Confdp+".algorithmError.errorId") ;
+ CMSfwAlertSystemUtil_addAlertToNotification(notifType,CMSRPCHVCor_Confdp+".algorithmError.errorId") ;
     
   // **************** Add user to notificatio
   
-  CMSfwAlertSystemUtil_addNotificationToUser (user1,notifType,"EMAIL",50);
-  CMSfwAlertSystemUtil_addNotificationToUser (user1,notifType,"SMS",50);
-  CMSfwAlertSystemUtil_addNotificationToUser (user2,notifType,"SMS",50);
+  CMSfwAlertSystemUtil_addNotificationToUser(user1,notifType,"EMAIL",50);
+  CMSfwAlertSystemUtil_addNotificationToUser(user1,notifType,"SMS",50);
+  CMSfwAlertSystemUtil_addNotificationToUser(user2,notifType,"SMS",50);
 
 fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
 
@@ -322,7 +324,9 @@ int calculateV(string dp,float p){
   
    int vBest = v0*rot*div;
 
-      
+      //Add to the avg only the parameters really to be loaded into the sys  
+  dynAppend(v0Avg,v0);
+  dynAppend(vMonAvg,vBest);     
    
    if(vBest>vMax){
    generateError(dp,14);
@@ -360,9 +364,7 @@ int calculateV(string dp,float p){
          }          
         }   
    }
-  //Add to the avg only the parameters really to be loaded into the sys  
-  dynAppend(v0Avg,v0);
-  dynAppend(vMonAvg,vBest);   
+
    generateError(dp,0);  
   return 0;
 }
