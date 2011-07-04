@@ -129,7 +129,7 @@ void smsSumAlertConfig(){
 
                   
  
- CMSfwAlertSystemUtil_addAlertToNotification(notifType,CMSRPCHVCor_Confdp+".algorithmError.errorId") ;
+ CMSfwAlertSystemUtil_addAlertToNotification(notifType,getSystemName()+CMSRPCHVCor_Confdp+".algorithmError.errorId") ;
     
   // **************** Add user to notificatio
   
@@ -317,7 +317,7 @@ int calculateV(string dp,float p){
 
  div = div*rop + 1;
  
- if((v0>CMSRPCHVCor_vMaxAllowed)||(v0<CMSRPCHVCor_vMinAllowed)){
+ if((v0>vMax)||(v0<vMin)){
    generateError(dp,13);
    return -1;
   }  
