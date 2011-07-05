@@ -192,7 +192,10 @@ void summaryStatus(int res){
                       DPATTR_TIME_AND_VALUE_SMOOTH,5,100000,exceptionInfo);
    fwArchive_set(getSystemName()+CMSRPCHVCor_Confdp+".voltage.vBest","RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,
                       DPATTR_TIME_AND_VALUE_SMOOTH,5,10000,exceptionInfo);
-   
+   fwArchive_set(getSystemName()+CMSRPCHVCor_Confdp+".vlimits.vMax","RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,
+                      DPATTR_TIME_AND_VALUE_SMOOTH,5,10000,exceptionInfo);
+   fwArchive_set(getSystemName()+CMSRPCHVCor_Confdp+".vlimits.vMin","RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,
+                      DPATTR_TIME_AND_VALUE_SMOOTH,5,10000,exceptionInfo);
    
    }else{
    bool sta;
@@ -200,7 +203,10 @@ void summaryStatus(int res){
   if(sta)dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",2);
   else dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",0); 
   if(dynlen(v0Avg)>0)  
-  dpSet(CMSRPCHVCor_Confdp+".voltage.v0",dynAvg(v0Avg),CMSRPCHVCor_Confdp+".voltage.vBest",dynAvg(vMonAvg));
+  dpSet(CMSRPCHVCor_Confdp+".voltage.v0",dynAvg(v0Avg),
+        CMSRPCHVCor_Confdp+".voltage.vBest",dynAvg(vMonAvg),
+        CMSRPCHVCor_Confdp+".vlimits.vMax",dynMax(vMonAvg),
+        CMSRPCHVCor_Confdp+".vlimits.vMin",dynMin(vMonAvg));
   dynClear(v0Avg);
   dynClear(vMonAvg);
   }
