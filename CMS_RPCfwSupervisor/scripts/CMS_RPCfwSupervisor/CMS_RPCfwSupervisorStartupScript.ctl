@@ -202,10 +202,11 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
   if(j % 2 ==0){
     write(j/2,on,sum);
     if((type=="HV")&&(sum-on<10)) stable = true;
+    
    }
 //  DebugTN(sum,on);
 
-  
+}
   
   //refresh vmon /imon
   if(stable){//chamber not ramping
@@ -237,9 +238,10 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
      }
    dynClear(vmon);
    dynClear(imon);
+   delay(2,0);
   }
  }
-}
+
 }
 
 void write(int pos, int ok, int total){
