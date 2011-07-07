@@ -204,7 +204,7 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
     if((type=="HV")&&(sum-on<10)) stable = true;
    }
 //  DebugTN(sum,on);
-}
+
   
   
   //refresh vmon /imon
@@ -239,6 +239,7 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
    dynClear(imon);
   }
  }
+}
 }
 
 void write(int pos, int ok, int total){
