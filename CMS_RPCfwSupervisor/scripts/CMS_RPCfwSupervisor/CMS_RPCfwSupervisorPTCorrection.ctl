@@ -198,10 +198,10 @@ void summaryStatus(int res){
                       DPATTR_TIME_AND_VALUE_SMOOTH,5,10000,exceptionInfo);
    
    }else{
-   bool sta;
-  dpGet(CMSRPCHVCor_Confdp+".algorithmError.errorInfo:_alert_hdl.._active",sta);
-  if(sta)dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",2);
-  else dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",0); 
+   int sta;
+  dpGet(CMSRPCHVCor_Confdp+".algorithmError.errorInfo:_alert_hdl.._act_state",sta);
+  if(!sta)dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",0);
+  else dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",2); 
   if(dynlen(v0Avg)>0)  
   dpSet(CMSRPCHVCor_Confdp+".voltage.v0",dynAvg(v0Avg),
         CMSRPCHVCor_Confdp+".voltage.vBest",dynAvg(vMonAvg),
