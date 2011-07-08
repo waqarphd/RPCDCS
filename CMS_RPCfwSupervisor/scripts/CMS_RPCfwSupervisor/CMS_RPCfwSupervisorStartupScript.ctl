@@ -236,7 +236,14 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
         fwArchive_set(getSystemName()+dpN[i]+"Imon.total","RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,
                       DPATTR_TIME_AND_VALUE_SMOOTH,0.5,10000,exInfo);
       }
-      dpSet(dpN[i]+"Vmon.total",avg, dpN[i]+"Imon.total",dynAvg(imon));
+      
+      dyn_int newvmon;
+      for(int k = 1;k<=dynlen(vmon);k++)
+      {
+        if(vmon(k)>8000) dynAppend(newvmon,vmon(k));
+
+      }
+      dpSet(dpN[i]+"Vmon.total",dynAvg(newvmon), dpN[i]+"Imon.total",dynAvg(imon));
      }
    dynClear(vmon);
    dynClear(imon);
