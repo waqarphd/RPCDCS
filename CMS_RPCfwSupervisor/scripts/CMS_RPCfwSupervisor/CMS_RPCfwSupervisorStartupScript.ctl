@@ -240,7 +240,7 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
       dyn_int newvmon;
       for(int k = 1;k<=dynlen(vmon);k++)
       {
-        if(vmon(k)>8000) dynAppend(newvmon,vmon(k));
+        if(vmon[k]>8000) dynAppend(newvmon,vmon(k));
 
       }
       dpSet(dpN[i]+"Vmon.total",dynAvg(newvmon), dpN[i]+"Imon.total",dynAvg(imon));
