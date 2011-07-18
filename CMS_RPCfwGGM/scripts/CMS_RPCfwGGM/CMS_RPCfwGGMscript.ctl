@@ -25,6 +25,8 @@ void GGMsystemCheck() {
  float wps3, wps4, wps5, wps6, wps7, wps8;
  float wpe3, wpe4, wpe5, wpe6, wpe7, wpe8;
  float wpr3, wpr4, wpr5, wpr6, wpr7, wpr8;
+ float reffo1,reffo2,reffo3,reffo4,reffo5,reffo6,reffo7,reffo8;
+ 
  int rc;
  
  rc=dpGet(RPCGGM_getSysName()+"sensors.temperature_box",temp);  
@@ -235,6 +237,16 @@ void GGMsystemCheck() {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", hv8);
  }
 
+
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.daq.ref",reffo1);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.daq.ref",reffo2);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.ref",reffo3);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.ref",reffo4);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.ref",reffo5);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.daq.ref",reffo6);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.ref",reffo7);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.ref",reffo8);
+
  
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.daq.charge",charge1);
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.daq.charge",charge2);
@@ -283,12 +295,12 @@ void GGMsystemCheck() {
 
  //CHARGE
  if (charge2>0) { 
-   wpc3 = charge3 / charge2;
-   wpc4 = charge4 / charge2;
-   wpc5 = charge5 / charge2;
-   wpc6 = charge6 / charge2;
-   wpc7 = charge7 / charge2;
-   wpc8 = charge8 / charge2;
+   wpc3 = charge3 / charge2 /reffo1;
+   wpc4 = charge4 / charge2 /reffo1;
+   wpc5 = charge5 / charge2 /reffo1;
+   wpc6 = charge6 / charge2 /reffo1;
+   wpc7 = charge7 / charge2 /reffo1;
+   wpc8 = charge8 / charge2 /reffo1;
  }
  else {
    wpc3 = 0;
@@ -308,12 +320,12 @@ void GGMsystemCheck() {
 
  //AVALANCHE
  if (ava2>0) { 
-   wpa3 = ava3 / ava2;
-   wpa4 = ava4 / ava2;
-   wpa5 = ava5 / ava2;
-   wpa6 = ava6 / ava2;
-   wpa7 = ava7 / ava2;
-   wpa8 = ava8 / ava2;
+   wpa3 = ava3 / ava2 /reffo1;
+   wpa4 = ava4 / ava2 /reffo1;
+   wpa5 = ava5 / ava2 /reffo1;
+   wpa6 = ava6 / ava2 /reffo1;
+   wpa7 = ava7 / ava2 /reffo1;
+   wpa8 = ava8 / ava2 /reffo1;
  }
  else {
    wpa3 = 0;
@@ -333,12 +345,12 @@ void GGMsystemCheck() {
 
  //STREAMER
  if (str2>0) { 
-   wps3 = str3 / str2;
-   wps4 = str4 / str2;
-   wps5 = str5 / str2;
-   wps6 = str6 / str2;
-   wps7 = str7 / str2;
-   wps8 = str8 / str2;
+   wps3 = str3 / str2 /reffo1;
+   wps4 = str4 / str2 /reffo1;
+   wps5 = str5 / str2 /reffo1;
+   wps6 = str6 / str2 /reffo1;
+   wps7 = str7 / str2 /reffo1;
+   wps8 = str8 / str2 /reffo1;
  }
  else {
    wps3 = 0;
@@ -358,12 +370,12 @@ void GGMsystemCheck() {
 
  //STREAMER AV RATIO
  if (rat2>0) { 
-   wpr3 = rat3 / rat2;
-   wpr4 = rat4 / rat2;
-   wpr5 = rat5 / rat2;
-   wpr6 = rat6 / rat2;
-   wpr7 = rat7 / rat2;
-   wpr8 = rat8 / rat2;
+   wpr3 = rat3 / rat2 /reffo1;
+   wpr4 = rat4 / rat2 /reffo1;
+   wpr5 = rat5 / rat2 /reffo1;
+   wpr6 = rat6 / rat2 /reffo1;
+   wpr7 = rat7 / rat2 /reffo1;
+   wpr8 = rat8 / rat2 /reffo1;
  }
  else {
    wpr3 = 0;
@@ -382,12 +394,12 @@ void GGMsystemCheck() {
 
  //EFFICIENCY
  if (effi2>0) { 
-   wpe3 = effi3 / effi2;
-   wpe4 = effi4 / effi2;
-   wpe5 = effi5 / effi2;
-   wpe6 = effi6 / effi2;
-   wpe7 = effi7 / effi2;
-   wpe8 = effi8 / effi2;
+   wpe3 = effi3 / effi2 /reffo1;
+   wpe4 = effi4 / effi2 /reffo1;
+   wpe5 = effi5 / effi2 /reffo1;
+   wpe6 = effi6 / effi2 /reffo1;
+   wpe7 = effi7 / effi2 /reffo1;
+   wpe8 = effi8 / effi2 /reffo1;
  }
  else {
    wpe3 = 0;
