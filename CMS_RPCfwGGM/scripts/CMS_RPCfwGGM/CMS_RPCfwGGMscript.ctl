@@ -295,12 +295,12 @@ void GGMsystemCheck() {
 
  //CHARGE
  if (charge2>0) { 
-   wpc3 = charge3 / charge2 /reffo1;
-   wpc4 = charge4 / charge2 /reffo1;
-   wpc5 = charge5 / charge2 /reffo1;
-   wpc6 = charge6 / charge2 /reffo1;
-   wpc7 = charge7 / charge2 /reffo1;
-   wpc8 = charge8 / charge2 /reffo1;
+   wpc3 = charge3 / charge2 /reffo3;
+   wpc4 = charge4 / charge2 /reffo4;
+   wpc5 = charge5 / charge2 /reffo5;
+   wpc6 = charge6 / charge2 /reffo6;
+   wpc7 = charge7 / charge2 /reffo7;
+   wpc8 = charge8 / charge2 /reffo8;
  }
  else {
    wpc3 = 0;
@@ -320,12 +320,12 @@ void GGMsystemCheck() {
 
  //AVALANCHE
  if (ava2>0) { 
-   wpa3 = ava3 / ava2 /reffo1;
-   wpa4 = ava4 / ava2 /reffo1;
-   wpa5 = ava5 / ava2 /reffo1;
-   wpa6 = ava6 / ava2 /reffo1;
-   wpa7 = ava7 / ava2 /reffo1;
-   wpa8 = ava8 / ava2 /reffo1;
+   wpa3 = ava3 / ava2 /reffo3;
+   wpa4 = ava4 / ava2 /reffo4;
+   wpa5 = ava5 / ava2 /reffo5;
+   wpa6 = ava6 / ava2 /reffo6;
+   wpa7 = ava7 / ava2 /reffo7;
+   wpa8 = ava8 / ava2 /reffo8;
  }
  else {
    wpa3 = 0;
@@ -370,12 +370,12 @@ void GGMsystemCheck() {
 
  //STREAMER AV RATIO
  if (rat2>0) { 
-   wpr3 = rat3 / rat2 /reffo1;
-   wpr4 = rat4 / rat2 /reffo1;
-   wpr5 = rat5 / rat2 /reffo1;
-   wpr6 = rat6 / rat2 /reffo1;
-   wpr7 = rat7 / rat2 /reffo1;
-   wpr8 = rat8 / rat2 /reffo1;
+   wpr3 = rat3 / rat2 /reffo3;
+   wpr4 = rat4 / rat2 /reffo4;
+   wpr5 = rat5 / rat2 /reffo5;
+   wpr6 = rat6 / rat2 /reffo6;
+   wpr7 = rat7 / rat2 /reffo7;
+   wpr8 = rat8 / rat2 /reffo8;
  }
  else {
    wpr3 = 0;
@@ -394,12 +394,12 @@ void GGMsystemCheck() {
 
  //EFFICIENCY
  if (effi2>0) { 
-   wpe3 = effi3 / effi2 /reffo1;
-   wpe4 = effi4 / effi2 /reffo1;
-   wpe5 = effi5 / effi2 /reffo1;
-   wpe6 = effi6 / effi2 /reffo1;
-   wpe7 = effi7 / effi2 /reffo1;
-   wpe8 = effi8 / effi2 /reffo1;
+   wpe3 = effi3 / effi2 /reffo3;
+   wpe4 = effi4 / effi2 /reffo4;
+   wpe5 = effi5 / effi2 /reffo5;
+   wpe6 = effi6 / effi2 /reffo6;
+   wpe7 = effi7 / effi2 /reffo7;
+   wpe8 = effi8 / effi2 /reffo8;
  }
  else {
    wpe3 = 0;
