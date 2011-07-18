@@ -12,7 +12,7 @@
 #uses "CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl"
 dyn_string sysNames,dps;
 dyn_dyn_string channels;
-
+dyn_float prevVmon;
 main()
 {
 
@@ -138,10 +138,11 @@ void createTypePerc(){
 
 void statusRefresh(){
 
+dyn_string dpN = makeDynString("HVBarrelAvg","HVEndcapAvg");
 bool stable = false;  
-dyn_int value;  
+dyn_int value;
 
-  createTypePerc();
+createTypePerc();
 dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
   if(dynlen(sysNames)<1){
     
@@ -213,7 +214,7 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
   if(stable){//chamber not ramping
   dyn_int vmon;
   dyn_float imon;
-  dyn_string dpN = makeDynString("HVBarrelAvg","HVEndcapAvg");
+  
   delay(2,0);
   for(int i = 1; i<=2;i++){
      for(int j = 1;j<=dynlen(channels[i]);j++){
@@ -243,7 +244,13 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
         if(vmon[k]>8000) dynAppend(newvmon,vmon[k]);
 
       }
+      if(dynlen(prevVmon)==0)dynAppend(prevVmon,newvmon);//Add barrel first round
+      else if (dynlen(prevVmon)==1)dynAppend(prevVmon,newvmon);//Add Endcap second round
+      else if(((prevVmon[i]-newvmon)<50)&&((prevVmon[i]-newvmon)>-50)){
       dpSet(dpN[i]+"Vmon.total",dynAvg(newvmon), dpN[i]+"Imon.total",dynAvg(imon));
+      prevVmon[i] = newvmon;    
+      }else prevVmon[i] = newvmon;    
+        
      }
    dynClear(vmon);
    dynClear(imon);

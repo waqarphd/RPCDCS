@@ -122,7 +122,7 @@ void smsSumAlertConfig(){
   dyn_string notif;
   string notifType = "RPCSup_PTCorrAlerts";
   notif = dpNames("*"+notifType+"*","CMSfwAlertSystemSumAlerts");
-  if(dynlen(notif)!=0)    dpDelete(notif[1]);
+  if(dynlen(notif)==0)   {
     CMSfwAlertSystemUtil_createNotification(notifType);
   
   /////// ******************** Add alert to notification
@@ -138,7 +138,7 @@ void smsSumAlertConfig(){
   CMSfwAlertSystemUtil_addNotificationToUser("CMSAlertSystem/Users/"+user2,notifType,"SMS",50);
 
 fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
-
+}
   }
 
 int createSumAlert(string dpe,dyn_string elem){
