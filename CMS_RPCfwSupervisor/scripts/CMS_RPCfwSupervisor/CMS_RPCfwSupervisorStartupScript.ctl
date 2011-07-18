@@ -244,12 +244,12 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
         if(vmon[k]>8000) dynAppend(newvmon,vmon[k]);
 
       }
-      if(dynlen(prevVmon)==0)dynAppend(prevVmon,newvmon);//Add barrel first round
-      else if (dynlen(prevVmon)==1)dynAppend(prevVmon,newvmon);//Add Endcap second round
-      else if(((prevVmon[i]-newvmon)<50)&&((prevVmon[i]-newvmon)>-50)){
+      if(dynlen(prevVmon)==0)dynAppend(prevVmon,dynAvg(newvmon));//Add barrel first round
+      else if (dynlen(prevVmon)==1)dynAppend(prevVmon,dynAvg(newvmon));//Add Endcap second round
+      else if(((prevVmon[i]-dynAvg(newvmon))<50)&&((prevVmon[i]-dynAvg(newvmon))>-50)){
       dpSet(dpN[i]+"Vmon.total",dynAvg(newvmon), dpN[i]+"Imon.total",dynAvg(imon));
-      prevVmon[i] = newvmon;    
-      }else prevVmon[i] = newvmon;    
+      prevVmon[i] = dynAvg(newvmon);    
+      }else prevVmon[i] = dynAvg(newvmon);    
         
      }
    dynClear(vmon);
