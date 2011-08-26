@@ -236,7 +236,10 @@ float updatePressure(){
         for(int i = 1;i<10;i++){
           delay(5,0);
           dpGet(CMSRPCHVCor_dpPressure,res);
-          dynAppend(vectPress,res); 
+          if((res <(p0-50) )||(res>(p0+50)))
+            continue;
+          else                
+            dynAppend(vectPress,res); 
         }
        res = dynAvg(vectPress);        
        if((res <(p0-50) )||(res>(p0+50)))//Cut not reasonable pressure values

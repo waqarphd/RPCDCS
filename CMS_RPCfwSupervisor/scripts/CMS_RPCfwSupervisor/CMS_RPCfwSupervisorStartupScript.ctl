@@ -251,7 +251,29 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
       prevVmon[i] = dynAvg(newvmon);    
       }else prevVmon[i] = dynAvg(newvmon);    
         
-     }
+    }else if((avg>6980)&&(avg<7120)){
+ 
+      if(!dpExists(dpN[i]+"Imon7000")){
+          dpCreate(dpN[i]+"Imon7000","RPCGlobalPerc");
+          fwArchive_set(getSystemName()+dpN[i]+"Imon7000.total","RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,
+                        DPATTR_TIME_AND_VALUE_SMOOTH,5,10000,exInfo);
+        }
+      
+      dyn_int newvmon;
+      for(int k = 1;k<=dynlen(vmon);k++)
+      {
+        if(vmon[k]>6980) dynAppend(newvmon,vmon[k]);
+
+      }
+      if(dynlen(prevVmon)==0)dynAppend(prevVmon,dynAvg(newvmon));//Add barrel first round
+      else if (dynlen(prevVmon)==1)dynAppend(prevVmon,dynAvg(newvmon));//Add Endcap second round
+      else if(((prevVmon[i]-dynAvg(newvmon))<20)&&((prevVmon[i]-dynAvg(newvmon))>-20)){
+      dpSet(dpN[i]+"Imon7000.total",dynAvg(imon));
+      prevVmon[i] = dynAvg(newvmon);    
+      }else prevVmon[i] = dynAvg(newvmon);  
+    
+    
+    }
    dynClear(vmon);
    dynClear(imon);
    delay(2,0);
