@@ -251,7 +251,7 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
       prevVmon[i] = dynAvg(newvmon);    
       }else prevVmon[i] = dynAvg(newvmon);    
         
-    }else if((avg>6980)&&(avg<7120)){
+    }else if((avg>6950)&&(avg<7040)){
  
       if(!dpExists(dpN[i]+"Imon7000")){
           dpCreate(dpN[i]+"Imon7000","RPCGlobalPerc");
