@@ -366,20 +366,25 @@ int calculateV(string dp,float p){
       generateError(dp,16);
    return -1;   
    }else {
-    //I am writing into the FSM      
-    dpSet(ch+CMSRPCHVCor_dpe,vBest); 
   
      int v0Applied;
+     int vSoftmax;
      
-     dpGet(ch+CMSRPCHVCor_dpeV0,v0Applied);
+     dpGet(ch+CMSRPCHVCor_dpeV0,v0Applied,
+           dpSubStr(ch+CMSRPCHVCor_dpeV0,DPSUB_SYS_DP)+".readBackSettings.vMaxSoftValue",vSoftmax);
+     //I am writing into the FSM       
+     if(vBest<vSoftmax)
+       dpSet(ch+CMSRPCHVCor_dpe,vBest); 
+     else 
+       dpSet(ch+CMSRPCHVCor_dpe,vSoftmax); 
     
        if(v0Applied>CMSRPCHVCor_vMinAllowed){
         
         if(((v0Applied-vBest)>CMSRPCHVCor_correctionThrInVoltage )||
            ((v0Applied-vBest)<-CMSRPCHVCor_correctionThrInVoltage ) ){
-                      
-          dpGet(dpSubStr(ch+CMSRPCHVCor_dpeV0,DPSUB_SYS_DP)+".readBackSettings.vMaxSoftValue",v0Applied);
-          if(v0Applied>vBest){
+         
+          if(vSoftmax>vBest){
+            
            generateError(dp,1);
            return -1; 
            }
