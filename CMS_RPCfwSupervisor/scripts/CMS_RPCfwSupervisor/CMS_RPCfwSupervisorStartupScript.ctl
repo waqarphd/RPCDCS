@@ -256,7 +256,12 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
       if(!dpExists(dpN[i]+"Imon7000")){
           dpCreate(dpN[i]+"Imon7000","RPCGlobalPerc");
           fwArchive_set(getSystemName()+dpN[i]+"Imon7000.total","RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,
-                        DPATTR_TIME_AND_VALUE_SMOOTH,5,10000,exInfo);
+                        DPATTR_TIME_AND_VALUE_SMOOTH,3,10000,exInfo);
+        }
+      if(!dpExists(dpN[i]+"NumCh7000")){
+          dpCreate(dpN[i]+"NumCh7000","RPCGlobalPerc");
+          fwArchive_set(getSystemName()+dpN[i]+"NumCh7000.total","RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,
+                        DPATTR_TIME_AND_VALUE_SMOOTH,1,10000,exInfo);
         }
       
       dyn_int newvmon;
@@ -272,7 +277,7 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
       if(dynlen(prevVmon)==0)dynAppend(prevVmon,dynAvg(newvmon));//Add barrel first round
       else if (dynlen(prevVmon)==1)dynAppend(prevVmon,dynAvg(newvmon));//Add Endcap second round
       else if(((prevVmon[i]-dynAvg(newvmon))<20)&&((prevVmon[i]-dynAvg(newvmon))>-20)){
-      dpSet(dpN[i]+"Imon7000.total",dynAvg(newImon));
+      dpSet(dpN[i]+"Imon7000.total",dynAvg(newImon),dpN[i]+"NumCh7000.total",dynlen(newImon));
       prevVmon[i] = dynAvg(newvmon);    
       }else prevVmon[i] = dynAvg(newvmon);  
     
