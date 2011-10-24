@@ -277,7 +277,10 @@ dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
       if(dynlen(prevVmon)==0)dynAppend(prevVmon,dynAvg(newvmon));//Add barrel first round
       else if (dynlen(prevVmon)==1)dynAppend(prevVmon,dynAvg(newvmon));//Add Endcap second round
       else if(((prevVmon[i]-dynAvg(newvmon))<20)&&((prevVmon[i]-dynAvg(newvmon))>-20)){
-      dpSet(dpN[i]+"Imon7000.total",dynAvg(newImon),dpN[i]+"NumCh7000.total",dynlen(newImon));
+      
+      string sNewImon = dynAvg(newImon);
+      float fNewImon = substr(sNewImon,0,strpos(sNewImon,".")+3);
+      dpSet(dpN[i]+"Imon7000.total",fNewImon,dpN[i]+"NumCh7000.total",dynlen(newImon));
       prevVmon[i] = dynAvg(newvmon);    
       }else prevVmon[i] = dynAvg(newvmon);  
     
