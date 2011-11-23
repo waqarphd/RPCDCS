@@ -13,51 +13,56 @@ timedFunc("GGMsystemCheck","RPC_GGM_cron");
 }
 
 void GGMsystemCheck() {
- 
+
  float temp, volt, pres, hv1, hv2, hv3, hv4, hv5, hv6, hv7, hv8, hv_trg0, hv_trg1, hv_trg2, hv_trg3;
  bool auto1, auto2, auto3, auto4, auto5, auto6, auto7, auto8, auto_trg0, auto_trg1, auto_trg2, auto_trg3;
  float wpc3, wpc4, wpc5, wpc6, wpc7, wpc8, charge1, charge2, charge3, charge4, charge5, charge6, charge7, charge8;
  float ava1, ava2, ava3, ava4, ava5, ava6, ava7, ava8;
  float str1, str2, str3, str4, str5, str6, str7, str8;
  float rat1, rat2, rat3, rat4, rat5, rat6, rat7, rat8;
- float effi1, effi2, effi3, effi4, effi5, effi6, effi7, effi8; 
+ float effi1, effi2, effi3, effi4, effi5, effi6, effi7, effi8;
  float wpa3, wpa4, wpa5, wpa6, wpa7, wpa8;
  float wps3, wps4, wps5, wps6, wps7, wps8;
  float wpe3, wpe4, wpe5, wpe6, wpe7, wpe8;
  float wpr3, wpr4, wpr5, wpr6, wpr7, wpr8;
  float reffo1,reffo2,reffo3,reffo4,reffo5,reffo6,reffo7,reffo8;
- 
+
  int rc;
- 
- rc=dpGet(RPCGGM_getSysName()+"sensors.temperature_box",temp);  
- rc=dpGet(RPCGGM_getSysName()+"sensors.pressure_box",pres);  
+
+ //rc=dpGet(RPCGGM_getSysName()+"sensors.temperature_box",temp);
+ rc=dpGet(RPCGGM_getSysName()+"sensors.pressure_box",pres);
+
+ //removing temperature correction
+ temp=20;
+
 
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.hv",hv1);
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.hv",hv2); 
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.hv",hv3);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.hv",hv4);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.hv",hv5);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.hv",hv6);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.hv",hv7);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.hv",hv8);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg0.hv",hv_trg0); 
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg1.hv",hv_trg1); 
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg2.hv",hv_trg2); 
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg3.hv",hv_trg3); 
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.hv",hv2);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.hv",hv3);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.hv",hv4);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.hv",hv5);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.hv",hv6);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.hv",hv7);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.hv",hv8);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg0.hv",hv_trg0);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg1.hv",hv_trg1);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg2.hv",hv_trg2);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg3.hv",hv_trg3);
 
- 
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.autohv",auto1); 
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.autohv",auto2); 
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.autohv",auto3);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.autohv",auto4);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.autohv",auto5);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.autohv",auto6);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.autohv",auto7);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.autohv",auto8);  
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg0.autohv",auto_trg0); 
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg1.autohv",auto_trg1); 
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg2.autohv",auto_trg2); 
- rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg3.autohv",auto_trg3); 
+
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.autohv",auto1);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.autohv",auto2);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.autohv",auto3);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch04.autohv",auto4);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch05.autohv",auto5);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch06.autohv",auto6);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.autohv",auto7);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.autohv",auto8);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg0.autohv",auto_trg0);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg1.autohv",auto_trg1);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg2.autohv",auto_trg2);
+ rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_trg3.autohv",auto_trg3);
+
 
  if (auto_trg0==1) {
    volt = hv_trg0*(pres/965)*(293/(temp+273));
@@ -71,8 +76,8 @@ void GGMsystemCheck() {
  }
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel000.settings.v0", hv_trg0);
- }  
- 
+ }
+
  if (auto_trg1==1) {
    volt = hv_trg1*(pres/965)*(293/(temp+273));
    //volt = hv_trg1*(pres/965);
@@ -85,8 +90,8 @@ void GGMsystemCheck() {
  }
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel001.settings.v0", hv_trg1);
- }   
- 
+ }
+
  if (auto_trg2==1) {
    volt = hv_trg2*(pres/965)*(293/(temp+273));
    //volt = hv_trg2*(pres/965);
@@ -99,8 +104,8 @@ void GGMsystemCheck() {
  }
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel004.settings.v0", hv_trg2);
- }   
- 
+ }
+
  if (auto_trg3==1) {
    volt = hv_trg3*(pres/965)*(293/(temp+273));
    //volt = hv_trg3*(pres/965);
@@ -113,9 +118,9 @@ void GGMsystemCheck() {
  }
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel005.settings.v0", hv_trg3);
- }    
- 
- 
+ }
+
+
  if (auto1==1) {
    volt = hv1*(pres/965)*(293/(temp+273));
    //volt = hv1*(pres/965);
@@ -128,8 +133,8 @@ void GGMsystemCheck() {
  }
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel002.settings.v0", hv1);
- }  
- 
+ }
+
 
   if (auto2==1) {
    volt = hv2*(pres/965)*(293/(temp+273));
@@ -144,8 +149,8 @@ void GGMsystemCheck() {
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel003.settings.v0", hv2);
  }
- 
- 
+
+
  if (auto3==1) {
    volt = hv3*(pres/965)*(293/(temp+273));
    //volt = hv3*(pres/965);
@@ -159,13 +164,13 @@ void GGMsystemCheck() {
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel004.settings.v0", hv3);
  }
- 
- 
- 
+
+
+
  if (auto4==1) {
    volt = hv4*(pres/965)*(293/(temp+273));
    //volt = hv4*(pres/965);
-   
+
    if (volt>8000) {
      if (volt<10400) {
        dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel005.settings.v0", volt);
@@ -175,9 +180,9 @@ void GGMsystemCheck() {
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board00/channel005.settings.v0", hv4);
  }
- 
- 
- if (auto5==1) { 
+
+
+ if (auto5==1) {
    volt = hv5*(pres/965)*(293/(temp+273));
    //volt = hv5*(pres/965);
 
@@ -190,9 +195,9 @@ void GGMsystemCheck() {
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel000.settings.v0", hv5);
  }
- 
- 
- 
+
+
+
  if (auto6==1) {
    volt = hv6*(pres/965)*(293/(temp+273));
    //volt = hv6*(pres/965);
@@ -206,8 +211,8 @@ void GGMsystemCheck() {
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel001.settings.v0", hv6);
  }
- 
- 
+
+
  if (auto7==1) {
    volt = hv7*(pres/965)*(293/(temp+273));
    //volt = hv7*(pres/965);
@@ -221,15 +226,15 @@ void GGMsystemCheck() {
  else {
    dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel002.settings.v0", hv7);
  }
- 
- 
+
+
  if (auto8==1) {
    volt = hv8*(pres/965)*(293/(temp+273));
    //volt = hv8*(pres/965);
 
    if (volt>8000) {
      if (volt<10400) {
-       dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", volt); 
+       dpSetWait(RPCGGM_getSysName()+"CAEN/GGM/board02/channel003.settings.v0", volt);
      }
    }
  }
@@ -247,7 +252,7 @@ void GGMsystemCheck() {
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch07.daq.ref",reffo7);
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.ref",reffo8);
 
- 
+
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch01.daq.charge",charge1);
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch02.daq.charge",charge2);
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.charge",charge3);
@@ -294,7 +299,7 @@ void GGMsystemCheck() {
  rc=dpGet(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.efficiency",effi8);
 
  //CHARGE
- if (charge2>0) { 
+ if (charge2>0) {
    wpc3 = charge3 / charge2 /reffo3;
    wpc4 = charge4 / charge2 /reffo4;
    wpc5 = charge5 / charge2 /reffo5;
@@ -308,9 +313,9 @@ void GGMsystemCheck() {
    wpc5 = 0;
    wpc6 = 0;
    wpc7 = 0;
-   wpc8 = 0;  
- } 
- 
+   wpc8 = 0;
+ }
+
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.WP.charge", wpc3);
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.WP.charge", wpc4);
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.WP.charge", wpc5);
@@ -319,7 +324,7 @@ void GGMsystemCheck() {
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.charge", wpc8);
 
  //AVALANCHE
- if (ava2>0) { 
+ if (ava2>0) {
    wpa3 = ava3 / ava2 /reffo3;
    wpa4 = ava4 / ava2 /reffo4;
    wpa5 = ava5 / ava2 /reffo5;
@@ -333,8 +338,8 @@ void GGMsystemCheck() {
    wpa5 = 0;
    wpa6 = 0;
    wpa7 = 0;
-   wpa8 = 0;  
- } 
+   wpa8 = 0;
+ }
 
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.WP.avalanche", wpa3);
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.WP.avalanche", wpa4);
@@ -344,7 +349,7 @@ void GGMsystemCheck() {
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.avalanche", wpa8);
 
  //STREAMER
- if (str2>0) { 
+ if (str2>0) {
    wps3 = str3 / str2 /reffo1;
    wps4 = str4 / str2 /reffo1;
    wps5 = str5 / str2 /reffo1;
@@ -358,9 +363,9 @@ void GGMsystemCheck() {
    wps5 = 0;
    wps6 = 0;
    wps7 = 0;
-   wps8 = 0;  
- } 
- 
+   wps8 = 0;
+ }
+
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.WP.streamer", wps3);
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.WP.streamer", wps4);
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch05.daq.WP.streamer", wps5);
@@ -369,7 +374,7 @@ void GGMsystemCheck() {
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.streamer", wps8);
 
  //STREAMER AV RATIO
- if (rat2>0) { 
+ if (rat2>0) {
    wpr3 = rat3 / rat2 /reffo3;
    wpr4 = rat4 / rat2 /reffo4;
    wpr5 = rat5 / rat2 /reffo5;
@@ -383,7 +388,7 @@ void GGMsystemCheck() {
    wpr5 = 0;
    wpr6 = 0;
    wpr7 = 0;
-   wpr8 = 0;  
+   wpr8 = 0;
  }
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.WP.ratio", wpr3);
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.WP.ratio", wpr4);
@@ -393,7 +398,7 @@ void GGMsystemCheck() {
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.ratio", wpr8);
 
  //EFFICIENCY
- if (effi2>0) { 
+ if (effi2>0) {
    wpe3 = effi3 / effi2 /reffo3;
    wpe4 = effi4 / effi2 /reffo4;
    wpe5 = effi5 / effi2 /reffo5;
@@ -407,7 +412,7 @@ void GGMsystemCheck() {
    wpe5 = 0;
    wpe6 = 0;
    wpe7 = 0;
-   wpe8 = 0;  
+   wpe8 = 0;
  }
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch03.daq.WP.efficiency", wpe3);
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch04.daq.WP.efficiency", wpe4);
@@ -417,11 +422,11 @@ void GGMsystemCheck() {
  dpSetWait(RPCGGM_getSysName()+"rpc_ggm_ch08.daq.WP.efficiency", wpe8);
 
 
- 
+
 }
 
 string RPCGGM_getSysName(){
- 
+
 dyn_string systemNumber;
 fwInstallation_getApplicationSystem("CMS_RPCfwGGM",systemNumber);
 if(dynlen(systemNumber)!=0)
@@ -441,11 +446,11 @@ void checkDpTimed(string dp,int sec)
     dpSet(dp+".syncTime",-1);
     dpSet(dp+".interval",sec);
     dpSet(dp+".time",0);
-    
+
   }
 }
 
 //void GGMsystemCheckWP() {
- 
+
 //}
 
