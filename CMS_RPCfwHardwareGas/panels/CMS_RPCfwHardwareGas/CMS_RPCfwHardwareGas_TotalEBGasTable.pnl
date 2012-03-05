@@ -1,0 +1,1384 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 763 457 N "_3DFace" 1
+"$p1"
+E E E E E 1 -1 -1 0  130 90
+""0  1
+E "// bool ACCESS_CONTROL = false;
+bool accContr;
+string exceptionInfo;
+dyn_string channels;
+string RPCGasGetSysName(){
+  dyn_string systemNumber;
+  
+  fwInstallation_getApplicationSystem(\"CMS_RPCfwHardwareGas\",systemNumber);
+  if(dynlen(systemNumber)==1)
+    return systemNumber[1];
+  else
+  {
+    return getSystemName();
+    DebugN(\"Gas Component not found\");
+  }  
+ }
+
+string conv(float value, int cdec = 2)
+{
+  string newval  = value;
+  int pos = strpos(newval, \".\");
+  if(pos>-1)  newval = substr(newval, 0, pos+cdec); 
+  return newval;
+ 
+}
+
+
+string sysName = RPCGasGetSysName();
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl, hasModify;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Modify\", hasModify, exceptionInfo); //this function check if the user logged in has the //priviledge
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+if (hasControl) enableControl();
+if (hasDebug) enableDebug();
+if (hasModify) enableModify();
+}
+
+void enableControl(){
+ // generalAcknowledge.enabled = true;
+  }
+
+void enableDebug(){
+  accContr = true;
+ generalAcknowledge.enabled = true;
+ //SetAlarm.enabled = true; 
+  }
+
+void enableModify(){
+  accContr = true;
+ generalAcknowledge.enabled = true;
+ SetAlarm.enabled = true; 
+}
+
+void DisableAllInPanel(){ 
+  accContr = false;
+  generalAcknowledge.enabled = false;
+  SetAlarm.enabled = false;
+  
+  }" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 1
+"BarrelGasTable"
+""
+1 264 36 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  262 34 736 338
+"
+
+main()
+{
+  BarrelGasTable();
+  //DebugN(\"ueeee\",$p1);
+  
+}
+
+BarrelGasTable(){
+  BarrelGasTable.deleteAllLines(); 
+  channels = dpNames(RPCGasGetSysName()+$p1+\"*\" , \"RPCGasChannel\"); 
+  //DebugN(channels);
+  float flowinvalue, flowoutvalue, difference;
+  string chamber;
+  for(int i = 1; i<=dynlen(channels); i++){
+   
+     dpGet(channels[i]+\".flowIn\", flowinvalue);
+     string flowindec = conv(flowinvalue);
+     //dpGet(channels[i]+\".flowIn:_alert_color\", flowinalert);
+     //DebugN(flowalert);
+     dpGet(channels[i]+\".flowOut\", flowoutvalue);
+     string flowoutdec = conv(flowoutvalue);
+     dpGet(channels[i]+\".difference\", difference);
+     //DebugN(channels[i]+\".difference\");
+     string diffdec = conv(difference);
+     chamber = dpSubStr(channels[i]+\".flowIn\", DPSUB_DP);
+     
+     BarrelGasTable.appendLine(\"Chamber\", chamber, \"flowIn\", flowindec, \"flowOut\", 
+                             flowoutdec, \"difference\", diffdec, \"plot\", \"trend\");
+     
+     dpConnect(\"readback\", channels[i]+\".flowIn\", channels[i]+\".flowIn:_alert_hdl.._act_state_color\"); 
+     //dpConnect(\"alertreadback\", channels[i]+\".flowIn:_act_state_range\");
+     dpConnect(\"readback\", channels[i]+\".flowOut\", channels[i]+\".flowOut:_alert_hdl.._act_state_color\");
+     dpConnect(\"readback\", channels[i]+\".difference\", channels[i]+\".difference:_alert_hdl.._act_state_color\");
+  }
+}
+
+readback(string dpe, float value, string dpe1, string value1){
+  
+ string find = dpSubStr(dpe, DPSUB_SYS_DP);
+ string element = dpSubStr(dpe, DPSUB_SYS_DP_EL);
+ //DebugN(find, element);
+ string element1 = substr(element, strlen(find)+1);
+ //DebugN(element1);
+ int row = dynContains(channels, find)-1;
+ //DebugN(row);
+ string valuedec = conv(value);
+ BarrelGasTable.cellValueRC(row, element1, valuedec);
+ BarrelGasTable.cellBackColRC(row, element1, value1);
+
+}
+
+
+" 0
+"dyn_string dpes;
+main(int row, string column, string value)
+{
+ // dyn_string name = makeDynString(\"Chamber\", \"flowIn\", \"flowOut\", \"difference\");
+
+  if(column == \"plot\"){
+    ChildPanelOnCentral(\"CMS_RPCfwHardwareGas/CMS_RPCfwHardwareGas_Trend.pnl\",
+                        \"Trend\",
+                        makeDynString(\"$p1:\"+ channels[row+1], \"$p2:flowIn\", \"$p3:flowOut\"));
+  }
+  else{
+    int aC = accContr;
+  ChildPanelOnCentral(\"CMS_RPCfwHardwareGas/CMS_RPCfwHardwareGas_AlarmOperationPopupPanel.pnl\",
+      \"Acknowledge\",
+      makeDynString(\"$sDpe:\"+ channels[row+1]+\".\"+column,\"$aCont:\"+aC));
+
+  }
+}" 0
+ 1 0 1 5 50 "Chamber" 18 1 0 "s" 1
+LANG:1 7 Chamber
+E
+1
+LANG:1 0 
+
+170 "flowIn" 8 1 0 "s" 1
+LANG:1 13 Flow In (l/h)
+E
+1
+LANG:1 0 
+
+80 "flowOut" 8 1 0 "s" 1
+LANG:1 14 Flow Out (l/h)
+E
+1
+LANG:1 0 
+
+80 "difference" 5 1 0 "s" 1
+LANG:1 6 diff %
+E
+1
+LANG:1 0 
+
+60 "plot" 5 1 0 "s" 1
+LANG:1 4 Plot
+E
+1
+LANG:1 0 
+
+60 
+28 28 "" 1 1
+LANG:1 3 #75
+"" 1 1
+LANG:1 3 #74
+"" 1 1
+LANG:1 3 #73
+"" 1 1
+LANG:1 3 #72
+"" 1 1
+LANG:1 3 #71
+"" 1 1
+LANG:1 3 #70
+"" 1 1
+LANG:1 3 #69
+"" 1 1
+LANG:1 3 #68
+"" 1 1
+LANG:1 3 #67
+"" 1 1
+LANG:1 3 #66
+"" 1 1
+LANG:1 3 #65
+"" 1 1
+LANG:1 3 #64
+"" 1 1
+LANG:1 3 #63
+"" 1 1
+LANG:1 3 #62
+"" 1 1
+LANG:1 3 #36
+"" 1 1
+LANG:1 3 #35
+"" 1 1
+LANG:1 3 #34
+"" 1 1
+LANG:1 3 #33
+"" 1 1
+LANG:1 3 #32
+"" 1 1
+LANG:1 3 #31
+"" 1 1
+LANG:1 3 #30
+"" 1 1
+LANG:1 3 #29
+"" 1 1
+LANG:1 3 #28
+"" 1 1
+LANG:1 3 #27
+"" 1 1
+LANG:1 3 #26
+"" 1 1
+LANG:1 3 #25
+"" 1 1
+LANG:1 3 #24
+"" 1 1
+LANG:1 3 #23
+"" 1 1
+LANG:1 3 #22
+"" 1 1
+LANG:1 3 #21
+"" 1 1
+LANG:1 3 #20
+"" 1 1
+LANG:1 3 #19
+"" 1 1
+LANG:1 3 #18
+"" 1 1
+LANG:1 3 #17
+"" 1 1
+LANG:1 3 #16
+"" 1 1
+LANG:1 3 #15
+"" 1 1
+LANG:1 3 #14
+"" 1 1
+LANG:1 3 #13
+"" 1 1
+LANG:1 3 #12
+"" 1 1
+LANG:1 3 #11
+"" 1 1
+LANG:1 3 #10
+"" 1 1
+LANG:1 2 #9
+"" 1 1
+LANG:1 2 #8
+"" 1 1
+LANG:1 2 #7
+"" 1 1
+LANG:1 2 #6
+"" 1 1
+LANG:1 2 #5
+"" 1 1
+LANG:1 2 #4
+"" 1 1
+LANG:1 2 #3
+"" 1 1
+LANG:1 2 #2
+"" 1 1
+LANG:1 2 #1
+10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 0 1 7
+1 0
+13 5
+"Close"
+""
+1 634 375 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  632 373 736 417
+
+T 
+1
+LANG:1 5 Close
+" main()
+{
+   
+ string exceptionInfo; 
+//  DebugN($p1);
+ string dpels = dpNames(RPCGasGetSysName()+\"*\"+$p1, \"RPCGasStatus\");
+//  DebugN(dpels);
+ fwAlertConfig_acknowledge(dpels+\".status\", exceptionInfo);
+ delay(1);
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+ PanelOff();   
+}       
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+13 6
+"generalAcknowledge"
+""
+1 50 375 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  48 373 182 417
+
+T 
+1
+LANG:1 18 GeneralAcknowledge
+"
+main()
+{
+	dyn_string exceptionInfo;
+	dyn_string dpes = dpNames(RPCGasGetSysName()+$p1+\"*\" , \"RPCGasChannel\"); 
+    	//DebugN(dpes);
+        for(int i = 1; i<=dynlen(dpes); i++){
+        string chamberin = dpes[i]+\".flowIn\";
+        string chamberout = dpes[i]+\".flowOut\";
+        string chamberdifference = dpes[i]+\".difference\";
+        string alarmin, alarmout, alarmdiff;
+        
+        dpGet(chamberin+\":_alert_hdl.._act_state_color\", alarmin);
+        if(alarmin == \"FwAlarmErrorWentUnack\" || alarmin == \"FwAlarmWarnWentUnack\"){
+          fwAlertConfig_acknowledge(chamberin, exceptionInfo);
+          }
+        else {};
+        
+        dpGet(chamberout+\":_alert_hdl.._act_state_color\", alarmout);
+        if(alarmout == \"FwAlarmErrorWentUnack\" || alarmout == \"FwAlarmWarnWentUnack\"){
+        fwAlertConfig_acknowledge(chamberout, exceptionInfo);
+        }
+        else{};
+        
+        dpGet(chamberdifference+\":_alert_hdl.._act_state_color\", alarmdiff);
+        if(alarmdiff == \"FwAlarmErrorWentUnack\" || alarmdiff == \"FwAlarmWarnWentUnack\"){
+        fwAlertConfig_acknowledge(chamberdifference, exceptionInfo);
+        }
+        else{};
+        
+          }
+        
+  delay(1);
+  statusrefresh();
+  endcaprefresh();
+  barrelrefresh();       
+}
+
+
+barrelrefresh()
+{
+ int error=0, warning=0;
+ string valueget, valueset, dpelset;
+ dpelset = dpNames(sysName+\"*Barrel*\", \"RPCGasStatus\");
+ dyn_string barrel = makeDynString(\"Rack69\", \"Rack70\", \"Rack71\", \"Rack72\", \"Rack73\", \"Rack74\", 
+                                   \"Rack75\", \"Rack76\", \"Rack77\", \"Rack78\"); 
+ 
+ for(int i=1; i<=dynlen(barrel); i++){
+   string dpelget = dpNames(sysName+\"*\"+barrel[i]+\"*State\", \"RPCGasParameterStatus\");
+   //DebugN(dpelget); 
+   dpGet(dpelget+\".state\", valueget);
+   if(valueget == 1) error++;
+   //else if (valueget == 1) warning++;
+   else{}
+ }
+ 
+ if(error!=0) valueset = 2;
+ else if(warning!=0) valueset = 1;
+ else valueset = 0;
+ 
+ dpSet(dpelset+\".status\", valueset);
+  
+}
+
+endcaprefresh()
+{
+ int error=0, warning=0;
+ string valueget, valueset, dpelset;
+ dpelset = dpNames(sysName+\"*Endcap*\", \"RPCGasStatus\");
+ dyn_string endcap = makeDynString(\"Rack65\", \"Rack62\", \"Rack63\", \"Rack66\", \"Rack67\", \"Rack80\", 
+                                   \"Rack81\", \"Rack83\", \"Rack84\", \"Rack85\"); 
+ 
+ for(int i=1; i<=dynlen(endcap); i++){
+   string dpelget = dpNames(sysName+\"*\"+endcap[i]+\"*State\", \"RPCGasParameterStatus\");
+   //DebugN(dpelget); 
+   dpGet(dpelget+\".state\", valueget);
+   if(valueget == 1) error++;
+   //else if (valueget == 1) warning++;
+   else{}
+ }
+ 
+ if(error!=0) valueset = 2;
+ else if(warning!=0) valueset = 1;
+ else valueset = 0;
+ 
+ dpSet(dpelset+\".status\", valueset);
+  
+   
+}
+
+statusrefresh()
+{
+ dyn_string chamberEndcap = makeDynString(\"EM3\", \"EM2\", \"EM1\", \"EP1\", \"EP2\", \"EP3\");
+ dyn_string chamberBarrel = makeDynString(\"WM2\", \"WM1\", \"W00\", \"WP1\", \"WP2\");
+ dyn_string RackNr = makeDynString(\"Rack67\", \"Rack63\", \"Rack66\", \"Rack62\", \"Rack65\", \"Rack83\", 
+                                   \"Rack84\", \"Rack80\", \"Rack85\", \"Rack81\", \"Rack74\", \"Rack69\",
+                                   \"Rack75\", \"Rack70\", \"Rack76\", \"Rack71\", \"Rack77\", \"Rack72\", 
+                                   \"Rack78\", \"Rack73\");
+  
+ for(int i = 1; i<= 6; i++){
+   dyn_string disck = dpNames(chamberEndcap[i]+\"*\", \"RPCGasChannel\");
+   int warningNr = 0, errorNr = 0, unacknowledgeNr = 0;
+   string alarmvalue;
+   
+   for(int j = 1; j<=dynlen(disck); j++){
+     
+    dpGet(disck[j]+\".flowIn:_alert_hdl.._act_state_color\", alarmvalue);
+            if((alarmvalue == \"FwAlarmWarnUnack\") || (alarmvalue == \"FwAlarmWarnAck\")){
+                   warningNr ++; 
+                   }
+            else if((alarmvalue == \"FwAlarmErrorUnack\") ||  (alarmvalue == \"FwAlarmErrorAck\")){
+                   errorNr ++;
+                   }
+            else if((alarmvalue == \"FwAlarmErrorWentUnack\") || (alarmvalue == \"FwAlarmWarnWentUnack\")){
+                unacknowledgeNr ++;
+              } 
+            else {}
+                    
+    dpGet(disck[j]+\".flowOut:_alert_hdl.._act_state_color\", alarmvalue);
+            if((alarmvalue == \"FwAlarmWarnUnack\") || (alarmvalue == \"FwAlarmWarnAck\")){
+                   warningNr ++; 
+                   }
+            else if((alarmvalue == \"FwAlarmErrorUnack\") ||  (alarmvalue == \"FwAlarmErrorAck\")){
+                   errorNr ++;
+                   }
+            else if((alarmvalue == \"FwAlarmErrorWentUnack\") || (alarmvalue == \"FwAlarmWarnWentUnack\")){
+                unacknowledgeNr ++;
+              }
+            else{}
+                    
+    dpGet(disck[j]+\".difference:_alert_hdl.._act_state_color\", alarmvalue);
+            if((alarmvalue == \"FwAlarmWarnUnack\") || (alarmvalue == \"FwAlarmWarnAck\")){
+                   warningNr ++; 
+                   }
+            else if((alarmvalue == \"FwAlarmErrorUnack\") ||  (alarmvalue == \"FwAlarmErrorAck\")){
+                   errorNr ++;
+                   }
+            else if((alarmvalue == \"FwAlarmErrorWentUnack\") || (alarmvalue == \"FwAlarmWarnWentUnack\")){
+                unacknowledgeNr ++;
+              }  
+            else{}
+   
+            
+   
+   
+   }
+     if(errorNr > 15) dpSet(sysName+chamberEndcap[i]+\".status\", 2);
+    else{
+         if(warningNr > 15) dpSet(sysName+chamberEndcap[i]+\".status\", 1);
+         else{
+              if(unacknowledgeNr > 15) dpSet(sysName+chamberEndcap[i]+\".status\", 2);
+              else dpSet(sysName+chamberEndcap[i]+\".status\", 0);
+    }
+  }
+  
+  dpSet(sysName+chamberEndcap[i]+\".error\", errorNr);
+  dpSet(sysName+chamberEndcap[i]+\".warning\", warningNr);
+  dpSet(sysName+chamberEndcap[i]+\".unacknowledge\", unacknowledgeNr);
+  
+  //DebugTN(errorNr, warningNr, unacknowledgeNr);
+ }
+ 
+ 
+ 
+ //delay(10);
+ 
+ 
+ 
+ 
+ 
+ for(int i = 1; i<= 5; i++){
+   dyn_string wheel = dpNames(chamberBarrel[i]+\"*\", \"RPCGasChannel\");
+   int warningNr = 0, errorNr = 0, unacknowledgeNr = 0;
+   string alarmvalue;
+   
+   for(int j = 1; j<=dynlen(wheel); j++){
+     
+    dpGet(wheel[j]+\".flowIn:_alert_hdl.._act_state_color\", alarmvalue);
+            if((alarmvalue == \"FwAlarmWarnUnack\") || (alarmvalue == \"FwAlarmWarnAck\")){
+                   warningNr ++; 
+                   }
+            else if((alarmvalue == \"FwAlarmErrorUnack\") ||  (alarmvalue == \"FwAlarmErrorAck\")){
+                   errorNr ++;
+                   }
+            else if((alarmvalue == \"FwAlarmErrorWentUnack\") || (alarmvalue == \"FwAlarmWarnWentUnack\")){
+                unacknowledgeNr ++;
+              } 
+            else {}
+                    
+    dpGet(wheel[j]+\".flowOut:_alert_hdl.._act_state_color\", alarmvalue);
+            if((alarmvalue == \"FwAlarmWarnUnack\") || (alarmvalue == \"FwAlarmWarnAck\")){
+                   warningNr ++; 
+                   }
+            else if((alarmvalue == \"FwAlarmErrorUnack\") ||  (alarmvalue == \"FwAlarmErrorAck\")){
+                   errorNr ++;
+                   }
+            else if((alarmvalue == \"FwAlarmErrorWentUnack\") || (alarmvalue == \"FwAlarmWarnWentUnack\")){
+                unacknowledgeNr ++;
+              }
+            else{}
+                    
+    dpGet(wheel[j]+\".difference:_alert_hdl.._act_state_color\", alarmvalue);
+            if((alarmvalue == \"FwAlarmWarnUnack\") || (alarmvalue == \"FwAlarmWarnAck\")){
+                   warningNr ++; 
+                   }
+            else if((alarmvalue == \"FwAlarmErrorUnack\") ||  (alarmvalue == \"FwAlarmErrorAck\")){
+                   errorNr ++;
+                   }
+            else if((alarmvalue == \"FwAlarmErrorWentUnack\") || (alarmvalue == \"FwAlarmWarnWentUnack\")){
+                unacknowledgeNr ++;
+              }  
+            else{}
+   
+            
+   
+   
+   }
+     if(errorNr > 15) dpSet(sysName+chamberBarrel[i]+\".status\", 2);
+    else{
+         if(warningNr >15) dpSet(sysName+chamberBarrel[i]+\".status\", 1);
+         else{
+              if(unacknowledgeNr >15) dpSet(sysName+chamberBarrel[i]+\".status\", 2);
+              else dpSet(sysName+chamberBarrel[i]+\".status\", 0);
+    }
+  }
+  
+  dpSet(sysName+chamberBarrel[i]+\".error\", errorNr);
+  dpSet(sysName+chamberBarrel[i]+\".warning\", warningNr);
+  dpSet(sysName+chamberBarrel[i]+\".unacknowledge\", unacknowledgeNr);
+  //DebugTN(errorNr, warningNr, unacknowledgeNr);
+ } 
+ 
+  
+  for(int i =1; i<=20; i++){
+    dyn_string rack = dpNames(\"*\"+RackNr[i]+\"*\", \"RPCGasParameterStatus\");
+    int warningNr = 0, errorNr = 0, unacknowledgeNr = 0;
+    string alarmvalue;
+  
+    //DebugN(rack);
+     for(int j = 1; j<=dynlen(rack); j++){
+      
+     dpGet(rack[j]+\".state:_alert_hdl.._act_state_color\", alarmvalue);
+             if((alarmvalue == \"FwAlarmWarnUnack\") || (alarmvalue == \"FwAlarmWarnAck\")){
+                    warningNr ++; 
+                    }
+             else if((alarmvalue == \"FwAlarmErrorUnack\") ||  (alarmvalue == \"FwAlarmErrorAck\")){
+                    errorNr ++;
+                    }
+             else if((alarmvalue == \"FwAlarmErrorWentUnack\") || (alarmvalue == \"FwAlarmWarnWentUnack\")){
+                 unacknowledgeNr ++;
+               } 
+             else {}
+//                     
+//     dpGet(rack[j]+\".flowOut:_alert_hdl.._act_state_color\", alarmvalue);
+//             if((alarmvalue == \"FwAlarmWarnUnack\") || (alarmvalue == \"FwAlarmWarnAck\")){
+//                    warningNr ++; 
+//                    }
+//             else if((alarmvalue == \"FwAlarmErrorUnack\") ||  (alarmvalue == \"FwAlarmErrorAck\")){
+//                    errorNr ++;
+//                    }
+//             else if((alarmvalue == \"FwAlarmErrorWentUnack\") || (alarmvalue == \"FwAlarmWarnWentUnack\")){
+//                 unacknowledgeNr ++;
+//               }
+//             else{}
+//                     
+//     dpGet(rack[j]+\".difference:_alert_hdl.._act_state_color\", alarmvalue);
+//             if((alarmvalue == \"FwAlarmWarnUnack\") || (alarmvalue == \"FwAlarmWarnAck\")){
+//                    warningNr ++; 
+//                    }
+//             else if((alarmvalue == \"FwAlarmErrorUnack\") ||  (alarmvalue == \"FwAlarmErrorAck\")){
+//                    errorNr ++;
+//                    }
+//             else if((alarmvalue == \"FwAlarmErrorWentUnack\") || (alarmvalue == \"FwAlarmWarnWentUnack\")){
+//                 unacknowledgeNr ++;
+//               }  
+//             else{}
+//      
+    }
+      if(errorNr != 0) dpSet(sysName+RackNr[i]+\".status\", 2);
+     else{
+          if(warningNr !=0) dpSet(sysName+RackNr[i]+\".status\", 1);
+          else{
+               if(unacknowledgeNr !=0) dpSet(sysName+RackNr[i]+\".status\", 2);
+               else dpSet(sysName+RackNr[i]+\".status\", 0);
+     }
+   }
+   
+   dpSet(sysName+RackNr[i]+\".error\", errorNr);
+   dpSet(sysName+RackNr[i]+\".warning\", warningNr);
+   dpSet(sysName+RackNr[i]+\".unacknowledge\", unacknowledgeNr);
+//   
+  //DebugTN(errorNr, warningNr, unacknowledgeNr);
+//    
+//    
+  }
+//  
+}
+
+" 0
+ E E E
+30 7
+"FRAME1"
+""
+1 26 36 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+8 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  // if(ACCESS_CONTROL)
+
+  fwAccessControl_setupPanel( \"ApplyPanelAccessControl\", exceptionInfo);
+  
+  bool loop = TRUE;
+  while(loop == TRUE){
+  
+  //DebugN($p1);
+  string Rack1, Rack2;
+  dyn_string chan1in, chan1out, chan2in, chan2out;
+  
+  dyn_string channelin65 = makeDynString(\"EM1_R02_C06_C11_DW\", \"EM1_R02_C12_C17_DW\", \"EM1_R02_C06_C11_UP\", 
+                                         \"EM1_R02_C18_C23_DW\", \"EM1_R02_C12_C17_UP\", \"EM1_R02_C18_C23_UP\",
+                                         \"EM1_R02_C24_C29_DW\", \"EM1_R02_C30_C35_DW\", \"EM1_R02_C24_C29_UP\",
+                                         \"EM1_R02_C36_C05_DW\", \"EM1_R02_C30_C35_UP\", \"EM1_R02_C36_C05_UP\",
+                                         \"EM1_R03_C36_C05_UP\", \"EM1_R03_C12_C17_DW\", \"EM1_R03_C06_C11_UP\",
+                                         \"EM1_R03_C18_C23_DW\", \"EM1_R03_C12_C17_UP\", \"EM1_R03_C24_C29_DW\",
+                                         \"EM1_R03_C18_C23_UP\", \"EM1_R03_C30_C35_DW\", \"EM1_R03_C24_C29_UP\",
+                                         \"EM1_R03_C36_C05_DW\", \"EM1_R03_C30_C35_UP\", \"EM1_R03_C06_C11_DW\");
+  dyn_string channelout65 = makeDynString(\"EM1_R02_C06_C11_DW\", \"EM1_R02_C12_C17_DW\", \"EM1_R02_C06_C11_UP\",
+                                          \"EM1_R02_C18_C23_DW\", \"EM1_R02_C12_C17_UP\", \"EM1_R02_C18_C23_UP\",
+                                          \"EM1_R02_C24_C29_DW\", \"EM1_R02_C30_C35_DW\", \"EM1_R02_C24_C29_UP\",
+                                          \"EM1_R02_C36_C05_DW\", \"EM1_R02_C30_C35_UP\", \"EM1_R02_C36_C05_UP\",
+                                          \"EM1_R03_C06_C11_DW\", \"EM1_R03_C12_C17_DW\", \"EM1_R03_C36_C05_DW\",
+                                          \"EM1_R03_C24_C29_UP\", \"EM1_R03_C12_C17_UP\", \"EM1_R03_C18_C23_UP\",
+                                          \"EM1_R03_C24_C29_DW\", \"EM1_R03_C30_C35_DW\", \"EM1_R03_C18_C23_DW\",
+                                          \"EM1_R03_C06_C11_UP\", \"EM1_R03_C30_C35_UP\", \"EM1_R03_C36_C05_UP\");
+  dyn_string channelin62 = makeDynString(\"EM2_R02_R03_C21_C23_DW\", \"EM2_R02_R03_C21_C23_UP\", \"EM2_R02_R03_C24_C26_DW\",
+                                         \"EM2_R02_R03_C24_C26_UP\", \"EM2_R02_R03_C27_C29_DW\", \"EM2_R02_R03_C27_C29_UP\",
+                                         \"EM2_R02_R03_C30_C32_DW\", \"EM2_R02_R03_C30_C32_UP\", \"EM2_R02_R03_C33_C35_DW\",
+                                         \"EM2_R02_R03_C33_C35_UP\", \"EM2_R02_R03_C36_C02_DW\", \"EM2_R02_R03_C36_C02_UP\");
+  dyn_string channelout62 = makeDynString(\"EM2_R02_R03_C21_C23_DW\", \"EM2_R02_R03_C21_C23_UP\", \"EM2_R02_R03_C24_C26_DW\",
+                                          \"EM2_R02_R03_C24_C26_UP\", \"EM2_R02_R03_C27_C29_DW\", \"EM2_R02_R03_C27_C29_UP\",
+                                          \"EM2_R02_R03_C30_C32_DW\", \"EM2_R02_R03_C30_C32_UP\", \"EM2_R02_R03_C33_C35_DW\", 
+                                          \"EM2_R02_R03_C33_C35_UP\", \"EM2_R02_R03_C36_C02_DW\", \"EM2_R02_R03_C36_C02_UP\");
+  dyn_string channelin63 = makeDynString(\"EM3_R02_R03_C22_C24_UP\", \"EM3_R02_R03_C22_C24_DW\", \"EM3_R02_R03_C25_C27_DW\",
+                                         \"EM3_R02_R03_C25_C27_UP\", \"EM3_R02_R03_C28_C30_UP\", \"EM3_R02_R03_C28_C30_DW\",
+                                         \"EM3_R02_R03_C31_C33_UP\", \"EM3_R02_R03_C31_C33_DW\", \"EM3_R02_R03_C34_C36_DW\",
+                                         \"EM3_R02_R03_C34_C36_UP\", \"EM3_R02_R03_C01_C03_DW\", \"EM3_R02_R03_C01_C03_UP\");
+  dyn_string channelout63 = makeDynString(\"EM3_R02_R03_C22_C24_UP\", \"EM3_R02_R03_C22_C24_DW\", \"EM3_R02_R03_C25_C27_DW\",
+                                          \"EM3_R02_R03_C25_C27_UP\", \"EM3_R02_R03_C28_C30_UP\", \"EM3_R02_R03_C28_C30_DW\",
+                                          \"EM3_R02_R03_C31_C33_UP\", \"EM3_R02_R03_C31_C33_DW\", \"EM3_R02_R03_C34_C36_DW\",
+                                          \"EM3_R02_R03_C34_C36_UP\", \"EM3_R02_R03_C01_C03_DW\", \"EM3_R02_R03_C01_C03_UP\");
+  dyn_string channelin66 = makeDynString(\"EM2_R02_R03_C03_C05_DW\", \"EM2_R02_R03_C03_C05_UP\", \"EM2_R02_R03_C06_C08_DW\",
+                                         \"EM2_R02_R03_C06_C08_UP\", \"EM2_R02_R03_C09_C11_DW\", \"EM2_R02_R03_C09_C11_UP\",
+                                         \"EM2_R02_R03_C12_C14_DW\", \"EM2_R02_R03_C12_C14_UP\", \"EM2_R02_R03_C15_C17_DW\",
+                                         \"EM2_R02_R03_C15_C17_UP\", \"EM2_R02_R03_C18_C20_DW\", \"EM2_R02_R03_C18_C20_UP\");
+  dyn_string channelout66 = makeDynString(\"EM2_R02_R03_C03_C05_DW\", \"EM2_R02_R03_C03_C05_UP\", \"EM2_R02_R03_C06_C08_DW\",
+                                          \"EM2_R02_R03_C06_C08_UP\", \"EM2_R02_R03_C09_C11_DW\", \"EM2_R02_R03_C09_C11_UP\",
+                                          \"EM2_R02_R03_C12_C14_DW\", \"EM2_R02_R03_C12_C14_UP\", \"EM2_R02_R03_C15_C17_DW\",
+                                          \"EM2_R02_R03_C15_C17_UP\", \"EM2_R02_R03_C18_C20_DW\", \"EM2_R02_R03_C18_C20_UP\");
+  dyn_string channelin67 = makeDynString(\"EM3_R02_R03_C04_C06_DW\", \"EM3_R02_R03_C04_C06_UP\", \"EM3_R02_R03_C07_C09_UP\",
+                                         \"EM3_R02_R03_C07_C09_DW\", \"EM3_R02_R03_C10_C12_UP\", \"EM3_R02_R03_C10_C12_DW\",
+                                         \"EM3_R02_R03_C13_C15_UP\", \"EM3_R02_R03_C13_C15_DW\", \"EM3_R02_R03_C16_C18_UP\",
+                                         \"EM3_R02_R03_C16_C18_DW\", \"EM3_R02_R03_C19_C21_UP\", \"EM3_R02_R03_C19_C21_DW\");
+  dyn_string channelout67 = makeDynString(\"EM3_R02_R03_C04_C06_DW\", \"EM3_R02_R03_C04_C06_UP\", \"EM3_R02_R03_C07_C09_UP\",
+                                          \"EM3_R02_R03_C07_C09_DW\", \"EM3_R02_R03_C10_C12_UP\", \"EM3_R02_R03_C10_C12_DW\",
+                                          \"EM3_R02_R03_C13_C15_UP\", \"EM3_R02_R03_C13_C15_DW\", \"EM3_R02_R03_C16_C18_UP\",
+                                          \"EM3_R02_R03_C16_C18_DW\", \"EM3_R02_R03_C19_C21_UP\", \"EM3_R02_R03_C19_C21_DW\");
+  dyn_string channel69 = makeDynString(\"WM2_S08_RB1\", \"WM2_S09_RB1\", \"WM2_S08_RB2\", \"WM2_S09_RB2\", \"WM2_S08_RB3\", \"WM2_S09_RB3\",
+                                       \"WM2_S08_RB4\", \"WM2_S09_RB4\", \"WM2_S10_RB1\", \"WM2_S11_RB1\", \"WM2_S10_RB2\", \"WM2_S11_RB2\",
+                                       \"WM2_S10_RB3\", \"WM2_S11_RB3\", \"WM2_S10_RB4R\", \"WM2_S10_RB4L\", \"WM2_S11_RB4\", \"WM2_S12_RB1\",
+                                       \"WM2_S01_RB1\", \"WM2_S12_RB2\", \"WM2_S01_RB2\", \"WM2_S12_RB3\", \"WM2_S01_RB3\", \"WM2_S12_RB4\", \"WM2_S01_RB4\");
+  dyn_string channel70 = makeDynString(\"WM1_S07_RB1\", \"WM1_S08_RB1\", \"WM1_S07_RB2\", \"WM1_S08_RB2\", \"WM1_S07_RB3\", \"WM1_S08_RB3\",
+                                       \"WM1_S07_RB4\", \"WM1_S08_RB4\", \"WM1_S09_RB1\", \"WM1_S10_RB1\", \"WM1_S09_RB2\", \"WM1_S10_RB2\",
+                                       \"WM1_S09_RB3\", \"WM1_S10_RB3\", \"WM1_S09_RB4\", \"WM1_S10_RB4R\", \"WM1_S10_RB4L\", \"WM1_S11_RB1\",
+                                       \"WM1_S12_RB1\", \"WM1_S11_RB2\", \"WM1_S12_RB2\", \"WM1_S11_RB3\", \"WM1_S12_RB3\", \"WM1_S11_RB4\", \"WM1_S12_RB4\");
+  dyn_string channel71 = makeDynString(\"W00_S08_RB1\", \"W00_S09_RB1\", \"W00_S08_RB2\", \"W00_S09_RB2\", \"W00_S08_RB3\", \"W00_S09_RB3\", 
+                                       \"W00_S08_RB4\", \"W00_S09_RB4\", \"W00_S10_RB1\", \"W00_S11_RB1\", \"W00_S10_RB2\", \"W00_S11_RB2\", 
+                                       \"W00_S10_RB3\", \"W00_S11_RB3\", \"W00_S10_RB4L\", \"W00_S10_RB4R\", \"W00_S11_RB4\", \"W00_S12_RB1\", 
+                                       \"W00_S01_RB1\", \"W00_S12_RB2\", \"W00_S01_RB2\", \"W00_S12_RB3\", \"W00_S01_RB3\", \"W00_S12_RB4\", \"W00_S01_RB4\");
+  dyn_string channel72 = makeDynString(\"WP1_S07_RB1\", \"WP1_S08_RB1\", \"WP1_S07_RB2\", \"WP1_S08_RB2\", \"WP1_S07_RB3\", \"WP1_S08_RB3\",
+                                       \"WP1_S07_RB4\", \"WP1_S08_RB4\", \"WP1_S09_RB1\", \"WP1_S10_RB1\", \"WP1_S09_RB2\", \"WP1_S10_RB2\",
+                                       \"WP1_S09_RB3\", \"WP1_S10_RB3\", \"WP1_S09_RB4\", \"WP1_S10_RB4L\", \"WP1_S10_RB4R\", \"WP1_S11_RB1\",
+                                       \"WP1_S12_RB1\", \"WP1_S11_RB2\", \"WP1_S12_RB2\", \"WP1_S11_RB3\", \"WP1_S12_RB3\", \"WP1_S11_RB4\", \"WP1_S12_RB4\");
+  dyn_string channel73 = makeDynString(\"WP2_S08_RB1\", \"WP2_S09_RB1\", \"WP2_S08_RB2\", \"WP2_S09_RB2\", \"WP2_S08_RB3\", \"WP2_S09_RB3\",
+                                       \"WP2_S08_RB4\", \"WP2_S09_RB4\", \"WP2_S10_RB1\", \"WP2_S11_RB1\", \"WP2_S10_RB2\", \"WP2_S11_RB2\",
+                                       \"WP2_S10_RB3\", \"WP2_S11_RB3\", \"WP2_S10_RB4L\", \"WP2_S10_RB4R\", \"WP2_S11_RB4\", \"WP2_S12_RB1\",
+                                       \"WP2_S01_RB1\", \"WP2_S12_RB2\", \"WP2_S01_RB2\", \"WP2_S12_RB3\", \"WP2_S01_RB3\", \"WP2_S12_RB4\", \"WP2_S01_RB4\");
+  dyn_string channel74 = makeDynString(\"WM2_S02_RB1\", \"WM2_S03_RB1\", \"WM2_S02_RB2\", \"WM2_S03_RB2\", \"WM2_S02_RB3\", \"WM2_S03_RB3\",
+                                       \"WM2_S02_RB4\", \"WM2_S03_RB4\", \"WM2_S04_RB1\", \"WM2_S05_RB1\", \"WM2_S04_RB2\", \"WM2_S05_RB2\",
+                                       \"WM2_S04_RB3\", \"WM2_S05_RB3\", \"WM2_S04_RB4R\", \"WM2_S05_RB4\", \"WM2_S04_RB4L\", \"WM2_S06_RB1\",
+                                       \"WM2_S07_RB1\", \"WM2_S06_RB2\", \"WM2_S07_RB2\", \"WM2_S06_RB3\", \"WM2_S07_RB3\", \"WM2_S06_RB4\",\"WM2_S07_RB4\");
+  dyn_string channel75 = makeDynString(\"WM1_S01_RB1\", \"WM1_S02_RB1\", \"WM1_S01_RB2\", \"WM1_S02_RB2\", \"WM1_S01_RB3\", \"WM1_S02_RB3\",
+                                       \"WM1_S01_RB4\", \"WM1_S02_RB4\", \"WM1_S03_RB1\", \"WM1_S04_RB1\", \"WM1_S03_RB2\", \"WM1_S04_RB2\",
+                                       \"WM1_S03_RB3\", \"WM1_S04_RB3\", \"WM1_S03_RB4\", \"WM1_S04_RB4L\", \"WM1_S04_RB4R\", \"WM1_S05_RB1\",
+                                       \"WM1_S06_RB1\", \"WM1_S05_RB2\", \"WM1_S06_RB2\", \"WM1_S05_RB3\", \"WM1_S06_RB3\", \"WM1_S05_RB4\", \"WM1_S06_RB4\");
+  dyn_string channel76 = makeDynString(\"W00_S02_RB1\", \"W00_S03_RB1\", \"W00_S02_RB2\", \"W00_S03_RB2\", \"W00_S02_RB3\", \"W00_S03_RB3\",
+                                       \"W00_S02_RB4\", \"W00_S03_RB4\", \"W00_S04_RB1\", \"W00_S05_RB1\", \"W00_S04_RB2\", \"W00_S05_RB2\", 
+                                       \"W00_S04_RB3\", \"W00_S05_RB3\", \"W00_S04_RB4L\", \"W00_S04_RB4R\", \"W00_S05_RB4\", \"W00_S06_RB1\", 
+                                       \"W00_S07_RB1\", \"W00_S06_RB2\", \"W00_S07_RB2\", \"W00_S06_RB3\", \"W00_S07_RB3\", \"W00_S06_RB4\", \"W00_S07_RB4\");
+  dyn_string channel77 = makeDynString(\"WP1_S01_RB1\", \"WP1_S02_RB1\", \"WP1_S01_RB2\", \"WP1_S02_RB2\", \"WP1_S01_RB3\", \"WP1_S02_RB3\", 
+                                       \"WP1_S01_RB4\", \"WP1_S02_RB4\", \"WP1_S03_RB1\", \"WP1_S04_RB1\", \"WP1_S03_RB2\", \"WP1_S04_RB2\",
+                                       \"WP1_S03_RB3\", \"WP1_S04_RB3\", \"WP1_S03_RB4\", \"WP1_S04_RB4R\", \"WP1_S04_RB4L\", \"WP1_S05_RB1\",
+                                       \"WP1_S06_RB1\", \"WP1_S05_RB2\", \"WP1_S06_RB2\", \"WP1_S05_RB3\", \"WP1_S06_RB3\", \"WP1_S05_RB4\", \"WP1_S06_RB4\");
+  dyn_string channel78 = makeDynString(\"WP2_S02_RB1\", \"WP2_S03_RB1\", \"WP2_S02_RB2\", \"WP2_S03_RB2\", \"WP2_S02_RB3\", \"WP2_S03_RB3\", 
+                                       \"WP2_S02_RB4\", \"WP2_S03_RB4\", \"WP2_S04_RB1\", \"WP2_S05_RB1\", \"WP2_S04_RB2\", \"WP2_S05_RB2\", 
+                                       \"WP2_S04_RB3\", \"WP2_S05_RB3\", \"WP2_S04_RB4L\", \"WP2_S05_RB4\", \"WP2_S04_RB4R\", \"WP2_S06_RB1\", 
+                                       \"WP2_S07_RB1\", \"WP2_S06_RB2\", \"WP2_S07_RB2\", \"WP2_S06_RB3\", \"WP2_S07_RB3\", \"WP2_S06_RB4\", \"WP2_S07_RB4\");
+  dyn_string channelin80 = makeDynString(\"EP2_R02_R03_C21_C23_DW\", \"EP2_R02_R03_C21_C23_UP\", \"EP2_R02_R03_C24_C26_DW\",
+                                         \"EP2_R02_R03_C24_C26_UP\", \"EP2_R02_R03_C27_C29_DW\", \"EP2_R02_R03_C27_C29_UP\",
+                                         \"EP2_R02_R03_C30_C32_DW\", \"EP2_R02_R03_C30_C32_UP\", \"EP2_R02_R03_C33_C35_DW\",
+                                         \"EP2_R02_R03_C33_C35_UP\", \"EP2_R02_R03_C36_C02_DW\", \"EP2_R02_R03_C36_C02_UP\");
+  dyn_string channelout80 = makeDynString(\"EP2_R02_R03_C21_C23_DW\", \"EP2_R02_R03_C21_C23_UP\", \"EP2_R02_R03_C24_C26_DW\",
+                                          \"EP2_R02_R03_C24_C26_UP\", \"EP2_R02_R03_C27_C29_DW\", \"EP2_R02_R03_C27_C29_UP\",
+                                          \"EP2_R02_R03_C30_C32_DW\", \"EP2_R02_R03_C30_C32_UP\", \"EP2_R02_R03_C33_C35_DW\",
+                                          \"EP2_R02_R03_C33_C35_UP\", \"EP2_R02_R03_C36_C02_DW\", \"EP2_R02_R03_C36_C02_UP\");
+  dyn_string channelin81 = makeDynString(\"EP3_R02_R03_C04_C06_UP\", \"EP3_R02_R03_C04_C06_DW\", \"EP3_R02_R03_C07_C09_UP\",
+                                         \"EP3_R02_R03_C07_C09_DW\", \"EP3_R02_R03_C10_C12_UP\", \"EP3_R02_R03_C10_C12_DW\",
+                                         \"EP3_R02_R03_C13_C15_UP\", \"EP3_R02_R03_C13_C15_DW\", \"EP3_R02_R03_C16_C18_UP\",
+                                         \"EP3_R02_R03_C16_C18_DW\", \"EP3_R02_R03_C19_C21_UP\", \"EP3_R02_R03_C19_C21_DW\");
+  dyn_string channelout81 = makeDynString(\"EP3_R02_R03_C04_C06_UP\", \"EP3_R02_R03_C04_C06_DW\", \"EP3_R02_R03_C07_C09_UP\",
+                                          \"EP3_R02_R03_C07_C09_DW\", \"EP3_R02_R03_C10_C12_UP\", \"EP3_R02_R03_C10_C12_DW\",
+                                          \"EP3_R02_R03_C13_C15_UP\", \"EP3_R02_R03_C13_C15_DW\", \"EP3_R02_R03_C16_C18_UP\",
+                                          \"EP3_R02_R03_C16_C18_DW\", \"EP3_R02_R03_C19_C21_UP\", \"EP3_R02_R03_C19_C21_DW\");
+  dyn_string channelin83 = makeDynString(\"EP1_R03_C06_C11_DW\", \"EP1_R03_C30_C35_UP\", \"EP1_R03_C36_C05_DW\",
+                                       \"EP1_R03_C24_C29_UP\", \"EP1_R03_C30_C35_DW\", \"EP1_R03_C18_C23_UP\",
+                                       \"EP1_R03_C24_C29_DW\", \"EP1_R03_C12_C17_UP\", \"EP1_R03_C18_C23_DW\",
+                                       \"EP1_R03_C06_C11_UP\", \"EP1_R03_C12_C17_DW\", \"EP1_R03_C36_C05_UP\",
+                                       \"EP1_R02_C36_C05_UP\", \"EP1_R02_C30_C35_UP\", \"EP1_R02_C36_C05_DW\",
+                                       \"EP1_R02_C24_C29_UP\", \"EP1_R02_C30_C35_DW\", \"EP1_R02_C24_C29_DW\",
+                                       \"EP1_R02_C12_C17_DW\", \"EP1_R02_C12_C17_UP\", \"EP1_R02_C18_C23_DW\",
+                                       \"EP1_R02_C06_C11_UP\", \"EP1_R02_C18_C23_UP\", \"EP1_R02_C06_C11_DW\");
+  dyn_string channelout83 = makeDynString(\"EP1_R03_C36_C05_UP\", \"EP1_R03_C30_C35_UP\", \"EP1_R03_C06_C11_UP\",
+                                          \"EP1_R03_C18_C23_DW\", \"EP1_R03_C30_C35_DW\", \"EP1_R03_C24_C29_DW\",
+                                          \"EP1_R03_C18_C23_UP\", \"EP1_R03_C12_C17_UP\", \"EP1_R03_C24_C29_UP\",
+                                          \"EP1_R03_C36_C05_DW\", \"EP1_R03_C12_C17_DW\", \"EP1_R03_C06_C11_DW\",
+                                          \"EP1_R02_C36_C05_UP\", \"EP1_R02_C30_C35_UP\", \"EP1_R02_C36_C05_DW\",
+                                          \"EP1_R02_C24_C29_UP\", \"EP1_R02_C30_C35_DW\", \"EP1_R02_C24_C29_DW\",
+                                          \"EP1_R02_C18_C23_UP\", \"EP1_R02_C12_C17_UP\", \"EP1_R02_C18_C23_DW\",
+                                          \"EP1_R02_C06_C11_UP\", \"EP1_R02_C12_C17_DW\", \"EP1_R02_C06_C11_DW\");
+  dyn_string channelin84 = makeDynString(\"EP2_R02_R03_C03_C05_DW\", \"EP2_R02_R03_C03_C05_UP\", \"EP2_R02_R03_C06_C08_DW\",
+                                         \"EP2_R02_R03_C06_C08_UP\", \"EP2_R02_R03_C09_C11_DW\", \"EP2_R02_R03_C09_C11_UP\", 
+                                         \"EP2_R02_R03_C12_C14_DW\", \"EP2_R02_R03_C12_C14_UP\", \"EP2_R02_R03_C15_C17_DW\",
+                                         \"EP2_R02_R03_C15_C17_UP\", \"EP2_R02_R03_C18_C20_DW\", \"EP2_R02_R03_C18_C20_UP\");
+  dyn_string channelout84 = makeDynString(\"EP2_R02_R03_C03_C05_DW\", \"EP2_R02_R03_C03_C05_UP\", \"EP2_R02_R03_C06_C08_DW\",
+                                          \"EP2_R02_R03_C06_C08_UP\", \"EP2_R02_R03_C09_C11_DW\", \"EP2_R02_R03_C09_C11_UP\",
+                                          \"EP2_R02_R03_C12_C14_DW\", \"EP2_R02_R03_C12_C14_UP\", \"EP2_R02_R03_C15_C17_DW\",
+                                          \"EP2_R02_R03_C15_C17_UP\", \"EP2_R02_R03_C18_C20_DW\", \"EP2_R02_R03_C18_C20_UP\");
+  dyn_string channelin85 = makeDynString(\"EP3_R02_R03_C22_C24_UP\", \"EP3_R02_R03_C25_C27_UP\", \"EP3_R02_R03_C22_C24_DW\",
+                                         \"EP3_R02_R03_C25_C27_DW\", \"EP3_R02_R03_C28_C30_UP\", \"EP3_R02_R03_C28_C30_DW\",
+                                         \"EP3_R02_R03_C31_C33_UP\", \"EP3_R02_R03_C31_C33_DW\", \"EP3_R02_R03_C34_C36_UP\", 
+                                         \"EP3_R02_R03_C01_C03_UP\", \"EP3_R02_R03_C34_C36_DW\", \"EP3_R02_R03_C01_C03_DW\");
+  dyn_string channelout85 = makeDynString(\"EP3_R02_R03_C25_C27_DW\", \"EP3_R02_R03_C22_C24_DW\", \"EP3_R02_R03_C25_C27_UP\",
+                                          \"EP3_R02_R03_C22_C24_UP\", \"EP3_R02_R03_C28_C30_UP\", \"EP3_R02_R03_C28_C30_DW\",
+                                          \"EP3_R02_R03_C31_C33_UP\", \"EP3_R02_R03_C31_C33_DW\", \"EP3_R02_R03_C01_C03_DW\",
+                                          \"EP3_R02_R03_C34_C36_DW\", \"EP3_R02_R03_C01_C03_UP\", \"EP3_R02_R03_C34_C36_UP\");
+  
+  
+  switch($p1){
+    
+    case \"EM3\":  Rack1 = \"Rack63\"; Rack2 = \"Rack67\"; chan1in = channelin63; chan1out = channelout63; chan2in = channelin67; chan2out = channelout67; break;
+    case \"EM2\":  Rack1 = \"Rack62\"; Rack2 = \"Rack66\"; chan1in = channelin62; chan1out = channelout62; chan2in = channelin66; chan2out = channelout66; break;
+    case \"EM1\":  Rack1 = \"Rack65\"; chan1in = channelin65; chan1out = channelout65; break;
+    case \"WM2\":  Rack1 = \"Rack69\"; Rack2 = \"Rack74\"; chan1in = channel69; chan1out = channel69; chan2in = channel74; chan2out = channel74; break;
+    case \"WM1\":  Rack1 = \"Rack70\"; Rack2 = \"Rack75\"; chan1in = channel70; chan1out = channel70; chan2in = channel75; chan2out = channel75; break;
+    case \"W00\":  Rack1 = \"Rack71\"; Rack2 = \"Rack76\"; chan1in = channel71; chan1out = channel71; chan2in = channel76; chan2out = channel76; break;
+    case \"WP1\":  Rack1 = \"Rack72\"; Rack2 = \"Rack77\"; chan1in = channel72; chan1out = channel72; chan2in = channel77; chan2out = channel77; break;
+    case \"WP2\":  Rack1 = \"Rack73\"; Rack2 = \"Rack78\"; chan1in = channel73; chan1out = channel73; chan2in = channel78; chan2out = channel78; break;
+    case \"EP1\":  Rack1 = \"Rack83\"; chan1in = channelin83; chan1out = channelout83; break;
+    case \"EP2\":  Rack1 = \"Rack80\"; Rack2 = \"Rack84\"; chan1in = channelin80; chan1out = channelout80; chan2in = channelin84; chan2out = channelout84; break;
+    case \"EP3\":  Rack1 = \"Rack81\"; Rack2 = \"Rack85\"; chan1in = channelin81; chan1out = channelout81; chan2in = channelin85; chan2out = channelout85; break;    
+        
+  }
+
+  if($p1 == \"EM1\" || $p1 == \"EP1\"){
+   setValue(\"R1\", \"text\", Rack1);  
+   R2.enabled = FALSE; 
+  }
+  else{  
+  setValue(\"R1\", \"text\", Rack1);
+  setValue(\"R2\", \"text\", Rack2);
+}
+  float input1=0, output1=0, input2=0, output2=0;
+  
+  for(int i=1; i<=dynlen(chan1in); i++){
+    
+    string dpel = dpNames(RPCGasGetSysName()+\"*\"+chan1in[i]+\"*\", \"RPCGasChannel\");
+    float value;
+    //DebugN(dpel);
+    dpGet(dpel+\".flowIn\", value);
+    //DebugN(value);
+    input1 = input1 + value;
+   // DebugN(input1);
+    
+  }
+  
+    for(int i=1; i<=dynlen(chan1out); i++){
+    
+    string dpel = dpNames(RPCGasGetSysName()+\"*\"+chan1out[i]+\"*\", \"RPCGasChannel\");
+    float value;
+    //DebugN(dpel);
+    dpGet(dpel+\".flowOut\", value);
+    //DebugN(value);
+    output1 = output1 + value;
+    //DebugN(output1);
+    
+  }
+  
+    for(int i=1; i<=dynlen(chan2in); i++){
+    
+    string dpel = dpNames(RPCGasGetSysName()+\"*\"+chan2in[i]+\"*\", \"RPCGasChannel\");
+    float value;
+    //DebugN(dpel);
+    dpGet(dpel+\".flowIn\", value);
+    //DebugN(value);
+    input2 = input2+ value;
+    //DebugN(input2);
+    
+  }
+  
+    for(int i=1; i<=dynlen(chan2out); i++){
+    
+    string dpel = dpNames(RPCGasGetSysName()+\"*\"+chan2out[i]+\"*\", \"RPCGasChannel\");
+    float value;
+    //DebugN(dpel);
+    dpGet(dpel+\".flowOut\", value);
+    //DebugN(value);
+    output2 = output2 + value;
+    //DebugN(output2);
+    
+  }  
+    
+  string input1dec = conv(input1);
+  string output1dec = conv(output1);
+  string input2dec = conv(input2);
+  string output2dec = conv(output2);
+  
+  if($p1 == \"EM1\" || $p1 == \"EP1\"){
+     setValue(\"In1\", \"text\", input1dec);
+     setValue(\"Out1\", \"text\", output1dec); 
+     In2.enabled = FALSE;
+     Out2.enabled = FALSE;
+  }
+  else{
+     setValue(\"In1\", \"text\", input1dec);
+     setValue(\"Out1\", \"text\", output1dec);
+     setValue(\"In2\", \"text\", input2dec);
+     setValue(\"Out2\", \"text\", output2dec);
+}
+  delay(60);
+  
+}
+  
+}" 0
+ E 0 0 1 0 1 E 1.26966292134831 0 1.30252100840336 -7.01123595505618 -18.890756302521 0 E 26 36 205 275
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Rack Flow
+14 9
+"R1"
+""
+1 60 64 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  58 62 156 88
+3 "0s" 0 0 0 0 0 -1  E E E
+2 11
+"PRIMITIVE_TEXT3"
+""
+1 36 100 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 36 100 122 124
+0 2 2 "0s" 0 0 0 64 0 0  36 100 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Total Flow In
+14 12
+"In1"
+""
+1 134 96 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  132 94 192 126
+3 "0s" 0 0 0 0 0 -1  E E E
+2 16
+"PRIMITIVE_TEXT7"
+""
+1 208 98 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 208 98 236 124
+0 2 2 "0s" 0 0 0 64 0 0  208 98 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 3 l/h
+2 17
+"PRIMITIVE_TEXT8"
+""
+1 36 142 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 36 142 122 166
+0 2 2 "0s" 0 0 0 64 0 0  36 142 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Total Flow Out
+14 18
+"Out1"
+""
+1 134 138 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  132 136 192 168
+3 "0s" 0 0 0 0 0 -1  E E E
+2 19
+"PRIMITIVE_TEXT9"
+""
+1 208 140 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 208 140 236 166
+0 2 2 "0s" 0 0 0 64 0 0  208 140 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 3 l/h
+14 20
+"R2"
+""
+1 62 210 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  60 208 158 234
+3 "0s" 0 0 0 0 0 -1  E E E
+2 21
+"PRIMITIVE_TEXT10"
+""
+1 38 246 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 38 246 124 270
+0 2 2 "0s" 0 0 0 64 0 0  38 246 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Total Flow In
+14 22
+"In2"
+""
+1 136 242 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  134 240 194 272
+3 "0s" 0 0 0 0 0 -1  E E E
+2 23
+"PRIMITIVE_TEXT11"
+""
+1 210 244 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 210 244 238 270
+0 2 2 "0s" 0 0 0 64 0 0  210 244 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 3 l/h
+2 24
+"PRIMITIVE_TEXT12"
+""
+1 38 288 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 38 288 124 312
+0 2 2 "0s" 0 0 0 64 0 0  38 288 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Total Flow Out
+14 25
+"Out2"
+""
+1 136 284 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  134 282 194 314
+3 "0s" 0 0 0 0 0 -1  E E E
+2 26
+"PRIMITIVE_TEXT13"
+""
+1 210 286 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 210 286 238 312
+0 2 2 "0s" 0 0 0 64 0 0  210 286 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 3 l/h
+13 27
+"GlobalTrend"
+""
+1 505 375 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  503 373 617 417
+
+T 
+1
+LANG:1 11 GlobalTrend
+"main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  string button = $p1;
+  string paneladdress;
+  if(substr(button, 0, 1) == \"W\") paneladdress = \"Barrel\";
+  else if(substr(button, 0, 1) == \"E\") paneladdress = \"Endcap\";  
+  
+  //  ChildPanelOnCentral(\"CMS_RPCfwHardwareGas/CMS_RPCfwHardwareGas_\" + paneladdress +\"SectorTrending.pnl\",
+  //    \"Global Trending Plots \"+ button,
+  //    makeDynString(\"$p1:\"+ button));
+  
+  ChildPanelOnCentral(\"CMS_RPCfwHardwareGas/CMS_RPCfwHardwareGas_\" + paneladdress +\"Trending.pnl\",
+      \"Global Trending Plots \"+ button,
+      makeDynString(\"$p1:\"+ button));
+}
+" 0
+ E E E
+13 28
+"SetAlarm"
+""
+1 195 375 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  193 373 323 417
+
+T 
+1
+LANG:1 8 SetAlarm
+"main()
+{
+  dyn_string dpes = dpNames(RPCGasGetSysName()+$p1+\"*\" , \"RPCGasChannel\"); 
+  string zone = substr($p1, 0, 1);
+//   DebugN(zone);
+  
+  dyn_string exceptionInfo;
+  //float firstEcValue = 15, secondEcValue = 10, firstBaValue = 15, secondEcValue = 10;
+  dyn_float limits;
+  string ChannelIn, ChannelOut, ChannelDifference;
+  dyn_string alertTexts = makeDynString(\"LowFlow\", \"Warning\", \"Ok\");
+  dyn_string alertTexts1 = makeDynString(\"High\", \"Low\", \"Ok\");
+  dyn_string alertClasses = makeDynString(\"_fwErrorAck.\", \"_fwWarningAck.\", \"\");
+  dyn_string alertClasses1 = makeDynString(\"_fwErrorAck.\", \"_fwWarningAck.\", \"\");
+  string alertPanel, alertHelp; 
+  dyn_string summary, alertPanelParameters;
+  float valueIn, warningValueIn, valueOut, warningValueOut, valueDifference, warningValueDifference;
+  
+  if(zone == \"W\"){
+     for(int i = 1; i<=dynlen(dpes); i++){
+       
+        ChannelIn = dpes[i]+\".flowIn\";    
+        dpGet(ChannelIn, valueIn);
+        if(valueIn <17 && valueIn > 12.2) warningValueIn = valueIn - 2;
+        else if (valueIn >=17) warningValueIn = 15;      
+        if(valueIn < 12.2) warningValueIn = 10.2;    
+        
+//         DebugN(ChannelIn, \"   \", valueIn, \"   \", warningValueIn);  
+        
+        fwAlertConfig_deactivate(ChannelIn, exceptionInfo);
+        limits = makeDynFloat(10, warningValueIn);
+        fwAlertConfig_set(ChannelIn, DPCONFIG_ALERT_NONBINARYSIGNAL, alertTexts, limits, alertClasses, summary, alertPanel, alertPanelParameters, alertHelp, exceptionInfo);   
+        //if(fwConfigurationDB_handleErrors(exceptionInfo)) return;
+        fwAlertConfig_activate(ChannelIn, exceptionInfo);  
+        
+        ChannelOut = dpes[i]+\".flowOut\";    
+        dpGet(ChannelOut, valueOut);
+        if(valueOut < 17 && valueOut > 12.2) warningValueOut = valueOut - 2;
+        else if(valueOut >= 17) warningValueOut = 15;      
+        else if(valueOut <= 12.2) warningValueOut = 10.2;      
+        
+        fwAlertConfig_deactivate(ChannelOut, exceptionInfo);
+        limits = makeDynFloat(10, warningValueOut);
+        fwAlertConfig_set(ChannelOut, DPCONFIG_ALERT_NONBINARYSIGNAL, alertTexts, limits, alertClasses, summary, alertPanel, alertPanelParameters, alertHelp, exceptionInfo);   
+        //if(fwConfigurationDB_handleErrors(exceptionInfo)) return;
+        fwAlertConfig_activate(ChannelOut, exceptionInfo);          
+        
+        ChannelDifference = dpes[i]+\".difference\";
+        fwAlertConfig_deactivate(ChannelDifference, exceptionInfo);
+        limits = makeDynFloat(-50, -40);
+        fwAlertConfig_set(ChannelDifference, DPCONFIG_ALERT_NONBINARYSIGNAL, alertTexts1, limits, alertClasses1, summary, alertPanel, alertPanelParameters, alertHelp, exceptionInfo);   
+        //if(fwConfigurationDB_handleErrors(exceptionInfo)) return;
+        fwAlertConfig_activate(ChannelDifference, exceptionInfo);       
+        
+        }
+   }
+  else if (zone == \"E\"){
+    for(int i = 1; i<=dynlen(dpes); i++){
+      
+      ChannelIn = dpes[i]+\".flowIn\";    
+      dpGet(ChannelIn, valueIn);
+      if(valueIn > 9 && valueIn < 7.2 )warningValueIn = valueIn - 2;
+      else if(valueIn >= 9) warningValueIn = 7;      
+      else if(valueIn <= 7.2) warningValueIn = 5.2;      
+       
+      fwAlertConfig_deactivate(ChannelIn, exceptionInfo);
+      limits = makeDynFloat(5, warningValueIn);
+      fwAlertConfig_set(ChannelIn, DPCONFIG_ALERT_NONBINARYSIGNAL, alertTexts, limits, alertClasses, summary, alertPanel, alertPanelParameters, alertHelp, exceptionInfo);   
+      //if(fwConfigurationDB_handleErrors(exceptionInfo)) return;
+      fwAlertConfig_activate(ChannelIn, exceptionInfo);  
+      
+      ChannelOut = dpes[i]+\".flowOut\";    
+      dpGet(ChannelOut, valueOut);
+      if(valueOut > 9 && valueOut < 7.2) warningValueOut = valueOut - 2;
+      else if(valueOut >= 9) warningValueOut = 7;      
+      else if(valueOut <= 7.2) warningValueOut = 5.2;      
+      
+      fwAlertConfig_deactivate(ChannelOut, exceptionInfo);
+      limits = makeDynFloat(5, warningValueOut);
+      fwAlertConfig_set(ChannelOut, DPCONFIG_ALERT_NONBINARYSIGNAL, alertTexts, limits, alertClasses, summary, alertPanel, alertPanelParameters, alertHelp, exceptionInfo);   
+      //if(fwConfigurationDB_handleErrors(exceptionInfo)) return;
+      fwAlertConfig_activate(ChannelOut, exceptionInfo);          
+        
+      ChannelDifference = dpes[i]+\".difference\";
+      fwAlertConfig_deactivate(ChannelDifference, exceptionInfo);
+      limits = makeDynFloat(-70, -50);
+      fwAlertConfig_set(ChannelDifference, DPCONFIG_ALERT_NONBINARYSIGNAL, alertTexts1, limits, alertClasses1, summary, alertPanel, alertPanelParameters, alertHelp, exceptionInfo);   
+      //if(fwConfigurationDB_handleErrors(exceptionInfo)) return;
+      fwAlertConfig_activate(ChannelDifference, exceptionInfo);       
+      
+      }
+ }
+}" 0
+ E E E
+30 30
+"Expert"
+""
+1 20 350 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+42 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.10169491525424 0 1.28571428571429 2.96610169491525 -105 0 E 20 350 316 421
+1
+LANG:1 33 MS Shell Dlg,-1,16,5,75,0,0,0,0,0
+0 1
+LANG:1 6 Expert
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0
