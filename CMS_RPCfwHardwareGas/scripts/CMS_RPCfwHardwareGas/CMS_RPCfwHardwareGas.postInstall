@@ -1,6 +1,6 @@
   /**********************************************
-  Postinstall file v1.4
-  last update: 20.4.2012
+  Postinstall file v1.3
+  last update: 20.4.2011
   fsm added
   working component
   
@@ -10,13 +10,13 @@
 
 #uses "fwDIP/fwDIP.ctl"
 string dipAddress;
-
-
 /////////main 
-const string instType = "DIPFSM";// = DIP for complete installation  
+const string instType = "DIP";// = DIP for complete installation  
 main()
 {
 
+  
+  
 DebugN("Start installing Gas and Cooling Component...");
 
 if(strpos(instType,"DIP")>-1){
@@ -620,12 +620,15 @@ dipBarrelAddress(string rackNr, int channelNr, string chamber){
   string item = "dip/CMS/GCS/CMSRPC/Distribution/Rack"+rackNr+"/Channel"+channelNr;
   string configDp = dipAddress;
   dyn_string dpes = makeDynString(getSystemName()+chamber+".flowIn", getSystemName()+chamber+".flowOut");
-  dyn_string tags = makeDynString("InFlow(FE"+rackNr+"02Ch"+channelNr+")","OutFlow(FE"+rackNr+"06Ch"+channelNr+")");
- 
+  
+  fwDIP_DipQuery(configDp, item, childName, childType, fieldName, fieldType, exInfo);
+  
+  //DebugN(dipAddress, item, childName, childType, fieldName, fieldType, exInfo);
+  
+  dyn_string tags = fieldName;
   bool overwrite = FALSE;
   
   if(dynlen(exInfo)<1){ 
-    fwDIP_unsubscribeMany(dpes,exInfo);  
   fwDIP_subscribeStructure(item, dpes, tags, configDp, exInfo, overwrite);
   //fwDIP_subscribe(dpes, configDp, item, tags, exInfo, overwrite);
 }
@@ -1080,13 +1083,15 @@ dipEndcapAddress(string rackNr, int channelNr, string chamber)
   string configDp = dipAddress;
   dyn_string dpes = makeDynString(getSystemName()+chamber+".flowIn", getSystemName()+chamber+".flowOut");
   //dyn_string dpes = makeDynString(getSystemName()+chamber);
- dyn_string tags = makeDynString("InFlow(FE"+rackNr+"02Ch"+channelNr+")","OutFlow(FE"+rackNr+"06Ch"+channelNr+")");
- 
+    
+  fwDIP_DipQuery(configDp, item, childName, childType, fieldName, fieldType, exInfo);
+  
+  //DebugN(dipAddress, item, childName, childType, fieldName, fieldType, exInfo);
+  
+  dyn_string tags = fieldName;
   bool overwrite = FALSE;
   
   if(dynlen(exInfo)<1){ 
-    fwDIP_unsubscribeMany(dpes,exInfo);  
-
     fwDIP_subscribeStructure(item, dpes, tags, configDp, exInfo, overwrite);
     //fwDIP_subscribe(dpes, configDp, item, tags, exInfo, overwrite);
   }
@@ -1114,6 +1119,10 @@ infrastructure()
     string variable = EndcapOutRacks[i]; 
     dpCreate(variable, "RPCGasParameters");
   }  
+  //                                          "EM3_Rack67State", "EM3_Rack63State", "EM2_Rack66State", 
+//                                          "EM2_Rack62State", "EM1_Rack65State", "EP1_Rack83State", 
+//                                          "EP2_Rack84State", "EP2_Rack80State", "EP3_Rack85State", 
+//                                          "EP3_Rack81State");
 
  dyn_string EndcapStateRacks = makeDynString("EM3_Rack67State", "EM3_Rack63State", "EM2_Rack66State", 
                                              "EM2_Rack62State", "EM1_Rack65State", "EP1_Rack83State", 
@@ -1135,7 +1144,17 @@ infrastructure()
                                               "InPressure(PT6624)", "InPressure(PT6224)", "InPressure(PT6524)", 
                                               "InPressure(PT8324)", "InPressure(PT8424)", "InPressure(PT8024)",
                                               "InPressure(PT8524)", "InPressure(PT8124)");//, "OutManifoldPressure(PDT6725)",
+//                                              "OutManifoldPressure(PDT6325)", "OutManifoldPressure(PDT6625)", "OutManifoldPressure(PDT6225)",
+//                                              "OutManifoldPressure(PDT6525)", "OutManifoldPressure(PDT8325)", "OutManifoldPressure(PDT8425)",
+//                                              "OutManifoldPressure(PDT8025)", "OutManifoldPressure(PDT8525)", "OutManifoldPressure(PDT8125)");
 
+
+  
+  //                                               "State(Rack67StepWP)", "State(Rack63StepWP)", "State(Rack66StepWP)",
+//                                               "State(Rack62StepWP)", "State(Rack65StepWP)", "State(Rack83StepWP)",
+//                                               "State(Rack84StepWP)", "State(Rack80StepWP)", "State(Rack85StepWP)",
+//                                               "State(Rack81StepWP)");
+  
   dyn_string AliasEndcapStateRacks = makeDynString("State(Rack67StepWS)", "State(Rack63StepWS)", "State(Rack66StepWS)",
                                               "State(Rack62StepWS)", "State(Rack65StepWS)", "State(Rack83StepWS)",
                                               "State(Rack84StepWS)", "State(Rack80StepWS)", "State(Rack85StepWS)",
@@ -1152,7 +1171,10 @@ infrastructure()
     //dyn_int childType, fieldType;
     string dpes = getSystemName()+EndcapRacks[i]+".value";
     string tags = AliasEndcapRacks[i];
-    fwDIP_unsubscribe(dpes,exceptionInfo);
+            //DebugN(dpes);
+            //fwDIP_DipQuery(dpConfig, item, childName, childType, fieldName, fieldType, exceptionInfo);    
+            // if(exceptionInfo>1){
+    // fwDIP_subscribeStructure(item, dpes, tags, dpConfig, exceptionInfo);
     fwDIP_subscribe(dpes, dpConfig, item, tags, exceptionInfo);
             // }
   }
@@ -1168,7 +1190,10 @@ infrastructure()
     //dyn_int childType, fieldType;
     string dpes = getSystemName()+EndcapStateRacks[i]+".state";
     string tags = AliasEndcapStateRacks[i];
- fwDIP_unsubscribe(dpes,exceptionInfo);
+            //DebugN(dpes);
+            //fwDIP_DipQuery(dpConfig, item, childName, childType, fieldName, fieldType, exceptionInfo);    
+            // if(exceptionInfo>1){
+    // fwDIP_subscribeStructure(item, dpes, tags, dpConfig, exceptionInfo);
     fwDIP_subscribe(dpes, dpConfig, item, tags, exceptionInfo);
             // }
   }  
@@ -1238,7 +1263,10 @@ infrastructure()
     //dyn_int childType, fieldType;
     string dpes = getSystemName()+BarrelRacks[i]+".value";
     string tags = AliasBarrelRacks[i];
-      fwDIP_unsubscribe(dpes,exceptionInfo);         
+               //DebugN(dpes);
+               //fwDIP_DipQuery(dpConfig, item, childName, childType, fieldName, fieldType, exceptionInfo);    
+               // if(exceptionInfo>1){
+    //fwDIP_subscribeStructure(item, dpes, tags, dpConfig, exceptionInfo);
     fwDIP_subscribe(dpes, dpConfig, item, tags, exceptionInfo);
                // }
    
@@ -1254,7 +1282,9 @@ infrastructure()
     //dyn_int childType, fieldType;
     string dpes = getSystemName()+BarrelStateRacks[i]+".state";
     string tags = AliasBarrelStateRacks[i];
-     fwDIP_unsubscribe(dpes,exceptionInfo);
+               //DebugN(dpes);
+               //fwDIP_DipQuery(dpConfig, item, childName, childType, fieldName, fieldType, exceptionInfo);    
+               // if(exceptionInfo>1){
     fwDIP_subscribeStructure(item, dpes, tags, dpConfig, exceptionInfo);
     fwDIP_subscribe(dpes, dpConfig, item, tags, exceptionInfo);
                // }
@@ -1352,7 +1382,9 @@ infrastructure()
       dyn_int childType, fieldType;
       string dpes = getSystemName()+OtherParameters[i]+".value";
       string tags = AliasOtherParameters[i];
-   fwDIP_unsubscribe(dpes,exceptionInfo);
+      //DebugN(dpes);
+      //fwDIP_DipQuery(dpConfig, item, childName, childType, fieldName, fieldType, exceptionInfo);    
+      // if(exceptionInfo>1){
       fwDIP_subscribeStructure(item, dpes, tags, dpConfig, exceptionInfo);
       fwDIP_subscribe(dpes, dpConfig, item, tags, exceptionInfo);
       // }     
@@ -1368,7 +1400,10 @@ infrastructure()
       dyn_int childType, fieldType;
       string dpes = getSystemName()+OtherStateParameters[i]+".state";
       string tags = AliasOtherStateParameters[i];
- fwDIP_unsubscribe(dpes,exceptionInfo);
+      //DebugN(dpes);
+      //fwDIP_DipQuery(dpConfig, item, childName, childType, fieldName, fieldType, exceptionInfo);    
+      // if(exceptionInfo>1){
+      // fwDIP_subscribeStructure(item, dpes, tags, dpConfig, exceptionInfo);
       fwDIP_subscribe(dpes, dpConfig, item, tags, exceptionInfo);
       // }     
       
@@ -1383,7 +1418,10 @@ infrastructure()
       dyn_int childType, fieldType;
       string dpes = getSystemName()+OtherParameters1[i]+".value";
       string tags = AliasOtherParameters1[i];
-   
+      //DebugN(dpes);
+      //fwDIP_DipQuery(dpConfig, item, childName, childType, fieldName, fieldType, exceptionInfo);    
+      // if(exceptionInfo>1){
+      //fwDIP_subscribeStructure(item, dpes, tags, dpConfig, exceptionInfo);
       fwDIP_subscribe(dpes, dpConfig, item, tags, exceptionInfo);
       // }     
       
