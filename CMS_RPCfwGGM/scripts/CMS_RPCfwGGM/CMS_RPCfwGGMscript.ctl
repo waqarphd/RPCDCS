@@ -229,11 +229,11 @@ void GGMsystemCheck() {
 
 
  if (auto8==1) {
-   rc=dpGet(RPCGGM_getSysName()+"sensors.temperature_box",temp);
+   //rc=dpGet(RPCGGM_getSysName()+"sensors.temperature_box",temp);
    volt = hv8*(pres/965)*(293/(temp+273));
-   volt = volt + (temp-20)/(-0.00004957*volt+0.42);
+   //volt = volt + (temp-20)/(-0.00004957*volt+0.42);
    //volt = hv8*(pres/965);
-   temp=20;
+   //temp=20;
 
    if (volt>8000) {
      if (volt<10400) {
