@@ -384,9 +384,12 @@ int calculateV(string dp,float p){
            ((v0Applied-vBest)<-CMSRPCHVCor_correctionThrInVoltage ) ){
          
           if(vSoftmax>vBest){
-            
-           generateError(dp,1);
-           return -1; 
+            int vMon;
+           dpGet(dpSubStr(ch+CMSRPCHVCor_dpeV0,DPSUB_SYS_DP)+".actual.vMon",vMon);
+           if(vMon >CMSRPCHVCor_vMinAllowed){             
+             generateError(dp,1);
+             return -1; 
+             }
            }
          }          
         }   
