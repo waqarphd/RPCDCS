@@ -1,10 +1,12 @@
 /*
 * Created by Giovanni Polese (CERN)
 *	date:30/06/2011
-*	LastChange:30/06/2011
+*	LastChange:30/06/2012
 *
-*        version: 1.1
+*        version: 1.2
+*        automatic actions 
 *         
+
 */
 
 #uses "CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl"
@@ -21,6 +23,7 @@ const float CMSRPCHVCor_roP = 1;
 const string CMSRPCHVCor_Confdp ="HVCorrectionSumStatus"; 
 const string CMSRPCHVCor_dpe = ".readBackSettings.v1";
 const string CMSRPCHVCor_dpeV0 = ".readBackSettings.v0";
+const string CMSRPCHVCor_dpesetV0 = ".settings.v0";
 
 string CMSRPCHVCor_dpPressure ;
 dyn_int vMonAvg,v0Avg;
@@ -299,7 +302,7 @@ string info;
   case 15: info = "vBest calculate lower than the vMinAllowed"; break;
   case 16: info = "Hardware dp unreachable";break;
   case 2: info = "HV correction disabled";break;
-  case 1: info = "Chamber ON, Additional correction is required for this chamber (more than "+CMSRPCHVCor_correctionThrInVoltage+" V)";break;
+  case 1: info = "Chamber ON, Additional correction has been just applied for this chamber (more than "+CMSRPCHVCor_correctionThrInVoltage+" V)";break;
   default : info = "Value Ready to be applied. Chamber in STB"; break;   
   }
   if(dpExists(dp)) dpSet(dp+".algorithmError.errorInfo",info,dp+".algorithmError.errorId",errorCode);
@@ -309,7 +312,7 @@ int calculateV(string dp,float p){
 
  int vMax,vMin,v0;
  float rot,rop;
- bool enabled; 
+ int enabled; 
   string ch;
 
   dpGet(dp+".vlimits.vMax",vMax,dp+".vlimits.vMin",
@@ -357,7 +360,7 @@ int calculateV(string dp,float p){
    dpSet(dp+".voltage.vBest",vBest);
 
    
-  if(!enabled) {
+  if(enabled==0) {
     generateError(dp,2);
    return -1;
   }  
@@ -385,10 +388,22 @@ int calculateV(string dp,float p){
          
           if(vSoftmax>vBest){
             int vMon;
-           dpGet(dpSubStr(ch+CMSRPCHVCor_dpeV0,DPSUB_SYS_DP)+".actual.vMon",vMon);
-           if(vMon >CMSRPCHVCor_vMinAllowed){             
-             generateError(dp,1);
-             return -1; 
+           dpGet(ch+".actual.vMon",vMon);
+           if(vMon >CMSRPCHVCor_vMinAllowed){ 
+             //Tha automatic correction goes here
+             if(enabled==2){
+                if(vBest<vSoftmax)
+                   dpSet(ch+CMSRPCHVCor_dpesetV0,vBest); 
+                 else 
+                   dpSet(ch+CMSRPCHVCor_dpesetV0,vSoftmax);
+                   
+                 generateError(dp,0);
+                 return 0;
+                 }
+             else {//manually mode enabled = 1
+                 generateError(dp,1);
+                 return -1;
+                 } 
              }
            }
          }          
@@ -447,7 +462,7 @@ xxdepes[18] = makeDynString ("","","T");
 
 xxdepei[1] = makeDynInt (DPEL_STRUCT);
 
-xxdepei[2] = makeDynInt (0,DPEL_BOOL);
+xxdepei[2] = makeDynInt (0,DPEL_INT);
 
 xxdepei[3] = makeDynInt (0,DPEL_STRUCT);
 
@@ -486,13 +501,15 @@ if(dynlen(tys)>0)  {
 
 if(!(compare(elements,xxdepes)&& compare(types,xxdepei)))
 {
-  dyn_string dps = dpNames("*",RPCfwSupervisor_HVCorrDpType);
+//     dyn_string dps = dpNames("*",RPCfwSupervisor_HVCorrDpType);
+//   
+//     for(int i = 1;i<=dynlen(dps);i++) dpDelete(dps[i]);
+// 
+//     dpTypeDelete(RPCfwSupervisor_HVCorrDpType);
+//     dpTypeCreate(xxdepes,xxdepei);
+//   
+  dpTypeChange(xxdepes,xxdepei);
   
-  for(int i = 1;i<=dynlen(dps);i++) dpDelete(dps[i]);
-
-  dpTypeDelete(RPCfwSupervisor_HVCorrDpType);
-
-  dpTypeCreate(xxdepes,xxdepei);
 }
 }else dpTypeCreate(xxdepes,xxdepei);
 
