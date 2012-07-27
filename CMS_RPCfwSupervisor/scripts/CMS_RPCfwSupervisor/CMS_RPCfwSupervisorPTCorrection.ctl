@@ -16,7 +16,7 @@
 const int CMSRPCHVCor_vMaxAllowed = 9700;
 const int CMSRPCHVCor_vMinAllowed = 8800;
 const int p0 = 965;
-const int refreshTime = 400;//A full refresh every ~8min
+const int refreshTime = 300;//A full refresh every ~8min
 const int CMSRPCHVCor_correctionThrInVoltage = 15;//Volt required before rising an alert in case of long fill
 const float CMSRPCHVCor_roP = 1;
 
