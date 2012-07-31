@@ -16,7 +16,7 @@
 const int CMSRPCHVCor_vMaxAllowed = 9700;
 const int CMSRPCHVCor_vMinAllowed = 8800;
 const int p0 = 965;
-const int refreshTime = 300;//A full refresh every ~8min
+const int refreshTime = 300;//A full refresh every ~6min
 const int CMSRPCHVCor_correctionThrInVoltage = 15;//Volt required before rising an alert in case of long fill
 const float CMSRPCHVCor_roP = 1;
 
@@ -27,12 +27,14 @@ const string CMSRPCHVCor_dpesetV0 = ".settings.v0";
 
 string CMSRPCHVCor_dpPressure ;
 dyn_int vMonAvg,v0Avg;
+
+int erCode;
 main()
 {
   string usc,esc;
   //delay(1,0);
   dyn_string dps,correctionDps;
-  
+  erCode = 0;
   RPCfwSupervisor_getAllHVChannels(dps);
   
 
@@ -204,7 +206,9 @@ void summaryStatus(int res){
    int sta;
   dpGet(CMSRPCHVCor_Confdp+".algorithmError.errorInfo:_alert_hdl.._act_state",sta);
   if(!sta)dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",0);
-  else dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",2); 
+  else dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",2);
+  if(erCode>2) dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",erCode);
+  erCode = 0;
   if(dynlen(v0Avg)>0)  
   dpSet(CMSRPCHVCor_Confdp+".voltage.v0",dynAvg(v0Avg),
         CMSRPCHVCor_Confdp+".voltage.vBest",dynAvg(vMonAvg),
@@ -294,6 +298,7 @@ init(string dp,string dpe){
   
 generateError(string dp,int errorCode){
 string info;
+  if(errorCode>2) erCode = errorCode;
   switch (errorCode){
   case 11: info = "Correction coefficient not valid"; break;  
   case 12: info = "Pressure value not valid, equal to 0"; break;
@@ -305,6 +310,7 @@ string info;
   case 1: info = "Chamber ON, Additional correction has been just applied for this chamber (more than "+CMSRPCHVCor_correctionThrInVoltage+" V)";break;
   default : info = "Value Ready to be applied. Chamber in STB"; break;   
   }
+  
   if(dpExists(dp)) dpSet(dp+".algorithmError.errorInfo",info,dp+".algorithmError.errorId",errorCode);
 }
 
