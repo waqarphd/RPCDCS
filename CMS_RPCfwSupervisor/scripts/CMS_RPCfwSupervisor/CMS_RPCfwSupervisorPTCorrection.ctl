@@ -298,14 +298,13 @@ init(string dp,string dpe){
   
 generateError(string dp,int errorCode){
 string info;
-  if(errorCode>2) erCode = errorCode;
   switch (errorCode){
-  case 11: info = "Correction coefficient not valid"; break;  
-  case 12: info = "Pressure value not valid, equal to 0"; break;
+  case 11: info = "Correction coefficient not valid"; erCode = errorCode;break;  
+  case 12: info = "Pressure value not valid, equal to 0"; erCode = errorCode;break;
   case 13: info = "v0 value too high or too low for chamber On state"; break;
   case 14: info = "vBest calculate higher than the vMaxAllowed"; break;
   case 15: info = "vBest calculate lower than the vMinAllowed"; break;
-  case 16: info = "Hardware dp unreachable";break;
+  case 16: info = "Hardware dp unreachable";erCode = errorCode;break;
   case 2: info = "HV correction disabled";break;
   case 1: info = "Chamber ON, Additional correction has been just applied for this chamber (more than "+CMSRPCHVCor_correctionThrInVoltage+" V)";break;
   default : info = "Value Ready to be applied. Chamber in STB"; break;   
