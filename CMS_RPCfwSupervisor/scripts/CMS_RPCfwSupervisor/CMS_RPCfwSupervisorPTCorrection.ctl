@@ -73,7 +73,9 @@ main()
   while(1){
      
     pressure = updatePressure();
-    
+    if(pressure ==-1){//Use US pressure and correct for the expected gap
+      pressure = updatePressure(1) -5;
+    }
     if(CMSRPCHVCor_Confdp !="") dpSet(CMSRPCHVCor_Confdp+".params.P",pressure); 
     if(dynlen(channels)!=0){
     for(int i = 1;i<=dynlen(channels);i++){
@@ -219,14 +221,18 @@ void summaryStatus(int res){
   }
 }
 
-float updatePressure(){
+float updatePressure(int backupSensor = 0){
   
   int oldestPressureAccepted = 7200;//2 hours
   float res = -1;
   if(CMSRPCHVCor_dpPressure==""){
   string env = RPCfwSupervisor_getComponent("Services");
-  dyn_string dps = dpNames(env+"*_UXCPressure","RPCGasParameters");
-
+  dyn_string dps;
+  if(backupSensor==0)
+   dps = dpNames(env+"*_UXCPressure","RPCGasParameters");
+  else  
+   dps = dpNames(env+"*_USServiceAtmoPressure","RPCGasParameters");
+  
   if(dynlen(dps)==1){
       CMSRPCHVCor_dpPressure= dps[1]+".value";     
     }else return -1;
@@ -411,8 +417,29 @@ int calculateV(string dp,float p){
                  } 
              }
            }
-         }          
-        }   
+        }else if (enabled==2){///Revise this codeeeeeeeee
+        if(((v0Applied-vBest)>8 )||
+           ((v0Applied-vBest)<-8 ) ){
+            if(vSoftmax>vBest){
+            int vMon;
+           dpGet(ch+".actual.vMon",vMon);
+           if(vMon >CMSRPCHVCor_vMinAllowed){ 
+             //Tha automatic correction goes here
+             if(vBest<vSoftmax)
+                   dpSet(ch+CMSRPCHVCor_dpesetV0,vBest); 
+             else 
+                   dpSet(ch+CMSRPCHVCor_dpesetV0,vSoftmax);
+                   
+             generateError(dp,0);
+             return 0;
+
+             }
+           }        
+        
+          }
+          
+        } ///patchaaaaa         
+      }   
    }
 
    generateError(dp,0);  
