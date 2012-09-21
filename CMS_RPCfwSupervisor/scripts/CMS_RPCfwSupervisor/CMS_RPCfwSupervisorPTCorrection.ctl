@@ -311,6 +311,7 @@ string info;
   case 14: info = "vBest calculate higher than the vMaxAllowed"; break;
   case 15: info = "vBest calculate lower than the vMinAllowed"; break;
   case 16: info = "Hardware dp unreachable";erCode = errorCode;break;
+  case 3: info = "AutoCorr. applied at " + (string)getCurrentTime() ;break;
   case 2: info = "HV correction disabled";break;
   case 1: info = "Chamber ON, Additional correction has been just applied for this chamber (more than "+CMSRPCHVCor_correctionThrInVoltage+" V)";break;
   default : info = "Value Ready to be applied. Chamber in STB"; break;   
@@ -430,7 +431,7 @@ int calculateV(string dp,float p){
              else 
                    dpSet(ch+CMSRPCHVCor_dpesetV0,vSoftmax);
                    
-             generateError(dp,0);
+             generateError(dp,3);
              return 0;
 
              }
