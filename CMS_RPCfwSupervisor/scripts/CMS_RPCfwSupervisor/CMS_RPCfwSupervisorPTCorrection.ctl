@@ -18,6 +18,7 @@ const int CMSRPCHVCor_vMinAllowed = 8800;
 const int p0 = 965;
 const int refreshTime = 300;//A full refresh every ~6min
 const int CMSRPCHVCor_correctionThrInVoltage = 15;//Volt required before rising an alert in case of long fill
+const int CMSRPCHVCor_autocorrectionThrInVoltage = 8;//Volt required before rising an alert in case of long fill with Auto mode
 const float CMSRPCHVCor_roP = 1;
 
 const string CMSRPCHVCor_Confdp ="HVCorrectionSumStatus"; 
@@ -313,7 +314,7 @@ string info;
   case 16: info = "Hardware dp unreachable";erCode = errorCode;break;
   case 3: info = "AutoCorr. applied at " + (string)getCurrentTime();errorCode=0 ;break;
   case 2: info = "HV correction disabled.";break;
-  case 1: info = "Chamber ON, Additional correction has been just applied for this chamber (more than "+CMSRPCHVCor_correctionThrInVoltage+" V)";break;
+  case 1: info = "Chamber ON, Additional correction needs to be applied for this chamber (more than "+CMSRPCHVCor_correctionThrInVoltage+" V)";break;
   default : info = "Value Ready to be applied."; break;   
   }
   
@@ -419,8 +420,8 @@ int calculateV(string dp,float p){
              }
            }
         }else if (enabled==2){///Revise this codeeeeeeeee
-        if(((v0Applied-vBest)>8 )||
-           ((v0Applied-vBest)<-8 ) ){
+        if(((v0Applied-vBest)>CMSRPCHVCor_autocorrectionThrInVoltage )||
+           ((v0Applied-vBest)<-CMSRPCHVCor_autocorrectionThrInVoltage ) ){
             if(vSoftmax>vBest){
             int vMon;
            dpGet(ch+".actual.vMon",vMon);
