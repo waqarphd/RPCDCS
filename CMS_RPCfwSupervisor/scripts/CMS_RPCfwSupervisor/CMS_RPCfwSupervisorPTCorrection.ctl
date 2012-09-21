@@ -311,7 +311,7 @@ string info;
   case 14: info = "vBest calculate higher than the vMaxAllowed"; break;
   case 15: info = "vBest calculate lower than the vMinAllowed"; break;
   case 16: info = "Hardware dp unreachable";erCode = errorCode;break;
-  case 3: info = "AutoCorr. applied at " + (string)getCurrentTime() ;break;
+  case 3: info = "AutoCorr. applied at " + (string)getCurrentTime();errorCode=0 ;break;
   case 2: info = "HV correction disabled.";break;
   case 1: info = "Chamber ON, Additional correction has been just applied for this chamber (more than "+CMSRPCHVCor_correctionThrInVoltage+" V)";break;
   default : info = "Value Ready to be applied."; break;   
