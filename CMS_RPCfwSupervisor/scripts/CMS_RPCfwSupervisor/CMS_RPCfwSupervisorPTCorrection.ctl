@@ -209,7 +209,7 @@ void summaryStatus(int res){
   dpGet(CMSRPCHVCor_Confdp+".algorithmError.errorInfo:_alert_hdl.._act_state",sta);
   if(!sta)dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",0);
   else dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",2);
-  if(erCode>2) dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",erCode);
+  if(erCode>3) dpSet(CMSRPCHVCor_Confdp+".algorithmError.errorId",erCode);
   erCode = 0;
   if(dynlen(v0Avg)>0)  
   dpSet(CMSRPCHVCor_Confdp+".voltage.v0",dynAvg(v0Avg),
@@ -312,9 +312,9 @@ string info;
   case 15: info = "vBest calculate lower than the vMinAllowed"; break;
   case 16: info = "Hardware dp unreachable";erCode = errorCode;break;
   case 3: info = "AutoCorr. applied at " + (string)getCurrentTime() ;break;
-  case 2: info = "HV correction disabled";break;
+  case 2: info = "HV correction disabled.";break;
   case 1: info = "Chamber ON, Additional correction has been just applied for this chamber (more than "+CMSRPCHVCor_correctionThrInVoltage+" V)";break;
-  default : info = "Value Ready to be applied. Chamber in STB"; break;   
+  default : info = "Value Ready to be applied."; break;   
   }
   
   if(dpExists(dp)) dpSet(dp+".algorithmError.errorInfo",info,dp+".algorithmError.errorId",errorCode);
