@@ -5,7 +5,7 @@
 *
 *        version: 1.2
 *        automatic actions 
-*         
+*        procedure to avoid oscillating channels
 
 */
 
@@ -18,7 +18,7 @@ const int CMSRPCHVCor_vMinAllowed = 8800;
 const int p0 = 965;
 const int refreshTime = 300;//A full refresh every ~6min
 const int CMSRPCHVCor_correctionThrInVoltage = 15;//Volt required before rising an alert in case of long fill
-const int CMSRPCHVCor_autocorrectionThrInVoltage = 3;//Volt required before rising an alert in case of long fill with Auto mode
+const int CMSRPCHVCor_autocorrectionThrInVoltage = 2;//Volt required before rising an alert in case of long fill with Auto mode
 const float CMSRPCHVCor_roP = 1;
 
 const string CMSRPCHVCor_Confdp ="HVCorrectionSumStatus"; 
@@ -28,6 +28,8 @@ const string CMSRPCHVCor_dpesetV0 = ".settings.v0";
 
 string CMSRPCHVCor_dpPressure ;
 dyn_int vMonAvg,v0Avg;
+dyn_string CMSRPCHVCor_bufferChs;
+dyn_int CMSRPCHVCor_frequency;
 
 int erCode;
 main()
@@ -71,6 +73,7 @@ main()
   createSumAlert(CMSRPCHVCor_Confdp+".algorithmError.errorInfo",correctionDps);
   smsSumAlertConfig();
   float pressure;
+  clearBuffer();
   while(1){
      
     pressure = updatePressure();
@@ -95,6 +98,36 @@ main()
   dynClear(vMonAvg);
   }
 }
+
+void clearBuffer(){
+dynClear(CMSRPCHVCor_bufferChs);
+dynClear(CMSRPCHVCor_frequency);
+
+}
+
+int getOccurencyAndAppend(string ch){
+
+  int result;  
+  int pos = dynContains(CMSRPCHVCor_bufferChs,ch);
+  if(pos>0){
+  CMSRPCHVCor_frequency[pos] = CMSRPCHVCor_frequency[pos]++;
+  return CMSRPCHVCor_frequency[pos];
+  }else{
+  dynAppend(CMSRPCHVCor_bufferChs,ch);
+  dynAppend(CMSRPCHVCor_frequency,1);
+  return 1;
+  }
+}
+void removeIfAny(string ch){
+
+  int pos = dynContains(CMSRPCHVCor_bufferChs,ch);
+  if(pos>0){
+  dynRemove(CMSRPCHVCor_bufferChs,pos);
+  dynRemove(CMSRPCHVCor_frequency,pos);  
+  }
+
+}
+
 
 
 void smsSumAlertConfig(){
@@ -427,24 +460,30 @@ int calculateV(string dp,float p){
            dpGet(ch+".actual.vMon",vMon);
            if(vMon >CMSRPCHVCor_vMinAllowed){ 
              //Tha automatic correction goes here
+             if(getOccurencyAndAppend(ch)>2){//it corrects only if the thr is overcome for 3 consequential times
+        
              if(vBest<vSoftmax)
                    dpSet(ch+CMSRPCHVCor_dpesetV0,vBest); 
              else 
                    dpSet(ch+CMSRPCHVCor_dpesetV0,vSoftmax);
-                   
+             
+             removeIfAny(ch);                 
              generateError(dp,3);
+             return 0;
+             }              
+             generateError(dp,0);
              return 0;
 
              }
            }        
         
-          }
+          }else removeIfAny(ch);
           
         } ///patchaaaaa         
       }   
    }
 
-   generateError(dp,0);  
+  generateError(dp,0);  
   return 0;
 }
 
