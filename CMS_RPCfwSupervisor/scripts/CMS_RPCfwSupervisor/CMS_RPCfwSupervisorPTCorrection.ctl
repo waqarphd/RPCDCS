@@ -436,20 +436,10 @@ int calculateV(string dp,float p){
             int vMon;
            dpGet(ch+".actual.vMon",vMon);
            if(vMon >CMSRPCHVCor_vMinAllowed){ 
-             //Tha automatic correction goes here
-             if(enabled==2){
-                if(vBest<vSoftmax)
-                   dpSet(ch+CMSRPCHVCor_dpesetV0,vBest); 
-                 else 
-                   dpSet(ch+CMSRPCHVCor_dpesetV0,vSoftmax);
-                   
-                 generateError(dp,0);
-                 return 0;
-                 }
-             else {//manually mode enabled = 1
+                //manually mode enabled = 1
                  generateError(dp,1);
                  return -1;
-                 } 
+                 
              }
            }
         }else if (enabled==2){///Revise this codeeeeeeeee
