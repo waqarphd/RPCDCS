@@ -110,7 +110,7 @@ int getOccurencyAndAppend(string ch){
   int result;  
   int pos = dynContains(CMSRPCHVCor_bufferChs,ch);
   if(pos>0){
-  CMSRPCHVCor_frequency[pos] = CMSRPCHVCor_frequency[pos]++;
+  CMSRPCHVCor_frequency[pos] = CMSRPCHVCor_frequency[pos]+1;
   return CMSRPCHVCor_frequency[pos];
   }else{
   dynAppend(CMSRPCHVCor_bufferChs,ch);
