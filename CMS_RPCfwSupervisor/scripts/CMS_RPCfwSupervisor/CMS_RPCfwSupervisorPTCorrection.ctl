@@ -452,9 +452,19 @@ int calculateV(string dp,float p){
              //Tha automatic correction goes here
              if(getOccurencyAndAppend(ch)>2){//it corrects only if the thr is overcome for 3 consequential times
         
-             if(vBest<vSoftmax)
+               if(vBest<vSoftmax){
+                   int intermediateStep;
+                   if(v0Applied>vBest) intermediateStep =  vBest + (v0Applied-vBest)%2;
+                   else intermediateStep = vBest  - (vBest - v0Applied)%2;                
+                   if(((v0Applied-intermediateStep)<CMSRPCHVCor_autocorrectionThrInVoltage )&&
+                      ((v0Applied-intermediateStep)>-CMSRPCHVCor_autocorrectionThrInVoltage ) ){                   
+                     dpSet(ch+CMSRPCHVCor_dpesetV0,intermediateStep);
+                     delay(1,0);
+                   }            
                    dpSet(ch+CMSRPCHVCor_dpesetV0,vBest); 
-             else 
+                 
+                 }
+             else if(v0Applied!=vSoftmax) 
                    dpSet(ch+CMSRPCHVCor_dpesetV0,vSoftmax);
              
              removeIfAny(ch);                 
