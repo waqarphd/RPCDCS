@@ -456,8 +456,8 @@ int calculateV(string dp,float p){
                    int intermediateStep;
                    if(v0Applied>vBest) intermediateStep =  vBest + (v0Applied-vBest)%2;
                    else intermediateStep = vBest  - (vBest - v0Applied)%2;                
-                   if(((v0Applied-intermediateStep)<CMSRPCHVCor_autocorrectionThrInVoltage )&&
-                      ((v0Applied-intermediateStep)>-CMSRPCHVCor_autocorrectionThrInVoltage ) ){                   
+                   if(((v0Applied-intermediateStep)<=CMSRPCHVCor_autocorrectionThrInVoltage )&&
+                      ((v0Applied-intermediateStep)>=-CMSRPCHVCor_autocorrectionThrInVoltage ) ){                   
                      dpSet(ch+CMSRPCHVCor_dpesetV0,intermediateStep);
                      delay(1,0);
                    }            
