@@ -20,7 +20,7 @@ const int refreshTime = 300;//A full refresh every ~6min
 const int CMSRPCHVCor_correctionThrInVoltage = 15;//Volt required before rising an alert in case of long fill
 const int CMSRPCHVCor_autocorrectionThrInVoltage = 2;//Volt required before rising an alert in case of long fill with Auto mode
 const float CMSRPCHVCor_roP = 1;
-
+const float CMSRPCHVCor_gAlfa = 0.8;
 const string CMSRPCHVCor_Confdp ="HVCorrectionSumStatus"; 
 const string CMSRPCHVCor_dpe = ".readBackSettings.v1";
 const string CMSRPCHVCor_dpeV0 = ".readBackSettings.v0";
@@ -376,22 +376,26 @@ int calculateV(string dp,float p){
  float i = (float) p;
  float i1 = (float) p0;
  float div = i/i1;
- div--;
+ int vBest;
  if(rop<=0) {
    generateError(dp,11);
    return -1;
  }
 
- div = div*rop + 1;
+
  
  if((v0>vMax)||(v0<vMin)){
    generateError(dp,13);
    return -1;
   }  
+ /*
+  div--;
+  div = div*rop + 1;
+  vBest = v0*rot*div;*/
+  vBest = v0*(1-CMSRPCHVCor_gAlfa+(CMSRPCHVCor_gAlfa*div));
   
-   int vBest = v0*rot*div;
-
-      //Add to the avg only the parameters really to be loaded into the sys  
+   
+  //Add to the avg only the parameters really to be loaded into the sys  
   dynAppend(v0Avg,v0);
   dynAppend(vMonAvg,vBest);     
    
@@ -453,7 +457,7 @@ int calculateV(string dp,float p){
              if(getOccurencyAndAppend(ch)>2){//it corrects only if the thr is overcome for 3 consequential times
         
                if(vBest<vSoftmax){
-                   int intermediateStep;
+                    int intermediateStep;
                    if(v0Applied>vBest) intermediateStep =  vBest + (int)((v0Applied-vBest)/2);
                    else intermediateStep = vBest  - (int)((vBest - v0Applied)/2);                
                    if(((v0Applied-intermediateStep)<=CMSRPCHVCor_autocorrectionThrInVoltage )&&
