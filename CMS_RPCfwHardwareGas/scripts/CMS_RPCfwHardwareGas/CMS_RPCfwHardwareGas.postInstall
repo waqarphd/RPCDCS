@@ -10,17 +10,25 @@
 
 const string setupname = "RPCConfig";
 const string configurationName = "RPCGasSystem_AllIn_V1.0";  
-const string RPCDIP_CONFIG_DP = "DIPConfig_RPC"; 
+const string RPCDIP_CONFIG_DP = "DIPConfig_RPC";
+const string component_Name = "CMS_RPCfwHardwareGas";
 main()
 {
 
+  dyn_string exc;  
+  if (! isFunctionDefined("fwInstallationUtils_loadConfigurations")) {
+    DebugTN("Cannot run post install without fwInstallationUtils!!!");
+    return;
+  }
+  
  dyn_string exceptionInfo;
 
+ fwInstallationUtils_loadConfigurations(component_Name,exceptionInfo);
  RPCDIP_createConfigDp(); 
- fwInstallationUtils_loadConfigurationDbHardware(configurationName, exceptionInfo,setupname);  
+ //fwInstallationUtils_loadConfigurationDbHardware(configurationName, exceptionInfo,setupname);  
 
  fsmAdd();
- RPCDIP_addManager();
+ fwInstallationUtils_appendManagers(component_Name,exceptionInfo);
  
 }
 fsmAdd()
@@ -68,24 +76,4 @@ void RPCDIP_createConfigDp() {
     
 }
 
-int RPCDIP_addManager() {  	
-	int result = fwInstallation_appendManager(TRUE, "External Applications DIP Manager", "PVSS00dip", "always",
-                                              30, 2, 2, "-num 12 -dns cms-cent-dcs-17,cms-cent-dcs-18 -dip_dp_config "+RPCDIP_CONFIG_DP);
 
- string resultText;
-	switch(result)
-	{
-		case 1:
-			resultText = "OK";
-			break;
-		case 2:
-			resultText = "Already exists";
-			break;
-		default:
-			resultText = "Failed";
-			break;
-	}
-
-	DebugN("RPCDIP: Adding DIP manager 12 - " + resultText);
-  return result;
-}
