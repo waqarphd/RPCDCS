@@ -1,264 +1,23 @@
-/*
-* Created by Giovanni Polese (Lappeenranta University of Technology
-*      
-*	date:08/08/2008
-*	LastChange:03/02/2012
-         version 2.3
-*        Alarm added
-         sms added
-         DSS ready no archiving no alerts
-         3.8 ready
-         Rack added
-         
+#uses "fwInstallationUtils.ctl"
 
-*
-*/
-#uses "fwRDBArchiving/fwRDBConfig.ctl"
-#uses "fwDIP/fwDIP.ctl"
-#uses "CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl"
-#uses "CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc"
-#uses "CMS_RPCfwHardwareCooling/CMS_RPCfwHardwareCooling.ctl"
-dyn_string dpesCool;    
-
-const string insType = "COOLDSS";// DSS, COOL,script
-string dipAddress;
-main(){
-  
-  DebugN("Installing RPC Cooling component...");
-  DebugN("Checking proper settings");
-  
-  
-dpesCool= makeDynString("Cooling_TempUXC55","Cooling_DewpointUXC55","Flowmeter_Cham_WM1","Flowmeter_Cham_WM2",
-                                            "Flowmeter_Cham_WP1","Flowmeter_Cham_WP2","Flowmeter_Cham_W00",
-                                            "Flowmeter_Rack_YM1F","Flowmeter_Rack_YP1F",
-                                            "Flowmeter_Rack_YM1N","Flowmeter_Rack_YP1N",
-                                            "Flowmeter_Yoke_WM1","Flowmeter_Yoke_WM2","Flowmeter_Yoke_WP1",
-                                            "Flowmeter_Yoke_WP2","Flowmeter_Yoke_W00","Flowmeter_Cham_YEM"
-                                            ,"Flowmeter_Cham_YEP");
-      
-  
-  
-  
-//  checkDip();
-   
-  dyn_string exInfo,config = dpNames("*","_FwDipConfig");
-  int len = dynlen(config);
-  //DebugN(config);
-
-    if(len < 1)
-      DebugN("Dip Configuration Error, please check the config");
-    else
-    {
-    dipAddress = config[1];
-    fwDIP_setupSelfTest(config[1],exInfo);
-     if (dynlen(exInfo)) { fwExceptionHandling_display(exceptionInfo); return; }
-  
-     //   CreateTypes(); 
-    bool yes = fwInstallation_checkInstalledComponent("CMS_RPCfwHardwareCooling");
-    //DebugN(yes);
-    if(!yes)
-    deleteOld(insType);
-    if(strpos(insType,"COOL")>-1) {
-    dipRACK();
-    dipCooling();
-    setCoolArchiving();
-    setCoolAlert();
-    smsCoolAlertConfig();  
-    }
-    if(strpos(insType,"DSS")>-1) {
-      dipDSS();
-      setDSSAlert();
-      smsDSSAlertConfig();    
-      }
-  
-     DebugN("RPC Cooling component successfully integrated");
-
-    }
-  
-  
-fwInstallation_appendManager(TRUE, "Searching components", "PVSS00ctrl", "manual", 30, 2, 2, "CMS_RPCfwHardwareCooling/CMS_RPCfwHardwareDSSActions.ctl");
-  
-  
-}
-
-void publishedRHonDIP(string dipconf){
-
- dyn_string rh,chs,lin,names,exInfo;
-  fwDIP_setupSelfTest(dipconf,exInfo);
- string sys = getSystemName();
-  RPCfwSupervisor_getAllChannelsFromType(sys,"RH", rh);
-  for(int i = 1;i<=dynlen(rh);i++){
-  string temp = fwDU_getLogicalName(rh[i]);  
-  if(strpos(temp,"PH")>0){
-    dynAppend(chs,rh[i]+".actual.averageValue");
-    lin = strsplit(temp,"/");
-    dynAppend(names,lin[dynlen(lin)]);  
-
-    }
-  }
-  
-  for(int i = 1;i<=dynlen(names);i++){
-  //DebugN("dip/CMS/RPC/HM/"+names[i],chs[i]);
-  fwDIP_unpublish("dip/CMS/RPC/HM/"+names[i],exInfo);
-  fwDIP_publishPrimitive("dip/CMS/RPC/HM/"+names[i],chs[i],100000,dipconf,exInfo);  
-  
-  }
-
-}
-void CreateTypesRacks(){
-  
-  dyn_string types;
-  types = dpTypes("RPCRack");
-  //DebugN(types);
-  if(dynlen(types)<1) 
-  {
-  int n;
-
-  dyn_dyn_string xxdepes;
-
-  dyn_dyn_int xxdepei;
-
- 
-
-// Create the data type
-
-  xxdepes[1] = makeDynString ("RPCRack","");
-
-  xxdepes[2] = makeDynString ("","value");
-  
-  xxdepei[1] = makeDynInt (1);
-
-  xxdepei[2] = makeDynInt (0,DPEL_FLOAT);
-
-
-// Create the datapoint type
-
-  n = dpTypeCreate(xxdepes,xxdepei);
-
-  DebugN ("Datapoint Type created ");
-
-  }
-}
-void dipRACK(){
-  
-        CreateTypesRacks();
-
-        dyn_string exInfo,oldInst = dpNames("*","RPCRack");
-        string configDp = dipAddress; 
-         for(int i = 1; i<=dynlen(oldInst);i++)
-        {
-         fwDIP_unsubscribe(oldInst[i]+".value",exInfo);
-         if(dynlen(exInfo)>0)fwDIP_SelfTest(configDp,exInfo);  
-         dpDelete(oldInst[i]);
-        }
-         
-        dyn_string childName,childName1, fieldName,fieldName1,items, its,chns;
-        dyn_int childType, fieldType;
-
-        childName = dpNames("*","RPCRack");
-        for(int i = 1;i<=dynlen(childName);i++){
-        dpDelete(childName[i]);        
-        }
-        dynClear(childName);
-        
-        string item = "dip/CMS/RACK/";// dss IN USC
-              
-        
-        fwDIP_setupSelfTest(configDp,exInfo);   
-        fwDIP_DipQuery(configDp, item, childName, childType, fieldName, fieldType, exInfo);
-
-        for(int i = 1;i<=dynlen(childName);i++)
-          dynAppend(items,item + childName[i]);
-                        
-        dynClear(childName);
-        for(int i = 1;i<=dynlen(items);i++){
-  
-          fwDIP_DipQuery(configDp, items[i], childName, childType, fieldName, fieldType, exInfo);
-          if(dynlen(exInfo)>0) {
-          dynClear(exInfo);          
-          continue;
-          }
-        for(int j = 1;j<=dynlen(childName);j++)
-            dynAppend(chns,items[i]+"/"+childName[j]);
-         }
- 
-        
-        //DebugN( dynlen(childName),dynlen(fieldName));
-        
- 
-dyn_string dipadds,diptags;
-
-dyn_string racks = makeDynString("X2A01","X2A11","X2A21","X2J01","X2J11","X2J21","X2S11",
-                                   "X2S21","X2V11","X2V21","X4A01","X4A11","X4A21","X4J01",
-                                   "X4J11","X4J21","X4S11","X4S21","X4V11","X4V21",
-                                   "S1H0","S1H11","S1H10","S4F02","S4F03","S2G17","S2G18","S2G19","X3A22","X3A12",
-                                   "X3S22","X3S12","X3J22","X3J12","X3V22","X3V12",
-                                   "X2J32","X4J32","X2A32","X4A32","X3J51","X3A51",
-                                   "X2V32","X4V32","X2S32","X4S32","X3V51","X3S51","X2N35","X2F34",
-                                   "X2A52", "X2J52", "X2S52", "X2V52", "X4A51", "X4J51",
-                                   "X4S51", "X4V51");
-
-
-
-for(int i =1 ; i<=dynlen(chns);i++)
+const string setupname = "RPCConfig";
+const string configurationName = "RPCDSSSystem_AllIn_V1.0";  
+const string RPCDIP_CONFIG_DP = "DIPConfig_RPC"; 
+main()
 {
-  for(int j =1;j<=dynlen(racks);j++)
-  {
-    if(strpos(chns[i],racks[j])>-1)
-    {
-     dynAppend(dipadds,chns[i]);
 
-     break;   
-     }
-   }
+  CreateTypes();
+  
+//  dyn_string exceptionInfo;
+// 
+//  RPCDIP_createConfigDp(); 
+//  fwInstallationUtils_loadConfigurationDbHardware(configurationName, exceptionInfo,setupname);  
+// 
+//  fsmAdd();
+//  RPCDIP_addManager();
+ 
 }
-        dyn_string tags = fieldName;                                   
-        bool overwrite = FALSE;       
-        string newname,newfield,dpnam;
-        int pss;
-        for(int i = 1; i<=dynlen(dipadds);i++)
-        {
-        newname = strltrim(dipadds[i],item);
-        newname = substr(newname,strpos(newname,"/")+1);  
-        fwDIP_DipQuery(configDp,dipadds[i]+"/Sensors", childName, childType, fieldName, fieldType, exInfo);
-        //DebugN(dipadds[i], fieldName, fieldType,exInfo);       
-        if(dynlen(exInfo)>0){
-        dynClear(exInfo);
-        continue;        
-        }        
-        for(int j = 1; j<=dynlen(fieldName);j++)        
-        {
-          if(strpos(fieldName[j],"DT")>-1){
-            pss = strpos(fieldName[j],"_w"); 
-            if(pss>-1){
-                newfield = "waterTemp_"+substr(fieldName[j],pss+2);            
-              }else{
-              pss = strpos(fieldName[j],"_Ins"); 
-              newfield = "Temperature"+substr(fieldName[j],pss);            
-              
-              }
-         
-         }else if(strpos(fieldName[j],"Temer")>-1){
-          newfield = fieldName[j]; 
-           strreplace(newfield,"Temer","Temper");
-           
-         }else newfield = fieldName[j];          
 
-         // DebugN(dpnam);         
-         dpnam = newname+"_"+newfield;
-         DebugN(newfield,fieldName[j],dpnam); 
-         if(!dpExists(dpnam))    dpCreate(dpnam,"RPCRack");
-        if(dynlen(exInfo)<1)
-          {
-          fwDIP_unsubscribe(dpnam+".value",exInfo);
-          fwDIP_subscribe(dpnam+".value", configDp,dipadds[i]+"/Sensors", fieldName[j],  exInfo, overwrite);                 							
-         }
-        dynClear(exInfo);
-          
-       }
-
-      }
-  }
 void smsDSSAlertConfig(){
 
     dyn_string users;
@@ -365,377 +124,8 @@ void smsCoolAlertConfig(){
   
   
 }
-void checkDip(){
-  
-  
-  string host;
-  int port;
-  int i = paGetProjHostPort( PROJ, host, port);
-   
-  //  Use pmon query to take the Idx of the important managers
-  string command ="##MGRLIST:LIST";
-  dyn_dyn_string queryResult;
-      
-  bool querySuccess = pmon_query(command , host, port, queryResult, 1, 1 );
-
-  //  Remember the Idx of the dip manager
-  int dipIdx;
-  string dipMode = "empty";
-  
-  for (int i = 1; i <= dynlen(queryResult); i++) {
-    if(dynlen(queryResult[i]) < 6) continue;
-    if (queryResult[i][1] == "PVSS00dip") {
-      if (queryResult[i][6] == "-dns cms-cent-dcs-01") {
-        dipIdx = i - 1;         
-        if (queryResult[i][2] == 2) {
-          dipMode = "always";
-        }       
-        break;
-      }
-    }
-  }
-
-  if(dipIdx == 0)
-  {
-    fwInstallation_appendManager(1,"", "PVSS00dip", "always", 30, 3, 2, "-dns cms-cent-dcs-01");
-
-    }
-  
-  if (dipMode == "always") {
-    string command ="##MGRLIST:STATI";
-    dyn_dyn_string queryResult;
-    
-    bool querySuccess = pmon_query(command , host, port, queryResult, 1, 1 );
-    
-    if (queryResult[dipIdx+1][1] != 2) {
-	string command = "##SINGLE_MGR:START "+dipIdx;
-	bool querySuccess = pmon_command(command , host, port, 0, 1 );      
-    }
-  }
-
-  delay(0,100);
-      
-// Wait until the dip is fully started.      
-  string command ="##MGRLIST:STATI"; 
-  dyn_dyn_string queryResult; 
-  bool querySuccess = pmon_query(command , host, port, queryResult, 1, 1 );
-  if (queryResult[dipIdx+1][1] != 2) {
-	bool notStarted = 1;
-        int Counter = 200;
-        
-        while(notStarted && Counter) {
-          // use pmon query to find out if the driver is running
-  	  string command ="##MGRLIST:STATI";
- 	  bool querySuccess = pmon_query(command , host, port, queryResult, 1, 1 );
-
-	  if (queryResult[dipIdx+1][1] == 2) {
-	    notStarted = 0;
-          }
-          --Counter;
-	  delay(0, 100);
-	}
-  }
-  
-  }
-
-void setDSSAlert(){
-  
-
-  string alertPanel, alertHelp; 
-  dyn_string alertPanelParameters,exceptionInfo;
-  dyn_string atext = makeDynString("OK","DSS signal Active");
-  dyn_string alertClasses = makeDynString("", "_fwWarningAck.");
-  
-  dyn_string dpDSS = dpNames("*","RPCDSS");;
-      for(int i = 1;i<=dynlen(dpDSS);i++)
-      {  
-        
-    fwAlertConfig_deactivate(dpDSS[i]+".value", exceptionInfo);
-    fwAlertConfig_setDigital(dpDSS[i]+".value",atext, alertClasses, 
-                             alertPanel, alertPanelParameters, alertHelp, exceptionInfo);   
-   
-    fwAlertConfig_activate(dpDSS[i]+".value", exceptionInfo);
-  }
-  
-  
-  
-  
-  }
 
 
-void setCoolAlert(){
-  
-  
-               dyn_dyn_float dpesLim;
-        dynAppend(dpesLim, makeDynFloat(22));//"Cooling_TempUXC55"
-        dynAppend(dpesLim,  makeDynFloat(13));//"Cooling_DewpointUXC55",
-        dynAppend(dpesLim,                                      makeDynFloat(15));//"Flowmeter_Cham_WM1",
-        dynAppend(dpesLim,                                      makeDynFloat(15));//"Flowmeter_Cham_WM2",
-        dynAppend(dpesLim,                                      makeDynFloat(15));//"Flowmeter_Cham_WP1",
-        dynAppend(dpesLim,                                      makeDynFloat(15));//"Flowmeter_Cham_WP2",
-        dynAppend(dpesLim,                                      makeDynFloat(20));//"Flowmeter_Cham_W00",
-        dynAppend(dpesLim,                                      makeDynFloat(100));//"Flowmeter_Rack_YM1F",
-        dynAppend(dpesLim,                                      makeDynFloat(80));//"Flowmeter_Rack_YP1F",
-        dynAppend(dpesLim,                                     makeDynFloat(100));//"Flowmeter_Rack_YM1N",
-        dynAppend(dpesLim,                                      makeDynFloat(100));//"Flowmeter_Rack_YP1N",
-        dynAppend(dpesLim,                                     makeDynFloat(15));//"Flowmeter_Yoke_WM1",
-        dynAppend(dpesLim,                                      makeDynFloat(15));//"Flowmeter_Yoke_WM2",
-        dynAppend(dpesLim,                                      makeDynFloat(15));//"Flowmeter_Yoke_WP1",
-        dynAppend(dpesLim,                                     makeDynFloat(15));//"Flowmeter_Yoke_WP2",
-        dynAppend(dpesLim,                                      makeDynFloat(50));//"Flowmeter_Yoke_W00"
-        dynAppend(dpesLim,                                     makeDynFloat(450));//"Flowmeter_cham_YeM",
-        dynAppend(dpesLim,                                      makeDynFloat(450));//"Flowmeter_cham_YeP"
-  
-        
-
-        dyn_dyn_string atext;
-     dynAppend(atext,makeDynString("OK","High Temperature"));
-       dynAppend(atext,makeDynString("OK","High Temperature"));
-       
-       dynAppend(atext,makeDynString("Low Flow","OK"));dynAppend(atext,makeDynString("Low Flow","OK"));
-       dynAppend(atext,makeDynString("Low Flow","OK"));dynAppend(atext,makeDynString("Low Flow","OK"));
-       
-       dynAppend(atext,makeDynString("Low Flow","OK"));dynAppend(atext,makeDynString("Low Flow","OK"));
-       dynAppend(atext,makeDynString("Low Flow","OK"));dynAppend(atext,makeDynString("Low Flow","OK"));
-       
-       dynAppend(atext,makeDynString("Low Flow","OK"));dynAppend(atext,makeDynString("Low Flow","OK"));
-       dynAppend(atext,makeDynString("Low Flow","OK"));dynAppend(atext,makeDynString("Low Flow","OK"));
-       
-       dynAppend(atext,makeDynString("Low Flow","OK"));dynAppend(atext,makeDynString("Low Flow","OK"));
-       
-       dynAppend(atext,makeDynString("Low Flow","OK"));dynAppend(atext,makeDynString("Low Flow","OK"));
-    
-//  dyn_string alertClasses = makeDynString("", "_fwWarningAck.");
-  dyn_dyn_string alertClasses;
-      dynAppend(alertClasses, makeDynString("", "_fwWarningAck."));dynAppend(alertClasses, makeDynString("", "_fwWarningAck."));
-
-     dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));
-   dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));
-   dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));
-   dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));
-   dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));
-   dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));
-   dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));
-   dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));dynAppend(alertClasses, makeDynString( "_fwWarningAck.", ""));
-   
-    string alertPanel, alertHelp; 
-  dyn_string summary, alertPanelParameters,exceptionInfo;
-   dyn_string ac,at;
-  for(int i=1; i<=dynlen(dpesCool); i++){
-//DebugN(dpesCool[i], atext[i], dpesCoolLim[i], alertClasses[i]);  
-      fwAlertConfig_deactivate(dpesCool[i]+".value", exceptionInfo);
-    fwAlertConfig_set(dpesCool[i]+".value", DPCONFIG_ALERT_NONBINARYSIGNAL, atext[i], dpesLim[i], alertClasses[i], summary, alertPanel, alertPanelParameters, alertHelp, exceptionInfo);   
-    //if(fwConfigurationDB_handleErrors(exceptionInfo)) return;
-    fwAlertConfig_activate(dpesCool[i]+".value", exceptionInfo);
-  }
-  
-}
-void setCoolArchiving(){
-  
-  
-
-  
-  Debug("Start setting archiving....  ");
-   dyn_string elements = dpNames("*","RPCCooling");
-  //DebugN(elements);
-   bool configExists; 
-string archiveClassName="RDB-99) EVENT"; //Archive's name
-int archiveType=DPATTR_ARCH_PROC_SIMPLESM;
-int smoothProcedure=DPATTR_TIME_AND_VALUE_SMOOTH ,pos;//set old/new comparition 
-float deadband=2;
-float timeInterval=10000; 
-bool isActive; 
-dyn_string exceptionInfo,channels,boards;
-
-   
-  for(int i = 1; i<=dynlen(dpesCool);i++)
-  {
-    if(i>3) {deadband = 20;smoothProcedure=DPATTR_TIME_AND_VALUE_REL_SMOOTH;}
-    fwArchive_setMultiple(dpesCool[i]+".value" , archiveClassName,archiveType,smoothProcedure,
-					deadband, timeInterval,exceptionInfo);
-
-  
-      
-    }
-  DebugN("Archiving ready");
-  }
-
-
-
-void deleteOld(string type){
-  
-  Debug("Deleting old component....  ");
-  if(strpos(type,"COOL")>-1){
-   dyn_string elements = dpNames("*","RPCCooling");
-  //DebugN(elements);
- dyn_string exInfo;
- 
-  for(int i = 1; i<=dynlen(elements);i++)
-  {
-    fwDIP_unsubscribe(elements[i]+".value",exInfo);  
-    dpDelete(elements[i]);
-    
-  }
-  
-  }
-  DebugN("Deleted");
-  }
-
-void dipCooling(){
-  
-        
-  
-        dyn_string exInfo, childName, fieldName;
-        dyn_int childType, fieldType;
-
- 
-        dyn_string addresses = makeDynString("AI_Temperature_UXC55","AI_Dewpoint_UXC55","AI_Flowmeter_Muon_Cooling_YB_Minus_1",
-                                             "AI_Flowmeter_Muon_Cooling_YB_Minus_2","AI_Flowmeter_Muon_Cooling_YB_Plus_1","AI_Flowmeter_Muon_Cooling_YB_Plus_2",
-                                             "AI_Flowmeter_Muon_Cooling_YB0","AI_Flowmeter_Rack_EndCap_Cooling_Far_Side_YE_Minus_1","AI_Flowmeter_Rack_EndCap_Cooling_Far_Side_YE_Plus_1",
-                                            "AI_Flowmeter_Rack_EndCap_Cooling_Near_Side_YE_Minus_1","AI_Flowmeter_Rack_EndCap_Cooling_Near_Side_YE_Plus_1",
-                                            "AI_Flowmeter_Yoke_Cooling_YB_Minus_1","AI_Flowmeter_Yoke_Cooling_YB_Minus_2","AI_Flowmeter_Yoke_Cooling_YB_Plus_1",
-                                            "AI_Flowmeter_Yoke_Cooling_YB_Plus_2","AI_Flowmeter_Yoke_Cooling_YB0","AI_Flowmeter_EndCap_Cooling_YE_Minus"
-                                            ,"AI_Flowmeter_EndCap_Cooling_YE_Plus");
-        
-            
-        string item = "dip/CMSX/DSS/";// CHECK
-        string configDp = dipAddress;       
-        
-        for(int i = 1; i<=dynlen(addresses);i++)
-        {
-        fwDIP_DipQuery(configDp, item + addresses[i], childName, childType, fieldName, fieldType, exInfo);
-        //DebugN(childName, childType, fieldName, fieldType);
-        dyn_string tags = fieldName;                                   
-        bool overwrite = FALSE;       
-        //DebugN(item, dpesCool, tags, configDp, exInfo, overwrite);
-        dpCreate(dpesCool[i],"RPCCooling");
-        if(dynlen(exInfo)<1)
-          {
-          fwDIP_unsubscribe(dpesCool[i]+".value",exInfo);
-          fwDIP_subscribe(dpesCool[i]+".value", configDp, item + addresses[i],  tags,  exInfo, overwrite);                 							
-         }
-        dynClear(exInfo);
-      }
-  }
-
-void dipCoolingAddendum(){
-  
-        
-  
-        dyn_string exInfo, childName, fieldName;
-        dyn_int childType, fieldType;
-
-        dyn_string addrs; 
-        
-            
-        string item = "dip/CMSX/DSS/";// CHECK
-        string configDp = dipAddress;       
-        
-        fwDIP_DipQuery(configDp, item, childName, childType, fieldName, fieldType, exInfo);        
-        
-        for(int i = 1;i<=dynlen(childName);i++){
-        
-        if(strpos(childName[i],"AL_COOLING_Cir")>-1)        
-          dynAppend(addrs,childName[i]);
-        
-        }
-        
-        
-        for(int i = 1; i<=dynlen(addrs);i++)
-        {
-        fwDIP_DipQuery(configDp, item + addrs[i], childName, childType, fieldName, fieldType, exInfo);
-        //DebugN(childName, childType, fieldName, fieldType);
-        dyn_string tags = fieldName;                                   
-        bool overwrite = FALSE;       
-        //DebugN(item, dpesCool, tags, configDp, exInfo, overwrite);
-        if(!dpExists(addrs[i]))
-        dpCreate(addrs[i],"RPCDSS");
-        if(dynlen(exInfo)<1)
-          {
-          fwDIP_unsubscribe(addrs[i]+".value",exInfo);
-          //fwDIP_subscribe(addrs[i]+".value", configDp, item + addrs[i],  tags,  exInfo, overwrite);
-          dpDelete(addrs[i]);          							
-         }
-        dynClear(exInfo);
-      }
-  }
-
-
-void dipDSS(){
-  
-        CreateTypes();
-  
-        dyn_string exInfo, childName,childName1, fieldName,fieldName1,items, its;
-        dyn_int childType, fieldType;
-
-
-        
-        string item = "dip/CMS/DSS/";// dss IN USC
-        string item1 = "dip/CMSX/DSS/";// dss in UXC
-        string configDp = dipAddress;       
-        
-        
-        fwDIP_DipQuery(configDp, item, childName, childType, fieldName, fieldType, exInfo);
-        
-        for(int i = 1;i<=dynlen(childName);i++)
-          dynAppend(items,item + childName[i]);
-//DebugN( dynlen(childName),dynlen(fieldName));
-        
-        fwDIP_DipQuery(configDp, item1, childName1, childType, fieldName1, fieldType, exInfo);
-        
-//DebugN( dynlen(childName1),dynlen(fieldName1));
-        
-        for(int i = 1;i<=dynlen(childName1);i++)
-          dynAppend(items,item1 + childName1[i]);
-        
-        dynAppend(childName,childName1);
-  //      dynAppend(fieldName,fieldName1);
-                
-
-
-        dyn_string dipadds,diptags;
-
-        dyn_string racks = makeDynString("X2A01","X2A11","X2A21","X2J01","X2J11","X2J21","X2S11",
-                                   "X2S21","X2V11","X2V21","X4A01","X4A11","X4A21","X4J01",
-                                   "X4J11","X4J21","X4S11","X4S21","X4V11","X4V21",
-                                   "S1H","S4F02","S4F03","S2G18","S2G19","Gas","AL_UPS","MAGNET_Fa","AL_FIRE",
-                                   "X3A22","X3A12","X3S22","X3S12","X3J22","X3J12","X3V22","X3V12",
-                                   "X2J32","X4J32","X2A32","X4A32","X3J51","X3A51",
-                                   "X2V32","X4V32","X2S32","X4S32","X3V51","X3S51","RACK_RPC");
-
-
-
-for(int i =1 ; i<=dynlen(childName);i++)
-{
-  for(int j =1;j<=dynlen(racks);j++)
-  {
-    if(strpos(childName[i],racks[j])>-1)
-    {
-     dynAppend(dipadds,childName[i]);
-//     dynAppend(diptags,fieldName[i]);
-     dynAppend(its,items[i]);
-     break;   
-     }
-   }
-  }
-        dyn_string tags = fieldName;                                   
-        bool overwrite = FALSE;       
-
-                
-        for(int i = 1; i<=dynlen(dipadds);i++)
-        {
-        fwDIP_DipQuery(configDp,its[i], childName, childType, fieldName, fieldType, exInfo);
-
-        if(!dpExists(dipadds[i]))    dpCreate(dipadds[i],"RPCDSS");
-        if(dynlen(exInfo)<1)
-          {
-          fwDIP_unsubscribe(dipadds[i]+".value",exInfo);
-          fwDIP_subscribe(dipadds[i]+".value", configDp,its[i], fieldName,  exInfo, overwrite);                 							
-         }
-        dynClear(exInfo);
-      }
-  }
-        
 void CreateTypes(){
   
   dyn_string types;
@@ -805,13 +195,104 @@ void CreateTypes(){
   DebugN ("Datapoint Type created ");
 
   }
+ 
+  dyn_string types;
+  types = dpTypes("RPCRack");
+  //DebugN(types);
+  if(dynlen(types)<1) 
+  {
+  int n;
+
+  dyn_dyn_string xxdepes;
+
+  dyn_dyn_int xxdepei;
+
+ 
+
+// Create the data type
+
+  xxdepes[1] = makeDynString ("RPCRack","");
+
+  xxdepes[2] = makeDynString ("","value");
   
-  
-  
-  
-  
-  
-  
-  
-  
+  xxdepei[1] = makeDynInt (1);
+
+  xxdepei[2] = makeDynInt (0,DPEL_FLOAT);
+
+
+// Create the datapoint type
+
+  n = dpTypeCreate(xxdepes,xxdepei);
+
+  DebugN ("Datapoint Type created ");
+
+  }  
+}
+
+
+fsmAdd()
+{
+ 
+  if(fwFsmTree_isNode("RPC_GAS_TOP")) // if top node exist, detete it
+                                     fwFsmTree_removeNode("FSM", "RPC_GAS_TOP", 1);
+  fwFsmTree_addNode("FSM", "RPC_GAS_TOP", "RPC_TOPGAS", 1);
+   fwFsmTree_setNodeLabel("RPC_GAS_TOP","RPC Gas System");
+  dyn_string children = makeDynString("Barrel", "Endcap", "Infrastructure");
+  for(int i=1; i<=dynlen(children); i++){
+   fwFsmTree_addNode("RPC_GAS_TOP",RPCGasGetSysName()+children[i],"RPCGasStatusNode",0); 
+    }
+  linkGGM();
+  fwFsmTree_generateAll();                                     
+  fwFsmTree_refreshTree();  
+}
+void linkGGM(){
+    
+   dyn_string sysnum,exInfo;
+   fwInstallation_getApplicationSystem("CMS_RPCfwGGM",sysnum);
+   if(dynlen(sysnum)>0)
+   { 
+   dyn_string chldren;
+   fwTree_getChildren(sysnum[1]+"FSM",chldren,exInfo);
+   
+    if(dynlen(chldren)==1)
+    {
+      fwFsmTree_importType("RPC_GGMDevice",strrtrim(sysnum[1],":"));
+      fwFsmTree_addNode("RPC_GAS_TOP",sysnum[1]+chldren[1],"RPC_GGMDevice",1);
+    }     
+  }else
+    Debug("Gas Link not found");
+}
+void RPCDIP_createConfigDp() {
+    string configDp=  RPCDIP_CONFIG_DP;
+    if (! dpExists(configDp) ) {
+      DebugN("RPCDIP: creating " + configDp);      
+      dpCreate(configDp, "_FwDipConfig");
+    }
+    	DebugN("RPCDIP: Setting DIP manager configuration");
+
+ 	dpSet(configDp + ".publishName",getHostname()+"_"+rand());
+	dpSet(configDp + ".queryTimeout",15);
+    
+}
+
+int RPCDIP_addManager() {  	
+	int result = fwInstallation_appendManager(TRUE, "External Applications DIP Manager", "PVSS00dip", "always",
+                                              30, 2, 2, "-num 12 -dns cms-cent-dcs-17,cms-cent-dcs-18 -dip_dp_config "+RPCDIP_CONFIG_DP);
+
+ string resultText;
+	switch(result)
+	{
+		case 1:
+			resultText = "OK";
+			break;
+		case 2:
+			resultText = "Already exists";
+			break;
+		default:
+			resultText = "Failed";
+			break;
+	}
+
+	DebugN("RPCDIP: Adding DIP manager 12 - " + resultText);
+  return result;
 }
