@@ -21,30 +21,79 @@ smsDSSAlertConfig();
  
 }
 
-void smsDSSAlertConfig(){
 
+int CMS_RPCfwGeneral_createUserSMS(string user){
+
+  if (user == "") return -1;
+  string phoneNum;
   dyn_string users;
-
-  string user1 = "polese";
-  
-  users = dpNames("*"+user1+"*","CMSfwAlertSystemUsers");
-  
-  if(dynlen(users)==0)
-      CMSfwAlertSystemUtil_addUser(user1);
-    
-  string user2 = "rpcbarre";
-  
-  users = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
-  
-  if(dynlen(users)==0)
-  {
-      CMSfwAlertSystemUtil_addUser(user2);
-    users = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
-  if(dynlen(users)>0)  
-  dpSet(users[1]+".GSMNumber","165508");
+  switch (user){
+    case "polese":phoneNum = "165807";
+      break;
+   default : phoneNum =  "165508";  
   
   }
- 
+  users = dpNames("*"+user+"*","CMSfwAlertSystemUsers");
+  
+  if(dynlen(users)==0)
+      CMSfwAlertSystemUtil_addUser(user);
+  else return 1;
+
+  users = dpNames("*"+user+"*","CMSfwAlertSystemUsers");
+  
+  //in case it fails
+  if(dynlen(users)==0)
+  CMSfwAlertSystemUtil_createUser(user, user+ "@cern.ch", phoneNum);
+  else if (user ==  "rpcbarre")
+        dpSet(users[1]+".GSMNumber","165508");
+  
+  return 1;
+}
+
+void smsCoolAlertConfig(){
+  
+  string user1 = "polese";
+  string user2 = "rpcbarre";
+  CMS_RPCfwGeneral_createUserSMS(user1);
+  CMS_RPCfwGeneral_createUserSMS(user2);
+  
+  dyn_string notif;
+  string notifType = "CoolingCheck";
+  notif = dpNames("*"+notifType+"*","CMSfwAlertSystemSumAlerts");
+  if(dynlen(notif)!=0)
+    dpDelete(notif[1]);
+    CMSfwAlertSystemUtil_createNotification (notifType);
+  
+  /////// ******************** Add alert to notification
+
+                  
+dyn_string dpesCool = dpNames("*","RPCCooling");    
+      for(int i = 1;i<=dynlen(dpesCool);i++)
+      {  
+    CMSfwAlertSystemUtil_addAlertToNotification(notifType,dpesCool[i]+".value") ;
+    }
+  // **************** Add user to notificatio
+
+   string userdp = dpNames("*"+user1+"*","CMSfwAlertSystemUsers");
+  
+   if(userdp!=""){
+     CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"EMAIL",50);
+     CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"SMS",50);
+   }  
+      
+  userdp = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
+  CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"SMS",50);
+  
+  
+}
+
+
+void smsDSSAlertConfig(){
+
+  string user1 = "polese";
+  string user2 = "rpcbarre";
+  CMS_RPCfwGeneral_createUserSMS(user1);
+  CMS_RPCfwGeneral_createUserSMS(user2);
   
   dyn_string notif;
   string notifType = "DSSCheck";
@@ -61,65 +110,19 @@ void smsDSSAlertConfig(){
     CMSfwAlertSystemUtil_addAlertToNotification(notifType,dpDSS[i]+".value") ;
     }
   // **************** Add user to notificatio
+ string userdp = dpNames("*"+user1+"*","CMSfwAlertSystemUsers");
   
-  CMSfwAlertSystemUtil_addNotificationToUser (user1,notifType,"EMAIL",50);
-  CMSfwAlertSystemUtil_addNotificationToUser (user1,notifType,"SMS",50);
-  CMSfwAlertSystemUtil_addNotificationToUser (user2,notifType,"SMS",50);
-//   CMSfwAlertSystemUtil_addNotificationToUser (user3,notifType,"EMAIL",50);
-//   CMSfwAlertSystemUtil_addNotificationToUser (user3,notifType,"SMS",50);
-  
+   if(userdp!=""){
+     CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"EMAIL",50);
+     CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"SMS",50);
+   }  
+      
+  userdp = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
+  CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"SMS",50); 
   
 }
 
-void smsCoolAlertConfig(){
-  dyn_string users;
-  
-  
-  string user1 = "polese";
-  
-  users = dpNames("*"+user1+"*","CMSfwAlertSystemUsers");
-  
-  if(dynlen(users)==0)
-      CMSfwAlertSystemUtil_addUser(user1);
-    
-  string user2 = "rpcbarre";
-  
-  users = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
-  
-  if(dynlen(users)==0)
-  {
-      CMSfwAlertSystemUtil_addUser(user2);
-    users = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
-     if(dynlen(users)>0)
-  dpSet(users[1]+".GSMNumber","165508");
-  
-  }  
-  
-  
-  dyn_string notif;
-  string notifType = "CoolingCheck";
-  notif = dpNames("*"+notifType+"*","CMSfwAlertSystemSumAlerts");
-  if(dynlen(notif)!=0)
-    dpDelete(notif[1]);
-    CMSfwAlertSystemUtil_createNotification (notifType);
-  
-  /////// ******************** Add alert to notification
 
-         
-dyn_string dpesCool = dpNames("*","RPCCooling");    
-  
-      for(int i = 1;i<=dynlen(dpesCool);i++)
-      {  
-    CMSfwAlertSystemUtil_addAlertToNotification(notifType,dpesCool[i]+".value") ;
-    }
-  // **************** Add user to notificatio
-  
-  CMSfwAlertSystemUtil_addNotificationToUser (user1,notifType,"EMAIL",50);
-  CMSfwAlertSystemUtil_addNotificationToUser (user1,notifType,"SMS",50);
-  CMSfwAlertSystemUtil_addNotificationToUser (user2,notifType,"SMS",50);
-  
-  
-}
 
 
 void CreateTypes(){
