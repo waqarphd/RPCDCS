@@ -13,8 +13,11 @@
 #uses "CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc"
 #uses "CMSfwDetectorProtection/CMSfwDetectorProtection.ctl"
 #uses "majority_treeCache/treeCache.ctl"
-const string componentName = "CMSRPC_fwHardwareBarrelUSC";
+#uses "CMSfw_CAENOPCConfigurator/CMSfw_CAENOPCConfiguratorLib.ctl"
+
+const string componentName = "CMS_RPCfwHardwareBarrelUSC";
 const string FSMVersion = "1.0";
+const string standardRecipe = "RPCUSCBarrelGeneral_v1.0";
 main()
 {
 RPCDebug("null"); 
@@ -42,6 +45,9 @@ if (reinstallFSM) installFSM();
 RPCDebug("FSM Created. Installing Additional Components...");
 installServices();
 
+
+  DebugTN("Configuring OPC Server");
+  CMSfw_CAENOPCConfigurator_configureFromFwCaenDps(exc);
 
 RPCDebug("RPC Hardware component installed successfully.");
 }
@@ -236,7 +242,7 @@ fwTree_getRootNodes(nodes,exInfo);
 //DebugN(nodes, exInfo);
 if(fwFsmTree_isNode("RPC_BARREL_HWUSC"))
   fwFsmTree_removeNode("RPC_BARREL_HWUSC","FSM");
-top_node=fwFsmTree_addNode("FSM","RPC_BARREL_HWUSC","RPC_Device",1);
+top_node=fwFsmTree_addNode("FSM","RPC_BARREL_HWUSC","RPC_TopHwDevice",1);
 
 
 if(!fwFsmTree_isNode("RPC_BoardUSC"))
@@ -249,7 +255,7 @@ if(!fwFsmTree_isNode("RPC_CratesUSC"))
 top_node=fwFsmTree_addNode("RPC_BARREL_HWUSC","RPC_CratesUSC","RPC_SY1527",0);
 fwTree_getRootNodes(nodes, exInfo);
 
-//add list of children CU (type DiscNode)
+//add list of children CU (type DiscNode) 
 dyn_string objs;
 for(int i = 1;i<=dynlen(discs);i++)
 {
@@ -261,16 +267,12 @@ for(int i = 1;i<=dynlen(discs);i++)
   for(int h = 1; h<=4;h++)
   {
     if(fwFsmTree_isNode("RPC_USC"+discs[i]+rings[h][4]))
-      fwFsmTree_removeNode("RPC_BARREL_HWUSC","RPC_USC"+discs[i]+rings[h][4]);
-      top_node=fwFsmTree_addNode("RPC_BARREL_HWUSC","RPC_USC"+discs[i]+rings[h][4],"RPC_Device",1);
-    
+      fwFsmTree_removeNode("RPC_ChannelsUSC","RPC_USC"+discs[i]+rings[h][4]);
+      top_node=fwFsmTree_addNode("RPC_ChannelsUSC","RPC_USC"+discs[i]+rings[h][4],"RPC_Device",1);
+      fwFsmTree_setNodeVisibility("RPC_USC"+discs[i]+rings[h][4],0);
     
     for(int m = 1;m<4;m++)
     {
-      //dynAppend(objs,discs[i]+rings[j][4]+rings[j][k]);
-      
-    
-		//ring_node=fwFsmTree_addNode(disc_node,"RPC"+discs[i]+rings[j],"SectorNode",1);
 		
 		//add list of children CU (type ChamberNode)
 		if(rings[h][m]=="_S04") 
@@ -301,9 +303,6 @@ for(int i = 1;i<=dynlen(discs);i++)
 
 
 DebugN("Structure ready");
-//generate and refresh tree
-fwFsmTree_generateAll();
-//fwFsmTree_refreshTree();
 }
 string getCU(string name)
 {
@@ -327,6 +326,7 @@ dyn_string deviceList=dpAliases("*/HV/*","*");
 //DebugN(deviceList);
 int pos;
 string names;
+
 for(int i=1;i<=dynlen(deviceList);i++)
 {
 	pos =strpos(deviceList[i],"RPC_W");
@@ -345,7 +345,45 @@ for(int i=1;i<=dynlen(deviceList);i++)
 DebugN("HV ready");
 
 }
+void CreateTypesGenCurrent(){
+  
+   dyn_string types;
+  types = dpTypes("RpcGlobalValue");
+  //DebugN(types);
+  if(dynlen(types)<1) 
+  {
+  int n;
 
+  dyn_dyn_string xxdepes;
+
+  dyn_dyn_int xxdepei;
+
+ 
+
+// Create the data type
+
+  xxdepes[1] = makeDynString ("RpcGlobalValue","");
+
+  xxdepes[2] = makeDynString ("","total");
+  xxdepes[3] = makeDynString ("","averange");
+
+
+  xxdepei[1] = makeDynInt (1);
+
+  xxdepei[2] = makeDynInt (0,DPEL_FLOAT);
+
+  xxdepei[3] = makeDynInt (0,DPEL_FLOAT);
+
+ 
+
+// Create the datapoint type
+
+  n = dpTypeCreate(xxdepes,xxdepei);
+
+  DebugN ("Datapoint Type created ");
+
+  }
+}
 void globalCurrent()
 {
    dyn_string types;
@@ -611,6 +649,20 @@ int installHardwareView(){
     RPCDebug("**** PROBLEMS IN CREATING DATA POINTS. Stopping the postInstall for RPC Barrel HV");
     return -1;
   }
+
+  //Apply recipe  
+  
+  dyn_string exceptionInfo,list;
+  dyn_dyn_mixed recipeObject;
+ 	fwConfigurationDB_getRecipeFromDB("",list, fwDevice_LOGICAL,standardRecipe, recipeObject,exceptionInfo);
+	  if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+         return -1;  
+        }
+
+	fwConfigurationDB_ApplyRecipe( recipeObject, fwDevice_LOGICAL,exceptionInfo); 
+        if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+         return -1;  
+          }
 return 0;
 
 }
@@ -677,14 +729,14 @@ if(!inExists)
   {
   dpCreate(newDpIn[j],"_OPCGroup");
   dpCopyOriginal(oldIn,newDpIn[j],error);
-  DebugN("error: ",error);
+  
   }
  
 if(!outExists)
   {
   dpCreate(newDpOut[j],"_OPCGroup");
   dpCopyOriginal(oldOut,newDpOut[j],error);
-  DebugN("error: ",error);
+
   }
 
 
