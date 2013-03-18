@@ -26,6 +26,34 @@ else
 
 }
 
+int CMS_RPCfwGeneral_createUserSMS(string user){
+
+  if (user == "") return -1;
+  string phoneNum;
+  dyn_string users;
+  switch (user){
+    case "polese":phoneNum = "165807";
+      break;
+   default : phoneNum =  "165508";  
+  
+  }
+  users = dpNames("*"+user+"*","CMSfwAlertSystemUsers");
+  
+  if(dynlen(users)==0)
+      CMSfwAlertSystemUtil_addUser(user);
+  else return 1;
+
+  users = dpNames("*"+user+"*","CMSfwAlertSystemUsers");
+  
+  //in case it fails
+  if(dynlen(users)==0)
+  CMSfwAlertSystemUtil_createUser(user, user+ "@cern.ch", phoneNum);
+  else if (user ==  "rpcbarre")
+        dpSet(users[1]+".GSMNumber","165508");
+  
+  return 1;
+}
+
 void CMS_RPCfwGeneral_configureOPC() {
   dyn_string exc;
   DebugTN("Configuring OPC Server");
