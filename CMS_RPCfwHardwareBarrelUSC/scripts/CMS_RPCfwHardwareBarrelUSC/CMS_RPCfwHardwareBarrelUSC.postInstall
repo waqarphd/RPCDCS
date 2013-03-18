@@ -9,6 +9,7 @@
 *************************************************/
 #uses "fwInstallationUtils.ctl"
 #uses "fwRDBArchiving/fwRDBConfig.ctl"
+#uses "CMS_RPCfwGeneral/CMS_RPCfwGeneral.ctl"
 #uses "CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl"
 #uses "CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc"
 #uses "CMSfwDetectorProtection/CMSfwDetectorProtection.ctl"
@@ -48,6 +49,7 @@ installServices();
 
   DebugTN("Configuring OPC Server");
   CMSfw_CAENOPCConfigurator_configureFromFwCaenDps(exc);
+  fwInstallationUtils_appendManagers(componentName,exc);
 
 RPCDebug("RPC Hardware component installed successfully.");
 }
@@ -508,25 +510,7 @@ void smsAlertConfig(string notifType,string user,int type,dyn_string & exInfo){
   dyn_string users;
   
   
-    
-  users = dpNames("*"+user+"*","CMSfwAlertSystemUsers");
- // DebugN("us:",users);    
-  if(dynlen(users)==0)
-  {
-    CMSfwAlertSystemUtil_addUser(user);
-    
-    
-    }
-  if(user == "rpcbarre")
-  {
-    users = dpNames("*"+user+"*","CMSfwAlertSystemUsers");
-    if(dynlen(users)==0){ 
-      dynAppend(exInfo,"user "+user+" not found");
-      RPCDebug("SMS Configuration failed. user "+user+" not found");      
-      return; } 
-      dpSet(users[1]+".GSMNumber","165508");
-  
-    }
+  CMS_RPCfwGeneral_createUserSMS( user);
   dyn_string notif;
  // string notifType = "SupCheck";
   notif = dpNames("*"+notifType+"*","CMSfwAlertSystemSumAlerts");
@@ -539,23 +523,49 @@ void smsAlertConfig(string notifType,string user,int type,dyn_string & exInfo){
     CMSfwAlertSystemUtil_createNotification (notifType);
 
   // **************** Add user to notificatio
+
+string userdp = dpNames("*"+user+"*","CMSfwAlertSystemUsers");
+  
+   if(userdp!=""){  
   
   if((type == 2)||(type==3))
-  CMSfwAlertSystemUtil_addNotificationToUser (user,notifType,"EMAIL",50);
+  CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"EMAIL",50);
   
   
   if((type == 1)||(type==3))
-  CMSfwAlertSystemUtil_addNotificationToUser (user,notifType,"SMS",50);
-}
+  CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"SMS",50);
+  }
+ }
+
 void configSmsRPCSysCheck(string notifType){
 
-  dyn_string exInfo,dp = dpNames("*Check*","RPCUtils");
+  dyn_string exInfo,dp = dpNames("RPCCheckUSC","RPCUtils");
   if(dynlen(dp)>0){
 CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp[1]+".fvalue") ;
 
 fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
-}
+}else{
+
+    if(!dpExists(getSystemName()+"RPCCheckUSC"))
+   {
+    dyn_string alertTexts = makeDynString( "Ok", "Not Ok");
+    dyn_float limits = (1); 
+    dyn_string alertClasses = makeDynString( "" , "_fwErrorAck.");
+    string alertPanel,summary,dp; dyn_string alertPanelParameters; string alertHelp;  
+    dpCreate("RPCCheckUSC","RPCUtils");
+    dp = getSystemName()+"RPCCheckUSC.fvalue";
+     fwArchive_set(dp,"RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,0,0,exInfo);
+     fwAlertConfig_set(dp,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exInfo);
+     fwAlertConfig_activate(dp,exInfo);
+ 
+     CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp[1]+".fvalue") ;
+
+      fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
+    }
   }
+}
+
 void configSmsAlarmBoard(string notifType){
 
   dyn_string deviceList,chs,exInfo;
@@ -654,6 +664,7 @@ int installHardwareView(){
   
   dyn_string exceptionInfo,list;
   dyn_dyn_mixed recipeObject;
+  fwConfigurationDB_checkInit(exceptionInfo);
  	fwConfigurationDB_getRecipeFromDB("",list, fwDevice_LOGICAL,standardRecipe, recipeObject,exceptionInfo);
 	  if (fwConfigurationDB_handleErrors(exceptionInfo)) {
          return -1;  
