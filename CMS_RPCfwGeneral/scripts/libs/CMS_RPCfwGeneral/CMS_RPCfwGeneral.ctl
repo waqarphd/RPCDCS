@@ -7,6 +7,8 @@
 ****************************************************************/  
 
 #uses "CMSfw_CAENOPCConfigurator/CMSfw_CAENOPCConfiguratorLib.ctl"
+#uses "CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl"
+#uses "CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc"
 
 const int CMS_RPCfwGeneral_LOG = 1;
 const int CMS_RPCfwGeneral_HARD = 2;
