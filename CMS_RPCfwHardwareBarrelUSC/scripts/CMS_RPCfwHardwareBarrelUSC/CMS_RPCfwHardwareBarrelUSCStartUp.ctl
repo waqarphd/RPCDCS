@@ -11,7 +11,7 @@ dyn_string chanToCheck;
 string caen1527;
 dyn_dyn_string chStatus;
 int dim;
-const string version = "1.8";
+const string version = "1.9";
 main()
 {
 
@@ -19,12 +19,12 @@ DebugN("Start up script version: ",version);
 
   
   //----------------- Refresh status every 5 minuti
- dyn_string c1527=dpAliases("*/Crates/*","*");
+ dyn_string c1527=dpAliases("*RPCUSBarrel/Crates/*","*");
  if(dynlen(c1527)>0){
    caen1527 = getSystemName()+fwDU_getPhysicalName(c1527[1]);
   }
    
-   dyn_string chs = dpAliases("*/HV/*","*");
+   dyn_string chs = dpAliases("*RPCUSBarrel/HV/*","*");
    int step = 0;
    dim = 1;
    for (int i = 1; i<=dynlen(chs);i++)
@@ -51,11 +51,6 @@ DebugN("Start up script version: ",version);
   
   
  dyn_string nodes,exInfo;
- string val;
- dpGet("CMS_RPCfwSupervisor.Status.library",val);
- if(val == "GEN")
-   fwFsmTree_generateAll();
- dpSet("CMS_RPCfwSupervisor.Status.library","");
  
     checkDpTimed("USCTimedCheck",120);
     timedFunc("systemCheck","USCTimedCheck");
@@ -148,7 +143,7 @@ void currentCheck(){
   int pos;
   
   if(dynlen(chanToCheck)==0)
-    chanToCheck = dpAliases("*/HV/*","*");
+    chanToCheck = dpAliases("*RPCUSBarrel/HV/*","*");
   
   dyn_string wheels = makeDynString("WP2","WP1","W00","WM1","WM2");
   
