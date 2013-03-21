@@ -1,6 +1,6 @@
 /***************************************************************
   
-  RPC General Library v:1.2
+  RPC General Library v:1.3
   
   author: Giovanni Polese
   
@@ -13,6 +13,25 @@ const int CMS_RPCfwGeneral_HARD = 2;
 const bool CMS_RPCfwGeneral_ACCESS_DCS = true;
 
 
+bool CMS_RPCfwGeneralInstallation_getInstallationKey(string type = "FSMVersionInstalled"){
+  
+  string dp = dpNames("*"+type+componentName+"*","RPCUtils");
+  if(!dpExists(dp)) {
+    dpCreate(type,"RPCUtils"); 
+    dpSet(type+".svalue",FSMVersion);  
+    return true;
+  }
+  else{
+    string versionPj;
+    dpGet(type+".svalue",versionPj );
+     if(FSMVersion!=versionPj)
+      return true;
+    else
+      return false;
+  }    
+  return false;
+
+}
 
 int CMS_RPCfwGeneralInstallation_createUserSMS(string user){
 
@@ -54,6 +73,54 @@ else
 	DebugN("Component not found");
 	}
 
+}
+
+void CMS_RPCfwGeneralInstallation_createUtilities(){
+  
+   dyn_string types;
+ 
+
+  // Create dp for Utils
+  types = dpTypes("RPCUtils");
+  //DebugN(types);
+  if(dynlen(types)<1) 
+  {
+  int n;
+
+  dyn_dyn_string xxdepes;
+
+  dyn_dyn_int xxdepei;
+
+ 
+
+// Create the data type
+
+  xxdepes[1] = makeDynString ("RPCUtils","");
+
+  xxdepes[2] = makeDynString ("","fvalue");
+  
+  xxdepes[3] = makeDynString ("","svalue");
+  //xxdepes[3] = makeDynString ("","offset");
+
+
+  xxdepei[1] = makeDynInt (1);
+
+  xxdepei[2] = makeDynInt (0,DPEL_FLOAT);
+
+  xxdepei[3] = makeDynInt (0,DPEL_STRING);
+ 
+
+ 
+
+// Create the datapoint type
+
+  n = dpTypeCreate(xxdepes,xxdepei);
+
+  DebugN ("Datapoint Type created ");
+
+  }
+  
+    
 }
 
 void CMS_RPCfwGeneralInstallation_installProtectionHV(string name = "LHCHandshake"){
@@ -348,7 +415,7 @@ if(!outExists)
 { 
 dpCreate(newDpOut[j],"_OPCGroup"); 
 dpCopyOriginal(oldOut,newDpOut[j],error); 
-DebugN("error: ",error); 
+
 } 
 dpSet(newDpIn[j] +".UpdateRateReq",fastRefreshRate); 
 dpSet(newDpIn[j] +".UpdateRateAct",fastRefreshRate); 
