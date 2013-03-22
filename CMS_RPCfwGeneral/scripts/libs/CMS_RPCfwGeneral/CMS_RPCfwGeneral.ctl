@@ -1,6 +1,6 @@
 /***************************************************************
   
-  RPC General Library v:1.4
+  RPC General Library v:1.5
   
   author: Giovanni Polese
   
@@ -33,6 +33,57 @@ bool CMS_RPCfwGeneralInstallation_getInstallationKey(string type = "FSMVersionIn
   return false;
 
 }
+
+void CMS_RPCfwGeneralInstallation_createHVoffset()
+{
+   dyn_string types;
+  types = dpTypes("RpcBoardOffset");
+  //DebugN(types);
+
+  if(dynlen(types)<1) 
+  {
+      int n;
+
+      dyn_dyn_string xxdepes;
+
+      dyn_dyn_int xxdepei;
+
+ 
+
+    // Create the data type
+
+      xxdepes[1] = makeDynString ("RpcBoardOffset","");
+
+      xxdepes[2] = makeDynString ("","serial");
+      xxdepes[3] = makeDynString ("","offset");
+
+
+      xxdepei[1] = makeDynInt (1);
+
+      xxdepei[2] = makeDynInt (0,25);
+
+      xxdepei[3] = makeDynInt (0,6);
+
+ 
+
+    // Create the datapoint type
+
+      n = dpTypeCreate(xxdepes,xxdepei);
+
+      DebugN ("Datapoint Type created ");   
+  }  
+  
+  
+  for(int i = 1 ; i<=90;i++)
+  {
+    if(!dpExists("OffsetBoard"+i))
+    dpCreate("OffsetBoard"+i,"RpcBoardOffset");
+    }
+  
+  DebugN("Offset dpt created");
+   
+}
+
 
 int CMS_RPCfwGeneralInstallation_createUserSMS(string user){
 
