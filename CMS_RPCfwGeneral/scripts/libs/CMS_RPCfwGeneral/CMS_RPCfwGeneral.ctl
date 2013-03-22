@@ -1,13 +1,14 @@
 /***************************************************************
   
-  RPC General Library v:1.3
+  RPC General Library v:1.4
   
   author: Giovanni Polese
   
 ****************************************************************/  
-
+#uses "fwInstallationUtils.ctl"
 #uses "CMSfw_CAENOPCConfigurator/CMSfw_CAENOPCConfiguratorLib.ctl"
 #uses "CMSfwDetectorProtection/CMSfwDetectorProtection.ctl"
+
 const int CMS_RPCfwGeneral_LOG = 1;
 const int CMS_RPCfwGeneral_HARD = 2;
 const bool CMS_RPCfwGeneral_ACCESS_DCS = true;
