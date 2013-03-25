@@ -14,7 +14,7 @@ const int CMS_RPCfwGeneral_HARD = 2;
 const bool CMS_RPCfwGeneral_ACCESS_DCS = true;
 
 
-bool CMS_RPCfwGeneralInstallation_getInstallationKey(string type = "FSMVersionInstalled"){
+bool CMS_RPCfwGeneralInstallation_getInstallationKey(string type = "FSMVersionInstalled", string FSMVersion = "1.0"){
   
   string dp = dpNames("*"+type+componentName+"*","RPCUtils");
   if(!dpExists(dp)) {
