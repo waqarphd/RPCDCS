@@ -40,7 +40,7 @@ CMS_RPCfwGeneralInstallation_createUtilities();
 if(installHardwareView()<0) return; 
 
 CMS_RPCfwGeneralInstallation_RPCDebug("Hardware Created. Installing FSM...");
-bool reinstallFSM = CMS_RPCfwGeneralInstallation_getInstallationKey("FSMVersionInstalled");
+bool reinstallFSM = CMS_RPCfwGeneralInstallation_getInstallationKey("FSMVersionInstalled",FSMVersion);
 if (reinstallFSM) installFSM();
 
 CMS_RPCfwGeneralInstallation_RPCDebug("FSM Created. Installing Additional Components...");
@@ -226,13 +226,30 @@ void setSMSAlert()
 
 void configSmsRPCSysCheck(string notifType){
 
-  dyn_string exInfo,dp = dpNames("*Check*","RPCUtils");
-  if(dynlen(dp)>0){
-CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp[1]+".fvalue") ;
+  if(!dpExists(getSystemName()+"RPCCheckUSCE"))
+ {
+  dyn_string alertTexts = makeDynString( "Ok", "Not Ok");
+  dyn_float limits = (1); 
+  dyn_string alertClasses = makeDynString( "" , "_fwErrorAck.");
+  string alertPanel,summary,dp; dyn_string alertPanelParameters,exInfo; string alertHelp;
 
-fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
-}
+   
+ dpCreate("RPCCheckUSCE","RPCUtils");
+ dp = getSystemName()+"RPCCheckUSCE.fvalue";
+ fwArchive_set(dp,"RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,0,0,exInfo);
+ fwAlertConfig_set(dp,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exInfo);
+ fwAlertConfig_activate(dp,exInfo);
+ }  
+  
+dyn_string exInfo,dp = dpNames("*CheckUSCE","RPCUtils");
+  if(dynlen(dp)>0){
+  CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp[1]+".fvalue") ;
+
+  fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
   }
+}
+
 void configSmsAlarmBoard(string notifType){
 
   dyn_string deviceList,chs,exInfo;
