@@ -1,6 +1,6 @@
 /***************************************************************
   
-  RPC General Library v:1.5
+  RPC General Library v:1.6
   
   author: Giovanni Polese
   
@@ -14,9 +14,9 @@ const int CMS_RPCfwGeneral_HARD = 2;
 const bool CMS_RPCfwGeneral_ACCESS_DCS = true;
 
 
-bool CMS_RPCfwGeneralInstallation_getInstallationKey(string type = "FSMVersionInstalled", string FSMVersion = "1.0"){
+bool CMS_RPCfwGeneralInstallation_getInstallationKey(string type, string FSMVersion = "1.0"){
   
-  string dp = dpNames("*"+type+componentName+"*","RPCUtils");
+  string dp = dpNames("*"+type+"*","RPCUtils");
   if(!dpExists(dp)) {
     dpCreate(type,"RPCUtils"); 
     dpSet(type+".svalue",FSMVersion);  
