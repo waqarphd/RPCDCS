@@ -1,6 +1,6 @@
 /***************************************************************
   
-  RPC General Library v:1.6
+  RPC General Library v:1.7
   
   author: Giovanni Polese
   
@@ -33,6 +33,86 @@ bool CMS_RPCfwGeneralInstallation_getInstallationKey(string type, string FSMVers
   return false;
 
 }
+
+
+void CMS_RPCfwGeneralInstallation_configSmsRPCSysCheck(string notifType, string dp){
+
+  dyn_string exInfo,dp = dpNames(dp,"RPCUtils");
+  if(dynlen(dp)>0){
+  CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp[1]+".fvalue") ;
+
+  fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
+  }else{
+
+    if(!dpExists(getSystemName()+dp))
+   {
+    dyn_string alertTexts = makeDynString( "Ok", "Not Ok");
+    dyn_float limits = (1); 
+    dyn_string alertClasses = makeDynString( "" , "_fwErrorAck.");
+    string alertPanel,summary,dp; dyn_string alertPanelParameters; string alertHelp;  
+    dpCreate(dp,"RPCUtils");
+    dp = getSystemName()+"RPCCheckUXC.fvalue";
+     fwArchive_set(dp,"RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,0,0,exInfo);
+     fwAlertConfig_set(dp,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exInfo);
+     fwAlertConfig_activate(dp,exInfo);
+ 
+     CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp[1]+".fvalue") ;
+
+      fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
+    }
+  }
+}
+
+void CMS_RPCfwGeneralInstallation_setOPCServerStatus(string caen,string subsys){
+  
+  
+  dyn_string types;
+  types = dpTypes("RPCUtils");
+  if(dynlen(types)>0) {    
+   if(!dpExists("caen"+subsys+"ServerStatus"))
+    dpCreate("caen"+subsys+"ServerStatus","RPCUtils");
+  }
+  
+  dyn_string obj = dpNames("*"+caen+"*","FwCaenCrateSY1527");
+  string newDps;  
+//  DebugN(obj);
+  if(dynlen(obj)>0)
+  {
+  string dpe = obj+ ".Information.Sessions";
+  newDps = "caen"+subsys+"ServerStatus.svalue";
+  dyn_string exInfo;
+  dyn_anytype conf;
+  bool exist, isAct;
+  fwPeriphAddress_get(dpe, exist, conf,isAct,exInfo);
+   
+  string newItem = substr(conf[fwPeriphAddress_ROOT_NAME],0,(strpos(conf[fwPeriphAddress_ROOT_NAME],".")))+ ".ConnStatus";
+  
+  fwPeriphAddress_setOPC(newDps,conf[fwPeriphAddress_OPC_SERVER_NAME],
+                         conf[fwPeriphAddress_DRIVER_NUMBER],newItem,
+                         conf[fwPeriphAddress_OPC_GROUP_IN],
+                         conf[fwPeriphAddress_DATATYPE],
+                         conf[fwPeriphAddress_DIRECTION],
+                         conf[fwPeriphAddress_OPC_SUBINDEX],exInfo);
+  }else
+    CMS_RPCfwGeneralInstallation_RPCDebug("Caen Mainframe not found");
+ 
+  ///// Set db
+  string archiveClassName="RDB-99) EVENT"; //"ValueArchive_0000";//Archive's name
+  float timeInterval=3600; 
+  dyn_string exceptionInfo;
+
+  fwArchive_set(newDps, archiveClassName,DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,
+					0.3, timeInterval,exceptionInfo);
+
+/// store interlock
+  string interlock = obj + ".FrontPanInP.Interlock";
+  fwArchive_set(interlock, archiveClassName,DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,
+					0.3, timeInterval,exceptionInfo);
+   
+    
+}
+
 
 void CMS_RPCfwGeneralInstallation_createHVoffset()
 {
@@ -317,6 +397,14 @@ void CMS_RPCfwGeneralInstallation_configureOPC() {
   
 }
 
+
+void CMS_RPCfwGeneralInstallation_smsUserConfigRPCDefault(string notification) {
+
+  dyn_string exInfo;
+   CMS_RPCfwGeneralInstallation_smsAlertConfig(notification,"polese",3,exInfo);
+   CMS_RPCfwGeneralInstallation_smsAlertConfig(notification,"rpcbarre",1,exInfo);
+   
+ }
 
 void CMS_RPCfwGeneralInstallation_smsAlertConfig(string notifType,string user,int type,dyn_string & exInfo){
   //1 sms 2 email 3 sms+email
