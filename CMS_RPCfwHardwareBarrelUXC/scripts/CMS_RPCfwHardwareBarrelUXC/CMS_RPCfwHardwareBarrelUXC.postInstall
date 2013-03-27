@@ -2,7 +2,7 @@
 * Created by Giovanni Polese 
 *	date:08/03/2007
 *	LastChange:20/03/2013
-        version: 3.0
+        version: 3.1
         -New approach
         -the key FSMVersionDB needs to edited
         
@@ -39,7 +39,7 @@ if(installHardwareView()<0) return;
 
 CMS_RPCfwGeneralInstallation_RPCDebug("Hardware Created. Installing FSM...");
 
-if (CMS_RPCfwGeneralInstallation_getInstallationKey("FSMVersionInstalled")) installFSM();
+if (CMS_RPCfwGeneralInstallation_getInstallationKey("FSMVersionInstalled_"+componentName,FSMVersion)) installFSM();
 
 CMS_RPCfwGeneralInstallation_RPCDebug("FSM Created. Installing Additional Components...");
 installServices();
@@ -95,6 +95,8 @@ void installFSM(){
  generateTreeforDevice();
 
 // Insert the device node using hardware created
+ fwFsmTree_generateAll();
+ fwFsmTree_refreshTree();  
   
  InsertLV();
  InsertT(); 
@@ -241,12 +243,14 @@ void InsertBcMaoCrate()
   string name;
   dyn_string exInfo;
   dyn_string deviceList=dpAliases("*UXBarrel/BCs/*","*");
-
+  for(int i=1;i<=dynlen(deviceList);i++)
+  	fwFsmTree_addNode("RPC_BCsUXC",deviceList[i] ,"FwCaenBoardSY1527A1676", 0);
   
   DebugN("BC ready");
 //Add MAO
 string add;
-dyn_string deviceList=dpAliases("*UXBarrel/MAO/*","*");
+dynClear(deviceList);
+deviceList=dpAliases("*UXBarrel/MAO/*","*");
 for(int i=1;i<=dynlen(deviceList);i++)
 	{
         if(fwFsm_isLogicalDeviceName(deviceList[i]))
@@ -256,16 +260,23 @@ for(int i=1;i<=dynlen(deviceList);i++)
         name = substr(deviceList[i],pos-1);
         //DebugN("ss",names,deviceList);
         pos =strpos(name,"_X");
-        name = substr(name,0,pos);
+        name = substr(name,0,pos)+"_MAO";
   //DebugN(name,deviceList[i]);
  string cuName = getCU(name);
  if((name!=cuName)&&(cuName!=""))
     deviceList[i] = cuName +"::"+ deviceList[i];
- DebugN(name,deviceList[i]);
-	//fwFsmTree_addNode(name,deviceList[i] ,"FwCaenChannelMAO", 0);
-	}
-}
 
+ 	fwFsmTree_addNode(name,deviceList[i] ,"FwCaenChannelMAO", 0);
+	}
+dynClear(deviceList);
+deviceList=dpAliases("*UXBarrel/Crates/*","*");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	fwFsmTree_addNode("RPC_CratesUXC",deviceList[i] ,"FwCaenCrateSY1527Basic", 0);
+	}
+
+
+}
 
 void InsertLBB()
 {
@@ -452,7 +463,8 @@ for(int i=1; i<=dynlen(discs);i++)
 	}
 	
 	
-
+fwFsmTree_generateAll();
+fwFsmTree_refreshTree(); 
 DebugN("Structure ready");
 
 }
