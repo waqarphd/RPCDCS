@@ -25,6 +25,7 @@ bool CMS_RPCfwGeneralInstallation_getInstallationKey(string type, string FSMVers
   else{
     string versionPj;
     dpGet(type+".svalue",versionPj );
+    dpSet(type+".svalue",FSMVersion );
      if(FSMVersion!=versionPj)
       return true;
     else
@@ -35,9 +36,9 @@ bool CMS_RPCfwGeneralInstallation_getInstallationKey(string type, string FSMVers
 }
 
 
-void CMS_RPCfwGeneralInstallation_configSmsRPCSysCheck(string notifType, string dp){
+void CMS_RPCfwGeneralInstallation_configSmsRPCSysCheck(string notifType, string dpName){
 
-  dyn_string exInfo,dp = dpNames(dp,"RPCUtils");
+  dyn_string exInfo,dp = dpNames(dpName,"RPCUtils");
   if(dynlen(dp)>0){
   CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp[1]+".fvalue") ;
 
