@@ -87,7 +87,7 @@ void CMS_RPCfwGeneralInstallation_setOPCServerStatus(string caen,string subsys){
   bool exist, isAct;
   fwPeriphAddress_get(dpe, exist, conf,isAct,exInfo);
    
-  string newItem = substr(conf[fwPeriphAddress_ROOT_NAME],0,(strpos(conf[fwPeriphAddress_ROOT_NAME],".")))+ ".ConnStatus";
+  string newItem = substr((string)conf[fwPeriphAddress_ROOT_NAME],0,(strpos((string)conf[fwPeriphAddress_ROOT_NAME],".")))+ ".ConnStatus";
   
   fwPeriphAddress_setOPC(newDps,conf[fwPeriphAddress_OPC_SERVER_NAME],
                          conf[fwPeriphAddress_DRIVER_NUMBER],newItem,
