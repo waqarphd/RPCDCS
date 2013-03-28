@@ -279,7 +279,7 @@ void installServices(){
   CMS_RPCfwGeneralInstallation_RPCDebug("Offset Done");
 
   globalCurrent();
-  setOPCServerStatus("rb1527hv","HVB");
+  CMS_RPCfwGeneralInstallation_setOPCServerStatus("rb1527hv","HVB");
   setSMSAlert();
   
  
@@ -336,56 +336,6 @@ CMSfwAlertSystemUtil_addAlertToNotification(notifType,chs[i]) ;
 fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
  
 }
-
-void setOPCServerStatus(string caen,string subsys){
-  
-  
-  dyn_string types;
-  types = dpTypes("RPCUtils");
-  if(dynlen(types)>0) {    
-   if(!dpExists("caen"+subsys+"ServerStatus"))
-    dpCreate("caen"+subsys+"ServerStatus","RPCUtils");
-  }
-  
-  dyn_string obj = dpNames("*"+caen+"*","FwCaenCrateSY1527");
-  string newDps;  
-//  DebugN(obj);
-  if(dynlen(obj)>0)
-  {
-  string dpe = obj+ ".Information.Sessions";
-  newDps = "caen"+subsys+"ServerStatus.svalue";
-  dyn_string exInfo;
-  dyn_anytype conf;
-  bool exist, isAct;
-  fwPeriphAddress_get(dpe, exist, conf,isAct,exInfo);
-   
-  string newItem = substr(conf[fwPeriphAddress_ROOT_NAME],0,(strpos(conf[fwPeriphAddress_ROOT_NAME],".")))+ ".ConnStatus";
-  
-  fwPeriphAddress_setOPC(newDps,conf[fwPeriphAddress_OPC_SERVER_NAME],
-                         conf[fwPeriphAddress_DRIVER_NUMBER],newItem,
-                         conf[fwPeriphAddress_OPC_GROUP_IN],
-                         conf[fwPeriphAddress_DATATYPE],
-                         conf[fwPeriphAddress_DIRECTION],
-                         conf[fwPeriphAddress_OPC_SUBINDEX],exInfo);
-  }else
-    CMS_RPCfwGeneralInstallation_RPCDebug("Caen Mainframe not found");
- 
-  ///// Set db
-string archiveClassName="RDB-99) EVENT"; //"ValueArchive_0000";//Archive's name
-float timeInterval=3600; 
-dyn_string exceptionInfo;
-
-fwArchive_set(newDps, archiveClassName,DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,
-					0.3, timeInterval,exceptionInfo);
-
-/// store interlock
-string interlock = obj + ".FrontPanInP.Interlock";
-fwArchive_set(interlock, archiveClassName,DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,
-					0.3, timeInterval,exceptionInfo);
-   
-    
-}
-
 
 
 int installHardwareView(){
