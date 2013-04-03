@@ -1,0 +1,2910 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 904 693 N "_3DFace" 1
+"$branch"
+"main()
+{
+DisableAll();
+FillCrates();
+
+}" 0
+ E E E E 1 0 0 0  0 0
+""0  1
+E "string HARDWARE_COMPONENT;
+dyn_string crates,boards,maoChannels;
+dyn_dyn_string maoParameters;
+int LABEL=1,
+		OUT=2;
+void DisableAll()
+{
+for (int i =0; i<=5; i++)
+	{
+	setValue(\"hardwareResetButton\"+i,\"enabled\",false);
+	setValue(\"recoverButton\"+i,\"enabled\",false);
+	}
+}
+
+void ActiveMAO(string board)
+{
+dyn_string maoPanelElements,exceptionInfo;
+int x,y;
+float xS,yS;
+
+
+maoParameters[1]=makeDynString(\"vMon\",\".actual.vMon\");
+maoParameters[2]=makeDynString(\"status\",\".actual.status\");
+maoParameters[3]=makeDynString(\"isOn\",\".actual.isOn\");
+maoParameters[4]=makeDynString(\"intFail\",\".actual.intFail\");
+
+fwDevice_getChildren(board, fwDevice_HARDWARE, maoChannels, exceptionInfo); 
+//DebugN(maoChannels);
+
+for(int i=1; i<=dynlen(maoChannels); i++)
+	{							 
+	for(int j=1; j<=dynlen(maoParameters); j++)
+		dpConnect(\"refreshMaoParameters\",TRUE,maoChannels[i]+maoParameters[j][OUT]);
+	}
+
+//enable mao section
+maoPanelElements=makeDynString(\"on\",\"off\",\"vmon\",\"status\",\"set\");
+
+for(int i=1; i<=2; i++)
+	{
+	for(int j=1;j<=dynlen(maoPanelElements);j++)
+		setValue(maoPanelElements[j]+i,\"enabled\",TRUE);
+	}
+}
+
+
+void refreshMaoParameters(string dpe, anytype value)
+{
+string color,statusText,
+			 maoChannel=dpSubStr(dpe,DPSUB_SYS_DP);
+dyn_string exceptionInfo;
+int channelNum, parameterNum;
+
+//determin channel number
+channelNum=dynContains(maoChannels,maoChannel);
+
+//determin mao parameter
+if(strpos(dpe,\"vMon\")>=0)
+	{
+	setValue(\"vmon\"+channelNum,\"text\",value);
+	}
+else if(strpos(dpe,\"status\")>=0)
+	{
+	if(getBit(value,8)||getBit(value,9))
+			{
+			statusText=\"TRIP\";
+			color=\"FwStateAttention3\";
+			}
+	else if(getBit(value,3)||getBit(value,4)||getBit(value,5)||getBit(value,12))
+			{
+			statusText=\"Warning\";
+			color=\"FwStateAttention2\";
+			}
+	else if(value==1||value==0)
+			{
+			statusText=\"OK\";
+			color=\"FwStateOKPhysics\";
+			}
+	else
+		{	
+		statusText=\"ERROR\";
+		color=\"FwStateAttention3\";
+		}
+	setValue(\"status\"+channelNum,\"text\",statusText);
+	setValue(\"status\"+channelNum,\"backCol\",color);
+	}
+else if(strpos(dpe,\"intFail\")>=0)
+	{
+	statusText=\"Int. Failure\";
+	color=\"FwStateAttention3\";
+	if (value)
+    {
+    setValue(\"status\"+channelNum,\"text\",statusText);
+		setValue(\"status\"+channelNum,\"backCol\",color);
+		}
+	}
+else if(strpos(dpe,\"isOn\")>=0)
+	{
+	if (!value)
+    setValue(\"maoLed\"+channelNum, \"backCol\", \"AESbgAcknowledged\");
+  else
+    setValue(\"maoLed\"+channelNum, \"backCol\", \"{51,255,0}\");
+	}
+
+}
+
+void FillCrates()
+{
+dyn_string systemNumber;
+fwInstallation_getApplicationSystem(\"CMS_RPCfw_HardwareBarrel\",systemNumber);
+HARDWARE_COMPONENT = systemNumber[1];
+
+//DebugN($branch);
+boards = dpNames(HARDWARE_COMPONENT+\"*\"+$branch+\"*\",\"FwCaenBoardEasy\");
+//DebugN($branch,\"lsa\",boards);
+int x,y;
+dyn_int pos;
+pos[6]=0;
+crates = dpNames(HARDWARE_COMPONENT+\"*\"+$branch+\"*\",\"FwCaenCrateEasy\");
+//DebugN(crates);
+for(int i=1;i<=dynlen(boards);i++)
+{
+int postring = strpos(boards[i],\"easyCrate\") + 9;
+string nCrate = boards[i][postring] ;
+int num= nCrate;
+setValue(\"hardwareResetButton\"+num,\"enabled\",true);
+setValue(\"recoverButton\"+num,\"enabled\",true);
+++num;
+pos[num]++;
+//DebugN(num,pos[num],boards[i]);
+string type;
+dpGet(boards[i]+\".model\",type);
+if ((type== \"A3009\")||(type== \"A3016\"))
+	{
+	setValue(\"Border\"+num+(pos[num]),\"visible\",true);
+	setValue(\"Text\"+num+(pos[num]),\"text\",\"L\\nV\");
+	setValue(\"Border\"+num+(pos[num]),\"backCol\",\"blue\");
+	//DebugN(\"Border\"+num+(pos[num]));
+	}
+
+
+else if (type== \"A3512N\")
+	{
+	setValue(\"Border\"+num+(pos[num]),\"visible\",true);
+	//setValue(\"Border\"+num+(pos[num]),\"backCol\",\"yellow\");
+	setValue(\"Text\"+num+(pos[num]),\"text\",\"H\\nV\");
+	}
+	
+else if (type== \"A3486\")
+	{
+	ActiveMAO(boards[i]);	
+	}
+else if (type== \"A3801A\")
+	{
+	setValue(\"Border\"+num+(pos[num]),\"visible\",true);
+	setValue(\"Border\"+num+(pos[num]),\"backCol\",\"{102,204,255}\");
+	setValue(\"Text\"+num+(pos[num]),\"text\",\"A\\nD\\nC\");
+	}
+}
+
+}
+
+void getLeafChannels(string pos, dyn_string & channels)
+{
+	dyn_string children, exceptionInfo;
+	string device, type;
+	fwTree_getChildren(pos, children, exceptionInfo);
+	if(dynlen(children)==0)
+	{
+		fwTree_getNodeDevice(pos, device, type, exceptionInfo);
+		if((type == \"FwCaenChannelHV\")||(type == \"FwCaenChannelLV\"))
+			dynAppend(channels, pos);
+	}	
+	else
+		for(int i=1; i<=dynlen(children); i++)
+		{
+			getLeafChannels(children[i], channels);
+		}
+	//DebugN(\"questo e channels\",channels);
+}
+void openBoardPanel(string position)
+{
+
+
+dyn_string easyboards;
+string strsearch = strltrim(position,\"Border\");
+string type,sCrate=strsearch[0];
+int nCrate = sCrate;
+string sBoards = strsearch[1];
+int nBoards = sBoards;
+
+getValue(\"Text\"+strsearch,\"text\",type);
+//DebugN(type);
+if(type!=\"A\")
+	{
+
+	for (int i =1; i<=dynlen(boards); i++)
+		{
+		if(strpos(boards[i],\"Crate\"+(nCrate-1))>-1)
+			dynAppend(easyboards,boards[i]);
+		}
+	ChildPanelOnCentral(\"CMS_RPCfw_HardwareEndcap/CMS_RPCfw_HardwareEndcapBoardEasyOperation.pnl\",
+      \"\",
+      makeDynString(\"$sDpName:\" + easyboards[nBoards],\"$sys:\"+HARDWARE_COMPONENT,\"$sNumber:\"+crates,\"$sHierarchyType:HARDWARE\"));
+
+	}
+else 
+	popupMessage(\"_Ui_1\",\"No panel available for the ADC board.\");
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+6 1
+"Border1"
+""
+1 25 235 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+
+}" 0
+ E 0 1 1 0 1 E U  1 E 25 108 323 236
+6 5
+"Border5"
+""
+1 23 631 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 23 504 321 632
+6 3
+"Border3"
+""
+1 23 435 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 23 308 323 436
+6 2
+"Border2"
+""
+1 578 239 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 578 112 876 240
+6 4
+"Border4"
+""
+1 576 441 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 576 314 876 442
+6 6
+"Border6"
+""
+1 576 637 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 576 510 876 638
+6 7
+"Border11"
+""
+1 46 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+
+openBoardPanel(position);
+}
+
+
+" 0
+ 0 1 1 0 1 E U  1 E 46 121 86 211
+6 8
+"Border12"
+""
+1 91 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 91 121 131 211
+6 9
+"Border13"
+""
+1 136 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 136 121 176 211
+6 10
+"Border14"
+""
+1 180 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 180 121 220 211
+6 11
+"Border15"
+""
+1 224 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 224 121 264 211
+6 12
+"Border31"
+""
+1 45 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 45 322 85 412
+6 13
+"Border32"
+""
+1 90 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 90 322 130 412
+6 14
+"Border33"
+""
+1 135 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 135 322 175 412
+6 15
+"Border34"
+""
+1 179 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 179 322 219 412
+6 16
+"Border35"
+""
+1 223 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+
+}" 0
+ "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 223 322 263 412
+6 17
+"Border21"
+""
+1 591 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 591 126 631 216
+6 18
+"Border22"
+""
+1 636 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 636 126 676 216
+6 19
+"Border23"
+""
+1 681 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 681 126 721 216
+6 20
+"Border24"
+""
+1 725 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 725 126 765 216
+6 21
+"Border25"
+""
+1 769 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+
+}" 0
+ "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 769 126 809 216
+6 22
+"Border41"
+""
+1 590 418 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 590 328 630 418
+6 23
+"Border42"
+""
+1 635 418 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 635 328 675 418
+6 24
+"Border43"
+""
+1 680 418 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 680 328 720 418
+6 25
+"Border44"
+""
+1 724 418 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 724 328 764 418
+6 26
+"Border45"
+""
+1 768 418 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 768 328 808 418
+6 27
+"Border51"
+""
+1 45 608 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 45 518 85 608
+6 28
+"Border52"
+""
+1 90 608 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 90 518 130 608
+6 29
+"Border53"
+""
+1 135 608 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 135 518 175 608
+6 30
+"Border54"
+""
+1 179 608 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 179 518 219 608
+6 31
+"Border55"
+""
+1 223 608 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 223 518 263 608
+6 32
+"Border61"
+""
+1 591 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 591 526 631 616
+6 33
+"Border62"
+""
+1 636 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 636 526 676 616
+6 34
+"Border63"
+""
+1 681 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 681 526 721 616
+6 35
+"Border64"
+""
+1 726 617 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 726 527 766 617
+6 36
+"Border65"
+""
+1 769 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 769 526 809 616
+2 45
+"Text11"
+""
+1 47 120 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 49 122 60 208
+0 2 0 "0s" 0 0 0 65 0 0  49 122 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 46
+"Text12"
+""
+1 92 120 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 94 122 104 210
+0 2 0 "0s" 0 0 0 65 0 0  94 122 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 47
+"Text13"
+""
+1 136 120 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 138 122 152 210
+0 2 0 "0s" 0 0 0 65 0 0  138 122 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 48
+"Text14"
+""
+1 180 120 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 182 122 194 210
+0 2 0 "0s" 0 0 0 65 0 0  182 122 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 49
+"Text15"
+""
+1 224 120 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 226 122 234 204
+0 2 0 "0s" 0 0 0 65 0 0  226 122 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 55
+"Text31"
+""
+1 46 322 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 48 324 58 406
+0 2 0 "0s" 0 0 0 65 0 0  48 324 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 56
+"Text32"
+""
+1 90 322 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 92 324 104 410
+0 2 0 "0s" 0 0 0 65 0 0  92 324 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 57
+"Text33"
+""
+1 136 322 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 138 324 148 410
+0 2 0 "0s" 0 0 0 65 0 0  138 324 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 58
+"Text34"
+""
+1 178 321 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 180 323 190 409
+0 2 0 "0s" 0 0 0 65 0 0  180 323 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 59
+"Text35"
+""
+1 222 321 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 224 323 234 409
+0 2 0 "0s" 0 0 0 65 0 0  224 323 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 65
+"Text51"
+""
+1 46 516 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 48 518 62 606
+0 2 0 "0s" 0 0 0 65 0 0  48 518 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 66
+"Text52"
+""
+1 90 516 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 92 518 102 604
+0 2 0 "0s" 0 0 0 65 0 0  92 518 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 67
+"Text53"
+""
+1 134 517 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 136 519 148 603
+0 2 0 "0s" 0 0 0 65 0 0  136 519 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 68
+"Text54"
+""
+1 178 517 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 180 519 192 605
+0 2 0 "0s" 0 0 0 65 0 0  180 519 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 69
+"Text55"
+""
+1 222 517 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 224 519 236 605
+0 2 0 "0s" 0 0 0 65 0 0  224 519 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 75
+"Text41"
+""
+1 591 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 593 330 601 414
+0 2 0 "0s" 0 0 0 65 0 0  593 330 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 76
+"Text42"
+""
+1 636 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 638 330 646 416
+0 2 0 "0s" 0 0 0 65 0 0  638 330 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 77
+"Text43"
+""
+1 682 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 684 330 692 416
+0 2 0 "0s" 0 0 0 65 0 0  684 330 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 78
+"Text44"
+""
+1 724 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 726 330 736 416
+0 2 0 "0s" 0 0 0 65 0 0  726 330 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 79
+"Text45"
+""
+1 768 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 770 330 782 414
+0 2 0 "0s" 0 0 0 65 0 0  770 330 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 85
+"Text61"
+""
+1 592 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+86 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 594 528 602 614
+0 2 0 "0s" 0 0 0 65 0 0  594 528 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 86
+"Text62"
+""
+1 636 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+87 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 638 528 648 614
+0 2 0 "0s" 0 0 0 65 0 0  638 528 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 87
+"Text63"
+""
+1 682 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 684 528 694 614
+0 2 0 "0s" 0 0 0 65 0 0  684 528 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 88
+"Text64"
+""
+1 726 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 728 528 740 614
+0 2 0 "0s" 0 0 0 65 0 0  728 528 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 89
+"Text65"
+""
+1 770 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+90 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 772 528 782 614
+0 2 0 "0s" 0 0 0 65 0 0  772 528 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 95
+"Text21"
+""
+1 592 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+96 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 594 128 604 214
+0 2 0 "0s" 0 0 0 65 0 0  594 128 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 96
+"Text22"
+""
+1 636 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 638 128 650 212
+0 2 0 "0s" 0 0 0 65 0 0  638 128 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 97
+"Text23"
+""
+1 682 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+98 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 684 128 694 216
+0 2 0 "0s" 0 0 0 65 0 0  684 128 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 98
+"Text24"
+""
+1 726 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+99 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 728 128 736 216
+0 2 0 "0s" 0 0 0 65 0 0  728 128 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+2 99
+"Text25"
+""
+1 770 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+100 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 772 128 780 212
+0 2 0 "0s" 0 0 0 65 0 0  772 128 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+30 121
+"Frame1"
+""
+1 13 280 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+110 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 13 94 335 280
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Crate 0
+30 122
+"Frame2"
+""
+1 13 474 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+111 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 13 292 333 476
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Crate 2
+30 125
+"Frame3"
+""
+1 19 670 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+114 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 19 488 335 672
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Crate 4
+30 131
+"Frame5"
+""
+1 568 280 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+120 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 568 98 886 282
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Crate 1
+30 134
+"Frame6"
+""
+1 568 480 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+123 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 568 298 888 482
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Crate 3
+30 137
+"Frame7"
+""
+1 568 673 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+126 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 568 494 888 676
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Crate 5
+2 140
+"Text94"
+""
+1 24 36 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+129 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 26 38 444 82
+0 2 0 "0s" 0 0 0 64 0 0  26 38 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22 Crate Hardware Mapping
+6 141
+"Border37"
+""
+1 41 216 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+130 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 41 116 315 216
+6 142
+"Border38"
+""
+1 586 222 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+131 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 586 122 860 222
+6 143
+"Border39"
+""
+1 40 418 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+132 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 40 318 315 418
+6 144
+"Border40"
+""
+1 584 424 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+133 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 584 324 862 424
+6 145
+"Border50"
+""
+1 39 614 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+134 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 39 514 311 614
+6 146
+"Border47"
+""
+1 584 622 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+135 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 584 522 860 622
+2 147
+"Text67"
+""
+1 123 218 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+136 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 125 220 193 236
+0 2 0 "0s" 0 0 0 64 0 0  125 220 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 EASY 3000
+2 148
+"Text68"
+""
+1 710 222 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+137 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 712 224 780 240
+0 2 0 "0s" 0 0 0 64 0 0  712 224 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 EASY 3000
+2 149
+"Text69"
+""
+1 121 418 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+138 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 123 420 191 436
+0 2 0 "0s" 0 0 0 64 0 0  123 420 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 EASY 3000
+2 150
+"Text70"
+""
+1 121 614 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+139 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 123 616 191 632
+0 2 0 "0s" 0 0 0 64 0 0  123 616 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 EASY 3000
+2 151
+"Text71"
+""
+1 712 422 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+140 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 714 424 782 440
+0 2 0 "0s" 0 0 0 64 0 0  714 424 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 EASY 3000
+2 152
+"Text72"
+""
+1 710 620 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+141 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 712 622 780 638
+0 2 0 "0s" 0 0 0 64 0 0  712 622 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 EASY 3000
+6 154
+"Border16"
+""
+1 268 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+142 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 268 121 308 211
+2 155
+"Text16"
+""
+1 268 122 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+143 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 270 124 280 210
+0 2 0 "0s" 0 0 0 65 0 0  270 124 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+6 157
+"Border36"
+""
+1 268 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+145 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 268 322 308 412
+2 158
+"Text36"
+""
+1 268 324 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+146 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 270 326 280 412
+0 2 0 "0s" 0 0 0 65 0 0  270 326 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+6 160
+"Border56"
+""
+1 267 609 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+148 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 267 519 307 609
+2 161
+"Text56"
+""
+1 266 517 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+149 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 268 519 280 601
+0 2 0 "0s" 0 0 0 65 0 0  268 519 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+6 163
+"Border26"
+""
+1 813 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+151 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 813 126 853 216
+2 164
+"Text26"
+""
+1 812 125 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+152 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 814 127 824 217
+0 2 0 "0s" 0 0 0 65 0 0  814 127 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+6 166
+"Border46"
+""
+1 813 419 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+154 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 813 329 853 419
+2 167
+"Text46"
+""
+1 814 329 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+155 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 816 331 826 417
+0 2 0 "0s" 0 0 0 65 0 0  816 331 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+6 169
+"Border66"
+""
+1 813 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+157 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E U  1 E 813 526 853 616
+2 170
+"Text66"
+""
+1 812 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+158 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 814 528 824 616
+0 2 0 "0s" 0 0 0 65 0 0  814 528 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 V
+30 179
+"Frame4"
+""
+1 350 584 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+167 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 350 232 557 584
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 MAO Control
+30 180
+"Frame8"
+""
+1 360 399 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+168 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 360 261 544 399
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Channel01         
+30 181
+"Frame9"
+""
+1 362 561 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+169 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 362 427 547 561
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Channel02        
+2 187
+"Text20"
+""
+1 421 289 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+175 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 423 291 455 311
+0 2 0 "0s" 0 0 0 64 0 0  423 291 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 vMon
+2 188
+"Text29"
+""
+1 417 323 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+176 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 419 325 460 345
+0 2 0 "0s" 0 0 0 64 0 0  419 325 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Status
+2 190
+"Text39"
+""
+1 422 456 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+178 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 424 458 456 478
+0 2 0 "0s" 0 0 0 64 0 0  424 458 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 vMon
+2 191
+"Text49"
+""
+1 418 490 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+179 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 420 492 461 512
+0 2 0 "0s" 0 0 0 64 0 0  420 492 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Status
+7 203
+"Ellipse58"
+""
+1 447 267 E E E 1 E 1 E N "STD_frame_dark" E N "_Transparent" E E
+ E E
+187 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 447 267 10 10
+7 204
+"Ellipse59"
+""
+1 447 267 E E E 1 E 1 E N "STD_frame_light" E N "STD_grey_middle" E E
+ E E
+188 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 447 267 10 10
+7 205
+"maoLed1"
+""
+1 447 267 E E E 1 E 1 E N "STD_device_indefinite" E N {204,204,204} E E
+ E E
+189 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 447 267 8 8
+7 206
+"Ellipse60"
+""
+1 489.394 -199.696 E E E 1 E 1 E N "STD_device_indefinite" E N {255,255,255} E E
+ E E
+190 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 1 1 E 1.20139864590473 0.898132113677205 -0.698547199526715 0.934421169037011 94.5454889706375 -381.93970257077 1 E 444.5 263.5 1 3
+7 207
+"Ellipse1"
+""
+1 447 434 E E E 1 E 1 E N "STD_frame_dark" E N "_Transparent" E E
+ E E
+191 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 447 434 10 10
+7 208
+"Ellipse2"
+""
+1 447 434 E E E 1 E 1 E N "STD_frame_light" E N "STD_grey_middle" E E
+ E E
+192 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 447 434 10 10
+7 209
+"maoLed2"
+""
+1 447 434 E E E 1 E 1 E N "STD_device_indefinite" E N {204,204,204} E E
+ E E
+193 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 447 434 8 8
+7 210
+"Ellipse4"
+""
+1 395.28824 -165.91344 E E E 1 E 1 E N "STD_device_indefinite" E N {255,255,255} E E
+ E E
+194 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 1 1 E 1.20139864590473 0.898132113677205 -0.698547199526715 0.934421169037011 211.202871291599 -370.988037799951 1 E 444.5 430.5 1 3
+13 0
+"TempTrend"
+""
+1 422 632 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 420 630 504 666
+
+T 
+1
+LANG:1 10 Temp Trend
+"
+main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentral(\"CMS_RPCfw_HardwareBarrel/CMS_RPCfw_HardwareBarrelBoardTempTrend.pnl\",
+      \"\",
+      makeDynString(\"$branch:\" + $branch,\"$sys:\"+HARDWARE_COMPONENT,\"$crates:\"+crates));
+}
+" 0
+ E E E
+13 119
+"hardwareResetButton0"
+""
+1 25 242 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+108 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 23 240 137 270
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	
+	dpSet($branch + \".Commands.RemoteCrates.HwReset0\" , 1);
+}" 0
+ E E "main()
+{
+
+}" 0
+
+13 120
+"recoverButton0"
+""
+1 191 242 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+109 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 189 240 303 270
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.Recovery0\", 1);
+}" 0
+ E E E
+13 123
+"hardwareResetButton2"
+""
+1 25 444 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+112 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 23 442 137 472
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.HwReset2\", 1);
+}" 0
+ E E E
+13 124
+"recoverButton2"
+""
+1 183 444 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+113 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 181 442 295 472
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.Recovery2\" , 1);
+}" 0
+ E E E
+13 126
+"hardwareResetButton4"
+""
+1 23 638 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+115 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 21 636 135 666
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.HwReset4\" , 1);
+}" 0
+ E E E
+13 127
+"recoverButton4"
+""
+1 185 638 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+116 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 183 636 297 666
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.Recovery4\" , 1);
+}" 0
+ E E E
+13 132
+"hardwareResetButton1"
+""
+1 608 244 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+121 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 606 242 720 272
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.HwReset1\" , 1);
+}" 0
+ E E E
+13 133
+"recoverButton1"
+""
+1 764 244 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+122 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 762 242 876 272
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.Recovery1\", 1);
+}" 0
+ E E E
+13 135
+"hardwareResetButton3"
+""
+1 610 448 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+124 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 608 446 722 476
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.HwReset3\", 1);
+}" 0
+ E E E
+13 136
+"recoverButton3"
+""
+1 766 448 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+125 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 764 446 878 476
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.Recovery3\", 1);
+}" 0
+ E E E
+13 138
+"hardwareResetButton5"
+""
+1 608 642 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+127 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 606 640 720 670
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.HwReset5\", 1);
+}" 0
+ E E E
+13 139
+"recoverButton5"
+""
+1 766 642 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+128 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 764 640 878 670
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($branch + \".Commands.RemoteCrates.Recovery5\", 1);
+}" 0
+ E E E
+13 182
+"on1"
+""
+1 374 285 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+170 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 372 283 410 313
+
+T 
+1
+LANG:1 2 ON
+"main()
+{
+dpSet(maoChannels[1]+\".settings.onOff\",1);
+}" 0
+ E E E
+13 183
+"off1"
+""
+1 374 324 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+171 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 372 322 410 352
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+dpSet(maoChannels[1]+\".settings.onOff\",0);
+}" 0
+ E E E
+13 184
+"on2"
+""
+1 377 455 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+172 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 375 453 413 483
+
+T 
+1
+LANG:1 2 ON
+"main()
+{
+dpSet(maoChannels[2]+\".settings.onOff\",1);
+}" 0
+ E E E
+13 185
+"off2"
+""
+1 377 494 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+173 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 375 492 413 522
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+dpSet(maoChannels[2]+\".settings.onOff\",0);
+}" 0
+ E E E
+14 186
+"vmon1"
+""
+1 459 287 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+174 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 457 285 532 312
+3 "0s" 0 0 0 0 0 -1  E E E
+14 189
+"status1"
+""
+1 460 321 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+177 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 319 534 346
+3 "0s" 0 0 0 0 0 -1  E E E
+14 192
+"vmon2"
+""
+1 460 454 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+180 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 452 536 479
+3 "0s" 0 0 0 0 0 -1  E E E
+14 201
+"status2"
+""
+1 462 489 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+185 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 460 487 536 514
+3 "0s" 0 0 0 0 0 -1  E E E
+13 212
+"set1"
+""
+1 413 363 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+196 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 411 361 492 391
+
+T 
+1
+LANG:1 8 settings
+"main()
+{
+ChildPanelOnCentral(\"CMS_RPCfw_HardwareBarrel/CMS_RPCfw_HardwareBarrelMaoSettings.pnl\",\"MAO channel #1\",
+		makeDynString(\"$sDpName:\"+maoChannels[1]));
+}" 0
+ E E E
+13 213
+"set2"
+""
+1 414 527 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+197 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 412 525 493 555
+
+T 
+1
+LANG:1 8 settings
+"main()
+{
+ChildPanelOnCentral(\"CMS_RPCfw_HardwareBarrel/CMS_RPCfw_HardwareBarrelMaoSettings.pnl\",\"MAO channel #2\",
+		makeDynString(\"$sDpName:\"+maoChannels[2]));
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0
