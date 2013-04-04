@@ -69,7 +69,7 @@ void TempCheck(){
   
   if(dynlen(chanToCheck)==0)
   {
-    chanToCheck = dpAliases("*/T/*","*");
+    chanToCheck = dpAliases("*UXBarrel/T/*","*");
     globalTemperature();
     
   }
