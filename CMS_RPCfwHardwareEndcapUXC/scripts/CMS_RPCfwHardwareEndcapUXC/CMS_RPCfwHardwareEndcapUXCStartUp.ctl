@@ -15,9 +15,8 @@ main()
 
 //protection on OPC 
   
-  dyn_string checkOPC = dpNames("caenLVESe","RPCUtils"); 
- //DebugN(checkOPC);
-// _OPCProtection_Enabled = true;
+  dyn_string checkOPC = dpNames("caenLVESe*","RPCUtils"); 
+
 
  if(dynlen(checkOPC)>0)
  {
@@ -60,7 +59,7 @@ void TempCheck(){
   int pos;  
   if(dynlen(chanToCheck)==0)
   {
-    dyn_string a = dpAliases("*/T/*","*");  
+    dyn_string a = dpAliases("*UXEndcap/T/*","*");  
     for(int i=1;i<=dynlen(a);i++)
     {
         if (strpos(a[i], "_R")>-1)
@@ -164,7 +163,7 @@ time refresh,now = getCurrentTime();
  
  //check opc control if exists
  string op;
- dyn_string checkOPC = dpNames("caenLV*","RPCUtils"); 
+ dyn_string checkOPC = dpNames("caenLVE*","RPCUtils"); 
  //DebugN(checkOPC);
  if(dynlen(checkOPC)>0)
  {
