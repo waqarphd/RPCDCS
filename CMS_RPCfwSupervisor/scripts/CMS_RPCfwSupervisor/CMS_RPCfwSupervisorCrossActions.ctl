@@ -189,47 +189,12 @@ dpSet(dp+".ok",ok,dp+".total",total);
 
 }
 
-
-
-void createTypePerc(){
-
-  dyn_string types = dpTypes("RPCGlobalPerc");
-  //DebugN(types);
-  if(dynlen(types)<1) 
-  {
-  int n;
-
-  dyn_dyn_string xxdepes;
-
-  dyn_dyn_int xxdepei;
-
- 
-
-// Create the data type
-
-  xxdepes[1] = makeDynString ("RPCGlobalPerc","");
-
-  xxdepes[2] = makeDynString ("","ok");
-  
-  xxdepes[3] = makeDynString ("","total");
-  //xxdepes[3] = makeDynString ("","offset");
-
-
-  xxdepei[1] = makeDynInt (1);
-
-  xxdepei[2] = makeDynInt (0,DPEL_FLOAT);
-
-  xxdepei[3] = makeDynInt (0,DPEL_FLOAT);
-
-   n = dpTypeCreate(xxdepes,xxdepei); 
-
-}
-}
 void statusAlert()
 {
 
  if(dynlen(chs2mon)<1) init();
 string val;
+bool updateSMSConf = false; 
 int res = 0;
  for(int i = 1;i<=dynlen(chs2mon);i++){
    res = 0;
@@ -249,52 +214,29 @@ int res = 0;
      }   
  
    }
-
-   if(!dpExists(dpstatus[i])){
-     createDp(dpstatus[i]);
-     smsSumAlertConfig();
-     dpSet(dpstatus[i]+".fvalue",res);
-     
-   }
-   else
-     dpSet(dpstatus[i]+".fvalue",res);
+   
+ if(!dpExists(dpstatus[i])){
+   createDp(dpstatus[i]);
+   dpSet(dpstatus[i]+".fvalue",res);
+   updateSMSConf = true;
+ }else
+   dpSet(dpstatus[i]+".fvalue",res);
  
  } 
-  
+  if(updateSMSConf)smsSumAlertConfig();
 }
 
 void smsSumAlertConfig(){
 
   
-    dyn_string users,exInfo;
+  dyn_string users,exInfo;
   
-//  DebugN("RE");
-  string user1 = "polese";
-  
-  users = dpNames("*"+user1+"*","CMSfwAlertSystemUsers");
-  
-  if(dynlen(users)==0)
-      CMSfwAlertSystemUtil_addUser(user1);
-    
-  string user2 = "rpcbarre";
-  
-  users = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
-    
-  if(dynlen(users)==0)
-  {
-      CMSfwAlertSystemUtil_addUser(user2);
-    users = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
-  if(dynlen(users)>0)  
-  dpSet(users[1]+".GSMNumber","165508");
-  else{
-  dpCreate("CMSAlertSystem/Users/"+user2,"CMSfwAlertSystemUsers");
-   dpSet("CMSAlertSystem/Users/"+user2+".GSMNumber","165508"); 
-  }
-  
-  }
-
   dyn_string notif;
   string notifType = "RPCSup_MainAlerts";
+
+ CMS_RPCfwGeneralInstallation_smsUserConfigRPCDefault("RPCSup_MainAlerts");
+  
+  
   notif = dpNames("*"+notifType+"*","CMSfwAlertSystemSumAlerts");
   if(dynlen(notif)!=0)    dpDelete(notif[1]);
     CMSfwAlertSystemUtil_createNotification(notifType);
@@ -308,14 +250,9 @@ void smsSumAlertConfig(){
     CMSfwAlertSystemUtil_addAlertToNotification(notifType,dps[i]+".fvalue") ;
     }
   // **************** Add user to notificatio
-  
-  CMSfwAlertSystemUtil_addNotificationToUser ("CMSAlertSystem/Users/"+user1,notifType,"EMAIL",50);
-  CMSfwAlertSystemUtil_addNotificationToUser ("CMSAlertSystem/Users/"+user1,notifType,"SMS",50);
-  CMSfwAlertSystemUtil_addNotificationToUser ("CMSAlertSystem/Users/"+user2,notifType,"SMS",50);
 
-fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
 
-  }
+ }
 
 bool createDp(string dp){
   dyn_string exceptionInfo;

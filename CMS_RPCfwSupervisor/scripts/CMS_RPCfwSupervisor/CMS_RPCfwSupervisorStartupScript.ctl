@@ -103,46 +103,12 @@ bool isOn,active;
  
 }
 
-void createTypePerc(){
-
-  dyn_string types = dpTypes("RPCGlobalPerc");
-  //DebugN(types);
-  if(dynlen(types)<1) 
-  {
-  int n;
-
-  dyn_dyn_string xxdepes;
-
-  dyn_dyn_int xxdepei;
-
-  // Create the data type
-
-  xxdepes[1] = makeDynString ("RPCGlobalPerc","");
-
-  xxdepes[2] = makeDynString ("","ok");
-  
-  xxdepes[3] = makeDynString ("","total");
-
-
-  xxdepei[1] = makeDynInt (1);
-
-  xxdepei[2] = makeDynInt (0,DPEL_FLOAT);
-
-  xxdepei[3] = makeDynInt (0,DPEL_FLOAT);
-
-   n = dpTypeCreate(xxdepes,xxdepei); 
-
-  }
-}
-
-
 void statusRefresh(){
 
 dyn_string dpN = makeDynString("HVBarrelAvg","HVEndcapAvg");
 bool stable = false;  
 dyn_int value;
 
-createTypePerc();
 dyn_string type = makeDynString("HV","HV","LV","LV","LBB","LBB");
   if(dynlen(sysNames)<1){
     

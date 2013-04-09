@@ -12,6 +12,7 @@
 #uses "CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl"
 #uses "CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl"
 #uses "CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc"
+#uses "CMS_RPCfwGeneral/CMS_RPCfwGeneral.ctl"
 
 const int CMSRPCHVCor_vMaxAllowed = 9700;
 const int CMSRPCHVCor_vMinAllowed = 8800;
@@ -48,15 +49,13 @@ main()
   int cycle = 20;
   int delayPerCycle = refreshTime/cycle;    
       
-  checkType();
-
   for(int i = 1;i<=dynlen(dps);i++){
     lname = fwDU_getLogicalName(dps[i]);
     if(lname!=""){
     logname = strsplit(lname,"/");
     if(dynlen(logname)>0) name = logname[dynlen(logname)];
     string dp = name+"_VBEST";
-    init(dp,dps[i]);    
+    initCorr(dp,dps[i]);    
     dynAppend(correctionDps,dp);
     }
   }
@@ -132,55 +131,13 @@ void removeIfAny(string ch){
 
 void smsSumAlertConfig(){
 
-  
-    dyn_string users,exInfo;
-  
-//  DebugN("RE");
-  string user1 = "polese";
-  
-  users = dpNames("*"+user1+"*","CMSfwAlertSystemUsers");
-  
-  if(dynlen(users)==0)
-      CMSfwAlertSystemUtil_addUser(user1);
-    
-  string user2 = "rpcbarre";
-  
-  users = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
-    
-  if(dynlen(users)==0)
-  {
-      CMSfwAlertSystemUtil_addUser(user2);
-    users = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
-  if(dynlen(users)>0)  
-  dpSet(users[1]+".GSMNumber","165508");
-  else{
-  dpCreate("CMSAlertSystem/Users/"+user2,"CMSfwAlertSystemUsers");
-   dpSet("CMSAlertSystem/Users/"+user2+".GSMNumber","165508"); 
+string notifType = "RPCSup_PTCorrAlerts";
+if(!dpExists("CMSAlertSystem/SumAlerts/" + notifType)){
+  CMS_RPCfwGeneralInstallation_smsUserConfigRPCDefault(notifType);
+  CMSfwAlertSystemUtil_addAlertToNotification(notifType,getSystemName()+CMSRPCHVCor_Confdp+".algorithmError.errorId") ;
+  fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);  
   }
-  
-  }
-
-  dyn_string notif;
-  string notifType = "RPCSup_PTCorrAlerts";
-  notif = dpNames("*"+notifType+"*","CMSfwAlertSystemSumAlerts");
-  if(dynlen(notif)==0)   {
-    CMSfwAlertSystemUtil_createNotification(notifType);
-  
-  /////// ******************** Add alert to notification
-
-                  
- 
- CMSfwAlertSystemUtil_addAlertToNotification(notifType,getSystemName()+CMSRPCHVCor_Confdp+".algorithmError.errorId") ;
-    
-  // **************** Add user to notificatio
-  
-  CMSfwAlertSystemUtil_addNotificationToUser("CMSAlertSystem/Users/"+user1,notifType,"EMAIL",50);
-  CMSfwAlertSystemUtil_addNotificationToUser("CMSAlertSystem/Users/"+user1,notifType,"SMS",50);
-  CMSfwAlertSystemUtil_addNotificationToUser("CMSAlertSystem/Users/"+user2,notifType,"SMS",50);
-
-fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
 }
-  }
 
 int createSumAlert(string dpe,dyn_string elem){
 
@@ -299,7 +256,7 @@ float updatePressure(int backupSensor = 0){
 
 }
 
-init(string dp,string dpe){
+initCorr(string dp,string dpe){
  
    int vMax,vMin,v0;
    float rop;
@@ -336,7 +293,7 @@ init(string dp,string dpe){
      dpSet(dp+".hwChannel",dpe);
 }  
   
-generateError(string dp,int errorCode){
+void generateError(string dp,int errorCode){
 string info;
   switch (errorCode){
   case 11: info = "Correction coefficient not valid"; erCode = errorCode;break;  
@@ -491,125 +448,5 @@ int calculateV(string dp,float p){
   return 0;
 }
 
-bool checkType(){
 
-  
-  dyn_dyn_string elements,xxdepes; 
-  dyn_dyn_int types,xxdepei;
-  dyn_string tys = dpTypes(RPCfwSupervisor_HVCorrDpType);
-
-  
-  
-  xxdepes[1] = makeDynString (RPCfwSupervisor_HVCorrDpType);
-  
-  xxdepes[2] = makeDynString ("","enabled");
-
-xxdepes[3] = makeDynString ("","voltage");
-
-xxdepes[4] = makeDynString ("","","vBest");
-
-xxdepes[5] = makeDynString ("","","v0");
-
-xxdepes[6] = makeDynString ("","vlimits");
-
-xxdepes[7] = makeDynString ("","","vMax");
-
-xxdepes[8] = makeDynString ("","","vMin");
-
-xxdepes[9] = makeDynString ("","algorithmError");
-
-xxdepes[10] = makeDynString ("","","errorId");
-
-xxdepes[11] = makeDynString ("","","errorInfo");
-
-xxdepes[12] = makeDynString ("","hwChannel");
-
-xxdepes[13] = makeDynString ("","coefficients");
-
-xxdepes[14] = makeDynString ("","","roT");
-
-xxdepes[15] = makeDynString ("","","roP"); 
-
-xxdepes[16] = makeDynString ("","params");
-
-xxdepes[17] = makeDynString ("","","P");
-
-xxdepes[18] = makeDynString ("","","T");
-
-
-xxdepei[1] = makeDynInt (DPEL_STRUCT);
-
-xxdepei[2] = makeDynInt (0,DPEL_INT);
-
-xxdepei[3] = makeDynInt (0,DPEL_STRUCT);
-
-xxdepei[4] = makeDynInt (0,0,DPEL_INT);
-
-xxdepei[5] = makeDynInt (0,0,DPEL_INT);
-
-xxdepei[6] = makeDynInt (0,DPEL_STRUCT);
-
-xxdepei[7] = makeDynInt (0,0,DPEL_INT);
-
-xxdepei[8] = makeDynInt (0,0,DPEL_INT);
-
-xxdepei[9] = makeDynInt (0,DPEL_STRUCT);
-
-xxdepei[10] = makeDynInt (0,0,DPEL_INT);
-
-xxdepei[11] = makeDynInt (0,0,DPEL_STRING);
- 
-xxdepei[12] = makeDynInt (0,DPEL_STRING);
-
-xxdepei[13] = makeDynInt (0,DPEL_STRUCT);
-
-xxdepei[14] = makeDynInt (0,0,DPEL_FLOAT);
-
-xxdepei[15] = makeDynInt (0,0,DPEL_FLOAT);
- 
-xxdepei[16] = makeDynInt (0,DPEL_STRUCT);
-
-xxdepei[17] = makeDynInt (0,0,DPEL_FLOAT);
-
-xxdepei[18] = makeDynInt (0,0,DPEL_FLOAT);
-
-if(dynlen(tys)>0)  {
-    dpTypeGet(RPCfwSupervisor_HVCorrDpType, elements, types);
-
-if(!(compare(elements,xxdepes)&& compare(types,xxdepei)))
-{
-//     dyn_string dps = dpNames("*",RPCfwSupervisor_HVCorrDpType);
-//   
-//     for(int i = 1;i<=dynlen(dps);i++) dpDelete(dps[i]);
-// 
-//     dpTypeDelete(RPCfwSupervisor_HVCorrDpType);
-//     dpTypeCreate(xxdepes,xxdepei);
-//   
-  dpTypeChange(xxdepes,xxdepei);
-  
-}
-}else dpTypeCreate(xxdepes,xxdepei);
-
-
-}
-bool compare(dyn_dyn_anytype a,dyn_dyn_anytype b){
-  
- 
-if(dynlen(a)!= dynlen(b)) return false;  
-  
-for(int i = 1; i<=dynlen(a);i++){
-
-  if(dynlen(a[i])!=dynlen(b[i])) 
-    return false;
-  for(int j = 1;j<=dynlen(a[i]);j++){
-    if(a[i][j]!=b[i][j]){
-
-      return false;
-    }
-  }
-
-}
-
-return true;
-}
 
