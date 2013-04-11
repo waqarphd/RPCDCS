@@ -19,6 +19,8 @@ bit legenda
 #uses "CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl"
 #uses "CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc"
 #uses "CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl"
+#uses "CMS_RPCfwGeneral/CMS_RPCfwGeneral.ctl"
+
 const int highTemp = 24; 
 bool inOut;
 dyn_string Tchans;
