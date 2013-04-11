@@ -58,7 +58,7 @@ void CMS_RPCfwGeneralInstallation_configSmsRPCSysCheck(string notifType, string 
              alertHelp,exInfo);
      fwAlertConfig_activate(dp,exInfo);
  
-     CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp[1]+".fvalue") ;
+     CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp+".fvalue") ;
 
       fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
     }
