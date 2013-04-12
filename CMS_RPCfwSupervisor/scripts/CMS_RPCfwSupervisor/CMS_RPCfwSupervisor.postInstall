@@ -20,7 +20,7 @@
 
 const string accessRights =  "CMS_RPC:Control|CMS_RPC:Debug";
 const string componentName = "CMS_RPCfwSupervisor";
-const string FSMVersion = "1.1";
+const string FSMVersion = "1.0";
 const string standardRecipe = "RPCSupervisor_v1.0";
 const int majPercentage = 99;
 main()
@@ -206,6 +206,22 @@ for(int i = 1; i<=dynlen(a);i++){
 return true;
 }
 
+void unlinkTopNode(){
+  dyn_string children;
+    dyn_string obj;
+  
+  fwFsmTree_getChildrenRec("RPC_HARDWARE",obj);
+
+  for(int i =1;i<=dynlen(obj);i++){
+  if((strpos(obj[i],"_HW")>0)&&(strpos(obj[i],"&")<0))
+  dynAppend(children,obj[i]);  
+  }      
+      
+  //Move the top to the FSM node
+  for(int i = 1;i<=dynlen(children);i++){
+  fwFsmTree_addNode("FSM",children[i],"RPC_TopHwDevice",1);   
+  }  
+}
 
 void createBarrel(){
 
@@ -216,6 +232,7 @@ int chamberNum;
 if(fwFsmTree_isNode("CMS_RPC"))
 	{
 	CMS_RPCfwGeneralInstallation_RPCDebug("Removing old tree...");
+ unlinkTopNode();
 	fwFsmTree_removeNode("FSM", "CMS_RPC");
 	CMS_RPCfwGeneralInstallation_RPCDebug("Old Barrel Tree completely removed");
 	}
@@ -758,139 +775,6 @@ else
 CMS_RPCfwGeneralInstallation_RPCDebug("T Hardware Component not founded");    
 }
 
-void LinkREHardware(string compName,string pos)
-{
- dyn_string nodes,exInfo;
- string parent,type,label;
- string sys = RPCfwSupervisor_getComponent(compName); 
-  if(sys!= "")
-   {
- //  DebugN("start");
-   string boe,wod;
-   if(compName[0]=="B")
-   {
-     boe = "RB";
-     wod = "_W";   
-   }
-   else
-   {
-    // wod = "_D";
-     wod="R";
-     boe = "RE";
-//     boe = "R";   //hassan
-   }
-    if(pos == "UX")
-     label = wod;
-   else
-     label = boe;
-   
-/// TOP   
-      dyn_string chldren;
-   fwTree_getChildren(sys+"FSM",chldren,exInfo);
-  // fwFsmTree_importType("RPC_Device",strrtrim(sys,":"));
-  if(dynlen(chldren)==1)
-    {
-    
-    fwFsmTree_addNode("RPC_HARDWARE",sys+chldren[1],"RPC_Device",1);
-    
-    }     
-   
-
-   
-   
-  // DebugN("label", label);
-   
-   //fwFsmTree_importType("RPC_HV",strrtrim(sys,":"));
-  
-   ////////////// INSERT BOARD ///////////
-   
-  getNodesOfTypeEndcap(sys,"FSM","Bd",nodes,pos);
-   
-     
-//  DebugN("nodes:  ", nodes);
-  // fwFsmTree_importType("RPC_Device",strrtrim(sys,":"));
-   parent = "RPC_"+boe+"_"+pos+"C";
-     for (int i = 1; i<=dynlen(nodes); i++)
-     {
-         label = "Boards" + i;
-   if(nodeOk(parent,nodes[i]))
-               {
-          // DebugN("Insert...",parent,sys+getCU(sys,nodes[i])+"::"+nodes[i]);
-           if(strpos(nodes[i],pos)>-1)
-               fwFsmTree_addNode(parent,sys+getCU(sys,nodes[i])+"::"+nodes[i],"RPC_Boards",0);
-               fwFsmTree_setNodeLabel(sys+getCU(sys,nodes[i])+"::"+nodes[i],label);  
-           }
-     }
-   dynClear(nodes);
-   
-    ////////////// INSERT CRATE /////////////
-   
-    getNodesOfTypeEndcap(sys,"FSM","Crate",nodes,pos);
-   //   DebugN("nodes:  ", nodes);
-   // fwFsmTree_importType("RPC_SY1527",strrtrim(sys,":"));
-   //DebugN(nodes);
-     for (int i = 1; i<=dynlen(nodes); i++)
-     {
-  //parent = substr(nodes[i],0,strpos(nodes[i],wod));
-  //DebugN("questo",parent,sys+getCU(sys,nodes[i])+"::"+nodes[i]);
-       
-         //  DebugN("++++++++++++","parent", parent,fwFsmTree_isNode(parent),!fwFsmTree_isNode(sys+getCU(sys,nodes[i])+"::"+nodes[i]));
-   if(nodeOk(parent,nodes[i]))
-               {
-        //    label = "Crate" + i;
- //          DebugN("Insert...",parent,sys+getCU(sys,nodes[i])+"::"+nodes[i]);
-         fwFsmTree_addNode(parent,sys+getCU(sys,nodes[i])+"::"+nodes[i],"RPC_SY1527",0);
-           fwFsmTree_setNodeLabel(sys+getCU(sys,nodes[i])+"::"+nodes[i],label);  
-           }
-     }
-   dynClear(nodes);
-   
- ////////////// INSERT BC   
- getNodesOfTypeEndcap(sys,"FSM","_BC",nodes,pos);
-//  DebugN("nodes:  ", nodes);
-//fwFsmTree_importType("RPC_BC",strrtrim(sys,":")); 
-for (int i = 1; i<=dynlen(nodes); i++)
-    {
-if(nodeOk(parent,nodes[i]))
-           {
-//    DebugN("Insert...",parent,sys+getCU(sys,nodes[i])+"::"+nodes[i]);
-    if(strpos(nodes[i],pos)>-1)    
-      fwFsmTree_addNode(parent,sys+getCU(sys,nodes[i])+"::"+nodes[i],"RPC_BC",0);
-    
-     fwFsmTree_setNodeLabel(sys+getCU(sys,nodes[i])+"::"+nodes[i],label);
-    }  
-   }
-  dynClear(nodes);
- 
- 
-  
-   
-  
-  
-      ////////////// INSERT MAO
-     
-   getNodesOfTypeEndcap(sys,"FSM","_MAO",nodes,pos);
-  //     DebugN("nodes:  ", nodes);
-  //   fwFsmTree_importType("RPC_Device",strrtrim(sys,":")); 
-  //DebugN(nodes);
-  for (int i = 1; i<=dynlen(nodes); i++)
-    {
- //parent = substr(nodes[i],0,strpos(nodes[i],"_Boards"));
-               //  DebugN("++++++++++++","parent", parent,fwFsmTree_isNode(parent),!fwFsmTree_isNode(sys+getCU(sys,nodes[i])+"::"+nodes[i]));
-if(nodeOk(parent,nodes[i]))
-               {
-    //      DebugN("Insert...",parent,sys+getCU(sys,nodes[i])+"::"+nodes[i]);
-   fwFsmTree_addNode(parent,sys+getCU(sys,nodes[i])+"::"+nodes[i],"RPC_MAO",0);
-           fwFsmTree_setNodeLabel(sys+getCU(sys,nodes[i])+"::"+nodes[i],label);    
-          }
-      }
-  
-  
-CMS_RPCfwGeneralInstallation_RPCDebug("Hardware Component Imported");
-  }
-else
-CMS_RPCfwGeneralInstallation_RPCDebug("Hardware Component not founded");    
-}
 
 void createRPCKP(){
  dyn_string types;
