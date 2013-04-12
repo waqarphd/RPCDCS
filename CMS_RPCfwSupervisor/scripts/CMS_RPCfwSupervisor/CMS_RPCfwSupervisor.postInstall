@@ -20,9 +20,10 @@
 
 const string accessRights =  "CMS_RPC:Control|CMS_RPC:Debug";
 const string componentName = "CMS_RPCfwSupervisor";
-const string FSMVersion = "1.0";
+const string FSMVersion = "1.1";
 const string standardRecipe = "RPCSupervisor_v1.0";
 const int majPercentage = 99;
+const string tempNode = "RPC_TemporaryNode";
 main()
 {
   CMS_RPCfwGeneralInstallation_RPCDebug("null"); 
@@ -216,10 +217,13 @@ void unlinkTopNode(){
   if((strpos(obj[i],"_HW")>0)&&(strpos(obj[i],"&")<0))
   dynAppend(children,obj[i]);  
   }      
-      
-  //Move the top to the FSM node
+
+  if(dynlen(children)>0)
+    fwFsmTree_addNode("FSM",tempNode,"RPC_TopHwDevice",1); 
+  
+  //Move the top to the temp node
   for(int i = 1;i<=dynlen(children);i++){
-  fwFsmTree_addNode("FSM",children[i],"RPC_TopHwDevice",1);   
+  fwFsmTree_addNode(tempNode,children[i],"RPC_TopHwDevice",1);   
   }  
 }
 
@@ -232,7 +236,7 @@ int chamberNum;
 if(fwFsmTree_isNode("CMS_RPC"))
 	{
 	CMS_RPCfwGeneralInstallation_RPCDebug("Removing old tree...");
- //unlinkTopNode();
+ unlinkTopNode();
 	fwFsmTree_removeNode("FSM", "CMS_RPC");
 	CMS_RPCfwGeneralInstallation_RPCDebug("Old Barrel Tree completely removed");
 	}
@@ -444,8 +448,14 @@ int LinkHardware(string compName,string identifier){
   string topNode;
   if(dynlen(idx)==2){
    string sys = RPCfwSupervisor_getComponent(compName); 
-    dyn_string children;
+    dyn_string children,tempChildren;
     fwTree_getChildren(sys+"FSM",children,exInfo);
+    if(fwFsmTree_isNode(sys+tempNode))
+     fwTree_getChildren(sys+tempNode,tempChildren,exInfo);
+    dynAppend(children,tempChildren);
+    
+    fwTree_getChildren(sys+"FSM",children,exInfo);
+    
     idx[1] = strtoupper(idx[1]);
     idx[2] = strtoupper(idx[2]);
     for(int i = 1;i<=dynlen(children);i++)
@@ -456,10 +466,7 @@ int LinkHardware(string compName,string identifier){
       }
     
     if(topNode=="") return -1;
-    if(sys==getSystemName()) {topNode = topNope+"::"+topNode;
-     fwFsmTree_addNode("RPC_HARDWARE",sys+topNode,"RPC_TopHwDevice",0);
-     }else
-       fwFsmTree_addNode("RPC_HARDWARE",sys+topNode,"RPC_TopHwDevice",1);
+        fwFsmTree_addNode("RPC_HARDWARE",sys+topNode,"RPC_TopHwDevice",1);
        fwFsmTree_setNodeLabel(sys+topNode, compName);
      return 1;
     
@@ -969,6 +976,10 @@ CMS_RPCfwGeneralInstallation_RPCDebug("Starting tree");
    LinkAll();
   LinkGas();
 //   
+
+  dyn_string exInfo; 
+  if(fwFsmTree_isNode(tempNode))
+     fwTree_removeNode("FSM",tempNode,exInfo);
   fwFsmTree_generateTreeNode("CMS_RPC");
   fwFsmTree_refreshTree();
 
