@@ -1,465 +1,105 @@
 /*
 * GGM Gas Gain Monitoring System
 *
- version 2.4
+ version 2.6
  
 */
 #uses "fwRDBArchiving/fwRDBConfig.ctl"
-const string GGMDBConf= "cms_rpc_ggm_hd_v1.0";
-const string GGMDBRecipe= "cms_rpc_ggm_Rec_v1.0";
-const string instType = "PANEL";
+#uses "CMS_RPCfwGeneral/CMS_RPCfwGeneral.ctl"
+
+const string componentName = "CMS_RPCfwGGM";
+const string FSMVersion = "1.0";//To be increased every time the FSM structure changes
+const string standardRecipe = "cms_rpc_ggm_Rec_v1.0";
+
 main()
 {
  
-  //setRDBManager();
-  //DebugN("START");
+CMS_RPCfwGeneralInstallation_RPCDebug("null"); 
+CMS_RPCfwGeneralInstallation_RPCDebug("START Installation");
+
+  dyn_string exc;  
+  if (! isFunctionDefined("fwInstallationUtils_loadConfigurations")) {
+    DebugTN("Cannot run post install without fwInstallationUtils!!!");
+    return;
+  }
+  
+  //hardware part
+  createnvdatapoint();
+  if(installHardwareView()<0) return; 
+  
+ //FSM part 
+
+  bool reinstallFSM = CMS_RPCfwGeneralInstallation_getInstallationKey("FSMVersionInstalled_"+componentName,FSMVersion);
+  
+  if (reinstallFSM) installFSM();
+
+  
   bool error = false;
-  
-  string panel;
-  if(strpos(instType,"DB")>0){
-  checkOpc();
-  createGroup();
-  ConfigurationDBRecive(error);
-  }
-   if(strpos(instType,"FSM")>0){
-  generateTreeforDevice();
-  InsertHV();
-  }
+   
   SetDeviceConditionDB();
-  
-  //Debug("Done"); 
-  //setOPCServerStatus("rb1527lv","LVB");  
-   if(strpos(instType,"PANEL")<0){
-  fwFsmTree_stopTree();
-  fwFsmTree_generateAll();
-  fwFsmTree_refreshTree();
-  }
+   
+  // Services 
   wp_check();
-  //DebugN("GAS GAIN MONITORING SYSTEM components successfully installed");
-  fwInstallationManager_append(TRUE, "CMS_RPCfwGGMscript", "PVSS00ctrl", "always", 30, 2, 2, "CMS_RPCfwGGM/CMS_RPCfwGGMscript.ctl"); 
+  
+  DebugTN("Configuring OPC Server");
+  CMSfw_CAENOPCConfigurator_configureFromFwCaenDps(exc);
+  fwInstallationUtils_appendManagers(componentName,exc);
 
 }  
 
+void installFSM(){
 
-void smsAlertConfig(string notifType,string user,int type){
-  //1 sms 2 email 3 sms+email
-  dyn_string users;
-    
-  users = dpNames("*"+user+"*","CMSfwAlertSystemUsers");
-  
-  if(dynlen(users)==0)
-  {
-      CMSfwAlertSystemUtil_addUser(user);
-    if(user == "rpcbarre")
-      dpSet(users[1]+".GSMNumber","164557");
-    }   
-  
-  dyn_string notif;
- // string notifType = "SupCheck";
-  notif = dpNames("*"+notifType+"*","CMSfwAlertSystemSumAlerts");
-  if(dynlen(notif)==1)
-  {
-    dpDelete(notif[1]);
-    CMSfwAlertSystemUtil_createNotification (notifType);
-  }
+ generateTreeforDevice();
 
-  // **************** Add user to notificatio
-  
-  if((type == 2)||(type==3))
-  CMSfwAlertSystemUtil_addNotificationToUser (user,notifType,"EMAIL",50);
-  
-  if((type == 1)||(type==3))
-  CMSfwAlertSystemUtil_addNotificationToUser (user,notifType,"SMS",50);
-}
+// Insert the device node using hardware created
 
-
-void configSmsAlarm(string notifType){
-
-  dyn_string deviceList,chs,exInfo;
-  dynAppend(deviceList,dpAliases("*/Boards/*","*"));
-for(int i =1 ;i<=dynlen(deviceList);i++)
-  {
-  if(strpos(deviceList[i],"MAO")<0)
-  {
-  dynAppend(chs,fwDU_getPhysicalName(deviceList[i])+".Temp.Temp1");
-  }
-  
-  }
-dynClear(deviceList);
-dynAppend(deviceList,dpAliases("*/MAO/*","*"));
-//DebugN(deviceList);
-for(int i = 1;i<=dynlen(deviceList);i++)
-{
-   
- deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
- if(strpos(deviceList[i],"wNode")<0)
- {
- dynAppend(chs,fwDU_getPhysicalName(deviceList[i])+".actual.temp");
-  }
-}
-
-for(int i=1;i<=dynlen(chs);i++)
-{
-  
-CMSfwAlertSystemUtil_addAlertToNotification(notifType,chs[i]) ;
-}
-fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
+ InsertHV();
  
+ fwFsmTree_generateAll();
+ fwFsmTree_refreshTree();  
+  
+  
 }
 
 
-void setAlarmBoard(){
-  
-dyn_string deviceList,exceptionInfo,summary;//=dpAliases("*/HV/*","*");
-dynAppend(deviceList,dpAliases("*/Boards/*","*"));
-//DebugN(deviceList);
-for(int i = 1;i<=dynlen(deviceList);i++)
-{
-  if(strpos(deviceList[i],"MAO")<0)
-  {
-    dyn_string alertTexts = makeDynString( "OK", "Warning","Error"),
-       aTexts = makeDynString("OK", "Too High") ;
- dyn_float limits; 
- dyn_string alertClasses = makeDynString( "" ,"_fwWarningAck.", "_fwErrorAck."),
-       aClasses = makeDynString("", "_fwErrorAck.");
-  string alertPanel; dyn_string alertPanelParameters; string alertHelp;
- 
- deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
-// if(device)
-  
-///Set  Alarm channel for Imon
-string  channel= deviceList[i]+".Temp.Temp1";
- 
-  fwAlertConfig_deactivate(channel,exceptionInfo);  
-  limits = makeDynFloat( 35 ,  40 );
-  //DebugN(channel);
- fwAlertConfig_set(channel,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
-             alertHelp,exceptionInfo);
-             if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
- fwAlertConfig_activate(channel,exceptionInfo);
-      
-    }
-  } 
-}
 
-void setOPCServerStatus(string caen,string subsys){
-  
-  dyn_string types;
- 
-  types = dpTypes("RPCUtils");
-  if(dynlen(types)>0) {    
-   if(!dpExists("caen"+subsys+"ServerStatus"))
-    dpCreate("caen"+subsys+"ServerStatus","RPCUtils");
+int installHardwareView(){
+CMS_RPCfwGeneralInstallation_createOPCGroup(5);
+
+bool bRes = createHardwareTree();
+  if (!bRes) {
+    CMS_RPCfwGeneralInstallation_RPCDebug("**** PROBLEMS IN CREATING DATA POINTS. Stopping the postInstall for RPC Barrel HV");
+    return -1;
   }
-  
-  dyn_string obj = dpNames("*"+caen+"*","FwCaenCrateSY1527");
-  
-  //DebugN(obj);
-  if(dynlen(obj)>0)
-  {
-  string dpe = obj+ ".Information.Sessions",
-  newDps = "caen"+subsys+"ServerStatus.svalue";
-  dyn_string exInfo;
-  dyn_anytype conf;
-  bool exist, isAct;
-  fwPeriphAddress_get(dpe, exist, conf,isAct,exInfo);
-  
- // DebugN(dpe, exist, conf[fwPeriphAddress_OPC_SERVER_NAME],conf[fwPeriphAddress_DRIVER_NUMBER],isAct,exInfo);
-  
-  string newItem = substr(conf[fwPeriphAddress_ROOT_NAME],0,(strpos(conf[fwPeriphAddress_ROOT_NAME],".")))+ ".ConnStatus";
-  
-  fwPeriphAddress_setOPC(newDps,conf[fwPeriphAddress_OPC_SERVER_NAME],
-                         conf[fwPeriphAddress_DRIVER_NUMBER],newItem,
-                         conf[fwPeriphAddress_OPC_GROUP_IN],
-                         conf[fwPeriphAddress_DATATYPE],
-                         conf[fwPeriphAddress_DIRECTION],
-                         conf[fwPeriphAddress_OPC_SUBINDEX],exInfo);
-  }
-  
-string archiveClassName="RDB-99) EVENT"; //"ValueArchive_0000";//Archive's name
-float timeInterval=3600; 
-dyn_string exceptionInfo;
 
-fwArchive_set(newDps, archiveClassName,DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,
-					0.3, timeInterval,exceptionInfo);
-}
-
-
-void checkOpc()
-{
-  bool opcOn;
-  dpGet(getSystemName()+"_CAENOPCServer.Connected",opcOn); 
-  if(!opcOn)
-  {
-    
-  //  1.Check for Caen driver or sim running and if not start it.
-
-  //  Take the pmon port and current host.
-  string host;
-  int port;
-  int i = paGetProjHostPort( PROJ, host, port);
- 
-   
-  //  Use pmon query to take the Idx of the important managers
-  string command ="##MGRLIST:LIST";
-  dyn_dyn_string queryResult;
-      
-  bool querySuccess = pmon_query(command , host, port,
-           queryResult, 1, 1 );
+  //Apply recipe  
   
-  //  Remember the Idx of the sim manager
-  int simIdx;
-  string simMode = "empty";
-  
-  for (i = 1; i <= dynlen(queryResult); i++)
-  {
-    if ((queryResult[i][1] == "PVSS00sim")&&(dynlen(queryResult[i]) == 6))
-    {
-      if (queryResult[i][6] == "-num 6")
-      {
-        simIdx = i - 1; 
-        
-        if (queryResult[i][2] == 2)
-        {
-          simMode = "always";
+  dyn_string exceptionInfo,list;
+  dyn_dyn_mixed recipeObject;
+  fwConfigurationDB_checkInit(exceptionInfo);
+ 	fwConfigurationDB_getRecipeFromDB("",list, fwDevice_LOGICAL,standardRecipe, recipeObject,exceptionInfo);
+	  if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+         return -1;  
         }
-        
-        break;
-      }
-    }
-  }
-    
-  //  Remember the Idx of the opc manager
-  int opcIdx;
-  string opcMode = "empty";
-  
-  for (int i = 1; i <= dynlen(queryResult); i++)
-  {
-    if (queryResult[i][1] == "PVSS00opc")
-    {
-      if (queryResult[i][6] == "-num 6")
-      {
-        opcIdx = i - 1; 
-        
-        if (queryResult[i][2] == 2)
-        {
-          opcMode = "always";
-        }
-       
-        break;
-      }
-    }
-  }
-  
-  
-  string cat, errNote;
-  int prio,typ,co;
-  
-  cat ="_errors"; 
-   
-  prio = PRIO_INFO; 
-  typ =ERR_PARAM;
-  co = 0; 
-  
-  errClass retError;            
-  //DebugN(queryResult,opcIdx,simIdx);  
- 
 
-  
-      
-      string command3 ="##SINGLE_MGR:START "+simIdx;
-          
-      bool querySuccess3 = pmon_command(command3 , host, port, 0, 1 );
-    
-     
-    }//else DebugN("nothing to do");
-   
-      // make the sim mode "always"
-  
-}
-
-string findPath()
-{
-  dyn_dyn_string comp;
-  fwInstallation_getInstalledComponents(comp);
-  for(int i =1;i<=dynlen(comp);i++)
-    if(comp[i][1]=="fwCore")
-      return comp[i][3];  
-  }
-
-
-void MovingHierarchy(string hName,string lName)
-{
- dyn_string deviceList;
-
-dyn_string exceptionInfo,exInfo;
-dyn_dyn_mixed recipeObject;
-
-
-dyn_string topDevice=makeDynString(getSystemName()+"CAEN","");
-
-
-  
- fwConfigurationDB_getDeviceConfigurationFromDB(hName,fwDevice_HARDWARE, recipeObject, exceptionInfo);
-  if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return; }
-
-
-  //DebugTN(recipeObject[fwConfigurationDB_DLO_DPNAME]);
-  //DebugN("Checking Hierarchy consistency in DB");	
-  // find the system name in the db.
-  dyn_string temp = strsplit(recipeObject[fwConfigurationDB_DLO_DPNAME][1], ":");
-  string sysName = temp[1]+":";
-
- //fwConfigurationDB_extractHierarchyFromDB(topDevice[2],hierarchyType[1], recipeObject,exceptionInfo,"rpcdcs03:");
-  //DebugTN(sysName);
-  string localSys = getSystemName();
-  if(sysName != localSys)
-  {
-  fwConfigurationDB_reconnectDevices(recipeObject[1],hName,fwDevice_HARDWARE,localSys,exInfo);
-   if (dynlen(exInfo)) { fwExceptionHandling_display(exInfo); return; }
-  //DebugN("Hierarchy Correctly Moved");
-  }
-  //else
-    //DebugN("DB Hierarchy consistets with SystemName");
-  
-}
-
-void completaBC(){
-dyn_string bc = dpNames("*","FwCaenBoardSY1527A1676");
-dyn_string names = makeDynString("UXC_WP2");
-for (int i=1;i<=dynlen(names);i++)
-	{
-	//dyn_string name = strsplit(sys[i],"/");
-	dpSetAlias (bc[i]+".","RPCBarrel/BCs/RPC_"+names[i]+"_BC");
-	}
+	fwConfigurationDB_ApplyRecipe( recipeObject, fwDevice_LOGICAL,exceptionInfo); 
+        if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+         return -1;  
+          }
+return 0;
 
 }
-
-void ConfigurationDBRecive(bool & error)
-{
-string setupName="RPCConfig";
-dyn_string deviceList;
-
-dyn_string exceptionInfo,exInfo,
-hierarchyType=makeDynString(fwDevice_HARDWARE, fwDevice_LOGICAL);
-dyn_dyn_mixed recipeObject;
-dyn_string list,HvDeviceList, LvDeviceList;
-dyn_string topDevice=makeDynString(getSystemName()+"","");
-dyn_string recipeName=makeDynString(GGMDBConf,GGMDBConf);
-//dyn_string configurationName=makeDynString("RPCHWUXC","RPCLWUXC");
-int i;
-
-//check if the connection is properly initialized
-fwConfigurationDB_initialize("",exceptionInfo);
-Debug(exceptionInfo);
-if (fwConfigurationDB_handleErrors(exceptionInfo)) 
-{
-  error = true;
-  return;
-  }  
-
-//download hierarchy from ConfigDB
-//first hardware then logical
-//MovingHierarchy(configurationName[1],configurationName[2]);
-for(int i=1;i<=2;i++)
-	{
-	DebugN("Hard : 1, Logical: 2",i);
-	DebugN(i);
-	fwConfigurationDB_updateDeviceConfigurationFromDB(GGMDBConf,hierarchyType[i],exceptionInfo,0,"","",fwConfigurationDB_deviceConfig_ALLDEVPROPS);
-       
-               
-        //fwConfigurationDB_getHierarchyFromPVSS("cms_rpc_ggm_hd", hierarchyType[i], list,exceptionInfo,"",FALSE);
-	if (fwConfigurationDB_handleErrors(exceptionInfo))
-           {
-              Debug(exceptionInfo);
-              error = true;
-              //return;
-           }    
-	if(i==2)
-	{
-	   //fwConfigurationDB_getHierarchyFromPVSS("cms_rpc_ggm_hd", hierarchyType[i], list,exceptionInfo,"",FALSE);
-           if (fwConfigurationDB_handleErrors(exceptionInfo))
-           {
-              error = true;
-              //return;
-           }	
-//setByHand(); 	
-fwConfigurationDB_getRecipeFromDB("",list, hierarchyType[i],GGMDBRecipe, recipeObject,exceptionInfo);
-
-if (dynlen(exceptionInfo)>0){
-  error = true;
-
-  //setByHand();
-  //return;
-  }else
-  {
-  fwConfigurationDB_ApplyRecipe( recipeObject, hierarchyType[i],exceptionInfo); 
-  if (fwConfigurationDB_handleErrors(exceptionInfo)){
-  error = true;
-  //return;
-  }
-  }
-  //DebugN("Recipe Applied");  
-  }
-	}
-	//DebugN("Hierarchy Applied");
-}
-
-
 
 void generateTreeforDevice()
 {
-dyn_string nodes, exInfo;
-string chamber_node,top_node;
-fwTree_getRootNodes(nodes,exInfo);
-//DebugN(nodes, exInfo);
+string top_node;
 
 if(!fwFsmTree_isNode("RPC_GAS_GAIN"))
-top_node=fwFsmTree_addNode("FSM","RPC_GAS_GAIN","RPC_GGMDevice",1);
+  if(fwFsmTree_isNode("RPC_GAS_TOP"))
+    top_node=fwFsmTree_addNode("RPC_GAS_TOP","RPC_GAS_GAIN","RPC_GGMDevice",1);
 
-//chamber_node=fwFsmTree_addNode("RPC_GAS_GAIN","RPC_GGM","RPC_Device",0);
-
-//DebugN("Structure ready");
-
-//generate and refresh tree
-fwFsmTree_generateAll();
-//fwFsmTree_refreshTree();
 }
-string getCU(string name)
-{
- int type;
- string parent;
- parent =  fwCU_getParent(type,name);
- //DebugN(parent,name);
-  if(type==0)
-    return getCU(parent);
-  else
-    return parent;
-  
-}
-void InsertBoards()
-{
-   int pos,pos1;
-string names;
-  //Add Boards
-  dyn_string exInfo;
-dyn_string deviceList=dpAliases("*/Boards/*","*");
-for(int i=1;i<=dynlen(deviceList);i++)
-	{
-	pos =strpos(deviceList[i],"_X");
-	if(pos>-1)
-	{
-	names = substr(deviceList[i],pos);
-        //DebugN(pos,deviceList[i][22],deviceList[i][pos-1]);
-		//pos1 = strpos(names,"LBB");
-		//names = substr(names,0,pos1+3);
-	fwFsmTree_addNode("RPC_UXC_W"+deviceList[i][pos-2]+deviceList[i][pos-1]+"_Bd",deviceList[i] ,"FwCaenBoardEasy", 0);
-	}
-	}
 
-
-//DebugN("BOARDS ready");
-}
 
 void InsertHV()
 {
@@ -471,98 +111,10 @@ void InsertHV()
 
   for(int i=1;i<=dynlen(deviceList);i++)
 	{
-	    fwFsmTree_addNode("RPC_GAS_GAIN",deviceList[i] ,"FwCaenChannelHV", 0);
+	    fwFsmTree_addNode("RPC_GAS_GAIN",deviceList[i] ,"FwCaenChannelGGMHV", 0);
         }
   //DebugN("HV ready");
 }
-
-void SetAlarmDevice(){
-
-float diff1,diff2,value;
-dyn_string exceptionInfo,split,splitt,summary;
-string channelName,channel;
-dyn_string boolAlarms = makeDynString(".actual.Trip",".actual.OvC",".actual.OvV",
-                   ".actual.UnV",".actual.UnC",".actual.overHvMax");
-dyn_string deviceList;//=dpAliases("*/HV/*","*");
-dynAppend(deviceList,dpAliases("*/GGM/*","*"));
-
-for (int i=1;i<=dynlen(deviceList);i++)
- {
- dyn_string alertTexts = makeDynString( "OK", "Warning","Error"),
-       aTexts = makeDynString("OK", "Not OK") ;
- dyn_float limits; 
- dyn_string alertClasses = makeDynString( "" ,"_fwWarningAck.", "_fwErrorAck."),
-       aClasses = makeDynString("", "_fwErrorAck.");
-  string alertPanel; dyn_string alertPanelParameters; string alertHelp;
- 
- deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
- dpGet(deviceList[i]+".settings.i0", value);
- if(value != 0)
- {
- diff1=value*0.03;//primo limite al 5%
- diff2=value*0.05;//secondo limite al 10%
- 
-  
-///Set  Alarm channel for Imon
- channel= deviceList[i]+".actual.iMon";
- 
- dynAppend(summary,channel);
- fwAlertConfig_deactivate(channel,exceptionInfo);  
-  limits = makeDynFloat( value-diff2,value-diff1 );
-  //DebugN(channel);
- fwAlertConfig_set(channel,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
-             alertHelp,exceptionInfo);
-             if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
- fwAlertConfig_activate(channel,exceptionInfo);
- }
- //Set Digital alarm for channel
- for(int j =1;j<=dynlen(boolAlarms);j++)
-  {
-  
-  fwAlertConfig_deactivate(deviceList[i]+boolAlarms[j],exceptionInfo); 
-  
-  fwAlertConfig_set(deviceList[i]+boolAlarms[j], DPCONFIG_ALERT_BINARYSIGNAL, aTexts, 
-      limits, aClasses, summary,  alertPanel, alertPanelParameters, alertHelp,  exceptionInfo);
-  
-  
-    
-    fwAlertConfig_activate(deviceList[i]+boolAlarms[j],exceptionInfo); 
-    dynAppend(summary, deviceList[i]+boolAlarms[j]) ;            
-    }
-  
-  fwAlertConfig_deactivate(deviceList[i]+".",exceptionInfo); 
-  fwAlertConfig_set(deviceList[i]+".",DPCONFIG_SUM_ALERT , aTexts, 
-      limits, aClasses, summary,  alertPanel, alertPanelParameters, alertHelp,  exceptionInfo); 
- //DebugN(deviceList[i],exceptionInfo,summary);
- fwAlertConfig_activate(deviceList[i]+".",exceptionInfo); 
- dynClear(summary);
-  
-              
- }
-  setAlarmBoard();
- //DebugN("Set Alarm configuration");
-}
-void setSMSAlert()
-{
-  smsAlertConfig("RPC_GGM","polese",3);
-  configSmsAlarm("RPC_GGM");
-  }
-void setRDBManager()
-{
- 
-   string value;
-  dyn_string name = makeDynString("cmsdevr_lb","cms_rpc_ggm_pvss_cond","cern2010x");
-
-  string user = fwRDBConfig_getUser();
-  if((dynlen(name)==3)&&(user==""))
-  {
-
-      fwRDBConfig_setHost(name[1]);
-      fwRDBConfig_setUser(name[2]);
-      fwRDBConfig_setPassword(name[3]);
-  }
- 
-} 
 
 void SetDeviceConditionDB(){
 // Ricorda che dovrebbe partire anche il manager ed essere settato
@@ -706,204 +258,6 @@ fwArchive_setMultiple(deviceList[i]+".pressure_after_B" , archiveClassName,archi
 0.3, timeInterval,exceptionInfo);
 }
 }
-void createGroup()
-{  
-dyn_string dpName = dpNames("*","_OPCGroup");
-//DebugN(dpName);
-int error;
-bool inExists = false,outExists =false;
-dyn_string newDpIn = makeDynString("_FastGroupIn","_FastGroupIn1","_FastGroupIn2","_FastGroupIn3","_FastGroupIn4");
-dyn_string newDpOut = makeDynString("_FastGroupOut","_FastGroupOut1","_FastGroupOut2","_FastGroupOut3","_FastGroupOut4");
-string oldIn = "_CAENOPCGroupIn";
-string oldOut = "_CAENOPCGroupOut";
-string temp; 
-for(int j = 1; j<=dynlen(newDpIn); j++)
-{
- inExists = false;
- outExists =false;
-  
-for(int i = 1; i<=dynlen(dpName);i++)
-{
-  temp = dpSubStr(dpName[i],DPSUB_DP);
-  //DebugN(temp);
-  if(newDpIn[j] == temp)
-  {
-    inExists = true;
-  }
-  if(newDpOut[j] == temp)
-    outExists = true;
-} 
-if(!inExists)
-  {
-  dpCreate(newDpIn[j],"_OPCGroup");
-  dpCopyOriginal(oldIn,newDpIn[j],error);
-  DebugN("error: ",error);
-  }
- 
-if(!outExists)
-  {
-  dpCreate(newDpOut[j],"_OPCGroup");
-  dpCopyOriginal(oldOut,newDpOut[j],error);
-  DebugN("error: ",error);
-  }
-
-
-  dpSet(newDpIn[j] +".UpdateRateReq",2000);
-  dpSet(newDpIn[j] +".UpdateRateAct",2000);
-  dpSet(newDpOut[j] +".UpdateRateReq",2000);
-  dpSet(newDpOut[j] +".UpdateRateAct",2000);
-  
-} 
-  
-  dpSet(oldIn +".UpdateRateReq",10000);
-  dpSet(oldIn +".UpdateRateAct",10000);
-  dpSet(oldOut +".UpdateRateReq",10000);
-  dpSet(oldOut +".UpdateRateAct",10000);
-
-}
-void deleteOld(string type)
-{
-  //DeleteFSM();
-  if(strpos(type,"FSM")>-1)
-  {
-  fwFsmTree_removeNode("FSM","RPC_BARREL_HWUXC");
-  }
-  if(strpos(type,"DB")>-1)
-  {
-  DeleteHW();
-  //DeleteDps();
-  DeleteLogical();
-  }
-  //DebugN("All components successfully deleted"); 
-  //DeleteDps();
-  
-  }
-void DeleteLogical()
-{
-  string type;
-  dyn_string exInfo;
-  dyn_string deviceList = dpNames("*","FwNode");
-  //DebugN(deviceList);
-  fwDevice_initialize();  
-  for(int i = 1 ;i<=dynlen(deviceList);i++)
-    {
-    dpGet(deviceList[i]+".type",type);
-    if(strpos(type,"LOGICAL")>-1)
-    {
-    //  DebugN(deviceList[i]);
-    dpDelete(deviceList[i]);  
-    }
-  }
-}
-
-void DeleteHW(){
-   fwDevice_initialize();   
-  dyn_string exceptionInfo;
-  dyn_string localCrates = dpNames(getSystemName()+"*CAEN?*", "FwCaenCrateSY1527");
-  
-  //DebugN(localCrates);
-  for(int i = 1;i<=dynlen(localCrates);i++)
-  {
-   if(strpos(localCrates[1],"lv")>-1)
-       fwDevice_delete(localCrates[i], exceptionInfo);  
-  }
-  
-  //DebugN("---Caen hardware deleted."); 
-  
-  }
-
-void DeleteFSM()
-{
-  //dyn_string nodes,nnodes,exInfo,type = makeDynString("LV","MAO","T","LBB","UXC"),nodesTypes;
-  bool find = false, delAll = false;
-  int f =1;
-  fwTree_getChildren("RPC_GAS_GAIN",nodes,exInfo);
-  for(int i = 1; i<=dynlen(nodes);i++ )
-  {
-    //DebugN("Deleting ",nodes[i]);
-    for(int j = 1;j<=dynlen(type);j++)
-    {
-      if(strpos(nodes[i],type[j])>-1)
-      {
-        fwFsmTree_removeNode("RPC_GAS_GAIN",nodes[i]);
-        fwCU_getDp(nodes[i], nodesTypes[f]);
-        f++;
-      }
-      else if(strpos(nodes[i],"oard")>-1)
-      {
-        fwTree_getChildren(nodes[i],nnodes,exInfo);
-
-        if(dynlen(nnodes)==0)
-        {
-          fwFsmTree_removeNode("RPC_GAS_GAIN",nodes[i]);
-          fwCU_getDp(nodes[i], nodesTypes[f]);
-        f++;
-      }
-          
-        }
-        
-              
-      }
-   }
-  fwTree_getChildren("RPC_GAS_GAIN",nodes,exInfo);
-  if(dynlen(nodes)==0)
-  {
-          fwFsmTree_removeNode("FSM","RPC_GAS_GAIN");
-           fwCU_getDp("RPC_GAS_GAIN", nodesTypes[f]);
-        f++;
-        delAll = true;
-        }
-  dynUnique(nodesTypes);
-  if(delAll)
-  {
-      for (int i = 1; i <= dynlen(nodesTypes); i++)
-  {
-    //DebugN("Starting delete all nodes type ", nodesTypes[i]);  
-     //   dpDelete(nodesTypes[i]); 
-  }
-  
-    }
-  }
-void setByHand()
-{
-
-dyn_string list=makeDynString(".i0",".vMaxSoftValue",".v0",
-               ".tripTime",".rUp",".rDwn");
-
-//DebugN("Recipe failed, start setting by hand... ");
-               
-string logName;
-float value; 
-dyn_string channels = dpNames("*","FwCaenChannel"); 
-
-for(int i = 1; i<=dynlen(channels);i++) 
- { 
-  logName = fwDU_getLogicalName(channels[i]);
-  //DebugN(logName);
-  if(strpos(logName,"HV")>1)
-    {
-  	HVChann(channels[i]);
-    }
-    //DebugN(channels[i]);  
- } 
-//DebugN("Fine");
-}
-
-HVChann(string dpe)
-{
-dyn_string list=makeDynString(".i0",".vMaxSoftValue",".v0",
-               ".tripTime",".rUp",".rDwn");
- 
-dyn_string value=makeDynString("50","9600","100","999","50","100");         
-for(int j=1;j<=dynlen(list);j++)
-   		{
-
-        dpSet(dpe+".settings"+list[j],value[j]);
-         //DebugN(dpe,value[j]);  
-        dpSet(dpe+".readBackSettings"+list[j],value[j]); 
-    	}
-
-}
 
 void createnvdatapoint()
 {
@@ -1009,35 +363,6 @@ xxdepei2[11] = makeDynInt (0,0,0,DPEL_FLOAT);
 xxdepei2[12] = makeDynInt (0,0,0,DPEL_FLOAT);
 xxdepei2[13] = makeDynInt (0,0,0,DPEL_FLOAT);
 
-
-//create datapoint type
-//n2 = dpTypeCreate(xxdepes2,xxdepei2);
-//
-//if (dpExists("rpc_ggm_ch01")) DebugN("already exists");
-//else dpCreate("rpc_ggm_ch01","RPC_GGM");
-//
-//if (dpExists("rpc_ggm_ch02")) DebugN("already exists");
-//else dpCreate("rpc_ggm_ch02","RPC_GGM");
-//
-//if (dpExists("rpc_ggm_ch03")) DebugN("already exists");
-//else dpCreate("rpc_ggm_ch03","RPC_GGM");
-//
-//if (dpExists("rpc_ggm_ch04")) DebugN("already exists");
-//else dpCreate("rpc_ggm_ch04","RPC_GGM");
-//
-//if (dpExists("rpc_ggm_ch05")) DebugN("already exists");
-//else dpCreate("rpc_ggm_ch05","RPC_GGM");
-//
-//if (dpExists("rpc_ggm_ch06")) DebugN("already exists");
-//else dpCreate("rpc_ggm_ch06","RPC_GGM");
-//
-//if (dpExists("rpc_ggm_ch07")) DebugN("already exists");
-//else dpCreate("rpc_ggm_ch07","RPC_GGM");
-//
-//if (dpExists("rpc_ggm_ch08")) DebugN("already exists");
-//else dpCreate("rpc_ggm_ch08","RPC_GGM");
-//
-//DebugN ("RPC GGM envinronmental datapoint created: ",n2);
   
 }
 
@@ -1091,41 +416,3 @@ wp_check() {
 
 }
 
-void workingpoint()
-{
-
-string sys = getSystemName();  
-  
-for(int i = 3;i<=8;i++)
-{    
-   dyn_string params = makeDynString(sys+"rpc_ggm_ch01.daq.streamer:_online.._value", sys+"rpc_ggm_ch0"+i+".daq.streamer:_online.._value");
-   dpSetWait(sys+"rpc_ggm_ch0"+i+".daq.WP.streamerWP:_dp_fct.._type", DPCONFIG_STAT_FUNCTION,
-             sys+"rpc_ggm_ch0"+i+".daq.WP.streamerWP:_dp_fct.._stat_type", makeDynInt(SF_MAX, SF_MIN),
-             sys+"rpc_ggm_ch0"+i+".daq.WP.streamerWP:_dp_fct.._param", params,
-             sys+"rpc_ggm_ch0"+i+".daq.WP.streamerWP:_dp_fct.._interval", 120,
-             sys+"rpc_ggm_ch0"+i+".daq.WP.streamerWP:_dp_fct.._fct", "");
-             //sys+"rpc_ggm_ch0"+i+".daq.WP.streamerWP:_dp_fct.._fct", "(p1/(p2+0.001))");
-}
-
-for(int i = 3;i<=8;i++)
-{    
-   dyn_string params = makeDynString(sys+"rpc_ggm_ch01.daq.avalanche:_online.._value", sys+"rpc_ggm_ch0"+i+".daq.avalanche:_online.._value");
-   dpSetWait(sys+"rpc_ggm_ch0"+i+".daq.WP.avalancheWP:_dp_fct.._type", DPCONFIG_STAT_FUNCTION,
-             sys+"rpc_ggm_ch0"+i+".daq.WP.avalancheWP:_dp_fct.._stat_type", makeDynInt(SF_MAX, SF_MIN),
-             sys+"rpc_ggm_ch0"+i+".daq.WP.avalancheWP:_dp_fct.._param", params,
-             sys+"rpc_ggm_ch0"+i+".daq.WP.avalancheWP:_dp_fct.._interval", 120,
-             sys+"rpc_ggm_ch0"+i+".daq.WP.avalancheWP:_dp_fct.._fct", "");
-             //sys+"rpc_ggm_ch0"+i+".daq.WP.avalancheWP:_dp_fct.._fct", "(p1/(p2+0.001))");
-}
-
-for(int i = 3;i<=8;i++)
-{    
-   dyn_string params = makeDynString(sys+"rpc_ggm_ch01.daq.charge:_online.._value", sys+"rpc_ggm_ch0"+i+".daq.charge:_online.._value");
-   dpSetWait(sys+"rpc_ggm_ch0"+i+".daq.WP.chargeWP:_dp_fct.._type", DPCONFIG_STAT_FUNCTION,
-             sys+"rpc_ggm_ch0"+i+".daq.WP.chargeWP:_dp_fct.._stat_type", makeDynInt(SF_MAX, SF_MIN),
-             sys+"rpc_ggm_ch0"+i+".daq.WP.chargeWP:_dp_fct.._param", params,
-             sys+"rpc_ggm_ch0"+i+".daq.WP.chargeWP:_dp_fct.._interval", 120,
-             sys+"rpc_ggm_ch0"+i+".daq.WP.chargeWP:_dp_fct.._fct", "");
-             //sys+"rpc_ggm_ch0"+i+".daq.WP.chargeWP:_dp_fct.._fct", "(p1/(p2+0.001))");
-}
-}
