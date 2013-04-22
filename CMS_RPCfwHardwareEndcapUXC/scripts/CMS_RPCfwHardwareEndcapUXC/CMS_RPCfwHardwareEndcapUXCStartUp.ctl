@@ -147,7 +147,7 @@ void systemCheck()
  }
  // check fan status
 time refresh,now = getCurrentTime();
- dyn_string sy1527 = dpNames("*","FwCaenCrateSY1527");
+ dyn_string sy1527 = dpNames("*LV02*","FwCaenCrateSY1527");
  string mainf;
  for(int i = 1 ; i<=dynlen(sy1527);i++)
  {
