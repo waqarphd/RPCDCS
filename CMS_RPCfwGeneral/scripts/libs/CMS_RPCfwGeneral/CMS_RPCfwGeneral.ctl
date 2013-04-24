@@ -321,7 +321,7 @@ void CMS_RPCfwGeneralInstallation_installProtectionHV(string name = "LHCHandshak
   
    CMSfwDetectorProtection_addCondition(obj,"RPC_LHC_Requires_Standby",exc);
    string dpInput = sysCentral+":CMSfwDetectorProtection/Input/LHC_Requires_Standby_CMS_SUB_RPC_PHY";
-   CMSfwDetectorProtection_setInput(obj,"RPC_LHC_Requires_Standby",dpInput+".status",exc);
+   CMSfwDetectorProtection_setInput(obj,"RPC_LHC_Requires_Standby",dpInput,exc);
    CMSfwDetectorProtection_setOutputModeDpNamesOrAliases(obj,"RPC_LHC_Requires_Standby",CMSfwDetectorProtection_MODE_DPALIASES,
                                                         topNode,duType,duElem,valstring,valtype,0,exc);
 
