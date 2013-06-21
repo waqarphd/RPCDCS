@@ -163,7 +163,9 @@ RPCfwSupervisor_getChannelsFromName(string name, string type,string sysName, dyn
 	nodes[i] = sysName + alias;
       
       if(strpos(nodes[i],type)>1)  
+         if (strpos(nodes[i],"RPC_GGM") == -1) { // skip ggm otherwise it matches HV
         fwDevice_getChildren(nodes[i], fwDevice_LOGICAL, children, exInfo);		                        
+        }
       
       }
      for(int i = 1; i<=dynlen(children);i++)
