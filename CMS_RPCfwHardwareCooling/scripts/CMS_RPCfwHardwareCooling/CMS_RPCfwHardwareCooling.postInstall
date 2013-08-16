@@ -1,0 +1,249 @@
+#uses "fwInstallationUtils.ctl"
+#uses "CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl"
+#uses "CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc"
+#uses "CMS_RPCfwGeneral/CMS_RPCfwGeneral.ctl"
+const string setupname = "RPCConfig";
+const string configurationName = "RPCDSSSystem_AllIn_V1.0";  
+const string RPCDIP_CONFIG_DP = "DIPConfig_RPC";
+const string component_Name = "CMS_RPCfwHardwareCooling";
+main()
+{
+
+  CreateTypes();
+  
+ dyn_string exceptionInfo;
+ 
+  RPCDIP_createConfigDp(); 
+ fwInstallationUtils_loadConfigurations(component_Name,exceptionInfo);
+smsCoolAlertConfig();
+smsDSSAlertConfig();
+
+ fwInstallationUtils_appendManagers(component_Name,exceptionInfo);
+ 
+}
+
+
+
+void smsCoolAlertConfig(){
+  
+  string user1 = "polese";
+  string user2 = "rpcbarre";
+  CMS_RPCfwGeneral_createUserSMS(user1);
+  CMS_RPCfwGeneral_createUserSMS(user2);
+  
+  dyn_string notif;
+  string notifType = "CoolingCheck";
+  notif = dpNames("*"+notifType+"*","CMSfwAlertSystemSumAlerts");
+  if(dynlen(notif)!=0)
+    dpDelete(notif[1]);
+    CMSfwAlertSystemUtil_createNotification (notifType);
+  
+  /////// ******************** Add alert to notification
+
+                  
+dyn_string dpesCool = dpNames("*","RPCCooling");    
+      for(int i = 1;i<=dynlen(dpesCool);i++)
+      {  
+    CMSfwAlertSystemUtil_addAlertToNotification(notifType,dpesCool[i]+".value") ;
+    }
+  // **************** Add user to notificatio
+
+   string userdp = dpNames("*"+user1+"*","CMSfwAlertSystemUsers");
+  
+   if(userdp!=""){
+     CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"EMAIL",50);
+     CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"SMS",50);
+   }  
+      
+  userdp = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
+  CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"SMS",50);
+  
+  
+}
+
+
+void smsDSSAlertConfig(){
+
+  string user1 = "polese";
+  string user2 = "rpcbarre";
+  CMS_RPCfwGeneral_createUserSMS(user1);
+  CMS_RPCfwGeneral_createUserSMS(user2);
+  
+  dyn_string notif;
+  string notifType = "DSSCheck";
+  notif = dpNames("*"+notifType+"*","CMSfwAlertSystemSumAlerts");
+  if(dynlen(notif)!=0)    dpDelete(notif[1]);
+    CMSfwAlertSystemUtil_createNotification (notifType);
+  
+  /////// ******************** Add alert to notification
+
+                  
+  dyn_string dpDSS = dpNames("*","RPCDSS");;
+      for(int i = 1;i<=dynlen(dpDSS);i++)
+      {  
+    CMSfwAlertSystemUtil_addAlertToNotification(notifType,dpDSS[i]+".value") ;
+    }
+  // **************** Add user to notificatio
+ string userdp = dpNames("*"+user1+"*","CMSfwAlertSystemUsers");
+  
+   if(userdp!=""){
+     CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"EMAIL",50);
+     CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"SMS",50);
+   }  
+      
+  userdp = dpNames("*"+user2+"*","CMSfwAlertSystemUsers");
+  CMSfwAlertSystemUtil_addNotificationToUser (userdp,notifType,"SMS",50); 
+  
+}
+
+
+
+
+void CreateTypes(){
+  
+  dyn_string types;
+  types = dpTypes("RPCCooling");
+  //DebugN(types);
+  if(dynlen(types)<1) 
+  {
+  int n;
+
+  dyn_dyn_string xxdepes;
+
+  dyn_dyn_int xxdepei;
+
+ 
+
+// Create the data type
+
+  xxdepes[1] = makeDynString ("RPCCooling","");
+
+  xxdepes[2] = makeDynString ("","value");
+
+
+  xxdepei[1] = makeDynInt (1);
+
+  xxdepei[2] = makeDynInt (0,DPEL_FLOAT);
+
+ 
+
+// Create the datapoint type
+
+  n = dpTypeCreate(xxdepes,xxdepei);
+
+  DebugN ("Datapoint Type created ");
+
+  }
+  
+  
+  types = dpTypes("RPCDSS");
+  //DebugN(types);
+  if(dynlen(types)<1) 
+  {
+  int n;
+
+  dyn_dyn_string xxdepes;
+
+  dyn_dyn_int xxdepei;
+
+ 
+
+// Create the data type
+
+  xxdepes[1] = makeDynString ("RPCDSS","");
+
+  xxdepes[2] = makeDynString ("","value");
+
+
+  xxdepei[1] = makeDynInt (1);
+
+  xxdepei[2] = makeDynInt (0,DPEL_BOOL);
+
+ 
+
+// Create the datapoint type
+
+  n = dpTypeCreate(xxdepes,xxdepei);
+
+  DebugN ("Datapoint Type created ");
+
+  }
+ 
+  dyn_string types;
+  types = dpTypes("RPCRack");
+  //DebugN(types);
+  if(dynlen(types)<1) 
+  {
+  int n;
+
+  dyn_dyn_string xxdepes;
+
+  dyn_dyn_int xxdepei;
+
+ 
+
+// Create the data type
+
+  xxdepes[1] = makeDynString ("RPCRack","");
+
+  xxdepes[2] = makeDynString ("","value");
+  
+  xxdepei[1] = makeDynInt (1);
+
+  xxdepei[2] = makeDynInt (0,DPEL_FLOAT);
+
+
+// Create the datapoint type
+
+  n = dpTypeCreate(xxdepes,xxdepei);
+
+  DebugN ("Datapoint Type created ");
+
+  }  
+}
+
+
+fsmAdd()
+{
+ 
+  if(fwFsmTree_isNode("RPC_GAS_TOP")) // if top node exist, detete it
+                                     fwFsmTree_removeNode("FSM", "RPC_GAS_TOP", 1);
+  fwFsmTree_addNode("FSM", "RPC_GAS_TOP", "RPC_TOPGAS", 1);
+   fwFsmTree_setNodeLabel("RPC_GAS_TOP","RPC Gas System");
+  dyn_string children = makeDynString("Barrel", "Endcap", "Infrastructure");
+  for(int i=1; i<=dynlen(children); i++){
+   fwFsmTree_addNode("RPC_GAS_TOP",RPCGasGetSysName()+children[i],"RPCGasStatusNode",0); 
+    }
+  linkGGM();
+  fwFsmTree_generateAll();                                     
+  fwFsmTree_refreshTree();  
+}
+void linkGGM(){
+    
+   dyn_string sysnum,exInfo;
+   fwInstallation_getApplicationSystem("CMS_RPCfwGGM",sysnum);
+   if(dynlen(sysnum)>0)
+   { 
+   dyn_string chldren;
+   fwTree_getChildren(sysnum[1]+"FSM",chldren,exInfo);
+   
+    if(dynlen(chldren)==1)
+    {
+      fwFsmTree_importType("RPC_GGMDevice",strrtrim(sysnum[1],":"));
+      fwFsmTree_addNode("RPC_GAS_TOP",sysnum[1]+chldren[1],"RPC_GGMDevice",1);
+    }     
+  }else
+    Debug("Gas Link not found");
+}
+void RPCDIP_createConfigDp() {
+    string configDp=  RPCDIP_CONFIG_DP;
+    if (! dpExists(configDp) ) {
+      DebugN("RPCDIP: creating " + configDp);      
+      dpCreate(configDp, "_FwDipConfig");
+    }
+    	DebugN("RPCDIP: Setting DIP manager configuration");
+
+ 	dpSet(configDp + ".publishName",getHostname()+"_"+rand());
+	dpSet(configDp + ".queryTimeout",15);
+    
+}

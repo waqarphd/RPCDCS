@@ -1,0 +1,430 @@
+/*
+* GGM Gas Gain Monitoring System
+*
+ version 2.6
+ 
+*/
+#uses "fwRDBArchiving/fwRDBConfig.ctl"
+#uses "CMS_RPCfwGeneral/CMS_RPCfwGeneral.ctl"
+
+const string componentName = "CMS_RPCfwGGM";
+const string FSMVersion = "1.1";//To be increased every time the FSM structure changes
+const string standardRecipe = "cms_rpc_ggm_Rec_v1.0";
+
+main()
+{
+ 
+CMS_RPCfwGeneralInstallation_RPCDebug("null"); 
+CMS_RPCfwGeneralInstallation_RPCDebug("START Installation");
+
+  dyn_string exc;  
+  if (! isFunctionDefined("fwInstallationUtils_loadConfigurations")) {
+    DebugTN("Cannot run post install without fwInstallationUtils!!!");
+    return;
+  }
+  
+  //hardware part
+  createnvdatapoint();
+  CMS_RPCfwGeneralInstallation_createUtilities();
+  if(installHardwareView()<0) return; 
+  
+ //FSM part 
+
+  bool reinstallFSM = CMS_RPCfwGeneralInstallation_getInstallationKey("FSMVersionInstalled_"+componentName,FSMVersion);
+  
+  if (reinstallFSM) installFSM();
+
+  
+  bool error = false;
+   
+  SetDeviceConditionDB();
+   
+  // Services 
+  wp_check();
+  
+  DebugTN("Configuring OPC Server");
+  CMSfw_CAENOPCConfigurator_configureFromFwCaenDps(exc);
+  fwInstallationUtils_appendManagers(componentName,exc);
+
+}
+bool createHardwareTree() {
+
+  dyn_string exInfo;
+  fwInstallationUtils_loadConfigurations(componentName,exInfo);
+
+  CMS_RPCfwGeneralInstallation_RPCDebug("Finished loading configurations ", exInfo);
+  if (dynlen(exInfo)>0) return false;
+  CMS_RPCfwGeneralInstallation_RPCDebug("Hardware Dps Imported");   
+  return true;
+}  
+
+void installFSM(){
+
+ generateTreeforDevice();
+
+// Insert the device node using hardware created
+
+ InsertHV();
+ 
+ fwFsmTree_generateAll();
+ fwFsmTree_refreshTree();  
+  
+  
+}
+
+
+
+int installHardwareView(){
+CMS_RPCfwGeneralInstallation_createOPCGroup(5);
+
+bool bRes = createHardwareTree();
+  if (!bRes) {
+    CMS_RPCfwGeneralInstallation_RPCDebug("**** PROBLEMS IN CREATING DATA POINTS. Stopping the postInstall for RPC Barrel HV");
+    return -1;
+  }
+
+  //Apply recipe  
+  
+  dyn_string exceptionInfo,list;
+  dyn_dyn_mixed recipeObject;
+  fwConfigurationDB_checkInit(exceptionInfo);
+ 	fwConfigurationDB_getRecipeFromDB("",list, fwDevice_LOGICAL,standardRecipe, recipeObject,exceptionInfo);
+	  if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+         return -1;  
+        }
+
+	fwConfigurationDB_ApplyRecipe( recipeObject, fwDevice_LOGICAL,exceptionInfo); 
+        if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+         return -1;  
+          }
+return 0;
+
+}
+
+void generateTreeforDevice()
+{
+string top_node;
+
+if(!fwFsmTree_isNode("RPC_GAS_GAIN"))
+  if(fwFsmTree_isNode("RPC_GAS_TOP"))
+    top_node=fwFsmTree_addNode("RPC_GAS_TOP","RPC_GAS_GAIN","RPC_GGMDevice",1);
+else fwFsmTree_removeNode("RPC_GAS_TOP","RPC_GAS_GAIN");
+
+}
+
+
+void InsertHV()
+{
+  int pos,pos1;
+  string names;
+  dyn_string exInfo;
+  dyn_string deviceList=dpAliases("*rpc_ggm_*","*");
+  //DebugN(deviceList);
+
+  for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	    fwFsmTree_addNode("RPC_GAS_GAIN",deviceList[i] ,"FwCaenChannelGGMHV", 0);
+        }
+  //DebugN("HV ready");
+}
+
+void SetDeviceConditionDB(){
+// Ricorda che dovrebbe partire anche il manager ed essere settato
+dyn_string deviceList;
+bool configExists; 
+string archiveClassName="RDB-99) EVENT"; //"ValueArchive_0000";//Archive's name
+int archiveType=DPATTR_ARCH_PROC_SIMPLESM,count=1,value,l;
+int smoothProcedure=DPATTR_TIME_AND_VALUE_SMOOTH ,pos;//set old/new comparition 
+float deadband=0.2;
+float timeInterval=3600; 
+bool isActive; 
+dyn_string exceptionInfo,channels,boards;
+
+
+//dynClear(deviceList);
+//dynAppend(deviceList,dpAliases("*/GGM/*","*"));
+dynAppend(deviceList,dpAliases("*GGM/HV/*","*"));
+//dynAppend(deviceList,dpNames("*","RPC_GGM"));
+
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+
+fwArchive_setMultiple(deviceList[i]+".actual.iMon" , archiveClassName,archiveType,smoothProcedure,
+0.02, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".actual.vMon" , archiveClassName,archiveType,smoothProcedure,
+2, timeInterval,exceptionInfo);
+// pos = strpos(deviceList[i],"/chann");
+// boards[i] = substr(deviceList[i],0,pos); 
+
+////************************Slow parameter
+fwArchive_setMultiple(deviceList[i]+".readBackSettings.i0" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+deadband, 10000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".readBackSettings.v0" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+deadband, 10000,exceptionInfo);
+
+
+// Every 6 hours
+fwArchive_setMultiple(deviceList[i]+".readBackSettings.rDwn" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+deadband, 20000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".readBackSettings.rUp" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+deadband, 20000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".readBackSettings.tripTime" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+deadband, 20000,exceptionInfo);
+// Every Hour
+fwArchive_setMultiple(deviceList[i]+".actual.status" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+deadband, timeInterval,exceptionInfo);
+}
+
+
+//Archiving DAQ variables
+float deadband=5;
+float timeInterval=900; 
+dynClear(deviceList);
+dynAppend(deviceList,dpNames("*","RPC_GGM"));
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+fwArchive_setMultiple(deviceList[i]+".daq.avalanche" , archiveClassName,archiveType,smoothProcedure,
+50, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".daq.streamer" , archiveClassName,archiveType,smoothProcedure,
+50, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".daq.charge" , archiveClassName,archiveType,smoothProcedure,
+5, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".daq.ratio" , archiveClassName,archiveType,smoothProcedure,
+0.005, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".daq.efficiency" , archiveClassName,archiveType,smoothProcedure,
+0.5, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".daq.corrected_charge" , archiveClassName,archiveType,smoothProcedure,
+5, timeInterval,exceptionInfo);
+
+//Setting different smooth procedure for working point DPs
+//smoothProcedure=DPATTR_TIME_SMOOTH; 
+
+fwArchive_setMultiple(deviceList[i]+".daq.WP.avalanche" , archiveClassName,archiveType,smoothProcedure,
+0.05, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".daq.WP.streamer" , archiveClassName,archiveType,smoothProcedure,
+0.05, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".daq.WP.charge" , archiveClassName,archiveType,smoothProcedure,
+0.05, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".daq.WP.ratio" , archiveClassName,archiveType,smoothProcedure,
+0.05, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".daq.WP.efficiency" , archiveClassName,archiveType,smoothProcedure,
+0.05, timeInterval,exceptionInfo);
+
+//smoothProcedure=DPATTR_TIME_AND_VALUE_SMOOTH
+}
+
+//Archiving pico environmental variables
+float timeInterval=7200; 
+dynClear(deviceList);
+dynAppend(deviceList,dpNames("*","RPC_GGM_pico"));
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+fwArchive_setMultiple(deviceList[i]+".temperature_fresh_B" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".temperature_fresh_A" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".temperature_before_B" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".temperature_before_A" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".temperature_box" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".humidity_box" , archiveClassName,archiveType,smoothProcedure,
+3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".pressure_box" , archiveClassName,archiveType,smoothProcedure,
+2, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".temperature_after_A" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".temperature_after_B" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".humidity_fresh_B" , archiveClassName,archiveType,smoothProcedure,
+3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".humidity_fresh_A" , archiveClassName,archiveType,smoothProcedure,
+3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".humidity_before_B" , archiveClassName,archiveType,smoothProcedure,
+3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".humidity_before_A" , archiveClassName,archiveType,smoothProcedure,
+3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".humidity_after_A" , archiveClassName,archiveType,smoothProcedure,
+3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".humidity_after_B" , archiveClassName,archiveType,smoothProcedure,
+3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".pressure_fresh_B" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".pressure_fresh_A" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".pressure_before_B" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".pressure_before_A" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".pressure_after_A" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+".pressure_after_B" , archiveClassName,archiveType,smoothProcedure,
+0.3, timeInterval,exceptionInfo);
+}
+}
+
+void createnvdatapoint()
+{
+int n,n2;
+dyn_dyn_string xxdepes,xxdepes2;
+dyn_dyn_int xxdepei,xxdepei2;
+
+// 
+// ENVIRONMENT
+//
+
+//create data type
+xxdepes[1] = makeDynString ("RPC_GGM_pico","");
+xxdepes[2] = makeDynString ("","temperature_fresh_B");
+xxdepes[3] = makeDynString ("","temperature_fresh_A");
+xxdepes[4] = makeDynString ("","temperature_before_B");                        
+xxdepes[5] = makeDynString ("","temperature_box");
+xxdepes[6] = makeDynString ("","humidity_box");
+xxdepes[7] = makeDynString ("","pressure_box");
+xxdepes[8] = makeDynString ("","temperature_before_A");
+xxdepes[9] = makeDynString ("","temperature_after_B");
+xxdepes[10] = makeDynString ("","temperature_after_A");
+xxdepes[11] = makeDynString ("","humidity_fresh_B");
+xxdepes[12] = makeDynString ("","humidity_fresh_A");
+xxdepes[13] = makeDynString ("","humidity_before_B");                        
+xxdepes[14] = makeDynString ("","humidity_before_A");
+xxdepes[15] = makeDynString ("","humidity_after_B");
+xxdepes[16] = makeDynString ("","humidity_after_A");
+xxdepes[17] = makeDynString ("","pressure_fresh_B");
+xxdepes[18] = makeDynString ("","pressure_fresh_A");
+xxdepes[19] = makeDynString ("","pressure_before_B");                        
+xxdepes[20] = makeDynString ("","pressure_before_A");
+xxdepes[21] = makeDynString ("","pressure_after_B");
+xxdepes[22] = makeDynString ("","pressure_after_A");
+
+// Type reference           
+xxdepei[1] = makeDynInt (DPEL_STRUCT);
+xxdepei[2] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[3] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[4] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[5] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[6] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[7] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[8] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[9] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[10] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[11] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[12] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[13] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[14] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[15] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[16] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[17] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[18] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[19] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[20] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[21] = makeDynInt (0,DPEL_FLOAT);
+xxdepei[22] = makeDynInt (0,DPEL_FLOAT);
+
+//create datapoint type
+n = dpTypeCreate(xxdepes,xxdepei);
+
+if (dpExists("sensors")) DebugN("already exists");
+
+else dpCreate("sensors","RPC_GGM_pico");
+
+
+//DebugN ("RPC GGM envinronmental datapoint created: ",n);
+
+
+
+
+
+// 
+// DAQ VARIABLES
+//
+xxdepes2[1] = makeDynString ("RPC_GGM","","","");
+xxdepes2[2] = makeDynString ("","daq","");
+xxdepes2[3] = makeDynString ("","","avalanche","");
+xxdepes2[4] = makeDynString ("","","streamer","");
+xxdepes2[5] = makeDynString ("","","charge","");
+xxdepes2[6] = makeDynString ("","","ratio","");
+xxdepes2[7] = makeDynString ("","","efficiency","");
+xxdepes2[8] = makeDynString ("","","WP","");
+xxdepes2[9] = makeDynString ("","","","avalanche");
+xxdepes2[10] = makeDynString ("","","","streamer");
+xxdepes2[11] = makeDynString ("","","","charge");
+xxdepes2[12] = makeDynString ("","","","ratio");
+xxdepes2[13] = makeDynString ("","","","efficiency");
+
+// Type reference           
+xxdepei2[1] = makeDynInt (DPEL_STRUCT);
+xxdepei2[2] = makeDynInt (0,DPEL_STRUCT);
+xxdepei2[3] = makeDynInt (0,0,DPEL_FLOAT);
+xxdepei2[4] = makeDynInt (0,0,DPEL_FLOAT);
+xxdepei2[5] = makeDynInt (0,0,DPEL_FLOAT);
+xxdepei2[6] = makeDynInt (0,0,DPEL_FLOAT);
+xxdepei2[7] = makeDynInt (0,0,DPEL_FLOAT);
+xxdepei2[8] = makeDynInt (0,0,DPEL_STRUCT);
+xxdepei2[9] = makeDynInt (0,0,0,DPEL_FLOAT);
+xxdepei2[10] = makeDynInt (0,0,0,DPEL_FLOAT);
+xxdepei2[11] = makeDynInt (0,0,0,DPEL_FLOAT);
+xxdepei2[12] = makeDynInt (0,0,0,DPEL_FLOAT);
+xxdepei2[13] = makeDynInt (0,0,0,DPEL_FLOAT);
+
+  
+}
+
+wp_check() {
+   int rc;
+
+   rc=dpSet("rpc_ggm_ch01.daq.WP.charge:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch02.daq.WP.charge:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch03.daq.WP.charge:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch04.daq.WP.charge:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch05.daq.WP.charge:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch06.daq.WP.charge:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch07.daq.WP.charge:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch08.daq.WP.charge:_dp_fct.._type", DPCONFIG_NONE); 
+
+   rc=dpSet("rpc_ggm_ch01.daq.WP.avalanche:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch02.daq.WP.avalanche:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch03.daq.WP.avalanche:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch04.daq.WP.avalanche:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch05.daq.WP.avalanche:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch06.daq.WP.avalanche:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch07.daq.WP.avalanche:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch08.daq.WP.avalanche:_dp_fct.._type", DPCONFIG_NONE); 
+
+   rc=dpSet("rpc_ggm_ch01.daq.WP.streamer:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch02.daq.WP.streamer:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch03.daq.WP.streamer:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch04.daq.WP.streamer:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch05.daq.WP.streamer:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch06.daq.WP.streamer:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch07.daq.WP.streamer:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch08.daq.WP.streamer:_dp_fct.._type", DPCONFIG_NONE); 
+
+   rc=dpSet("rpc_ggm_ch01.daq.WP.efficiency:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch02.daq.WP.efficiency:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch03.daq.WP.efficiency:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch04.daq.WP.efficiency:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch05.daq.WP.efficiency:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch06.daq.WP.efficiency:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch07.daq.WP.efficiency:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch08.daq.WP.efficiency:_dp_fct.._type", DPCONFIG_NONE); 
+
+   rc=dpSet("rpc_ggm_ch01.daq.WP.ratio:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch02.daq.WP.ratio:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch03.daq.WP.ratio:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch04.daq.WP.ratio:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch05.daq.WP.ratio:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch06.daq.WP.ratio:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch07.daq.WP.ratio:_dp_fct.._type", DPCONFIG_NONE); 
+   rc=dpSet("rpc_ggm_ch08.daq.WP.ratio:_dp_fct.._type", DPCONFIG_NONE); 
+
+}
+
