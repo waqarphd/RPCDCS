@@ -1,0 +1,499 @@
+V 10
+1
+LANG:1 12 WheelSummary
+PANEL,-1 -1 572 470 N "_3DFace" 1
+"$2"
+E E E E E 1 -1 -1 0  30 380
+""0  1
+E "// verion
+#uses \"CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl\"
+dyn_string nchannels,tchannels, channels,ch;
+ 
+dyn_string channels;
+dyn_string Wchs;
+dyn_string Tchs;
+  dyn_string chann;
+  dyn_string TChannels;
+  string chec;
+  
+
+getChannelsName(dyn_string logicName,dyn_string &tchannels)    
+{
+for (int i=1;i<=dynlen(logicName);i++)
+	{
+	channels[i] = fwDU_getPhysicalName(logicName[i]);
+	}
+//DebugN(\"in scope    channels  = \",tchannels);
+
+}
+
+
+
+waitForPanel()
+{
+	int i;
+}
+DisableAllInPanel()
+{
+Button2.enabled = FALSE;
+
+ }
+enableControl(){
+
+   }
+enableDebug(){
+Button2.enabled = TRUE;
+ 
+  }
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+if (hasControl) enableControl();
+if (hasDebug) enableDebug();
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+13 2
+"Button1"
+""
+1 280 430 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 428 372 462
+
+T 
+1
+LANG:1 5 Close
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+25 15
+"TABLE2"
+""
+1 50 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 48 48 312 422
+"dyn_dyn_string chambers;
+dyn_string TR2,TR3;
+float globalTmpTemp=0;
+bool firstTime = TRUE;
+string doll;
+
+
+main()
+{
+  dyn_string systemNumber;
+  int pos;
+
+string dollar2=$2;
+//  string dollar2=\"RPC_YEP1NEAR_T_UXC\";  //USED FOR TEST
+  dyn_string split1 = strsplit (dollar2,\"_\");  
+  doll= strltrim (split1[2],\"Y\");
+  doll = strrtrim (doll,\"NEAR\");
+  doll = strrtrim (doll,\"FAR\");  
+
+  dynClear(channels);  
+     string T_COMPONENT = RPCfwSupervisor_getComponent(\"EndcapT\");
+    //string chec = $2;
+      chec = split1[1]+\"_\"+doll;     
+  //   DebugN(T_COMPONENT, doll, chec);
+     endcapRPCfwSupervisor_getChannelsFromName(split1[1]+\"_\"+doll,\"T\",T_COMPONENT,channels);
+     string logname = RPCfwSupervisor_getLogical(channels);
+   //  DebugN(channels);
+ 
+  
+  
+  PRIMITIVE_TEXT7.text = \"Disk Temperatures for \"+split1[1]+\"_\"+doll;
+//  PRIMITIVE_TEXT1.text = \"Disk Temperatures for \"+split1[1]+\"_\" + doll;
+
+  delay(2,0);
+  float value;
+  string val,times,color;
+  dyn_int limit;
+  dyn_float limits;
+  dyn_string temp,exceptionInfo;
+  int pos;
+  int j=1;
+   for(int i = 1; i<=dynlen(channels);i++)    
+     {  
+       dpGet(channels[i]+\".actual.temperature\",value);
+       dyn_string split = strsplit(fwDU_getLogicalName(channels[i]),\"/\");
+       if(strpos(split[3],\"_R\")>=0)   
+       {
+         dynAppend(chambers[1],channels[i]);   ///copying H/w channels to chambers[1]  
+         dynAppend(chambers[2],split[3]);    
+         dynAppend(chambers,temp);
+         dynAppend(Tchs, channels[i]);
+         dynClear(temp);
+         val = value;      
+         pos = strpos(val,\".\");
+         if(pos>0)           val = substr(val,0,pos+2);
+         dpConnect(\"refresh\",channels[i]+\".actual.temperature\");       
+         this.appendLine(\"chamber\",chambers[2][j],\"input\",val);
+   
+//         string color;
+//         dpGet(channels[i]+\".actual.temperature:_alert_hdl.._act_state_color\", color);
+//         this.cellBackColRC(j-1,\"input\", color); 
+//          DebugN(split[3],color);
+
+        
+        
+       if(value <= 0)
+         this.cellBackColRC(j-1,\"input\", \"FwStateOKNotPhysics\");
+       else if(value < 23)
+         this.cellBackColRC(j-1,\"input\",\"FwStateOKPhysics\");
+       else if (value<24)
+         this.cellBackColRC(j-1,\"input\",\"FwAlarmWarnAck\");
+       else
+         this.cellBackColRC(j-1,\"input\",\"FwAlarmErrorAck\");                 
+       j++;       
+       }
+       else         DebugN(\"COOLANT sensor\");       
+     }
+   
+ //  DebugN(\"Tchannels\",Tchs);
+  }
+
+
+getvalue(string dpe,float value)
+{  
+   globalTmpTemp = value;
+}
+
+
+refresh(string dpe, float value)
+ {   
+  string column,val,strval;
+  string name = dpSubStr(dpe,DPSUB_SYS_DP);
+  int num = dynContains(chambers[1],name);
+  strval = value;
+  int pos = strpos(strval,\".\");
+  if(pos>0)         strval = substr(strval,0,pos+2);
+  this.cellValueRC(num-1,\"input\",strval);  
+  
+  string tempdpe = channels[1]+\".actual.temperature\";
+  float tempMax = 0; float tempMin = 0; float maxTemp = 0; float minTemp = 100;
+  for ( int i = 1 ; i<= dynlen(channels) ; i++)
+  {
+
+     dyn_string split = strsplit(fwDU_getLogicalName(channels[i]),\"/\");
+     if(strpos(split[3],\"_R\")>=0)   
+       {
+         tempdpe = channels[i]+\".actual.temperature\";
+         dpGet(tempdpe, tempMax);
+         if( maxTemp < tempMax)   {     maxTemp = tempMax;   }
+         dpGet(tempdpe, tempMin);
+         if( minTemp > tempMin)   {     minTemp = tempMin;   }
+       }
+   } 
+  LCD1.value=maxTemp;  LCD2.value=minTemp;     
+  
+//    string color;
+//        dpGet(name+\".actual.temperature:_alert_hdl.._act_state_color\", color);
+//        this.cellBackColRC(num-1,\"input\", color); 
+     //    DebugN(split[3],color);
+  
+        if(value <= 0)
+         this.cellBackColRC(num-1,\"input\", \"FwStateOKNotPhysics\");
+       else if(value < 23)
+         this.cellBackColRC(num-1,\"input\",\"FwStateOKPhysics\");
+       else if (value<24)
+         this.cellBackColRC(num-1,\"input\",\"FwAlarmWarnAck\");
+       else
+         this.cellBackColRC(num-1,\"input\",\"FwAlarmErrorAck\");  
+   }" 0
+"main(int row, string column, string value)
+{
+// dynUnique(ch);
+// string channelLogNameSubStr=this.cellValueRC(row,\"Channel\");
+//DebugN(\"channel \",ch,\"row\",row,\"column\",column,\"value\",value);
+// if(column==\"Details\")
+// 	{
+// 	int position,i=0;
+// 	do
+// 		{
+// 		i++;
+// 		position=strpos(ch[i],channelLogNameSubStr);
+// 		}
+// 	while(position==-1 && i<dynlen(channels));
+	//ChildPanelOnCentral(\"CMS_RPCfwDevicesEndcap/CMS_RPCfwDevicesEndcapFwCaenChannelRPCStd.pnl\", channelLogNameSubStr,
+									//	makeDynString(\"$2:\"+allChannelDps[i]));
+//         ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfw_HardwareEndcapTemperature.pnl\", channelLogNameSubStr,
+//                             makeDynString(\"$2:\"+\".actual.temperature\"));                                                                        
+// 	}
+
+
+}
+" 0
+ 1 0 1 2 0 "chamber" 14 1 0 "s" 1
+LANG:1 7 Chamber
+E
+1
+LANG:1 0 
+
+165 "input" 7 1 0 "s" 1
+LANG:1 11 Temperature
+E
+1
+LANG:1 0 
+
+93 
+26 26 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 16
+"PUSH_BUTTON1"
+""
+1 390 230 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 388 228 492 272
+
+T 
+1
+LANG:1 6 Trends
+"main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  
+
+
+   //ChildPanelOnCentral(\"CMS_RPCfwSupervisor//CMS_RPCfwSupervisorChamberTempTrend.pnl\",
+  //ChildPanelOnCentral(\"CMS_RPCfwSupervisor//CMS_RPCfwSupervisorTempTrend.pnl\",
+    ChildPanelOnCentral(\"CMS_RPCfwSupervisor//CMS_RPCfwSupervisorDiskTempTrend.pnl\",
+  
+        \"Chamber Temperature Trend\",   makeDynString(\"$cha:\" + Tchs , \"$2:\" + chec ));
+//      makeDynString(\"$2:\" + $2 ));
+  //  DebugN(\"$2: + $2  == \", $2);
+}" 0
+ E E E
+30 18
+"FRAME1"
+""
+1 16 41 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+24 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.661764705882353 0 0.886075949367088 339.411764705882 103.670886075949 0 E 16 41 153 121
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 9 Max Value
+29 20
+"LCD1"
+""
+1 -541.86046511628 83.9344262295084 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+11
+"numDigits" "int 4"
+"midLineWidth" "int 0"
+"lineWidth" "int 1"
+"margin" "int 0"
+"frameShape" "enum 1"
+"smallDecimalPoint" "bool TRUE"
+"segmentStyle" "enum 1"
+"decimals" "int 1"
+"mode" "enum 1"
+"backgroundOrigin" "enum 0"
+"frameShadow" "enum 32"
+ 360 160 431 201
+19 NUMLED.NumLEDCtrl.1
+0
+"main()
+{
+  //CMS_RPCfwHardware_getDeviceChannels($2, \"T\",channels);
+  //DebugN(channels[2][1]);
+//  string dpe = $2+\".actual.temperature\";
+ // dpConnect(\"refresh\",true,dpe);
+}
+// refresh(string dpe, float values)
+// {
+ // this.value= values;
+//   }
+" 0
+29 22
+"LCD2"
+""
+1 -441.86046511628 83.9344262295084 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+11
+"numDigits" "int 4"
+"midLineWidth" "int 0"
+"lineWidth" "int 1"
+"margin" "int 0"
+"frameShape" "enum 1"
+"smallDecimalPoint" "bool TRUE"
+"segmentStyle" "enum 1"
+"decimals" "int 1"
+"mode" "enum 1"
+"backgroundOrigin" "enum 0"
+"frameShadow" "enum 32"
+ 460 160 531 201
+19 NUMLED.NumLEDCtrl.1
+0
+"main()
+{
+  //CMS_RPCfwHardware_getDeviceChannels($2, \"T\",channels);
+  //DebugN(channels[2][1]);
+ // string dpe = $2+\".actual.temperature\";
+ // dpConnect(\"refresh\",true,dpe);
+}
+// refresh(string dpe, float values)
+// {
+ // this.value= values;
+//   }
+" 0
+30 23
+"FRAME2"
+""
+1 16 41 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+34 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.661764705882353 0 0.886075949367088 439.411764705882 103.670886075949 0 E 16 41 153 121
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 9 Min Value
+2 30
+"PRIMITIVE_TEXT7"
+""
+1 130 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.936046511627907 0 1.33333333333333 55.1162790697674 -16.6666666666667 1 E 80 20 420 40
+0 2 2 "0s" 0 0 0 64 0 0  80 20 1
+1
+LANG:1 101 -*-MS Shell Dlg-bold-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,758,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 0 
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

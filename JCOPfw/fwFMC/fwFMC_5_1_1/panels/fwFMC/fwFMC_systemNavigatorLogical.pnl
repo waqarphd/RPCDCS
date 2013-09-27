@@ -1,0 +1,437 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 431 495 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  refreshPanel();
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwFMC/fwFMC.ctl\"
+#uses \"fwFMC/fwFMCIpmi.ctl\"
+    
+refreshPanel()
+{
+  dyn_string groups;
+  time ts;
+  string status;
+  string color;
+  dyn_string exceptionInfo;
+  int on = 0, off = 0, unknown = 0, mix = 0;
+  int refresh = 10;
+  dyn_int manNums;
+  dyn_string ds = strsplit($sDpName, \":\");
+  string sytemName = ds[1] + \":\";
+  
+  
+  fwFMC_getGroups(groups, exceptionInfo);
+  
+  if(dynlen(exceptionInfo))
+    fwExceptionHandling_display(exceptionInfo);
+  
+  setValue(\"tblGroups\", \"appendLines\", dynlen(groups));
+  
+  while(1)
+  {
+    on = 0;
+    unknown = 0;
+    off = 0;
+    mix = 0;
+    
+    //Check DIM manager states:
+    dpGet(\"_Connections.Device.ManNums\", manNums);
+    
+    if(dynContains(manNums, FW_FMC_IPMI_DIM) <= 0)
+    {
+     ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"IPMI DIM Manager \" + FW_FMC_IPMI_DIM + \" not running\")); 
+     delay(refresh);
+     continue;
+    }
+ 
+    if(dynContains(manNums, FW_FMC_TEMPORARY_MONITORING_DIM) <= 0 || dynContains(manNums, FW_FMC_CONTINUOUS_MONITORING_DIM) <= 0)
+    {
+     ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"Monitoring DIM Managers \" + FW_FMC_CONTINUOUS_MONITORING_DIM + \" and \" + FW_FMC_TEMPORARY_MONITORING_DIM + \" not running\")); 
+     delay(refresh);
+     continue;
+    }
+    
+    if(dynContains(manNums, FW_FMC_TM_LOGGER_DIM) <= 0)
+    {
+     ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"Monitoring DIM Managers \" + FW_FMC_TM_LOGGER_DIM + \" not running\")); 
+     delay(refresh);
+     continue;
+    } 
+    
+    if(dynlen(groups) == 0)
+    {
+      txOn.text = \"0 groups in ON state\";
+      txOff.text = \"0 groups in OFF state\";
+      txOff.foreCol = \"_3DText\";
+      txUnknown.text = \"0 groups in UNKNOWN state\";
+      txUnknown.foreCol = \"_3DText\";
+      txMix.text = \"0 groups in MIXED state, i.e. nodes ON and OFF\";
+      txMix.foreCol = \"_3DText\";
+    }
+    
+    for(int i = 1; i <= dynlen(groups); i++)
+    {
+      fwFMC_getGroupPowerStatus(groups[i], sytemName, status, exceptionInfo);
+      if(dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return;}
+      
+      setMultiValue(\"tblGroups\", \"cellValueRC\", i-1, \"group\", groups[i],
+                    \"tblGroups\", \"cellValueRC\", i-1, \"powerStatus\", status);   
+      
+      if(status == FW_FMC_ERROR_POWER_STATE)
+      {
+        ++on;
+        color = \"FwAlarmFatalAck\";
+      }
+      else if(status == FW_FMC_ON_POWER_STATE)
+      {
+        ++on;
+        color = \"FwStateOKPhysics\";
+      }
+      else if(status == FW_FMC_OFF_POWER_STATE)
+      {
+        ++off;
+        color = \"FwStateOKNotPhysics\";
+      }
+      else if(status == FW_FMC_MIXED_POWER_STATE)
+      { 
+        ++mix; 
+        color = \"FwModeTreeIncomplete\";
+      }
+      else if(FW_FMC_UNKNOWN_POWER_STATE)
+      {
+        ++unknown;
+        color = \"FwAlarmFatalAck\";
+      }
+             
+      tblGroups.cellBackColRC(i-1, \"group\") = color;
+      tblGroups.cellBackColRC(i-1, \"powerStatus\") = color;
+      tblGroups.cellBackColRC(i-1, \"timestamp\") = color;
+      
+      txOn.text = on + \" groups in ON state\";
+      
+      txOff.text = off + \" groups in OFF state\";
+      if(off)
+        txOff.foreCol = \"FwAlarmErrorAck\";
+      else
+        txOff.foreCol = \"_3DText\";
+      
+      txUnknown.text = unknown + \" groups in UNKNOWN state\";
+      if(unknown)
+        txUnknown.foreCol = \"FwAlarmFatalAck\";
+      else
+        txUnknown.foreCol = \"_3DText\";
+      
+      txMix.text = mix + \" groups in MIXED state, i.e. nodes ON and OFF\";
+      if(mix)
+        txMix.foreCol = \"FwAlarmErrorAck\";
+       else
+        txMix.foreCol = \"_3DText\";
+   }
+    
+    
+    delay(refresh);
+  }
+  
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tblGroups"
+""
+1 8 6 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  6 4 416 272
+"main()
+{
+  tblGroups.tableMode(TABLE_SELECT_MULTIPLE);
+  tblGroups.selectByClick(TABLE_SELECT_LINE);  
+ 
+}" 0
+E 1 0 1 2 0 "group" 27 1 0 "s" 1
+LANG:1 5 Group
+E
+1
+LANG:1 0 
+
+258 "powerStatus" 13 1 0 "s" 1
+LANG:1 12 Power Status
+E
+1
+LANG:1 0 
+
+128 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+13 3
+"PUSH_BUTTON1"
+""
+1 220 410 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  218 408 318 442
+
+T 
+1
+LANG:1 10 Switch Off
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  string group;
+  int error = 0;
+  
+  dyn_int lines = tblGroups.getSelectedLines();
+  
+  if(dynlen(lines) <= 0)
+    return;
+  
+  ChildPanelOnCentralReturn(\"vision/MessageInfo\", \"Question\", makeDynString(\"$1:Are you sure you want to switch off\\nthe selected groups\", \"$2:Yes\", \"$3:No\"), df, ds);
+  
+  if(dynlen(df) && df[1] >= 1.)
+  {
+    openProgressBar(\"Switch off selected nodes\", \"config_site_24.bmp\", \"Switching off...\", \"Proceeding with first group\", \"Please wait!\", 2);
+    for(int i = 1; i <= dynlen(lines); i++)
+    {
+      getValue(\"tblGroups\", \"cellValueRC\", lines[i], \"group\", group);
+      
+      showProgressBar(\"\", \"\", \"Switching off nodes in group \" + group, i/dynlen(lines)*100.);
+      error += fwFMCIpmi_switchGroupOff(group);        
+    }
+    closeProgressBar();
+  }
+    
+  if(error)
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors switching off some groups\", \"$2:Yes\"));
+    
+}" 0
+ E E E
+13 4
+"PUSH_BUTTON2"
+""
+1 324 410 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  322 408 422 442
+
+T 
+1
+LANG:1 9 Switch On
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  string group;
+  int error = 0;
+  
+  dyn_int lines = tblGroups.getSelectedLines();
+  
+  if(dynlen(lines) <= 0)
+    return;
+  
+//  ChildPanelOnCentralReturn(\"vision/MessageInfo\", \"Question\", makeDynString(\"$1:Are you sure you want to switch off\\nthe selected nodes\", \"$2:Yes\", \"$3:No\"), df, ds);
+  
+//  if(dynlen(df) && df[1] >= 1.)
+//  {
+    openProgressBar(\"Switch on selected groups\", \"config_site_24.bmp\", \"Switching on...\", \"Proceeding with first group\", \"Please wait!\", 2);
+    for(int i = 1; i <= dynlen(lines); i++)
+    {
+      getValue(\"tblGroups\", \"cellValueRC\", lines[i], \"group\", group);
+      showProgressBar(\"\", \"\", \"Switching on group \" + group, i/dynlen(lines)*100.);
+      error += fwFMCIpmi_switchGroupOn(group);
+    }
+//  }
+  closeProgressBar();
+  if(error)
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors switching on some groups\", \"$2:Yes\"));
+    
+}" 0
+ E E E
+13 5
+"PUSH_BUTTON3"
+""
+1 324 448 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  322 446 422 480
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+2 6
+"txOn"
+""
+1 22 312 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 312 352 332
+0 2 2 "0s" 0 0 0 64 0 0  22 312 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 4 txOn
+2 7
+"txOff"
+""
+1 22 352 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 352 352 372
+0 2 2 "0s" 0 0 0 64 0 0  22 352 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 5 txOff
+2 8
+"txUnknown"
+""
+1 172 312 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 172 312 502 332
+0 2 2 "0s" 0 0 0 64 0 0  172 312 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 9 txUnknown
+30 9
+"FRAME1"
+""
+1 10 283 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.26436781609195 0 -77.81609195402299 0 E 10 283 421 371
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Summary
+2 10
+"txMix"
+""
+1 172 352 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 172 352 502 372
+0 2 2 "0s" 0 0 0 64 0 0  172 352 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 5 txMix
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

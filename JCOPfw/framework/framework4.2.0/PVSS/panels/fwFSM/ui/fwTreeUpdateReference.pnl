@@ -1,0 +1,339 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 320 124 N "_3DFace" 3
+"$1"
+"$2"
+"$3"
+E E E E E 1 -1 -1 0  242 152
+""0  1
+E "dyn_string Nodes, Objects, Domains, TNodes;
+
+get_objects_and_nodes()
+{
+  string node;
+  string dev, type, domain, obj;
+  dyn_string exInfo, nodes;
+  int i, j;
+    
+  node = $1;
+	fwTree_getNodeDevice(node, dev, type, exInfo);
+	dynAppend(Objects, get_all_objects(type));
+	for(i = 1; i <= dynlen(Objects); i++)
+	{
+		domain = fwFsm_getAssociatedDomain(Objects[i]);
+		obj = fwFsm_getAssociatedObj(Objects[i]);
+		if(domain != \"\")
+			dynAppend(Domains, domain);
+		else
+			dynAppend(Domains, obj);
+//		fwTree_getChildren(domain, nodes, exInfo);
+/*
+		fwFsmTree_getChildrenRec(domain, nodes);
+DebugN(domain, nodes);
+		for(j = 1; j <= dynlen(nodes); j++)
+		{
+			fwTree_getNodeDevice(nodes[j], dev, type, exInfo);
+			dev = fwFsm_extractSystem(dev);
+			if(dev == obj)
+			{
+				dynAppend(Nodes, nodes[j]);
+				break;
+			}
+		}
+*/
+		dynAppend(Nodes, obj);				
+	}
+}
+
+dyn_string get_all_objects(string type)
+{
+dyn_string syss, objs, items, nodes;
+int i;
+string sys, item, name, fsmitem, obj, dev, tnode;
+
+	sys = fwFsm_getSystemName();
+	fwFsm_getObjectsOfType(type, syss, objs);
+	for(i = 1; i <= dynlen(objs); i++)
+	{
+		item = \"\";
+		if(syss[i] != sys)
+		{
+			item = syss[i]+\":\";
+		}
+		fsmitem = item + objs[i];
+		name = \"\";
+		_fwTree_getDisplayObject(syss[i], $1,  objs[i], name);
+//DebugN(syss[i], $1, objs[i], name);
+                strreplace(fsmitem,\"::\",\"|\");
+		if(name != \"\")
+		{
+			item += name;
+			dynAppend(items,item);
+                        dpGet(fsmitem+\".tnode\",tnode);
+                        dynAppend(TNodes, tnode);
+//DebugN(\"tnode\",tnode); 
+		}
+	}
+//DebugN(\"items\",items);
+	for(i = 1; i <= dynlen(items); i++)
+	{
+		if(fwFsm_isAssociated(items[i]))
+		{
+			obj = fwFsm_getAssociatedObj(items[i]);
+			if(fwFsm_isAssociated(obj))
+			{
+				dynRemove(items, i);
+				dynRemove(TNodes, i);
+				i--;
+			}
+			else
+			{
+				sys = fwFsm_getSystem(items[i]);
+				dev = fwFsm_getPhysicalDeviceName(sys+\":\"+obj);
+				if(dynContains(objs,obj+\"::\"+dev))
+				{
+					dynRemove(items, i);
+				        dynRemove(TNodes, i);
+					i--;
+				}
+			}
+		}
+	}
+	return items;
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 5
+"Text1"
+""
+1 20 20 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  string node, new_node, name;
+  dyn_string exInfo, objs;
+  int type, index, i;
+    
+  node = $1;
+  node = fwTree_getNodeDisplayName(node, exInfo);
+  new_node = $2;
+  type = $3;
+//DebugN(\"received\", $1, $2, $3);
+  if(type == 0)
+  {
+    setValue(\"\",\"text\",node+\" is now: \");
+  }
+  else if(type == 1)
+  {
+    setValue(\"\",\"text\",node+\" is now in domain: \");
+  }
+  else if(type == 3)
+  {
+    setValue(\"\",\"text\",node+\" is now: \");
+  }
+  
+  get_objects_and_nodes();
+
+  if(type == 0)
+  {
+    if((index = dynContains(Nodes, $2)))
+	setValue(\"label\",\"text\",Objects[index]);
+    setValue(\"label\",\"items\",Objects);
+  }
+  else if(type == 1)
+  {
+    if((index = dynContains(Domains, $2)))
+      setValue(\"label\",\"text\",Domains[index]);
+    setValue(\"label\",\"items\",Domains);
+  }
+  else if(type == 3)
+  {
+    if((index = dynContains(TNodes, getSystemName()+$1)))
+    {
+      dynRemove(Objects, index);
+      dynRemove(TNodes, index);
+    }
+    name = fwTree_getNodeDisplayName($1, exInfo);
+//DebugN(Objects, name);
+    for(i = 1; i <= dynlen(Objects); i++)
+    {
+      if(strpos(Objects[i],name) >= 0)
+        dynAppend(objs, Objects[i]);
+    }
+    setValue(\"label\",\"items\",objs);
+  }
+}" 0
+ E 0 1 1 0 1 E U  1 E 22 22 298 38
+0 2 0 "0s" 0 0 0 64 0 0  22 22 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 Add Node:
+13 9
+"Button2"
+""
+1 159 88 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 158 88 232 113
+
+T 
+1
+LANG:1 2 Ok
+"main() 
+{ 
+	string label, sys;
+	int type, index = 0;
+	
+	type = $3;
+	getValue(\"label\",\"text\",label);
+	if(type == 0)
+	{
+		if((index = dynContains(Objects, label)))
+			PanelOffReturn(makeDynFloat(1),makeDynString(Nodes[index]));
+	}
+	if(type == 1)
+	{
+		if((index = dynContains(Domains, label)))
+			PanelOffReturn(makeDynFloat(1),makeDynString(Domains[index]));
+	}
+	if(type == 3)
+	{
+		if((index = dynContains(Objects, label)))
+                {
+                        sys = fwFsm_getSystem(label);
+                        if(sys == \"\")
+                        {
+                          sys = getSystemName();
+                          label = sys+label;
+                        }
+			PanelOffReturn(makeDynFloat(1),makeDynString(label));
+                }
+	}
+	if(!index)
+		PanelOffReturn(makeDynFloat(0),makeDynString());
+} 
+" 0
+ E E E
+13 10
+"Button3"
+""
+1 240 88 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 238 88 312 113
+
+T 
+1
+LANG:1 6 Cancel
+"main() 
+{ 
+	PanelOffReturn(makeDynFloat(0),makeDynString());
+} 
+
+" 0
+ E E E
+14 12
+"label_old"
+""
+1 30 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 48 312 75
+3 "0s" 0 0 0 0 0 -1  E E E
+22 14
+"label"
+""
+1 30 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 48 312 75
+0
+
+E
+E
+E
+ 0 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

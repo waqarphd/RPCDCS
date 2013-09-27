@@ -1,0 +1,1018 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 1040 732 N "_3DFace" 0
+"main()
+{
+  setScaleStyle(SCALE_NONE);
+  loadSettings();
+}" 0
+ "main()
+{
+  int i;
+}" 0
+ E E E 1 -1 -1 0  0 0
+""0  1
+E "dyn_dyn_mixed matrix;
+bool modified;
+const int fwAlarmHandlingGroups_TABLE_COL_NAME = 0;
+const int fwAlarmHandlingGroups_TABLE_COL_VALUE = 1;
+const int fwAlarmHandlingGroups_TABLE_COL_TYPE = 2;
+
+int fwAlarmHandlingGroups_filterActive;
+
+void loadSettings()
+{
+  dyn_string exceptionInfo;
+  dyn_string dsDpeGroups, dsDpeSys, dsDpeAlias, dsDpeDpes, dsDpeFsmCU, dsDpeGroupNames;
+  dyn_string dsSystems, dsDpes, dsDpesOfOneSys, dsFsmCu, dsAliases, dsOrderedGroups, dsMergedGroups;
+  string sGroupId, sSysName, sGroupName, sSys;
+  int i,j,k;
+  
+  TREE1.clear();
+  addItemToTree(\"\",\"Groups\",\"Groups\",fwAlarmHandlingGroups_TYPE_ROOT);
+  sSys = getSystemName();
+  dsDpeGroups = dpNames(sSys+fwAlarmHandlingGroups_CONFIG_DP+\"*\",fwAlarmHandlingGroups_CONFIG_DPTYPE);
+  
+  //if it exists, take the group order list
+  if(dpExists(fwAlarmHandlingGroups_ORDER_DP))
+  {
+    dpGet(fwAlarmHandlingGroups_ORDER_DP, dsOrderedGroups);
+    if(dynlen(dsOrderedGroups))
+    {
+      for(i=1 ; i<=dynlen(dsOrderedGroups) ; i++)
+      {
+        if(dpExists(sSys+fwAlarmHandlingGroups_CONFIG_DP+dsOrderedGroups[i]))
+          dynAppend(dsMergedGroups , sSys+fwAlarmHandlingGroups_CONFIG_DP+dsOrderedGroups[i]);
+      }          
+      //if there are dpes not appearing in the ordered list, append them to the bottom of the list
+      if(dynlen(dsMergedGroups) < dynlen(dsDpeGroups))
+      for(i=1 ; i<=dynlen(dsDpeGroups) ; i++)
+      {
+        if(!dynContains(dsMergedGroups,dsDpeGroups[i]))
+          dynAppend(dsMergedGroups , dsDpeGroups[i]);
+      }   
+      dsDpeGroups = dsMergedGroups;
+    }
+  }
+  else
+  {
+    dpCreate(fwAlarmHandlingGroups_SETUP_DP, fwAlarmHandlingGroups_SETUP_DPTYPE);
+  }
+//   DebugN(\"dsDpeGroups:\",dsDpeGroups);
+  for(i=1 ; i<=dynlen(dsDpeGroups) ; i++)
+  {
+      dynAppend(dsDpeSys , dsDpeGroups[i]+\".systems\");
+      dynAppend(dsDpeAlias , dsDpeGroups[i]+\".aliases\");
+      dynAppend(dsDpeDpes , dsDpeGroups[i]+\".dpes\");
+      dynAppend(dsDpeFsmCU , dsDpeGroups[i]+\".fsmCu\");
+  }  
+  //load the configs
+  if(dynlen(dsDpeGroups))
+  {
+    for(i=1 ; i<=dynlen(dsDpeSys) ; i++)
+    {
+      //group
+      //take the group name 
+      sGroupName = dpGetDescription(dsDpeGroups[i]+\".\",-2);
+      sGroupId = fwAlarmHandlingScreenGroups_getGroupId(dsDpeGroups[i]);
+      addItemToTree(\"Groups\",sGroupId,sGroupId,fwAlarmHandlingGroups_TYPE_GROUP);
+      setItemValue(sGroupId, sGroupName);
+      //systems
+      dpGet(dsDpeSys[i],dsSystems);
+      for(j=1 ; j<=dynlen(dsSystems) ; j++)
+        addItemToTree(sGroupId,sGroupId+\".\"+dsSystems[j],dsSystems[j],fwAlarmHandlingGroups_TYPE_SYS);
+      //dpes
+      dpGet(dsDpeDpes[i],dsDpes);
+      for(j=1 ; j<=dynlen(dsDpes) ; j++)
+      {
+          if(dynlen(dsSystems)>=j && dsDpes[j]!=\"\")
+          {
+            addItemToTree(sGroupId+\".\"+dsSystems[j],sGroupId+\".\"+dsSystems[j]+\".dpes\",fwAlarmHandlingGroups_TYPE_DP,fwAlarmHandlingGroups_TYPE_DP);
+            setItemValue(sGroupId+\".\"+dsSystems[j]+\".dpes\",dsDpes[j]);
+          }
+      }
+      //aliases
+      dpGet(dsDpeAlias[i],dsAliases);
+      for(j=1 ; j<=dynlen(dsAliases) ; j++)
+      {
+          if(dynlen(dsSystems)>=j && dsAliases[j]!=\"\")
+          {
+            addItemToTree(sGroupId+\".\"+dsSystems[j],sGroupId+\".\"+dsSystems[j]+\".alias\",fwAlarmHandlingGroups_TYPE_ALIAS,fwAlarmHandlingGroups_TYPE_ALIAS);
+            setItemValue(sGroupId+\".\"+dsSystems[j]+\".alias\",dsAliases[j]);
+          }
+      }
+      //fsm cu
+      dpGet(dsDpeFsmCU[i],dsFsmCu);
+      for(j=1 ; j<=dynlen(dsFsmCu) ; j++)
+        addItemToTree(sGroupId,sGroupId+\".\"+dsFsmCu[j],dsFsmCu[j],fwAlarmHandlingGroups_TYPE_FSMCU);     
+    }
+  }
+  modified = false;
+}
+
+
+void saveSettings()
+{
+  dyn_string exceptionInfo;
+  dyn_string dsDpeGroups;
+  dyn_string dsGroups, dsGroupsNames, dsSystems, dsDpes, dsDpesOfOneSys, dsFsmCu, dsAliases, dsTmp;
+  string sGroupId, sSysName, sType, sDpGroupName, sGroupName;
+  int i,j,k, lastIndex,ret;
+  
+  dsGroups = TREE1.children(\"Groups\");
+  //get groups
+  for(i=1 ; i<=dynlen(dsGroups) ; i++)
+  {
+    dynClear(dsSystems);
+    dynClear(dsFsmCu);
+    dynClear(dsDpes);
+    dynClear(dsAliases);
+    sGroupName = getItemValue(dsGroups[i]);
+    dsGroupsNames[i] = getItemName(dsGroups[i]);
+    dsTmp = TREE1.children(dsGroups[i]);
+    //get systems
+    for(j=1 ; j<=dynlen(dsTmp) ; j++)
+    {
+      sType = getItemType(dsTmp[j]);
+      switch(sType)
+      {
+        case fwAlarmHandlingGroups_TYPE_SYS:
+          dynAppend(dsSystems, getItemName(dsTmp[j]));
+          dynAppend(dsDpes,\"\");
+          dynAppend(dsAliases,\"\");
+          lastIndex = dynlen(dsDpes);
+          dsDpesOfOneSys = TREE1.children(dsTmp[j]);
+          //get dpes and aliases
+          for(k=1 ; k<=dynlen(dsDpesOfOneSys) ; k++)
+          {
+            switch(getItemType(dsDpesOfOneSys[k]))
+            {
+              case fwAlarmHandlingGroups_TYPE_DP:
+                dsDpes[lastIndex] = getItemValue(dsDpesOfOneSys[k]);
+              break;
+              case fwAlarmHandlingGroups_TYPE_ALIAS:
+                dsAliases[lastIndex] = getItemValue(dsDpesOfOneSys[k]);
+              break;
+            }
+          }          
+        break;
+//         case fwAlarmHandlingGroups_TYPE_FSMCU:
+//           dynAppend(dsFsmCu, getItemName(dsTmp[j]));
+//         break;
+      }
+    }
+    for(j=1 ; j<=dynlen(dsTmp) ; j++)
+    {
+      sType = getItemType(dsTmp[j]);
+      switch(sType)
+      {
+        case fwAlarmHandlingGroups_TYPE_FSMCU:
+          dynAppend(dsFsmCu, getItemName(dsTmp[j]));
+        break;
+      }
+    }    
+    sDpGroupName = fwAlarmHandlingGroups_CONFIG_DP+dsGroupsNames[i];
+    if(!dpExists(sDpGroupName))
+      ret = dpCreate(sDpGroupName,fwAlarmHandlingGroups_CONFIG_DPTYPE);
+    if(ret==0)
+    {
+      dpSetWait(sDpGroupName+\".systems\",dsSystems,
+                sDpGroupName+\".dpes\",dsDpes,
+                sDpGroupName+\".aliases\",dsAliases,
+                sDpGroupName+\".fsmCu\",dsFsmCu);   
+      dpSetDescription(sDpGroupName+\".\",sGroupName);
+    }
+    else
+    {
+      fwException_raise(exceptionInfo, \"ERROR\", \"Config dp type \"+fwAlarmHandlingGroups_CONFIG_DPTYPE+\" does not exist. try reinstalling _fwAlarmHandling\", \"\");
+      fwExceptionHandling_display(exceptionInfo);      
+    }
+  }
+  //upon user choice, create custom order (or not)
+  if(!dpExists(fwAlarmHandlingGroups_SETUP_DP))
+    dpCreate(fwAlarmHandlingGroups_SETUP_DP, fwAlarmHandlingGroups_SETUP_DPTYPE);
+  if(dpExists(fwAlarmHandlingGroups_ORDERMODE_DP))
+  {
+      dpSet(fwAlarmHandlingGroups_ORDERMODE_DP,radioOrder.number);
+  }
+  saveGroupsOrder(dsGroupsNames);
+//   DebugN(\"dsDpeGroups:\",dsDpeGroups);
+  //delete the groups dpes that have been removed from the panel
+  dsDpeGroups = dpNames(getSystemName()+fwAlarmHandlingGroups_CONFIG_DP+\"*\",fwAlarmHandlingGroups_CONFIG_DPTYPE);
+  for(i=1 ; i<=dynlen(dsDpeGroups) ; i++)
+  {
+//     DebugN(\"dsGroups:\",dsGroupsNames);
+//     DebugN(\"dynContains(dsGroups,\"+ fwAlarmHandlingScreenGroups_getGroupId(dsDpeGroups[i])+\"):\",dynContains(dsGroups, fwAlarmHandlingScreenGroups_getGroupId(dsDpeGroups[i])));
+    if(!dynContains(dsGroupsNames, fwAlarmHandlingScreenGroups_getGroupId(dsDpeGroups[i])))
+      dpDelete(dsDpeGroups[i]);
+  }
+  modified = false;
+}
+
+
+addItemToTree(string father, string id, string name, string type)
+{
+  string s_dpIcon;
+ 
+  s_dpIcon = GetDpIcon(type);
+  if(father==\"\" || TREE1.itemExists(father))
+  {
+    TREE1.appendItem(father,id,name);
+    TREE1.setIcon(id,fwAlarmHandlingGroups_TABLE_COL_NAME,s_dpIcon);
+    TREE1.setText(id,fwAlarmHandlingGroups_TABLE_COL_TYPE,type);
+    TREE1.setOpen(id,(type==fwAlarmHandlingGroups_TYPE_ROOT));
+    TREE1.setColumnWidth(fwAlarmHandlingGroups_TABLE_COL_TYPE,0);
+    TREE1.hideColumn(fwAlarmHandlingGroups_TABLE_COL_TYPE);
+    modified = true;
+  }
+}
+
+setItemValue(string id, string value)
+{
+  if(TREE1.itemExists(id))
+  {
+    TREE1.setText(id,fwAlarmHandlingGroups_TABLE_COL_VALUE,value);
+    modified = true;
+  }
+}
+
+setItemName(string id, string name)
+{
+  if(TREE1.itemExists(id))
+  {
+    TREE1.setText(id,fwAlarmHandlingGroups_TABLE_COL_NAME,name);
+    modified = true;
+  }
+}
+
+string getItemName(string id)
+{
+  string name;
+  if(TREE1.itemExists(id))
+    name = TREE1.getText(id,fwAlarmHandlingGroups_TABLE_COL_NAME);
+  return name;
+}
+
+string getItemValue(string id)
+{
+  string val;
+  if(TREE1.itemExists(id))
+    val = TREE1.getText(id,fwAlarmHandlingGroups_TABLE_COL_VALUE);
+  return val;
+}
+
+string getItemType(string id)
+{
+  string val;
+  if(TREE1.itemExists(id))
+    val = TREE1.getText(id,fwAlarmHandlingGroups_TABLE_COL_TYPE);
+  return val;
+}
+
+
+string GetDpIcon(string type)
+{
+  string s_dpIcon;
+  switch (type)
+  {
+    case	fwAlarmHandlingGroups_TYPE_GROUP	:  s_dpIcon = \"dptree/blobstruct.png\";  break;
+    case	fwAlarmHandlingGroups_TYPE_SYS	:  s_dpIcon = \"dptree/system.png\";  break;
+    case	fwAlarmHandlingGroups_TYPE_DP	:  s_dpIcon = \"dptree/dp.png\";  break;
+    case	fwAlarmHandlingGroups_TYPE_ALIAS	:  s_dpIcon = \"dptree/ref.png\";  break;
+    case	fwAlarmHandlingGroups_TYPE_FSMCU	:  s_dpIcon = \"cu_icon.gif\";  break;
+    case	fwAlarmHandlingGroups_TYPE_ROOT	:  s_dpIcon = \"dptree/struct.png\";  break;
+    default :   s_dpIcon = \"dptree/dp.png\";  break;
+  }
+  if(isfile(getPath(PICTURES_REL_PATH, s_dpIcon)))
+    return getPath(PICTURES_REL_PATH, s_dpIcon);
+  else
+    return getPath(PICTURES_REL_PATH,\"dpTree/dp.png\");
+}
+
+
+
+editFilter(string id, string mode)
+{
+  dyn_string dsRet;
+  dyn_float dfRet;  
+  string sCurrentValue, sFilterMode;  
+  string nodeName=getItemName(id);
+
+  switch(mode)
+  {
+    case fwAlarmHandlingGroups_TYPE_DP:
+      sFilterMode = \".dpes\";
+    break;
+    case fwAlarmHandlingGroups_TYPE_ALIAS:
+      sFilterMode = \".alias\";
+    break;
+    default:
+    return;
+  }    
+
+  sCurrentValue = getItemValue(id+sFilterMode);
+//   DebugN(\"id:\",id,\"mode:\",mode,\"sCurrentValue:\",sCurrentValue);
+  ChildPanelOnReturn(\"fwAlarmHandling/fwAlarmHandlingGroupsConfigurationDp.pnl\",
+                     \"GroupEdit\",makeDynString(\"$sMode:\"+mode,\"$sSystemFilter:\"+nodeName,\"$sFilter:\"+sCurrentValue),0,0,dfRet,dsRet);  
+  if(dynlen(dsRet))
+  {
+    if(!TREE1.itemExists(id+sFilterMode))
+      addItemToTree(id, id+sFilterMode, mode, mode);
+    setItemValue(id+sFilterMode,dsRet[1]);
+  }  
+  modified = true;
+}
+
+editNode(string id, string mode, bool addNew=false)
+{
+  dyn_string dsRet;
+  dyn_float dfRet;  
+  string sFilterMode, nodeId;  
+  string nodeName=getItemName(id);
+  string sLabel=getItemValue(id);
+  bool modifyOnly;
+  
+  if(addNew)
+    nodeName=\"\";
+//   DebugN(\"id:\",id,\"mode:\",mode,\"nodeName:\",nodeName);
+  switch(mode)
+  {
+    case fwAlarmHandlingGroups_TYPE_FSMCU:
+      ChildPanelOnModalReturn(\"fwAlarmHandling/fwAlarmHandlingGroupsConfigurationFSMCU.pnl\",
+                         \"GroupEdit\",makeDynString(\"$sMode:\"+mode,\"$sSystemFilter:\"+nodeName,\"$sFilter:\"+nodeName),0,0,dfRet,dsRet);  
+    break;
+    case fwAlarmHandlingGroups_TYPE_GROUP:
+      ChildPanelOnModalReturn(\"fwAlarmHandling/fwAlarmHandlingGroupsConfigurationGroup.pnl\",
+                         \"GroupEdit\",makeDynString(\"$sMode:\"+mode,\"$sSystemFilter:\"+nodeName,\"$sFilter:\"+nodeName,\"$sLabel:\"+sLabel),0,0,dfRet,dsRet);  
+    break;
+    default:
+      ChildPanelOnModalReturn(\"fwAlarmHandling/fwAlarmHandlingGroupsConfigurationSys.pnl\",
+                         \"GroupEdit\",makeDynString(\"$sMode:\"+mode,\"$sSystemFilter:\"+nodeName,\"$sFilter:\"+nodeName),0,0,dfRet,dsRet);  
+    break;
+  }
+  if(dynlen(dsRet))
+    if(strlen(dsRet[1]))
+    {
+      nodeId = id+\".\"+dsRet[1];
+      if(!TREE1.itemExists(nodeId))
+      {
+        if(!addNew)
+          setItemName(id, dsRet[1]);
+        else
+        {
+          if(getItemType(id)==fwAlarmHandlingGroups_TYPE_ROOT)
+            addItemToTree(id, dsRet[1], dsRet[1], mode); 
+          else
+            addItemToTree(id, nodeId, dsRet[1], mode); 
+        } 
+      }
+      modified = true;
+    }
+  if(dynlen(dsRet)>1)//add label
+  {
+    setItemValue(dsRet[1], dsRet[2]);
+    modified = true;
+  }
+}
+
+
+void moveNodeUp(string id)
+{
+  string sIdUp;
+  sIdUp = TREE1.itemAbove(id);
+  sIdUp = TREE1.itemAbove(sIdUp);
+  if(getItemType(sIdUp)!=fwAlarmHandlingGroups_TYPE_ROOT)
+    TREE1.moveItem(id, sIdUp);
+}
+
+void moveNodeDown(string id)
+{
+  string sIdDown;
+  sIdDown = TREE1.itemBelow(id);
+  TREE1.moveItem(id, sIdDown);
+}
+
+
+void closePanel()
+{
+  if(isDollarDefined(\"$bCalledFromAS\"))
+  {
+    bool reopenAS = false;
+    reopenAS = getDollarValue(\"$bCalledFromAS\");
+    if(reopenAS)   
+      ModuleOnWithPanel(\"fwAS\",
+                        0, 0, 0, 0, 1, 1, \"\",
+                        \"fwAlarmHandling/fwAlarmHandlingGroupsScreen.pnl\",
+                        \"\",
+                        makeDynString(\"\"));    
+  }
+  PanelOff();
+}  
+
+
+void reorderNodes(string id)
+{
+  string sNodesList, sNode;
+  dyn_string exc, dsRet, dsChildren;
+  dyn_float dfRet;
+  const string kTmp = \"_temporaryNode\";
+  int i,j;
+  bool ok=true;
+  
+  //can reorder only after saving
+  if(modified)
+  {
+    fwGeneral_openMessagePanel(\"Settings must be saved before proceeding. \\nDo you want to save?\",ok,exc,\"Save settings\");
+    if(ok)
+    {
+      saveSettings();
+      loadSettings();      
+    }            
+  }
+  
+  if(ok)
+  {
+    fwGeneral_dynStringToString( TREE1.children(id), sNodesList);
+    ChildPanelOnModalReturn(\"fwAlarmHandling/fwAlarmHandlingGroupsConfigurationOrder.pnl\",
+                            \"GroupsOrder\",makeDynString(\"$sNodesList:\"+sNodesList),0,0,dfRet,dsRet);  
+    if(dynlen(dsRet))
+    {
+      //update custom order
+      saveGroupsOrder(dsRet);
+      loadSettings();
+    }
+  }
+}
+
+
+void saveGroupsOrder(dyn_string groupList)
+{
+  if(dynlen(groupList))
+  {    if(!dpExists(fwAlarmHandlingGroups_SETUP_DP))
+      dpCreate(fwAlarmHandlingGroups_SETUP_DP, fwAlarmHandlingGroups_SETUP_DPTYPE);
+    if(dpExists(fwAlarmHandlingGroups_ORDERMODE_DP))
+    {
+        dpSet(fwAlarmHandlingGroups_ORDER_DP,groupList);
+    }  
+  }
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+  int i;
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 20 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text(\"Alarm Screen Groups Configuration\");
+}" 0
+ E 0 1 1 2 1 E U  0 E 20 10 515 35
+0 2 2 "0s" 0 0 0 64 0 0  20 10 1
+1
+LANG:1 26 Arial,14,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 33 Alarm Screen Groups Configuration
+13 1
+"PUSH_BUTTON3"
+""
+1 920 690 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  918 688 1028 722
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  closePanel();
+}
+" 0
+ E E E
+13 2
+"PUSH_BUTTON7"
+""
+1 760 690 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  758 688 868 722
+
+T 
+1
+LANG:1 2 Ok
+"main()
+{
+  saveSettings();
+  closePanel();
+}" 0
+ E E E
+13 4
+"PUSH_BUTTON13"
+""
+1 640 690 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  638 688 748 722
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  saveSettings();
+}" 0
+ E E E
+29 5
+"TREE1"
+""
+1 20.00000000000014 89.99999999999997 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+"main()
+{
+  //a
+}
+
+" 0
+ E E
+0
+1
+LANG:1 0 
+
+18
+"acceptDrops" ""
+"DragStart" "main(int keys, string id)
+{
+//   DebugN(\"drag started\",keys, id);
+}
+
+"
+"DragDrop" "main(string information, int dragType, string id)
+{
+//   LoadConfigsOnTree(dpSubStr(information,DPSUB_SYS_DP_EL)); 
+//   DebugN(\"drag drop\",information, dragType, id);
+}
+
+
+
+
+"
+"lineWidth" "int 0"
+"frameShape" "enum 1"
+"frameShadow" "enum 16"
+"rootIsDecorated" "bool TRUE"
+"hScrollBarMode" "enum 1"
+"margin" "int 0"
+"midLineWidth" "int 0"
+"itemMargin" "int 3"
+"vScrollBarMode" "enum 0"
+"defaultRenameAction" "enum 0"
+"layoutDirection" "enum 0"
+"resizePolicy" "enum 1"
+"resizeMode" "enum 0"
+"selectionMode" "enum 0"
+"contextMenuPolicy" "enum 1"
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  20 90 1030 670
+10 TreeWidget
+4
+0 "expanded" "(string id)"
+"//   txt_showHide.text = \"1;\"+id;"
+0 "collapsed" "(string id)"
+"//   txt_showHide.text = \"0;\"+id;"
+0 "rightClicked" "(string id, int column)"
+"  int answer;
+  dyn_string menu;
+  int itemStatus;
+  string type = getItemType(id);
+  int enableReorder;
+
+  switch(type)
+  {
+    case fwAlarmHandlingGroups_TYPE_ROOT:
+      enableReorder = (dynlen(TREE1.children(id))>1) ? 1 : 0;//if there are children, enable the Reorder option
+      popupMenu(makeDynString(\"PUSH_BUTTON,Add Group,1,1\",
+                              \"PUSH_BUTTON,Reorder Groups,2,\"+enableReorder),answer);  
+      switch(answer)
+      {
+        case(1):
+          editNode(id,fwAlarmHandlingGroups_TYPE_GROUP, 1);
+        break;
+        case(2):
+          reorderNodes(id);
+        break;
+      }    
+    break;
+    case fwAlarmHandlingGroups_TYPE_GROUP:
+      popupMenu(makeDynString(\"PUSH_BUTTON,Edit,2,1\",
+                              \"SEPARATOR\",
+                              \"PUSH_BUTTON,Delete,1,1\",                              
+                              \"SEPARATOR\",
+                              \"CASCADE_BUTTON,Add,3,1\",
+                              \"Add\",
+                              \"PUSH_BUTTON,System name,4,1\",
+                              \"PUSH_BUTTON,FSM Control Unit,5,1\"),answer);  
+      switch(answer)
+      {
+        case(1):
+          TREE1.removeItem(id);
+        break;
+        case(2):
+          editNode(id,fwAlarmHandlingGroups_TYPE_GROUP);
+        break;
+        case(4):
+          editNode(id,fwAlarmHandlingGroups_TYPE_SYS, 1);
+        break;
+        case(5):
+          editNode(id,fwAlarmHandlingGroups_TYPE_FSMCU, 1);
+        break;
+        case(6):
+          reorderNodes(id);
+        break;
+      }    
+    break;
+    case fwAlarmHandlingGroups_TYPE_SYS:
+      popupMenu(makeDynString(\"PUSH_BUTTON,Edit,2,1\",
+                              \"SEPARATOR\",
+                              \"PUSH_BUTTON,Delete,1,1\",                              
+                              \"SEPARATOR\",
+                              \"CASCADE_BUTTON,Add,3,1\",
+                              \"Add\",
+                              \"PUSH_BUTTON,Dpe,3,1\",
+                              \"PUSH_BUTTON,Alias,4,1\"),answer);  
+      switch(answer)
+      {
+        case(1)://remove node
+          TREE1.removeItem(id);
+        break;
+        case(2):
+          editNode(id,fwAlarmHandlingGroups_TYPE_SYS);
+        break;
+        case(3)://add dpe
+          editFilter(id,fwAlarmHandlingGroups_TYPE_DP);
+        break;
+        case(4)://add dpe
+          editFilter(id,fwAlarmHandlingGroups_TYPE_ALIAS);
+        break;
+      }    
+    break;
+    case fwAlarmHandlingGroups_TYPE_DP: 
+    case fwAlarmHandlingGroups_TYPE_ALIAS:
+      popupMenu(makeDynString(\"PUSH_BUTTON,Edit,2,1\",
+                              \"SEPARATOR\",
+                              \"PUSH_BUTTON,Delete,1,1\"
+                              ),answer);  
+      switch(answer)
+      {
+        case(1):
+          TREE1.removeItem(id);
+        break;
+        case(2):
+          editFilter(TREE1.parent(id),type);
+        break;
+      } 
+    break;
+    case fwAlarmHandlingGroups_TYPE_FSMCU:
+      popupMenu(makeDynString(\"PUSH_BUTTON,Delete,1,1\"),answer);  
+      switch(answer)
+      {
+        case(1):
+          TREE1.removeItem(id);
+        break;
+      } 
+    break;
+  }"
+0 "doubleClicked" "(string id, int column)"
+"  string type = TREE1.getText(id,fwAlarmHandlingGroups_TABLE_COL_TYPE);
+
+  switch(type)
+  {
+    case fwAlarmHandlingGroups_TYPE_ROOT: 
+    break;
+    case fwAlarmHandlingGroups_TYPE_GROUP:
+          editNode(id,fwAlarmHandlingGroups_TYPE_GROUP);
+    break;
+    case fwAlarmHandlingGroups_TYPE_SYS:
+          editNode(id,fwAlarmHandlingGroups_TYPE_SYS); 
+    break;
+    case fwAlarmHandlingGroups_TYPE_DP: case fwAlarmHandlingGroups_TYPE_ALIAS:
+          editFilter(TREE1.parent(id),type);
+    break;
+    case fwAlarmHandlingGroups_TYPE_FSMCU:
+    break;
+  }"
+"main() 
+{
+    this.addColumn(\"Name\"); 
+    this.addColumn(\"Value\"); 
+    this.addColumn(\"Type\");
+    this.setColumnWidth(fwAlarmHandlingGroups_TABLE_COL_NAME,200);
+    this.setColumnWidth(fwAlarmHandlingGroups_TABLE_COL_VALUE,6000);
+    this.setColumnWidth(fwAlarmHandlingGroups_TABLE_COL_TYPE,0);
+    this.hideColumn(fwAlarmHandlingGroups_TABLE_COL_TYPE);
+    this.showHeader(false);
+    this.acceptDrops(true);
+}
+
+
+
+
+
+" 0
+2 6
+"PRIMITIVE_TEXT2"
+""
+1 370 122 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 370 122 371 139
+0 2 2 "0s" 0 0 0 192 0 0  370 122 1
+1
+LANG:1 35 MS Shell Dlg 2,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+19 7
+"radioOrder"
+""
+1 417.9999999999998 42 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  528 48 742 73
+2
+T 
+1
+LANG:1 10 Alphabetic
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 6 Custom
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+"main()
+{
+  int iOrderMode;
+  if(dpExists(fwAlarmHandlingGroups_ORDERMODE_DP))
+  {
+      dpGet(fwAlarmHandlingGroups_ORDERMODE_DP,iOrderMode);
+      setValue(\"radioOrder\",\"number\",iOrderMode);
+  }  
+}" 0
+ E
+30 11
+"FRAME1"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+11 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.7931034482758622 0 1 496.2068965517242 -12 0 E 30 42 321 91
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Order in Alarm Screen
+1 15 0 "" 0
+0
+13 14
+"cmPanel"
+""
+1 890 40 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  888 38 1032 72
+
+T 
+1
+LANG:1 20 Sound/Panel setup...
+"// SimpleCtrlScriptStart {invalid}
+main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentralModal(\"fwAlarmHandling/fwAlarmHandlingGroupsPanelSetup.pnl\",
+      \"\",
+      makeDynString(\"\"));
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnCentralModal}
+// File {fwAlarmHandling/fwAlarmHandlingGroupsAlertSoundSetup.pnl}
+// Panel {}
+// Parent {}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ E E E
+26 17
+"cmImEx"
+""
+1 20 690 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 53 Import/Export groups configs and panel/sound settings
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  18 688 142 722
+ 0 1
+LANG:1 13 Import/Export
+"" 0 0 0 0 0
+ 2 1 1
+LANG:1 6 Import
+"1" 0 0 0 0 0
+ 1 1
+LANG:1 6 Export
+"2" 0 0 0 0 0
+ E "main(string id)
+{
+  const string PREFIX = \"fwAlarmHandlingGroupsExport_\";
+  string sProjName, sFile;
+  dyn_string exceptionInfo;
+  bool ok;
+
+  sProjName = fwAlarmHandlingScreenGroups_getProjectName();
+  if(sProjName==\"\")
+  {
+    fwException_raise(exceptionInfo, \"WARNING\", \"fwAlarmHandlingGroupsConfiguration.pnl - could not get the loal project name. The Import/Export cannot be performed\",\"\");
+    return;
+  }
+  switch(id)
+  {
+    case 1://import
+      ok=true;
+      if(dynlen(TREE1.children(\"Groups\"))>0)
+        fwGeneral_openMessagePanel(\"Warning: importing groups will merge\\nnew groups with the existing ones.\\nDo you want to continue?\",ok,exceptionInfo,\"Importing\",false);
+      if(!ok)
+      {
+        fwGeneral_openMessagePanel(\"Import Aborted\",ok,exceptionInfo,\"Importing\",true);
+        return;
+      }
+      fileSelector(sFile, getPath(DPLIST_REL_PATH),false,PREFIX+\"*\");
+      if(isfile(sFile))
+      {
+        if(strpos(sFile,PREFIX)<0)
+          fwGeneral_openMessagePanel(\"The file name must begin with \"+PREFIX,ok,exceptionInfo,\"\",true);
+        openProgressBar(\"Groups Import\", \"copy.gif\", \"Importing Groups config and setup from \",sFile, \" Be patient!\", 1); 
+        saveSettings();
+        system(\"PVSS00ascii -in \"+sFile+\" -proj \"+ sProjName );
+        loadSettings();
+        closeProgressBar();
+      }
+    break;
+
+    case 2://export      
+      fileSelector(sFile, getPath(DPLIST_REL_PATH),false,PREFIX+\"*\",false);
+      if(strlen(sFile))
+      {
+        //if prefix does not exist, add it to file name
+        if(strpos(sFile,PREFIX)<0)
+        {
+          string sTmp;
+          dyn_string dsTmp;
+          dsTmp = strsplit(sFile,\"/\");
+          sTmp = dsTmp[dynlen(dsTmp)];
+          sTmp = PREFIX+sTmp;
+          dsTmp[dynlen(dsTmp)] = sTmp;
+          fwGeneral_dynStringToString(dsTmp, sFile, \"/\");
+        }          
+        openProgressBar(\"Groups Export\", \"copy.gif\", \"Exporting Groups config and setup to \",sFile, \" Be patient!\", 1); 
+        saveSettings();
+        system(\"pvss00ascii -filterDp \"+fwAlarmHandlingGroups_SETUP_DP+
+               \"*; -filterDp \"+fwAlarmHandlingGroups_CONFIG_DP+
+               \"*; -out \"+sFile+\" -proj \"+ sProjName +\" -filter DAO\");
+        closeProgressBar();
+      }
+    break;
+  }
+}
+
+" 0
+0 
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "cmHelp" -1
+"objects\\fwGeneral\\fwHelpButton.pnl" 604 10 T 13 1 0 1 401.0000000000001 -8
+1
+"$sPanelRelativePath""fwAlarmHandling/fwAlarmHandlingGroupsConfiguration"
+0

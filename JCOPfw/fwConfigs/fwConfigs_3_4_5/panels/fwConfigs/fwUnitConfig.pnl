@@ -1,0 +1,1102 @@
+V 10
+1
+LANG:1 0 
+PANEL,328 199 641 391 N "_3DFace" 3
+"$bHierarchyBrowser"
+"$sDpe"
+"$sDpeConfigObjectVarName"
+"main()
+{
+	bool doesExist;
+	string dpe, sUnit, errorString;
+	dyn_string systems, exceptionInfo;
+			
+	if(isDollarDefined(\"$sDpe\"))
+	{
+		dpe = $sDpe;
+		strreplace(dpe, \" \", \"\");
+	    DPE_LIST = strsplit(dpe, \"|\");
+	}
+	
+	switch(dynlen(DPE_LIST))
+	{
+			case 0:
+				if(isDollarDefined(\"$sDpeConfigObjectVarName\"))	// object passed to the panel
+				{
+					if(getGlobalType($sDpeConfigObjectVarName) != DYN_DYN_ANYTYPE_VAR)
+					{
+						elementNameField.text(\"Wrong config object name\");
+						unitOnOff.enabled = FALSE;
+						applyButton.enabled = FALSE;
+						okButton.enabled = FALSE;
+						fwException_raise(exceptionInfo, 
+															\"WARNING\", \"The config object \" + $sDpeConfigObjectVarName + 
+															\" doesn't exists or hasn't got the proper format.\", 
+															\"\");
+						fwExceptionHandling_display(exceptionInfo);					
+						return;
+					}					
+					
+					panelMode = OBJECT;					
+					fwGeneral_getGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+					//DebugN(\\\"fwAlertConfigPanel: \\\", dpeAlertConfigObject);
+					
+					// read from config object
+					DPE_LIST[1] = dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_NAME][1];						
+					DPE_TYPE		= dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_TYPE][1];
+					sUnit				= dpeConfigObject[fwUnit_DPE_OBJECT_UNIT][1];
+					
+					if(sUnit == \"\")
+						doesExist = FALSE;
+					else
+						doesExist = TRUE;
+					
+					elementNameField.text(DPE_LIST[1]);
+					DPES_OK = TRUE;
+				}
+				else // neither dpes nor object passed, nothing to do in the panel
+				{
+					elementNameField.text(\"No Data Point Elements\");
+					unitOnOff.enabled = FALSE;
+					applyButton.enabled = FALSE;
+					okButton.enabled = FALSE;
+					fwException_raise(exceptionInfo, \"WARNING\", getCatStr(\"fwConfigs\", \"PANEL_NODATAPOINTSTOCONFIG\"), \"\");
+					fwExceptionHandling_display(exceptionInfo);					
+					return;
+				}
+				break;
+			case 1:	// single dpe passed to the panel
+				panelMode = SINGLE_DPE;
+				dpe = DPE_LIST[1];
+				elementNameField.text(dpe);
+				DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_UNIT, DPE_TYPE, exceptionInfo, errorString);
+				if(!DPES_OK)
+					fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+				else
+					fwUnit_get(DPE_LIST[1], doesExist, sUnit, exceptionInfo);
+				break;
+			default: // multiple dpes passed to the panel
+				panelMode = MULTIPLE_DPES;
+				dpe = DPE_LIST[1];
+
+				_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+				
+				if(dynlen(systems) == 1)
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+
+				DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_UNIT, DPE_TYPE, exceptionInfo, errorString);
+				if(!DPES_OK)
+					fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+
+				dpeDetails.visible = TRUE;
+				doesExist = FALSE;
+				break;
+	}
+
+	okButton.enabled = DPES_OK;
+	applyButton.enabled = DPES_OK;
+
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+		
+	if(doesExist)
+	{
+		_fwToggleUnitItems(TRUE);
+		unitOnOff.state(0, TRUE);
+		unitTextField.text = sUnit;	
+	}
+	else
+	{
+		_fwToggleUnitItems(FALSE);
+		unitOnOff.state(0, FALSE);
+		unitTextField.text = \"\";	
+	}
+
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);	
+}" 0
+EE E E 1 -1 -1 0  -1 40
+"" 0 1
+E"dyn_string DPE_LIST;
+int DPE_TYPE;
+bool DPES_OK;
+
+// mode in which the panel is used
+int panelMode;
+const int OBJECT	= 1;
+const int SINGLE_DPE		= 2;
+const int MULTIPLE_DPES	= 3;
+
+dyn_dyn_anytype dpeConfigObject;
+
+_fwToggleUnitItems(bool shouldShow)
+{
+	unitButton.visible = shouldShow;
+	unitTextField.visible = shouldShow;
+}
+
+saveSettings(dyn_string &exceptionInfo)
+{	
+ 	if(!DPES_OK)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", getCatStr(\"fwConfigs\", \"PANEL_MIXEDORBADDPETYPES\"), \"\");
+		return;		
+	}
+	
+	okButton.enabled = FALSE;
+	applyButton.enabled = FALSE;
+	closeButton.enabled = FALSE;
+	if(panelMode == MULTIPLE_DPES)
+		fwOpenProgressBar(\"Configuration panel\", \"Saving configuration...\", 1);
+	
+	if(unitOnOff.state(0) == TRUE)
+	{
+		if(panelMode != OBJECT)
+		{
+			fwUnit_setMultiple(DPE_LIST, unitTextField.text, exceptionInfo);
+		}
+		else
+		{
+			dpeConfigObject[fwUnit_DPE_OBJECT_UNIT][1] = unitTextField.text;
+			fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//			DebugN(\"Modified \", dpeConfigObject);
+		}
+	}
+	else
+	{	
+		unitTextField.text = \"\";
+		if(panelMode != OBJECT)
+		{
+			fwUnit_deleteMultiple(DPE_LIST, exceptionInfo);
+		}
+		else
+		{
+			dpeConfigObject[fwUnit_DPE_OBJECT_UNIT][1] = unitTextField.text;
+			fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//			DebugN(\"Modified \", dpeConfigObject);
+		}
+	}
+	
+	okButton.enabled = TRUE;
+	applyButton.enabled = TRUE;
+	closeButton.enabled = TRUE;
+	if(panelMode == MULTIPLE_DPES)
+		fwCloseProgressBar(\"Configuration complete\");
+}" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 11
+"Text3"
+""
+1 10 10 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 161 34
+0 2 2 "s" 0 0 0 192 0 0  12 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 18 Unit Configuration
+2 22
+"Text4"
+""
+1 255 131 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 55 128 77
+0 2 0 "s" 0 0 0 64 0 0  12 55
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 11 DP Element:
+13 21
+"applyButton"
+""
+1 0 0 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+458 348 542 382
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E "main()
+{
+	int x, y;
+
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			closeButton.visible = TRUE;
+		else
+		{
+			getValue(\"\", \"position\", x, y);
+			this.position(x + 90,y);	
+		}
+	}
+	else
+		closeButton.visible = TRUE;
+		
+	this.visible = TRUE;	
+}" 0
+
+13 28
+"closeButton"
+""
+1 1492 929 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+548 348 632 382
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+14 23
+"elementNameField"
+""
+1 347 103 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+88 48 632 75
+2 "s" 0 0 0 0 0 0 
+E
+E
+E
+13 25
+"dpeDetails"
+""
+1 460 10 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+458 8 582 42
+T 
+1
+LANG:1 15 Select Elements
+"main()
+{
+	string errorString;
+	dyn_string returnedDpeList, systems, exceptionInfo;
+	dyn_float cancelOrOk;
+
+	ChildPanelOnCentralModalReturn(\"fwConfigs/fwDpeSelector.pnl\", \"Choose Data Point Elements\",
+									makeDynString(\"$dsAllDpes:\"+$sDpe, \"$dsIncludedDpes:\"+DPE_LIST, \"$sConfigType:\"+fwConfigs_PVSS_UNIT),
+									cancelOrOk, returnedDpeList);
+	if(cancelOrOk[1] > 0.5)
+	{
+		if(DPE_LIST != returnedDpeList)
+		{
+			DPE_LIST = returnedDpeList;
+			DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_UNIT, DPE_TYPE, exceptionInfo, errorString);
+			if(!DPES_OK)
+				fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+
+			_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+
+			if(dynlen(DPE_LIST)== 1)
+				elementNameField.text(DPE_LIST[1]);
+			else
+			{
+				if(dynlen(systems) == 1)
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+			}
+
+			okButton.enabled = DPES_OK;
+			applyButton.enabled = DPES_OK;
+
+			unitOnOff.state(0) = FALSE;
+			_fwToggleUnitItems(FALSE);
+		}
+	}	
+}" 0
+ E E E
+20 20
+"unitOnOff"
+""
+1 10 90 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+8 88 167 117
+1
+T 
+1
+LANG:1 11 Unit ON/OFF
+ 0
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+1
+E E 
+E"main()
+{
+	bool status;
+	dyn_string exceptionInfo;
+	
+    status = this.state(0);
+	
+	if(!DPES_OK)
+	{
+		this.state(0) = FALSE;
+		
+		fwException_raise(exceptionInfo, \"ERROR\", getCatStr(\"fwConfigs\", \"PANEL_MIXEDORBADDPETYPES\"), \"\");
+		if(dynlen(exceptionInfo)>0)
+			fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	if(status==TRUE)
+	{
+		_fwToggleUnitItems(TRUE);
+	}
+	else
+	{	
+		_fwToggleUnitItems(FALSE);
+	}
+}" 0
+13 29
+"okButton"
+""
+1 0 0 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+368 348 452 382
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		PanelOff();
+}" 0
+ E E "main()
+{
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			this.visible = TRUE;
+	}
+	else
+		this.visible = TRUE;	
+}
+" 0
+
+14 30
+"unitTextField"
+""
+1 89 140 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+EE E
+0
+2
+LANG:1 0 
+LANG:0 0 
+0
+2
+LANG:1 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+88 139 202 166
+3 "s" 0 0 0 0 0 0 
+E
+E
+E
+26 31
+"unitButton"
+""
+1 209 138 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+EE E
+0
+2
+LANG:1 0 
+LANG:0 0 
+0
+2
+LANG:1 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+208 138 274 168
+0 2
+LANG:1 8 SI units
+LANG:0 12 SI-Einheiten
+"" 0 0 0 0 0
+5 0 1
+LANG:1 14 Space and time
+"0" 0 0 0 0 0
+23 1 1
+LANG:1 23 mm (millimeters) length
+"1" 0 0 0 0 0
+1 1
+LANG:1 23 µm (micrometers) length
+"2" 0 0 0 0 0
+1 1
+LANG:1 17 m (meters) length
+"3" 0 0 0 0 0
+1 1
+LANG:1 22 km (kilometers) length
+"4" 0 0 0 0 0
+1 1
+LANG:1 23 m² (square meters) area
+"5" 0 0 0 0 0
+1 1
+LANG:1 24 m³ (cubic meters) volume
+"6" 0 0 0 0 0
+1 1
+LANG:1 17 l (liters) volume
+"7" 0 0 0 0 0
+1 1
+LANG:1 23 hl (hectoliters) volume
+"8" 0 0 0 0 0
+1 1
+LANG:1 25 rad (radiant) plane angle
+"9" 0 0 0 0 0
+1 1
+LANG:1 23 ° (degrees) plane angle
+"10" 0 0 0 0 0
+1 1
+LANG:1 26 sr (steradian) solid angle
+"11" 0 0 0 0 0
+1 1
+LANG:1 16 s (seconds) time
+"12" 0 0 0 0 0
+1 1
+LANG:1 22 ms (milliseconds) time
+"13" 0 0 0 0 0
+1 1
+LANG:1 18 min (minutes) time
+"14" 0 0 0 0 0
+1 1
+LANG:1 14 h (hours) time
+"15" 0 0 0 0 0
+1 1
+LANG:1 13 d (days) time
+"16" 0 0 0 0 0
+1 1
+LANG:1 14 a (years) time
+"17" 0 0 0 0 0
+1 1
+LANG:1 9 m/s speed
+"18" 0 0 0 0 0
+1 1
+LANG:1 10 km/h speed
+"19" 0 0 0 0 0
+1 1
+LANG:1 17 m/s² acceleration
+"20" 0 0 0 0 0
+1 1
+LANG:1 20 Hz (hertz) frequency
+"21" 0 0 0 0 0
+1 1
+LANG:1 20 1/s rotational speed
+"22" 0 0 0 0 0
+1 1
+LANG:1 22 1/min rotational speed
+"23" 0 0 0 0 0
+0 1
+LANG:1 23 Mechanics and acoustics
+"24" 0 0 0 0 0
+20 1 1
+LANG:1 14 g (grams) mass
+"25" 0 0 0 0 0
+1 1
+LANG:1 19 kg (kilograms) mass
+"26" 0 0 0 0 0
+1 1
+LANG:1 13 t (tons) mass
+"27" 0 0 0 0 0
+1 1
+LANG:1 37 u/h (units/h) throughput, performance
+"28" 0 0 0 0 0
+1 1
+LANG:1 20 kg/m lengthwise mass
+"29" 0 0 0 0 0
+1 1
+LANG:1 13 kg/m³ density
+"30" 0 0 0 0 0
+1 1
+LANG:1 12 kg m/s pulse
+"31" 0 0 0 0 0
+1 1
+LANG:1 27 kgm² mass moment of inertia
+"32" 0 0 0 0 0
+1 1
+LANG:1 17 N (newtons) force
+"33" 0 0 0 0 0
+1 1
+LANG:1 9 Nm torque
+"34" 0 0 0 0 0
+1 1
+LANG:1 18 N/m² mech. tension
+"35" 0 0 0 0 0
+1 1
+LANG:1 21 Pa (pascals) pressure
+"36" 0 0 0 0 0
+1 1
+LANG:1 26 hPa (Hectopascal) pressure
+"37" 0 0 0 0 0
+1 1
+LANG:1 21 J (joule) energy,work
+"38" 0 0 0 0 0
+1 1
+LANG:1 32 kWh (kilowatt hours) energy,work
+"39" 0 0 0 0 0
+1 1
+LANG:1 31 eV (electron volt) energy, work
+"40" 0 0 0 0 0
+1 1
+LANG:1 15 W (watts) power
+"41" 0 0 0 0 0
+1 1
+LANG:1 20 kW (kilowatts) power
+"42" 0 0 0 0 0
+1 1
+LANG:1 22 Pa s dynamic viscosity
+"43" 0 0 0 0 0
+1 1
+LANG:1 24 m²/s kinematic viscosity
+"44" 0 0 0 0 0
+0 1
+LANG:1 20 Temperature and heat
+"45" 0 0 0 0 0
+7 1 1
+LANG:1 23 K (kelvins) temperature
+"46" 0 0 0 0 0
+1 1
+LANG:1 27 °C (centigrade) temperature
+"47" 0 0 0 0 0
+1 1
+LANG:1 25 J/K heat capacity entropy
+"48" 0 0 0 0 0
+1 1
+LANG:1 34 J/(kg K) specific thermal capacity
+"49" 0 0 0 0 0
+1 1
+LANG:1 26 J/kg specific inner energy
+"50" 0 0 0 0 0
+1 1
+LANG:1 28 W/(m K) thermal conductivity
+"51" 0 0 0 0 0
+1 1
+LANG:1 29 W/(m² K) heat transfer coeff.
+"52" 0 0 0 0 0
+0 1
+LANG:1 32 Electricity, magnetism and light
+"53" 0 0 0 0 0
+20 1 1
+LANG:1 28 mA (milliamps) elec. current
+"54" 0 0 0 0 0
+1 1
+LANG:1 25 A (amperes) elec. current
+"55" 0 0 0 0 0
+1 1
+LANG:1 27 kA (kiloamps) elec. current
+"56" 0 0 0 0 0
+1 1
+LANG:1 24 C (Coulomb) elec. charge
+"57" 0 0 0 0 0
+1 1
+LANG:1 29 mV (millivolts) elec. voltage
+"58" 0 0 0 0 0
+1 1
+LANG:1 23 V (volts) elec. voltage
+"59" 0 0 0 0 0
+1 1
+LANG:1 28 kV (kilovolts) elec. voltage
+"60" 0 0 0 0 0
+1 1
+LANG:1 20 ohm elec. resistance
+"61" 0 0 0 0 0
+1 1
+LANG:1 21 kOhm elec. resistance
+"62" 0 0 0 0 0
+1 1
+LANG:1 21 MOhm elec. resistance
+"63" 0 0 0 0 0
+1 1
+LANG:1 29 S (siemens) elec. conductance
+"64" 0 0 0 0 0
+1 1
+LANG:1 24 F (farad) elec. capacity
+"65" 0 0 0 0 0
+1 1
+LANG:1 22 Wb (webers) magn. flux
+"66" 0 0 0 0 0
+1 1
+LANG:1 29 T (teslas) magn. flux density
+"67" 0 0 0 0 0
+1 1
+LANG:1 20 H (henry) inductance
+"68" 0 0 0 0 0
+1 1
+LANG:1 25 A/m magn. field intensity
+"69" 0 0 0 0 0
+1 1
+LANG:1 29 cd (candelas) light intensity
+"70" 0 0 0 0 0
+1 1
+LANG:1 15 cd/m² luminance
+"71" 0 0 0 0 0
+1 1
+LANG:1 25 lm (lumens) light current
+"72" 0 0 0 0 0
+1 1
+LANG:1 27 lx (lux) luminous intensity
+"73" 0 0 0 0 0
+0 1
+LANG:1 43 Radioactivity, ionizing rays, molecular ...
+"74" 0 0 0 0 0
+6 1 1
+LANG:1 29 Bq (becquerels) radioactivity
+"75" 0 0 0 0 0
+1 1
+LANG:1 23 Gy (Gray) absorbed dose
+"76" 0 0 0 0 0
+1 1
+LANG:1 29 Sv (sieverts) dose equivalent
+"77" 0 0 0 0 0
+1 1
+LANG:1 13 C/kg ion dose
+"78" 0 0 0 0 0
+1 1
+LANG:1 29 mol (mol) amount of substance
+"79" 0 0 0 0 0
+1 1
+LANG:1 39 kg/mol mass ref. to amount of substance
+"80" 0 0 0 0 0
+E E 76 "1" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"mm\");
+}" 0
+"2" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"µm\");
+}" 0
+"3" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"m\");
+}" 0
+"4" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"km\");
+}" 0
+"5" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"m²\");
+}" 0
+"6" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"m³\");
+}" 0
+"7" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"l\");
+}" 0
+"8" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"hl\");
+}" 0
+"9" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"rad\");
+}" 0
+"10" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"°\");
+}" 0
+"11" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"sr\");
+}" 0
+"12" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"s\");
+}" 0
+"13" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"ms\");
+}" 0
+"14" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"min\");
+}" 0
+"15" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"h\");
+}" 0
+"16" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"d\");
+}" 0
+"17" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"a\");
+//  setValue(\"unitTextField\",\"text\",paGetCatStr(\"para\",\"year\"));
+}" 0
+"18" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"m/s\");
+}" 0
+"19" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"km/h\");
+}" 0
+"20" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"m/s²\");
+}" 0
+"21" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"Hz\");
+}" 0
+"22" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"1/s\");
+}" 0
+"23" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"1/min\");
+}" 0
+"25" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"g\");
+}" 0
+"26" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kg\");
+}" 0
+"27" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"t\");
+}" 0
+"28" "main()
+{
+  setValue(\"unitTextField\",\"text\",paGetCatStr(\"para\",\"itemh\"));
+}" 0
+"29" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kg/m\");
+}" 0
+"30" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kg/m³\");
+}" 0
+"31" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kgm/s\");
+}" 0
+"32" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kgm²\");
+}" 0
+"33" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"N\");
+}" 0
+"34" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"Nm\");
+}" 0
+"35" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"N/m²\");
+}" 0
+"36" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"Pa\");
+}" 0
+"37" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"hPa\");
+}" 0
+"38" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"J\");
+}" 0
+"39" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kWh\");
+}" 0
+"40" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"eV\");
+}" 0
+"41" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"W\");
+}" 0
+"42" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kW\");
+}" 0
+"43" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"Pa·s\");
+}" 0
+"44" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"m²/s\");
+}" 0
+"46" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"K\");
+}" 0
+"47" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"°C\");
+}" 0
+"48" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"J/K\");
+}" 0
+"49" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"J/(kg·K)\");
+}" 0
+"50" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"J/kg\");
+}" 0
+"51" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"W/(m·K)\");
+}" 0
+"52" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"W/(m²·K)\");
+}" 0
+"54" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"mA\");
+}" 0
+"55" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"A\");
+}" 0
+"56" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kA\");
+}" 0
+"57" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"C\");
+}" 0
+"58" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"mV\");
+}" 0
+"59" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"V\");
+}" 0
+"60" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kV\");
+}" 0
+"61" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"Ohm\");
+}" 0
+"62" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kOhm\");
+}" 0
+"63" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"MOhm\");
+}" 0
+"64" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"S\");
+}" 0
+"65" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"F\");
+}" 0
+"66" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"Wb\");
+}" 0
+"67" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"T\");
+}" 0
+"68" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"H\");
+}" 0
+"69" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"A/m\");
+}" 0
+"70" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"cd\");
+}" 0
+"71" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"cd/m²\");
+}" 0
+"72" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"lm\");
+}" 0
+"73" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"lx\");
+}" 0
+"75" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"Bq\");
+}" 0
+"76" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"Gy\");
+}" 0
+"77" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"Sv\");
+}" 0
+"78" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"C/kg\");
+}" 0
+"79" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"mol\");
+}" 0
+"80" "main()
+{
+  setValue(\"unitTextField\",\"text\",\"kg/mol\");
+}" 0
+
+1 32 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 604 10 T 15 U  
+1
+"$sPanelRelativePath""fwConfigs/fwUnitConfig"
+0

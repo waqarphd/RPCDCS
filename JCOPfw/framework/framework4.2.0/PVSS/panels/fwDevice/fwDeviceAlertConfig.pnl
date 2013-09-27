@@ -1,0 +1,469 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 670 450 N "_3DFace" 2
+"$bHierarchyBrowser"
+"$sDpName"
+"main()
+{
+	init();
+	initMessageText();
+}" 0
+ E E E E 1 -1 -1 0  30 30
+""0  1
+E "string panelName;
+string panelBarTitle;
+string config;
+int index;
+
+init()
+{
+	int i, configType;
+	string dpe, ranges, typeName, model;
+	dyn_int limitNumbers;
+	dyn_float limitValues;
+	dyn_string exceptionInfo;
+	dyn_dyn_string elementsAndProperties;
+
+	// init global variables
+	panelName = \"fwConfigs/fwAlertConfigPopup.pnl\";
+	panelBarTitle = \"Alert configuration\";
+	config = \"alert_hdl\";
+	index = fwDevice_ALERT_INDEX;
+	
+	fwDevice_getModel(makeDynString($sDpName), model, exceptionInfo);
+//	DebugN(\"model \" + model);
+	fwDevice_getConfigElements(dpTypeName($sDpName), index, elementsAndProperties, exceptionInfo, model);
+	
+	Table1.deleteAllLines();
+	Table1.selectByClick(TABLE_SELECT_LINE);
+	Table1.tableMode(TABLE_SELECT_MULTIPLE);	
+	
+	for (i = 1; i <= dynlen(elementsAndProperties[1]); i++) 
+	{
+		dpe = $sDpName + elementsAndProperties[1][i];
+//		DebugN(\"Element \" + $sDpName + alertElements[i]);		
+		dpGet(dpe + \":_\" + config + \".._type\", configType);
+	
+		getTypeAndRanges(dpe, typeName, ranges, exceptionInfo);
+		
+		if(configType == DPCONFIG_NONE)
+			Table1.appendLine(\"conf\", \"N\", \"elements\", elementsAndProperties[1][i], \"type\", typeName, \"ranges\", ranges);
+		else
+			Table1.appendLine(\"conf\", \"Y\", \"elements\", elementsAndProperties[1][i], \"type\", typeName, \"ranges\", ranges);
+	}
+	Table1.lineVisible(0);
+	
+/*	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+	}*/
+}
+
+initMessageText()
+{	
+	int configType;	
+		
+	dpGet($sDpName + \".:_\" + config + \".._type\", configType);
+
+	if(configType == DPCONFIG_NONE)
+		Text4.text = \"This device has not got a summary alarm. You can create it with the summary alarm panel.\";
+	else
+		Text4.text = \"This device has got a summary alarm. If you define an alarm, it will be added to its summary.\";	
+}
+
+updateRow(string table, int row)
+{
+	int configType, dpConfigType;
+	string dpe, ranges, typeName;
+	shape tableShape = getShape(table);
+	dyn_string exceptionInfo, line = tableShape.getLineN(row);			
+
+	//DebugN(\"Updatig row \" + row + \" \" + line);
+
+	dpe = $sDpName + line[2]; 
+	
+	// update the ranges
+	getTypeAndRanges(dpe, typeName, ranges, exceptionInfo);
+	tableShape.cellValueRC(row, \"ranges\", ranges); 
+
+	// see if config exists	
+	dpGet(	dpe + \":_\" + config + \".._type\", configType,
+			$sDpName + \".:_\" + config + \".._type\", dpConfigType);					
+
+	if(configType == DPCONFIG_NONE)
+	{
+		tableShape.cellValueRC(row, \"conf\", \"N\");
+	}
+	else
+	{
+		tableShape.cellValueRC(row, \"conf\", \"Y\");
+	}
+	
+/*	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+*/
+}
+
+configureElement(dyn_int lineNumbers)
+{
+	int i;
+	dyn_float returnedValues;
+	dyn_string elements, line, returnedText, exceptionInfo;
+
+	enableButtons(FALSE);
+
+	for (i = 1; i <= dynlen(lineNumbers); i++) 
+	{	
+		line = Table1.getLineN(lineNumbers[i]);			
+		dynAppend(elements, $sDpName + line[2]);
+	}
+	
+	if(dynlen(elements) <= 0)
+	{
+		fwException_raise(	exceptionInfo, 
+							\"WARNING\", 
+							\"Select at least one element.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		enableButtons(TRUE);
+		return;
+	}
+	
+	if(getPath(PANELS_REL_PATH, panelName) == \"\")
+	{
+		fwException_raise(	exceptionInfo, 
+							\"WARNING\", 
+							\"The panel \\\"\" + panelName + \"\\\" \\ncould not be found\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		enableButtons(TRUE);
+		return;
+	}
+	ChildPanelOnCentralModalReturn(	panelName,
+									panelBarTitle,
+									makeDynString(	\"$sDpName:\" + $sDpName,
+													\"$sDpe:\" + elements,
+													\"$sSummaryDpe:.\"),
+									returnedValues, 
+									returnedText);
+	
+	for (i = 1; i <= dynlen(lineNumbers); i++) 
+	{	
+		updateRow(\"Table1\", lineNumbers[i]);
+	}						
+	
+	enableButtons(TRUE);
+}
+
+enableButtons(bool enabled)
+{
+	apply.enabled(enabled);
+	applyAll.enabled(enabled);
+	close.enabled(enabled);
+}
+
+getTypeAndRanges(string dpe, string &typeName, string &ranges, dyn_string &exceptionInfo)
+{	
+	int iRanges, alertConfigType;
+	dyn_int limitNumbers;
+	dyn_float limitValues;
+	
+	// get the element type name
+	fwConfigs_getDpeTypeText(dpe, typeName, exceptionInfo);
+
+	// get alert ranges if dpe has an analog alert
+        dpGet(dpe + \":_alert_hdl.._type\", alertConfigType);
+        if (alertConfigType == DPCONFIG_ALERT_NONBINARYSIGNAL)
+	{
+		fwAlertConfig_getLimits(dpe, limitNumbers, limitValues, exceptionInfo);
+		if(dynlen(limitNumbers) > 0)
+			iRanges = dynlen(limitNumbers) + 1;
+		else
+			iRanges = 0;
+		ranges = iRanges;
+	}
+	else
+	{
+		ranges = \"NA\";
+	}
+}
+" 0
+ 2
+"CBRef" "0"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"panelTitle"
+""
+1 16 27 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 178 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 Alarm Configuration
+2 115
+"Text4"
+""
+1 30 70 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 32 72 559 89
+1 2 0 "0s" 0 0 0 192 0 0  32 72 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 88 This device has not got a summary alarm. You can create it with the summary alarm panel.
+2 121
+"dpNameTitle"
+""
+1 33 90 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+119 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 27 42 69 59
+0 2 0 "0s" 0 0 0 192 0 0  27 42 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Device:
+14 111
+"dpname"
+""
+1 70 40 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 68 38 662 65
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = $sDpName;
+}" 0
+ E
+25 78
+"Table1"
+""
+1 -334 -487 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 23 93 527 432
+E"main(int xpos,string columnName,string value)
+{
+	if(columnName == \"elements\")
+		configureElement(makeDynInt(xpos));
+}
+" 0
+ 1 0 1 4 1 "conf" 2 1 0 "s" 1
+LANG:1 4 Conf
+E
+1
+LANG:1 0 
+
+38 "elements" 28 1 0 "s" 1
+LANG:1 7 Element
+E
+1
+LANG:1 0 
+
+325 "type" 5 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+65 "ranges" 4 1 0 "s" 1
+LANG:1 6 Ranges
+E
+1
+LANG:1 0 
+
+60 
+24 24 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 117
+"apply"
+""
+1 534 352 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+117 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 532 350 661 378
+
+T 
+1
+LANG:1 18 Configure selected
+"main()
+{
+	configureElement(Table1.getSelectedLines);
+}" 0
+ E E E
+13 118
+"applyAll"
+""
+1 534 384 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+118 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 532 382 661 410
+
+T 
+1
+LANG:1 13 Configure all
+"main()
+{
+	int i;
+	dyn_int lineNumbers;
+
+	for (i = 1; i <= Table1.lineCount(); i++) 
+	{
+		lineNumbers[i] = i - 1;
+	}
+	
+	configureElement(lineNumbers);
+}" 0
+ E E E
+13 119
+"close"
+""
+1 534 415 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+119 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 532 413 661 441
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E "main()
+{
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if($bHierarchyBrowser)
+		{
+			this.visible = FALSE;
+		}
+		else
+		{
+			this.visible = TRUE;
+		}
+	}
+}" 0
+
+1 122 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 632 10 T 119 1 0 1 1 0
+1
+"$sPanelRelativePath""fwDevice/fwDeviceAlertConfig"
+0

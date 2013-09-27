@@ -1,0 +1,310 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 256 430 N "_3DFace" 1
+"$dsAlloweDpTypes"
+"main()
+{
+	allowedTypes = makeDynString();
+	if(isDollarDefined(\"$dsAlloweDpTypes\"))
+	{
+		if($dsAlloweDpTypes != \"\")
+		{
+			fwGeneral_stringToDynString($dsAlloweDpTypes, allowedTypes);
+		}
+	}
+	//DebugN(\"$dsAlloweDpTypes = \" + $dsAlloweDpTypes + \" \" + allowedTypes);
+}" 0
+ "main()
+{
+	int i;
+}" 0
+ E E E 1 -1 -1 0  10 10
+""0  1
+E "dyn_string allowedTypes;" 0
+ 2
+"CBRef""0"
+"EClose""main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 4
+"Text2"
+""
+1 10 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 12 94 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 Clipboard
+13 2
+"Button1"
+""
+1 180 396 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 178 394 249 424
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOffReturn(makeDynFloat(0), makeDynString(\"\"));
+}" 0
+ E E E
+13 3
+"Button2"
+""
+1 105 396 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 103 394 174 424
+
+T 
+1
+LANG:1 2 Ok
+"main()
+{	
+  string deviceDpAlias, deviceDpType;
+  dyn_string exceptionInfo;
+  shape tree;
+  
+  tree = getShape(\"referenceTree.tree1\");
+  
+  // get the selected device
+  deviceDpAlias = tree.currentItem();
+  
+  // only allow to select below the system level
+  if(tree.parent(deviceDpAlias) == \"\")
+  {
+    fwException_raise(exceptionInfo, \"WARNING\", \"Select a device below the system level.\", \"\");
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }
+	
+
+  // check if type is allowed (empty allowed types list means all types allowed)	
+  //DebugN(\"length of allowed types = \" + dynlen(allowedTypes));
+  if(dynlen(allowedTypes) > 0)
+  {
+    deviceDpType = dpTypeName(strrtrim(dpAliasToName(deviceDpAlias), \"\"));
+    if(dynContains(allowedTypes, deviceDpType) < 1)
+    {
+      fwException_raise(exceptionInfo, \"WARNING\", \"Select a device of one of this types: \" + allowedTypes, \"\");
+      fwExceptionHandling_display(exceptionInfo);
+      return;
+    }
+  }	
+  // finally we can return the selected device and the action to be taken
+  PanelOffReturn(makeDynFloat(fwDEN_CLIPBOARD_PASTE), makeDynString(deviceDpAlias));
+}" 0
+ E E E
+1 7 1 "" 0
+1 "message" 1 1 "main()
+{
+	time rootPanelPathTime, childPanelPathTime;
+	unsigned managerNumber = myManNum();
+	string rootPanelPath, childPanelPath, rootPanelName, childPanelName, panelName;
+	
+	
+	if(isDollarDefined(\"$sPanelRelativePath\"))
+	{
+		panelPath = $sPanelRelativePath;
+	}
+	
+	if(panelPath == \"\")
+	{
+		dpGet(	\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName\", rootPanelPath,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName:_original.._stime\", rootPanelPathTime,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.PanelName\", rootPanelName,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName\", childPanelPath,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName:_original.._stime\", childPanelPathTime,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.PanelName\", childPanelName);
+	
+
+		//	DebugN(rootPanelPath, rootPanelPathTime, childPanelPath, childPanelPathTime);
+	
+		if(rootPanelPathTime > childPanelPathTime)
+		{
+			panelPath = rootPanelPath;
+			panelName = rootPanelName;
+		}
+		else
+		{
+			panelPath = childPanelPath;
+			panelName = childPanelName;
+		}
+	
+		if(myPanelName() == panelName)
+		{
+			goodPanelName = TRUE;
+//			DebugN(\"Correct panel name\");
+		}
+		else
+		{
+			goodPanelName = FALSE;
+//			DebugN(\"Wrong panel name\");
+		}	
+	}
+//	DebugN(\"The good path is \" + panelPath);
+}" 0
+ 
+1 "leftClick" 1 1 "main()
+{
+	int replaced;
+	string 	componentName, path, tempPanelPath, helpFile, browserCommand;
+	dyn_string aux, exceptionInfo;
+	
+//	DebugN(\"The good path is \" + panelPath);
+	
+	if(!goodPanelName)
+	{
+		fwException_raise(	exceptionInfo,
+							\"ERROR\",
+							\"Open panel name doesn't match with PVSS database. Try opening the panel again.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Get component name. We assume panels are inside a directory
+	// named after the component name
+	strreplace(panelPath, \"\\\\\", \"/\");
+	aux = strsplit(panelPath, \"/\");
+	componentName = aux[1];
+//	DebugN(panelPath, componentName);
+	
+	// Remove extension if given
+	if(strpos(panelPath, \".pnl\") >= 0)
+	{
+		tempPanelPath = substr(panelPath, 0, strpos(panelPath, \".pnl\"));
+	}
+	else
+	{
+		tempPanelPath = panelPath;
+	}
+	
+	// try to find the help file associated with the panel
+	helpFile = tempPanelPath + \".html\";
+//	DebugN(\"helpFile \" + helpFile + \" tempPanelPath \" + tempPanelPath + \" componentName \" + componentName);
+	path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+	if(path == \"\")
+	{		
+		helpFile = tempPanelPath + \".htm\";
+//		DebugN(\"helpFile \" + helpFile);
+		path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+//	DebugN(componentName + \"/panels/\" + helpFile);
+		if(path == \"\")
+		{
+			fwException_raise(	exceptionInfo,
+								\"ERROR\",
+								\"Could not find the help file associated with the current panel\",
+								\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	
+//	DebugN(\"Final help path \" + path);
+	
+	fwOpenProgressBar(\"Help\", \"Opening help file...\", 1);
+	// If there were no exceptions, then display the help
+	if(_WIN32)
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandWindows\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+//		system(\"start iexplore \" + path + \" &\");
+		system(browserCommand);
+	}
+	else
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandLinux\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+		system(browserCommand);
+//		system(\"start iexplore \" + path + \" &\");
+	}
+	fwCloseProgressBar();
+}	" 0
+ 
+0
+1 8 2 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 1 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 180 20 T 5 1 0 1 39 -10
+1
+"$sPanelRelativePath""fwDeviceEditorNavigator/fwDeviceEditorNavigatorClipboard"
+3 2 "referenceTree"
+"fwDeviceEditorNavigator/fwDeviceEditorNavigatorTree.pnl" 20 45 T 5 1 0 1 -8 0
+1
+"$sTreeType""\"LOGICAL CLIPBOARD\""
+0

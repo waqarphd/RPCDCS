@@ -1,0 +1,1006 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 934 846 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  if ($sDpName != \"\") {
+      string mySys; dyn_string exc; string name;
+      fwGeneral_getSystemName($sDpName, mySys, exc);
+      dyn_string configs = dpNames(mySys + \"*\",CMSfwDetectorProtection_configType);
+      if (dynlen(configs)>0) {
+        cbSystem.items = makeDynString(\"*\",mySys);      
+        cbSystem.selectedPos = 2;
+      }
+  }
+  refresh();
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"CMSfwDetectorProtection/CMSfwDetectorProtection.ctl\"
+dyn_string systemsToRestart;
+
+void setEnabledCb(bool val) {
+     cbSystem.enabled = val; cbConfiguration.enabled = val; cbActive.enabled = val; cbNotUpdated.enabled = val;
+}
+
+void refresh() {
+     setEnabledCb(false);
+   dyn_string configs = dpNames(\"*:*\",CMSfwDetectorProtection_configType);
+   // stupid check to fix some problems with systems that somehow seem to be connected but are not
+   bool activeDummy;
+    dyn_errClass err;
+   for (int i=dynlen(configs); i>0; i--) {
+     dpGet(configs[i] + \".config.active\", activeDummy);
+    err = getLastError();
+     if (dynlen(err)) {
+         DebugTN(\"Warning : impossible to get \"+ configs[i] + \": \" , err);
+         dynRemove(configs,i);
+     }  
+
+   }
+
+   dyn_string all_systems = makeDynString(\"*\");
+   dyn_string all_configurationdp = makeDynString(\"*\");
+   
+   dyn_string active = configs; for (int i=1; i<= dynlen(active); i++) active[i] += \".config.active\";
+   dyn_string updateddp  = configs; for (int i=1; i<= dynlen(updateddp); i++) updateddp[i] += \".config.updated\";
+   dynClear(systemsToRestart);
+   dyn_string systems;
+   string sys; dyn_string exc;
+   for (int i=1; i<= dynlen(configs); i++) {
+       fwGeneral_getSystemName(configs[i], sys, exc);
+       if (! dynContains(systems, sys) ) {
+           dynAppend(systems, sys);
+       }  
+   }
+
+
+   
+   dyn_time startTimes; dyn_time aliveTimes; dyn_dyn_string logs; dyn_dyn_string replies_to_unsubscribe; dyn_dyn_string maskedDpes;
+   dyn_string numLocked;
+   int nLock;
+   
+   dyn_bool invalid;
+   for (int i=1; i<= dynlen(systems); i++) {
+     if (dpExists(systems[i] + \"CMSfwDetectorProtection/CtrlManager.startTime\")) {
+       dpGet(systems[i] + \"CMSfwDetectorProtection/CtrlManager.startTime\", startTimes[i],
+             systems[i] + \"CMSfwDetectorProtection/CtrlManager.aliveTime\", aliveTimes[i],
+             systems[i] + \"CMSfwDetectorProtection/CtrlManager.log\", logs[i]);
+
+     }
+     else {
+       startTimes[i] = 0;
+       aliveTimes[i] = 0;
+       logs[i] = makeDynString();
+   }
+   if (dpExists(systems[i] + \"CMSfwDetectorProtection/CtrlManager.consistency.invalid\")) {
+           dpGet(systems[i]+ \"CMSfwDetectorProtection/CtrlManager.consistency.invalid\", invalid[i],
+                 systems[i] + \"CMSfwDetectorProtection/CtrlManager.consistency.repliesToUnsubscribe.list\", replies_to_unsubscribe[i]);
+   } else {
+       invalid[i] = false;       
+       replies_to_unsubscribe[i] = makeDynString();     
+   }
+   
+   if (dpExists(systems[i] + \"CMSfwDetectorProtection/CtrlManager.n_locked_dpes\")) {
+           dpGet(systems[i]+ \"CMSfwDetectorProtection/CtrlManager.n_locked_dpes\", nLock);
+           numLocked[i] = nLock;
+
+   } else {
+         numLocked[i] = \"?\";
+         
+   }
+      
+   
+    maskedDpes[i] = CMSfwDetectorProtection_getMaskedDpesForSystem(systems[i]);     
+
+   
+   }
+
+
+   
+   dyn_bool isActive;
+   int isInvalid;
+   int numReplies;
+   int numMasked;
+   
+   _treeCache_dpGetAll(active, isActive);
+   for (int i=1; i<= dynlen(active); i++) active[i] += \":_original.._stime\";
+   dyn_time activeChangedTimestamp;
+   _treeCache_dpGetAll(active, activeChangedTimestamp);
+
+   dyn_time updatedTimestamp;
+   _treeCache_dpGetAll(updateddp,updatedTimestamp);
+   bool not_updated, not_updated2;
+   tblConfig.deleteAllLines(); string  name; dyn_string exc;
+   int count = 0;
+   int now = period(getCurrentTime()); int running; bool hasLog;
+   
+   string prev_system; string nLocked, numLockedColor; 
+   for (int i=1; i<= dynlen(configs); i++) {
+     fwGeneral_getSystemName(configs[i],sys, exc);
+     fwDevice_getName(configs[i], name, exc);     
+     if (! dynContains(all_systems, sys) ) dynAppend(all_systems, sys);
+     if (! dynContains(all_configurationdp, name) ) dynAppend(all_configurationdp, name);
+     not_updated2 = ((startTimes[dynContains(systems, sys)])<(updatedTimestamp[i]));
+     not_updated = ((startTimes[dynContains(systems, sys)])<(activeChangedTimestamp[i])) || not_updated2; 
+     if (isFiltered(sys,name,isActive[i], not_updated) ) continue;
+   //  DebugN(getCurrentTime(),aliveTimes[dynContains(systems, sys)], now, period(aliveTimes[dynContains(systems, sys)]), (now - period(aliveTimes[dynContains(systems, sys)])));
+     running = ((now - period(aliveTimes[dynContains(systems, sys)])< 120));
+     hasLog = (dynlen(logs[dynContains(systems, sys)])>0);
+     isInvalid = invalid[dynContains(systems, sys)];
+     numReplies = (dynlen(replies_to_unsubscribe[dynContains(systems, sys)]));
+     numMasked = (dynlen(maskedDpes[dynContains(systems, sys)]));
+     nLocked = numLocked[dynContains(systems, sys)];
+
+     
+     numLockedColor = \"\";
+     if (nLocked == \"?\") {
+       numLockedColor=\"FwStateAttention1\";
+     } else if (((int) nLocked)       > 0) {
+        numLockedColor = \"FwStateAttention2\";
+     } 
+     
+     if (prev_system == sys) {
+         hasLog = false;     
+         numReplies = -1;
+         numMasked = -1;
+         isInvalid = -1;
+         running = -1;
+         nLocked = \"\";
+         numLockedColor = \"_Window\";
+       }
+
+     tblConfig.appendLine(\"system\", sys, \"config\", name, \"active\", (isActive[i]?\"Active\":\"Not Active\"),
+                          \"starttime\", myTimeFormat(startTimes[dynContains(systems, sys)]),
+                          \"updatedtime\", myTimeFormat(updatedTimestamp[i]), 
+                          \"running\", getThreeValuesDesc(running,\"YES\",\"NO\"),
+                          \"log\", hasLog?\"...\":\"\",
+                          \"consistent\", getThreeValuesDesc(isInvalid,\"NO\",\"YES\"),
+                          \"repliesUns\", ((numReplies==-1)?\"\":numReplies),
+                          \"masked\", ((numMasked == -1)?\"\":numMasked),
+                          \"locked\", nLocked);
+     tblConfig.cellBackColRC(count,\"active\",(isActive[i]?\"FwStateOKPhysics\":\"FwStateAttention3\"));
+    // DebugN(startTimes[dynContains(systems, sys)],activeChangedTimestamp[i],(period(startTimes[dynContains(systems, sys)])<period(activeChangedTimestamp[i])));
+
+     if (((not_updated) || (isInvalid==1)) && ( ! dynContains(systemsToRestart, sys) )) dynAppend(systemsToRestart, sys);
+
+     
+
+     tblConfig.cellBackColRC(count, \"updatedtime\",(not_updated2)?\"FwStateAttention3\":\"_Window\");
+     tblConfig.cellBackColRC(count, \"running\",(running!=0)?\"_Window\":\"FwStateAttention3\");
+     tblConfig.cellBackColRC(count, \"log\",(hasLog)?\"FwStateAttention2\":\"_Window\");
+     tblConfig.cellBackColRC(count, \"locked\",numLockedColor);
+     tblConfig.cellBackColRC(count, \"consistent\",(isInvalid==1)?\"FwStateAttention3\":\"_Window\");
+     tblConfig.cellBackColRC(count, \"repliesUns\",(numReplies>0)?\"FwStateAttention3\":\"_Window\");
+     tblConfig.cellBackColRC(count, \"masked\",(numMasked>0)?\"FwStateAttention1\":\"_Window\");
+     tblConfig.cellBackColRC(count, \"system\", (sys != prev_system)?\"FwStateAttention1\":\"_Window\");
+     tblConfig.cellForeColRC(count, \"system\", (sys != prev_system)?\"_ButtonText\":\"_Window\");      
+
+     tblConfig.cellBackColRC(count, \"starttime\", (sys != prev_system)?((not_updated)?\"FwStateAttention3\":\"_Window\"):\"_Window\");
+     tblConfig.cellForeColRC(count, \"starttime\", (sys != prev_system)?\"_ButtonText\":\"_Window\");   
+     
+     prev_system = sys;
+     count++;
+   }
+    
+  cbSystem.items = all_systems;
+  cbConfiguration.items= all_configurationdp;  
+
+   setEnabledCb(true);   
+  
+}
+
+bool isFiltered(string sys, string name, bool isActive, bool not_updated) {
+    if (cbSystem.selectedText != \"*\") {
+      if (sys != cbSystem.selectedText) {  return true; }
+    }
+    if (cbConfiguration.selectedText != \"*\") {
+      if (name != cbConfiguration.selectedText){  return true; }
+    }
+    if (cbActive.selectedText != \"*\") {
+        if (isActive != (cbActive.selectedText == \"Active\")) {  return true; }
+    }
+    if (cbNotUpdated.selectedText != \"*\") {
+        if (not_updated != (cbNotUpdated.selectedText == \"Not Updated\")) {  return true; }
+    }
+    return false;
+        
+}
+
+dyn_string getSystemsToRestart() {
+    refresh();
+    return systemsToRestart;
+}  
+void showMsg(string msg) {
+    bool ok; dyn_string exc;
+     fwGeneral_openMessagePanel(msg,ok, exc,\"\",true); 
+     return; 
+}
+
+bool promptUser(string msg) {
+  dyn_string result;
+  dyn_float float_result;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageInfo\",(\"information\"),makeDynString(msg,\"Yes\",\"No\"),float_result, result);
+  return result[1]==\"true\";
+
+}
+
+string getThreeValuesDesc(int v, string on, string off) {
+    if (v==-1) return \"\";
+    else if (v==1) return on;
+    else if (v==0) return off;
+    return \"\";
+}
+
+void clearFilter() {
+    cbSystem.selectedPos = 1; cbConfiguration.selectedPos = 1; cbActive.selectedPos = 1; cbNotUpdated.selectedPos = 1;
+}
+
+string myTimeFormat(time t) {
+    return formatTime(\"%Y.%m.%d %H:%M:%S\",t);
+}
+
+void unsubscribeReplies(string sys) {
+      dyn_string exc;
+      dyn_string replydps = CMSfwDetectorProtection_findUnsubscribedAndValidReplies(sys, exc);
+      if (dynlen(exc) > 0) {
+          fwExceptionHandling_display(exc);
+      } else {
+       // DebugN(\"Reply dps to unsubscribe \" , replydps);
+        if (dynlen(replydps) == 0) {
+            showMsg(\"No reply to unsubscribe\");
+       } else {
+         int sysNum = getSystemId(sys);
+         string name; string remoteSys; int countUnsubscribed = 0;
+         for (int i=1; i<= dynlen(replydps); i++) {
+           fwDevice_getName(dpSubStr(replydps[i], DPSUB_DP), name, exc);
+           fwGeneral_getSystemName(replydps[i], remoteSys, exc);
+           if (promptUser(\"Do you want to unsubscribe \" + name + \" on sys \" + remoteSys + \"?\")) {
+              CMSfwDetectorProtection_setToInvalid(replydps[i], sysNum);
+              countUnsubscribed++;
+           }           
+         }
+         if (countUnsubscribed >0) {
+              CMSfwDetectorProtection_triggerConsistencyCheck(sys, exc);    
+              if (dynlen(exc)>0) fwExceptionHandling_display(exc);
+              refresh();
+         }
+       }
+     }
+}
+
+void showMasked(string sys) {
+  dyn_string list, exc;
+    CMSfwDetectorProtection_getListAffectedDpes(\"*\", sys,  list, exc) ;
+    if (dynlen(exc)>0) {
+        fwExceptionHandling_display(exc); return;
+    }
+
+  string msg;
+    fwGeneral_dynStringToString(list, msg);
+    ChildPanelOnCentral(\"CMSfwDetectorProtection/maskDpes.pnl\",\"Mask DPES on \" + sys, makeDynString(\"$system:\" + sys,
+                                                                                                           \"$dpes:\" + msg));
+    
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 30 6 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 6 474 61
+0 2 2 "0s" 0 0 0 64 0 0  30 6 1
+1
+LANG:1 33 MS Shell Dlg,-1,19,5,75,0,0,0,0,0
+0 1
+LANG:1 42 Detector Protection: Configuration Manager
+2 1
+"PRIMITIVE_TEXT2"
+""
+1 391.4347109503845 37 E E E 1 E 1 E N "_WindowText" E N "FwStateAttention2" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E 0.953405017921147 0 1 26.9569892473118 0 1 E 44 37 598 88
+0 2 2 "0s" 0 0 0 64 0 0  44 37 3
+1
+LANG:1 38 Palatino Linotype,11,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 64      WARNING: Deactivating some protection action may affect the
+1
+LANG:1 38 Palatino Linotype,11,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 45      protection mechanism. Please be careful!
+1
+LANG:1 38 Palatino Linotype,11,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 0 
+25 3
+"tblConfig"
+""
+1 2.000000000000093 227 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column, string value)
+{
+  dyn_anytype res;
+  getValue(\"\",\"getLineN\", row,res);
+  //DebugN(row, column, res);
+
+  int a;  
+   if (! CMSfwDetectorProtection_hasRequiredPrivileges(res[1]) ) {
+        popupMenu(makeDynString(\"PUSH_BUTTON,You do not have the required privileges on system \" + res[1] + \",1,1\" ), a);
+        return;
+      
+    }
+
+  popupMenu(makeDynString(\"PUSH_BUTTON,Restart manager on system \" + res[1] + \",1,1,\" + 
+                          \"PUSH_BUTTON,Restart all managers that need to be updated,2,1,\" +
+                          \"SEPARATOR,\" +
+                          \"PUSH_BUTTON,Check consistency for \" + res[1] + \",3,1\" ,
+                          \"PUSH_BUTTON,Remove system \" + res[1] + \" from waiting list of unsubscribed conditions,4,1,\"+                        
+                          \"SEPARATOR,\" +
+                          \"PUSH_BUTTON,View code to generate objects on \" + res[1] +\",5,1,\" + 
+                          \"PUSH_BUTTON,View code to generate object \" + res[1] + res[2] + \",6,1,\" +
+                          \"SEPARATOR,\" + 
+                          \"PUSH_BUTTON,Mask channels in system \" + res[1]  +\",7,1,\"+
+                          \"SEPARATOR,\" +
+                          \"PUSH_BUTTON,Analyze conditions affecting system \" + res[1]  +\",8,1\" + 
+                           \"SEPARATOR,\" +
+                          \"PUSH_BUTTON,Toggle check invalid bit on \" + res[1] + \",9,1\"
+                                                  ), a);
+
+  
+  
+  if (a == 1) {        
+        if (promptUser(\"Do you really want to restart the manager in system \\n\" + res[1] + \"?\") ) {
+          if (! isManagerRunning(res[1])) {
+              showMsg(\"Manager is probably not running. Please set it to always\");
+          }
+           CMSfwDetectorProtection_triggerRestart(res[1]); 
+        }
+   } else if (a == 2) {
+     dyn_string systems = getSystemsToRestart();
+     if (dynlen(systems) > 0 ) {
+           if (promptUser(\"Do you really want to restart the manager in \" + dynlen(systems) + \" system\" + ((dynlen(systems)>1)?\"s\":\"\") + \"?\") ) {
+             for (int i=1; i<= dynlen(systems); i++) {
+              if (! isManagerRunning(systems[i])) {
+                showMsg(\"Manager is probably not running on \" + systems[i] + \". Please set it to always\");
+            }
+               CMSfwDetectorProtection_triggerRestart(systems[i]); 
+             }
+           }
+     } else {
+       showMsg(\"All systems are ok\");    
+     }    
+     
+   } else if (a == 3) {
+     dyn_string exc;
+     CMSfwDetectorProtection_triggerConsistencyCheck(res[1], exc);    
+     if (dynlen(exc)>0) fwExceptionHandling_display(exc);
+     refresh();
+   } else if (a == 4) {
+          unsubscribeReplies(res[1]);  
+   } else if (a==5) {
+    string script = CMSfwDetectorProtection_codeToCreateSystem(res[1]);
+    scriptEditor(script);    
+   } else if (a==6) {
+     dyn_string exc; dyn_mixed obj2;
+     CMSfwDetectorProtection_loadFromDp(obj2,      CMSfwDetectorProtection_getConfigDpName(res[2], res[1]), exc, false);      
+     string script = CMSfwDetectorProtection_codeToCreateObject(obj2);
+     scriptEditor(script);                
+   } else if (a==7) {
+     showMasked(res[1]);
+      
+   } else if (a==8) {
+  ChildPanelOnCentral(\"CMSfwDetectorProtection/analyze.pnl\",\"Analyze system \" + res[1],
+                           makeDynString( \"$sysnames:\" + res[1]));     
+  } else if (a==9) {
+      bool ignored;
+      string systemName = res[1];
+      dpGet(systemName + CMSfwDetectorProtection_managerDp + \".ignoreInvalidBit\", ignored);
+      ignored = ! ignored;
+      dpSet(systemName + CMSfwDetectorProtection_managerDp + \".ignoreInvalidBit\", ignored);          
+      showMsg(\"Invalid bit is now \" + ((ignored)?\"ignored\":\"taken into account\") + \" during verification\");
+  }
+   
+  
+  
+}
+
+bool isManagerRunning(string systemName) {
+  time aliveTime;
+     if (dpExists(systemName + CMSfwDetectorProtection_managerDp)) {
+          dpGet(systemName + CMSfwDetectorProtection_managerDp + \".aliveTime\", aliveTime);
+          if ((period(getCurrentTime()) - period(aliveTime)) > 120) {
+              return false;
+          }
+      }
+     return true;
+}
+
+
+" 0
+ "main(int row, string column)
+{
+  
+  dyn_anytype res;
+  getValue(\"\",\"getLineN\", row,res);
+  //DebugN(row, column, res);
+  
+  string dp = CMSfwDetectorProtection_getConfigDpName(res[2], res[1]);
+  
+  ChildPanelOnCentral(\"CMSfwDetectorProtection/ConfigureDetectorProtection.pnl\",\"Configuration for \" + dp, makeDynString(\"$sDpName:\" + dp));
+  
+}" 0
+
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  0 225 928 763
+"main()
+{
+  
+  this.selectByClick(TABLE_SELECT_NOTHING);
+  this.tableMode(TABLE_SELECT_NOTHING);
+  this.sortOnClick(false);
+}" 0
+"main(int row, string column, string value)
+{
+  dyn_anytype res;
+  getValue(\"\",\"getLineN\", row,res);
+  //DebugN(row, column, res);
+  
+  string dp = CMSfwDetectorProtection_getConfigDpName(res[2], res[1]);
+  if (column == \"active\") {
+     bool active;
+     dpGet(dp + \".config.active\", active);
+     if (active != (res[3] == \"Active\")) {
+        showMsg(\"The value shown in the table is not updated. Refresh is needed\");
+        refresh();
+        return; 
+     }
+
+    if (! CMSfwDetectorProtection_hasRequiredPrivileges(res[1]) ) {
+        dyn_string exceptionInfo;
+        fwException_raise(exceptionInfo, \"INSUFFICIENT_PRIVILEGES\", \"Insufficient privileges on system \" + res[1],\"\"); 
+        fwExceptionHandling_display(exceptionInfo);
+        return ;
+    }
+     active = (! active);
+     if (promptUser(\"Are you sure you want to \" + ((active)?\"activate\":\"deactivate\") + \" configuration dp \" + res[2] + \" on system \" + res[1] + \"?\") ) {
+        dpSet(dp + \".config.active\", active);
+        refresh();         
+        if (promptUser(\"Do you want to restart the manager in system\\n\" + res[1] + \"?\\nRestarting is needed to apply the changes\") ) {
+           CMSfwDetectorProtection_triggerRestart(res[1]); 
+        }
+     }
+     return;           
+  } else if (column == \"log\") {
+    if (value == \"\") return;
+    dyn_string logSelected; 
+    dpGet(res[1] + \"CMSfwDetectorProtection/CtrlManager.log\", logSelected);
+    string msg; 
+    fwGeneral_dynStringToString(logSelected, msg);
+    ChildPanelOnCentral(\"vision/MessageInfoList\",\"View Log\", makeDynString(\"$1:Log for \" + res[1],\"$2:\" + msg));    
+  } else if (column == \"repliesUns\") {
+      int a;
+      dyn_string replies;
+       dpGet(res[1] + \"CMSfwDetectorProtection/CtrlManager.consistency.repliesToUnsubscribe.list\", replies);
+       dyn_string menu = makeDynString(\"PUSH_BUTTON,Unsubscribe Replies,99999,1\");
+       for (int i=1; i<= dynlen(replies); i++) {
+           dynAppend(menu,\"PUSH_BUTTON,View reply for \" + CMSfwDetectorProtection_getInputDescription(CMSfwDetectorProtection_convertToInputDp(replies[i])) + \",\" + i + \",1\");
+       }
+       dynAppend(menu, \"PUSH_BUTTON,Cancel,100000\"  + \",1\");
+       popupMenu(menu,a);
+       if (a == 100000) {
+         // do nothing
+         ;
+       } else if (a == 99999) {
+        unsubscribeReplies(res[1]);  
+      } else if (a>0) {
+            ChildPanelOnCentral(\"CMSfwDetectorProtection/view_reply.pnl\",replies[a],makeDynString(\"$sDpName:\" + replies[a]) );
+      }
+    } else if (column == \"masked\") {
+        showMasked(res[1]);
+    }
+  
+  
+}" 0
+ 1 0 1 11 0 "system" 9 1 0 "s" 1
+LANG:1 6 System
+E
+1
+LANG:1 0 
+
+92 "config" 26 1 0 "s" 1
+LANG:1 16 Configuration DP
+E
+1
+LANG:1 0 
+
+250 "active" 5 1 0 "s" 1
+LANG:1 6 Active
+E
+1
+LANG:1 0 
+
+60 "starttime" 11 1 0 "s" 1
+LANG:1 10 Start Time
+E
+1
+LANG:1 0 
+
+110 "updatedtime" 11 1 0 "s" 1
+LANG:1 12 Updated Time
+E
+1
+LANG:1 0 
+
+110 "running" 4 1 0 "s" 1
+LANG:1 7 Running
+E
+1
+LANG:1 0 
+
+49 "log" 2 1 0 "s" 1
+LANG:1 3 Log
+E
+1
+LANG:1 0 
+
+33 "consistent" 3 1 0 "s" 1
+LANG:1 10 Consistent
+E
+1
+LANG:1 0 
+
+43 "repliesUns" 3 1 0 "s" 1
+LANG:1 5 Unsub
+E
+1
+LANG:1 0 
+
+43 "masked" 4 1 0 "s" 1
+LANG:1 6 Masked
+E
+1
+LANG:1 0 
+
+50 "locked" 4 1 0 "s" 1
+LANG:1 6 Locked
+E
+1
+LANG:1 0 
+
+50 
+16 16 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 4
+"btnTcRef"
+""
+1 5.0000000000001 194 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  3 192 61 221
+
+P 
+4294967295
+"pictures/refresh_e.gif"
+1
+LANG:1 7 Refresh
+"main()
+{
+  
+  refresh();
+  
+  
+}" 0
+ E E E
+13 5
+"PUSH_BUTTON7"
+""
+1 712 778 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  710 776 807 811
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+
+  
+  PanelOff();
+}" 0
+ E E E
+2 6
+"PRIMITIVE_TEXT3"
+""
+1 94.0000000000001 192 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 94.0000000000001 192 546 241
+0 2 2 "0s" 0 0 0 64 0 0  94.0000000000001 192 2
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 42 Double click on a row, to see the details.
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 68 Click on the active column to activate/ deactivate the configuration
+30 7
+"FRAME1"
+""
+1 10 83 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+12 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.009987515605493 0 1.194029850746269 7.405118601747834 0.8955223880596712 0 E 10 83 811 151
+1
+LANG:1 35 MS Shell Dlg 2,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Filter By
+22 9
+"cbSystem"
+""
+1 50 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 35 MS Shell Dlg 2,-1,11,5,50,0,0,0,0,0
+0  48 138 182 161
+1
+1
+LANG:1 1 *
+
+0
+
+E
+"main()
+{
+  refresh();
+}" 0
+
+E
+ 0 0
+22 10
+"cbConfiguration"
+""
+1 193 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 35 MS Shell Dlg 2,-1,11,5,50,0,0,0,0,0
+0  191 138 410 161
+1
+1
+LANG:1 1 *
+
+0
+
+E
+"main()
+{
+  refresh();
+}" 0
+
+E
+ 0 0
+22 11
+"cbActive"
+""
+1 420 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 35 MS Shell Dlg 2,-1,11,5,50,0,0,0,0,0
+0  418 138 542 161
+3
+1
+LANG:1 1 *
+
+0
+1
+LANG:1 10 Not Active
+
+0
+1
+LANG:1 6 Active
+
+0
+
+E
+"main()
+{
+  refresh();
+}" 0
+
+E
+ 0 0
+22 12
+"cbNotUpdated"
+""
+1 560 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 35 MS Shell Dlg 2,-1,11,5,50,0,0,0,0,0
+0  558 138 682 161
+3
+1
+LANG:1 1 *
+
+0
+1
+LANG:1 11 Not Updated
+
+0
+1
+LANG:1 2 Ok
+
+0
+
+E
+"main()
+{
+  refresh();
+}" 0
+
+E
+ 0 0
+2 13
+"lblCondName"
+""
+1 52 122 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 52 122 86 136
+0 2 2 "0s" 0 0 0 192 0 0  52 122 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 System
+2 14
+"PRIMITIVE_TEXT4"
+""
+1 195 122 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 195 122 288 136
+0 2 2 "0s" 0 0 0 192 0 0  195 122 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Configuration Name
+2 15
+"PRIMITIVE_TEXT5"
+""
+1 422 122 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 422 122 452 136
+0 2 2 "0s" 0 0 0 192 0 0  422 122 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Active
+2 16
+"PRIMITIVE_TEXT6"
+""
+1 562 122 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 562 122 603 136
+0 2 2 "0s" 0 0 0 192 0 0  562 122 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Updated
+13 17
+"defaultFilter"
+""
+1 766 130 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 12 Clear filter
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  764 128 803 167
+
+P 
+13421721
+"pictures/del_en.gif"
+1
+LANG:1 0 
+"main()
+{
+  clearFilter();
+  refresh();
+}" 0
+ E E "main()
+{
+
+}" 0
+
+1 22 1 "" 2
+0
+1 23 1 "" 1
+0
+1 24 1 "" 4
+0
+2 21
+"txtProgress"
+""
+1 10 776 E E E 1 E 1 E N "FwStateAttention3" E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"\";
+}" 0
+ E 0 1 1 2 1 E U  1 E 10 776 454 831
+0 2 2 "0s" 0 0 0 64 0 0  10 776 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,75,0,0,0,0,0
+0 1
+LANG:1 31 Analyzing conditions for system
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 1 "PANEL_REF0" -1
+"objects\\fwAccessControl\\fwAccessControl_CurrentUser.pnl" 10 10 T 24 1 0 1 606 2.000000000000004
+0
+0

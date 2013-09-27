@@ -1,0 +1,1074 @@
+V 11
+1
+LANG:1 24 CAENOPCConfigurator_Main
+PANEL,-1 -1 808 495 N "_3DFace" 0
+E E E E E 1 -1 -1 0  70 60
+""0  1
+E "//  CMSfw_CAENOPCConfigurator_Main.pnl 
+//  
+//  Developped by: Georgi Aleksandrov Leshev - ETH Zurich
+//  CERN CMS Experiment
+
+#uses \"CMSfw_CAENOPCConfigurator/CMSfw_CAENOPCConfiguratorLib.ctl\"
+
+Refresh()
+{
+  
+  // 1.Part for showing the Crates on the panel - table1
+  
+  // Start operation retrieve - code 1
+  dpSet(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\", 1);
+  
+  time t;
+  dyn_string dpNamesWait, dpNamesReturn;
+  dyn_anytype conditions, returnValues;
+  int status;
+ 
+  dpNamesWait = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\");
+  conditions[1] = 0;
+  dpNamesReturn = makeDynString( getSystemName()+\"OPC_Conf_General.regInput.idOperation:_online.._value\" );
+  t = 30;
+
+  // Wait until the operation is completed - code 0
+  status = dpWaitForValue( dpNamesWait, conditions, dpNamesReturn, returnValues, t );
+  
+  // Take the result from the DP
+  dyn_string rawResult;
+  dpGet(getSystemName()+\"OPC_Conf_General.regOutput.dynstringResult:_online.._value\", rawResult);  
+  
+  // Process the result
+  dyn_dyn_string Result;
+  dyn_string temp1 = makeDynString(), temp2 = makeDynString();
+  dyn_string temp = makeDynString();
+  
+  for (int i = 1; i <= dynlen(rawResult); i++)
+  {
+    temp = strsplit(rawResult[i], \",\");
+    dynAppend(temp1, temp[1]);
+    dynAppend(temp2, temp[3]);
+  }
+    
+  Result[1] = temp1;
+  Result[2] = temp2; 
+  
+  // and show on the table
+  table1.deleteAllLines();
+  for (int i = 1; i <= dynlen(Result[1]); i++)
+  {
+    table1.appendLine(\"#1\", Result[1][i], \"#2\", Result[2][i]);
+  }    
+  // 2. Use pmon query to find out if the driver is running
+   
+  // Start operation check OPC manager - code 4
+  dpSet(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\", 4);
+  
+  time t;
+  dyn_string dpNamesWait, dpNamesReturn;
+  dyn_anytype conditions, returnValues;
+  int status;
+ 
+  dpNamesWait = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\");
+  conditions[1] = 0;
+  dpNamesReturn = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_online.._value\" );
+  t = 30;
+
+  // Wait until the operation is completed - code 0
+  status = dpWaitForValue( dpNamesWait, conditions, dpNamesReturn, returnValues, t );
+  
+  // Take the result from the DP
+  int color;
+  dpGet(getSystemName()+\"OPC_Conf_General.regOutput.intResult:_online.._value\", color);
+  
+  switch (color)
+  {
+    case  1:  indicator.backCol(\"{255,0,0}\");
+        delete.enabled = true;
+        addButton.enabled = true;
+        break;
+    case  2:  indicator.backCol(\"{0,153,0}\"); 
+        delete.enabled = false;
+        addButton.enabled = false;
+        break;
+    case  3:  indicator.backCol(\"{0,0,0}\");
+  };
+  
+  
+  
+}
+
+DisableAll()
+{
+  delete.enabled = false;
+  addButton.enabled = false;
+  refresh1.enabled = false;
+  refresh2.enabled = false;
+  opcStart.enabled = false;
+  opcStop.enabled = false;
+  exitButton.enabled = false;
+  restartButton.enabled = false;
+}
+
+EnableAll()
+{
+  refresh1.enabled = true;
+  refresh2.enabled = true;
+  
+  opcStart.enabled = true;
+  opcStop.enabled = true;
+  
+  exitButton.enabled = true;
+  
+  restartButton.enabled = true;
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 1
+"table1"
+""
+1 50 120 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  48 118 332 272
+"main()
+{
+  DisableAll();
+    
+  Refresh();
+   
+  EnableAll();
+}" 0
+E 1 0 1 2 1 "#1" 14 1 0 "s" 1
+LANG:1 10 Crate Name
+E
+1
+LANG:1 0 
+
+140 "#2" 12 1 0 "s" 1
+LANG:1 10 IP Address
+E
+1
+LANG:1 0 
+
+120 
+14 14 "" 1 1
+LANG:1 2 fi
+10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 5
+"addButton"
+""
+1 620 190 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  618 188 722 222
+
+T 
+1
+LANG:1 10 Add Entry
+
+"main()
+{
+  DisableAll();
+  
+  string crateName, crateIP;
+  
+  crateName = textCrateName.text;
+  crateIP = textIPAddress.text;
+ 
+  dyn_string temp = strsplit(crateIP,\".\");
+  
+  if (dynlen(temp) != 4)
+  {
+    // Error occured. Output it to the user.
+    string cat, errNote;
+    int prio,typ,co;
+  
+    cat =\"_errors\"; 
+   
+    prio = PRIO_INFO; 
+    typ =ERR_PARAM;
+    co = 0; 
+    
+    errClass retError; 
+       
+    errNote = \"Error in the IP address textbox.\";
+    retError=makeError(cat,prio,typ,co,errNote);
+    errorDialog(retError); 
+    
+    Refresh();
+    EnableAll();
+    return;
+  }
+  
+  // First send the input
+  dpSetWait(getSystemName()+\"OPC_Conf_General.regInput.nameCrate:_original.._value\", crateName);
+  dpSetWait(getSystemName()+\"OPC_Conf_General.regInput.ipCrate:_original.._value\", crateIP);
+       
+  // Start operation add - code 3
+  dpSet(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\", 3);
+  
+  time t;
+  dyn_string dpNamesWait, dpNamesReturn;
+  dyn_anytype conditions, returnValues;
+  int status;
+ 
+  dpNamesWait = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\");
+  conditions[1] = 0;
+  dpNamesReturn = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_online.._value\" );
+  t = 30;
+
+  // Wait until the operation is completed - code 0
+  status = dpWaitForValue( dpNamesWait, conditions, dpNamesReturn, returnValues, t );
+  
+  // Take the result from the DP
+  int intResult;
+  dpGet(getSystemName()+\"OPC_Conf_General.regOutput.intResult:_online.._value\", intResult); 
+  
+  // return value:
+  // 0 in case of success
+  // -1 in case of error
+  
+  if (intResult)
+  {
+    // Error occured. Output it to the user.
+    string cat, errNote;
+    int prio,typ,co;
+  
+    cat =\"_errors\"; 
+   
+    prio = PRIO_INFO; 
+    typ =ERR_PARAM;
+    co = 0; 
+    
+    errClass retError; 
+       
+    errNote = \"There was error during the adding of the crate.\";
+    retError=makeError(cat,prio,typ,co,errNote);
+    errorDialog(retError); 
+  }
+  
+  Refresh();
+  
+  EnableAll();
+}" 0
+ E E E
+14 6
+"textCrateName"
+""
+1 420 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  418 138 562 161
+3 "0s" 0 0 0 0 0 -1  E E E
+14 7
+"textIPAddress"
+""
+1 580 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  578 138 722 161
+3 "0s" 0 0 0 0 0 -1  E E E
+30 8
+"FRAME1"
+""
+1 300 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+9 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.761421319796954 100 80.1015228426396 0 E 300 13 661 211
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Add New Entry
+2 9
+"PRIMITIVE_TEXT1"
+""
+1 330 40 E E E 1 E 1 E N "blue" E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 430 120 505 137
+0 2 2 "0s" 0 0 0 192 0 0  430 120 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Crate Name:
+2 11
+"PRIMITIVE_TEXT3"
+""
+1 330 40 E E E 1 E 1 E N "blue" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 590 120 659 137
+0 2 2 "0s" 0 0 0 192 0 0  590 120 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 11 IP Address:
+13 12
+"refresh1"
+""
+1 50 287 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  48 285 162 319
+
+T 
+1
+LANG:1 8 Refresh
+
+"main()
+{
+  DisableAll();
+  
+  Refresh();
+  
+  EnableAll();
+}" 0
+ E E E
+13 13
+"delete"
+""
+1 50 400 E E E 1 E 1 E N "red" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  48 398 182 432
+
+T 
+1
+LANG:1 18 Delete All Entries
+"main()
+{
+  DisableAll();
+  
+  // Start operation delete - code 2
+  dpSet(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\", 2);
+  
+  time t;
+  dyn_string dpNamesWait, dpNamesReturn;
+  dyn_anytype conditions, returnValues;
+  int status;
+ 
+  dpNamesWait = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\");
+  conditions[1] = 0;
+  dpNamesReturn = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_online.._value\" );
+  t = 30;
+
+  // Wait until the operation is completed - code 0
+  status = dpWaitForValue( dpNamesWait, conditions, dpNamesReturn, returnValues, t );
+  
+  // Take the result from the DP
+  int intResult;
+  dpGet(getSystemName()+\"OPC_Conf_General.regOutput.intResult:_online.._value\", intResult); 
+  
+  // return value:
+  // 0 in case of success
+  // -1 in case of error
+  
+  if (intResult)
+  {
+    // Error occured. Output it to the user.
+    string cat, errNote;
+    int prio,typ,co;
+  
+    cat =\"_errors\"; 
+   
+    prio = PRIO_INFO; 
+    typ =ERR_PARAM;
+    co = 0; 
+    
+    errClass retError; 
+       
+    errNote = \"There was error during the deletion.\";
+    retError=makeError(cat,prio,typ,co,errNote);
+    errorDialog(retError); 
+  }
+  
+  Refresh();
+  
+  EnableAll();
+}
+" 0
+ E E E
+30 14
+"FRAME2"
+""
+1 10 313 E E E 1 E 1 E N "red" E N {0,0,0} E E
+ E E
+17 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 20 37 0 E 10 313 181 431
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Delete All Entries
+13 15
+"exitButton"
+""
+1 680 420 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  678 418 792 452
+
+T 
+1
+LANG:1 6 Close
+
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+30 16
+"FRAME3"
+""
+1 10 23 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+19 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.20689655172414 0 1 17.9310344827586 67 0 E 10 23 301 271
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 29 CAEN Configurator Information
+13 17
+"opcStart"
+""
+1 580 360 E E E 1 E 1 E N "FwTrendingCurve3" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  578 358 712 392
+
+T 
+1
+LANG:1 18 Start OPC Manager
+
+"main()
+{
+  DisableAll();
+  
+  // Start Caen driver. 
+    
+  // Start operation - start OPC manager - code 6
+  dpSet(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\", 6);
+  
+  time t;
+  dyn_string dpNamesWait, dpNamesReturn;
+  dyn_anytype conditions, returnValues;
+  int status;
+ 
+  dpNamesWait = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\");
+  conditions[1] = 0;
+  dpNamesReturn = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_online.._value\" );
+  t = 30;
+
+  // Wait until the operation is completed - code 0
+  status = dpWaitForValue( dpNamesWait, conditions, dpNamesReturn, returnValues, t );
+  
+  // Take the result from the DP
+  int intResult;
+  dpGet(getSystemName()+\"OPC_Conf_General.regOutput.intResult:_online.._value\", intResult);
+  
+  Refresh();
+  EnableAll();
+}" 0
+ E E E
+13 18
+"opcStop"
+""
+1 420 360 E E E 1 E 1 E N "red" E N "_Button" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  418 358 552 392
+
+T 
+1
+LANG:1 17 Stop OPC Manager
+
+"// stopping the opc manager
+main()
+{
+  DisableAll();
+  
+  // Stop any Caen driver. 
+    
+  // Start operation stop OPC manager - code 5
+  dpSet(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\", 5);
+  
+  time t;
+  dyn_string dpNamesWait, dpNamesReturn;
+  dyn_anytype conditions, returnValues;
+  int status;
+ 
+  dpNamesWait = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\");
+  conditions[1] = 0;
+  dpNamesReturn = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_online.._value\" );
+  t = 30;
+
+  // Wait until the operation is completed - code 0
+  status = dpWaitForValue( dpNamesWait, conditions, dpNamesReturn, returnValues, t );
+  
+  // Take the result from the DP
+  int intResult;
+  dpGet(getSystemName()+\"OPC_Conf_General.regOutput.intResult:_online.._value\", intResult);
+  
+  Refresh();
+  EnableAll();
+}" 0
+ E E E
+7 25
+"indicator"
+""
+1 435 215 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 20 70 1 E 435 215 15 15
+2 26
+"PRIMITIVE_TEXT4"
+""
+1 480 230 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 485 275 636 292
+0 2 2 "0s" 0 0 0 192 0 0  485 275 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 23 CAEN OPC driver running
+30 27
+"FRAME4"
+""
+1 410 193 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+26 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.36752136752137 -10 -13.9316239316244 0 E 410 193 741 311
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 26 CAEN OPC Driver Operations
+13 28
+"refresh2"
+""
+1 440 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  438 308 552 342
+
+T 
+1
+LANG:1 8 Refresh
+
+"main()
+{
+  DisableAll();
+  
+  Refresh();
+  
+  EnableAll();
+}" 0
+ E E E
+6 29
+"RECTANGLE1"
+""
+1 650 220 E E E 1 E 1 E N {0,0,0} E N "red" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 10 92 1 E 650 220 660 210
+6 30
+"RECTANGLE2"
+""
+1 650 220 E E E 1 E 1 E N {0,0,0} E N "FwTrendingCurve3" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 10 112 1 E 650 220 660 210
+2 31
+"PRIMITIVE_TEXT5"
+""
+1 670 200 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 680 302 692 316
+0 2 2 "0s" 0 0 0 192 0 0  680 302 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 3 off
+2 32
+"PRIMITIVE_TEXT6"
+""
+1 670 200 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 680 322 692 336
+0 2 2 "0s" 0 0 0 192 0 0  680 322 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 2 on
+30 33
+"FRAME5"
+""
+1 650 213 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+35 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 0 70 0 E 650 213 721 281
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Legend
+2 34
+"PRIMITIVE_TEXT7"
+""
+1 250 360 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 230 450 584 464
+0 2 2 "0s" 0 0 0 192 0 0  230 450 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 72 * In order to do Add and Delete Operations the OPC manager should be Off
+2 35
+"PRIMITIVE_TEXT8"
+""
+1 270 30 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 260 10 571 36
+0 2 2 "0s" 0 0 0 192 0 0  260 10 1
+1
+LANG:1 33 MS Shell Dlg,-1,21,5,75,1,0,0,0,0
+0 1
+LANG:1 25 CMS CAEN OPC Configurator
+2 36
+"PRIMITIVE_TEXT9"
+""
+1 499.9999999999999 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.02020202020202 0 1 -10.1010101010101 -10 1 E 500 50 694 64
+0 2 2 "0s" 0 0 0 192 0 0  500 50 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 41 In case of questions or problems contact:
+2 37
+"PRIMITIVE_TEXT10"
+""
+1 540 70 E E E 1 E 1 E N "blue" E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 580 60 696 74
+0 2 2 "0s" 0 0 0 192 0 0  580 60 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Georgi.Leshev@cern.ch
+13 38
+"restartButton"
+""
+1 240 400 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  238 398 362 432
+
+T 
+1
+LANG:1 19 Restart OPC Server
+
+"main()
+{
+  DisableAll();
+        
+  // Start operation restart Server - code 7
+  dpSet(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\", 7);
+  
+  time t;
+  dyn_string dpNamesWait, dpNamesReturn;
+  dyn_anytype conditions, returnValues;
+  int status;
+ 
+  dpNamesWait = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_original.._value\");
+  conditions[1] = 0;
+  dpNamesReturn = makeDynString(getSystemName()+\"OPC_Conf_General.regInput.idOperation:_online.._value\" );
+  t = 30;
+
+  // Wait until the operation is completed - code 0
+  status = dpWaitForValue( dpNamesWait, conditions, dpNamesReturn, returnValues, t );
+  
+  // Take the result from the DP
+  int intResult;
+  dpGet(getSystemName()+\"OPC_Conf_General.regOutput.intResult:_online.._value\", intResult); 
+  
+  // return value:
+  // 0 in case of success
+  // -1 in case of error
+  
+  if (intResult)
+  {
+    // Error occured. Output it to the user.
+    string cat, errNote;
+    int prio,typ,co;
+  
+    cat =\"_errors\"; 
+   
+    prio = PRIO_INFO; 
+    typ =ERR_PARAM;
+    co = 0; 
+    
+    errClass retError; 
+       
+    errNote = \"There was error during the adding of the crate.\";
+    retError=makeError(cat,prio,typ,co,errNote);
+    errorDialog(retError); 
+  }
+  
+  Refresh();
+  
+  EnableAll();
+}" 0
+ E E E
+30 39
+"FRAME6"
+""
+1 220 353 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+42 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E U  0 E 220 353 381 441
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Restart OPC Server
+2 40
+"txtWait"
+""
+1 40 40 E E E 1 E 0 E N "FwStateAttention3" E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.visible = true;
+}" 0
+ E 0 1 1 2 1 E U  0 E 40 40 409 82
+0 2 2 "0s" 0 0 0 192 0 0  40 40 2
+1
+LANG:1 35 MS Shell Dlg 2,12,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 46 This is an old panel... please use the new one
+1
+LANG:1 35 MS Shell Dlg 2,12,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 8 instead!
+13 42
+"PUSH_BUTTON2"
+""
+1 270 70 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  268 68 392 95
+
+T 
+1
+LANG:1 9 New Panel
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentral(\"CMSfw_CAENOPCConfigurator/CMSfw_CAENOPCConfigurator_applyConfiguration.pnl\",
+      \"\",
+      makeDynString(\"\"));
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnCentral}
+// File {CMSfw_CAENOPCConfigurator/CMSfw_CAENOPCConfigurator_applyConfiguration.pnl}
+// Panel {}
+// Parent {}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

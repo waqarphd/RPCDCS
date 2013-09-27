@@ -1,0 +1,76 @@
+main()
+{
+	int i, length;
+  string fileName;
+	dyn_bool values;
+	dyn_string settings, screenConfigurations, exceptionInfo;
+
+	DebugN("fwAlarmHandling: post install file");
+
+ 	DebugN("fwAlarmHandling: Installing alarm screen extension library");  
+  if(_WIN32)
+  {
+    fileName = fwInstallation_findFileForPvssVersion("/bin/fwAlarmHandling/TabUtilEx"
+                                                     + fwInstallation_VERSION_KEYWORD + ".dll",
+                                                     makeDynString("3.6", "3.8"));
+    if(fileName != "")
+      fwInstallation_copyFile(fileName, PROJ_PATH + "/bin/TabUtilEx.dll");
+    else
+      DebugN("TabUtilEx.dll could not be found for the current version of PVSS (" + VERSION + ")");
+  }
+  else
+  {
+    fileName = fwInstallation_findFileForPvssVersion("/bin/fwAlarmHandling/TabUtilEx"
+                                                     + fwInstallation_VERSION_KEYWORD + ".so",
+                                                     makeDynString("3.6", "3.8"));  
+    if(fileName != "")
+      fwInstallation_copyFile(fileName, PROJ_PATH + "/bin/TabUtilEx.so");
+    else
+      DebugN("TabUtilEx.so could not be found for the current version of PVSS (" + VERSION + ")");
+  }
+  
+	DebugN("fwAlarmHandling: Setting default screen style");
+	screenConfigurations = dpNames("*", "_AEScreen");
+	length = dynlen(screenConfigurations);
+	for(i=1; i<=length; i++)
+	{
+		dynAppend(settings, screenConfigurations[i] + ".UseAsDefault");
+		dynAppend(values, FALSE);
+	}
+
+	dpSetWait(settings, values);
+	dpSetWait("_AEScreen_fwAes" + ".UseAsDefault", TRUE);
+	DebugN("fwAlarmHandling: Default screen style set: fwAES_Alerts");
+        
+        if(!dpExists("_FwAlarmHelpSettings"))
+        {
+          DebugN("fwAlarmHandling: Configuring alarm help default file types");
+          dpCreate("_FwAlarmHelpSettings", "_FwAlarmHelp");
+          
+          while(!dpExists("_FwAlarmHelpSettings"))
+            delay(0,200);
+          
+          fwAlarmHandling_setHelpFileFormats(makeDynString(".htm", ".html", ".xml", ".pdf"),
+                                             makeDynString("","","",""), makeDynString("","","",""), exceptionInfo);
+        }
+        
+        if(!dpExists("_FwAesSetup"))
+        {
+          DebugN("fwAlarmHandling: Setting alarm screen option defaults");
+
+          dpCreate("_FwAesSetup", "_FwAesSetup");
+          while(!dpExists("_FwAesSetup"))
+            delay(0,200);
+          
+          dpSetWait("_FwAesSetup.onlineValueUpdateRate", 5);  
+        }
+
+        if(!dpExists("_FwAlarmScreenPlot"))
+        {
+          DebugN("fwAlarmHandling: Creating alarm screen plot configuration");
+          _fwAlarmHandling_createPlotDp("_FwAlarmScreenPlot");
+        }
+
+        
+
+}

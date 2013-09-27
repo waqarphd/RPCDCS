@@ -1,0 +1,593 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 673 415 N "_3DFace" 7
+"$AliasSelector"
+"$DPSelector"
+"$disabledItems"
+"$items"
+"$selectMultiple"
+"$selectedItems"
+"$text"
+E E E E E 1 -1 -1 0  60 239
+""0  1
+E "global bool selectMultiple;
+global dyn_string items,disabledItems,selectedItems;
+
+void PopulatePanel()
+{
+  Table.visible=false;
+  PleaseWait.visible=true;
+
+	Table.deleteAllLines();
+	if (isDollarDefined(\"$text\")) setValue(\"Text\",\"text\",$text);
+
+	DPSelector.visible=FALSE;
+	if (isDollarDefined(\"$DPSelector\")){
+	 if ($DPSelector) DPSelector.visible=TRUE;
+	}
+
+
+	AliasSelector.visible=FALSE;
+	if (isDollarDefined(\"$AliasSelector\")){
+	 if ($AliasSelector) AliasSelector.visible=TRUE;
+	}
+
+
+
+	selectMultiple=FALSE;
+	if (isDollarDefined(\"$selectMultiple\")) {
+		if ($selectMultiple==\"TRUE\" || $selectMultiple==1 || $selectMultiple==\"true\")
+			selectMultiple=TRUE;
+	}
+	if (selectMultiple){
+		setValue(\"Table\",\"tableMode\",TABLE_SELECT_MULTIPLE);
+	} else {
+		setValue(\"Table\",\"tableMode\",TABLE_SELECT_BROWSE);
+		setValue(\"SelectAll\",\"visible\",FALSE);
+		setValue(\"UnselectAll\",\"visible\",FALSE);
+		setValue(\"InvertSelection\",\"visible\",FALSE);
+	}
+
+	setValue(\"Table\",\"selectByClick\",TABLE_SELECT_LINE);
+
+
+	int i;
+	items=strsplit($items,\"|\");
+	for (i=1;i<=dynlen(items);i++) {
+		items[i]=strrtrim(strltrim(items[i]));
+	}
+
+	if (isDollarDefined(\"$disabledItems\")) {
+	disabledItems=strsplit($disabledItems,\"|\");
+
+		for (i=1;i<=dynlen(disabledItems);i++) {
+			disabledItems[i]=strrtrim(strltrim(disabledItems[i]));
+		}
+	}
+
+	if (isDollarDefined(\"$selectedItems\")) {
+		selectedItems=strsplit($selectedItems,\"|\");
+
+		for (i=1;i<=dynlen(selectedItems);i++) {
+			selectedItems[i]=strrtrim(strltrim(selectedItems[i]));
+		}
+	}
+
+  Table.appendLines(dynlen(items),\"Name\",items);
+	for (i=1;i<=dynlen(items);i++) {
+		//setValue(\"Table\",\"appendLine\",\"Name\",items[i]);
+		if (dynContains(disabledItems,items[i])) {
+			setValue(\"Table\",\"cellBackColRC\",i-1,\"Name\",\"lightgrey\");
+		}
+	}
+
+	ResetSelection();
+  PleaseWait.visible=false;
+  Table.visible=true;
+}
+
+void SelectAll()
+{
+	dyn_int selectedlines;
+	for (int i=1;i<=dynlen(items);i++){
+		if (!dynContains(disabledItems,items[i])) 
+			dynAppend(selectedlines,i-1);
+	}
+	SelectNone();
+
+	setValue(\"Table\",\"addSelectLines\",selectedlines);
+}
+
+void SelectNone()
+{
+	setValue(\"Table\",\"deleteSelection\");
+}
+
+void InvertSelection()
+{
+	dyn_int selectedlines,newSelectedLines;
+	getValue(\"Table\",\"getSelectedLines\",selectedlines);
+	for (int i=1;i<=dynlen(items);i++) {
+
+		if (dynContains(selectedlines,i-1)) continue;
+
+		if (dynContains(disabledItems,items[i])) continue;
+		dynAppend(newSelectedLines,i-1);
+	}
+
+	SelectNone();
+	setValue(\"Table\",\"addSelectLines\",newSelectedLines);
+}
+void ResetSelection()
+{
+
+	dyn_int selectedLines;
+
+	for (int i=1;i<=dynlen(selectedItems);i++) {
+		if (dynContains(disabledItems,selectedItems[i])) continue;
+		int idx=dynContains(items,selectedItems[i]);
+		if (idx>0) dynAppend(selectedLines,idx-1);
+	}
+
+	SelectNone();
+
+	if (dynlen(selectedLines)) {
+
+	   if (selectMultiple) {
+		setValue(\"Table\",\"addSelectLines\",selectedLines);
+	   } else {
+		setValue(\"Table\",\"selectLineN\",selectedLines[1]);
+	   }
+	}
+
+	setValue(\"Table\",\"lineVisible\",0);
+
+
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 2
+"Table"
+""
+1 14 54 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  14 54 664 354
+"main()
+{
+	if (!isDollarDefined(\"$items\")) {
+		dyn_string exceptionInfo;
+		fwException_raise(exceptionInfo,\"ERROR\",\"Dollar parameter $items not specified\",\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	};
+
+
+
+
+	PopulatePanel();	
+}" 0
+"main(int row, string column, string value)
+{
+
+// lines that are greyed-out should not be selectable...
+	string color;
+	getValue(\"Table\",\"cellBackColRC\",row,\"Name\",color);
+	if (color==\"lightgrey\") {
+		setValue(\"Table\",\"removeSelectLines\",makeDynInt(row));
+	}
+
+}" 0
+ 1 0 1 1 1 "Name" 53 1 0 "s" 1
+LANG:1 0 
+E
+1
+LANG:1 0 
+
+600 
+17 17 "?" 1 1
+LANG:1 2 #1
+10 84
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 0 2 2 1 7
+1 0
+13 0
+"OKButton"
+""
+1 460 370 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  460 370 540 400
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_string selectedItems;
+  dyn_string disabledItems;
+	if (isDollarDefined(\"$disabledItems\")) {
+	  disabledItems=strsplit($disabledItems,\"|\");
+
+	  for (int i=1;i<=dynlen(disabledItems);i++) {
+			  disabledItems[i]=strrtrim(strltrim(disabledItems[i]));
+		  }
+	}
+
+
+	dyn_int lines;
+  dyn_string allDevices;
+	dyn_string line;
+	getValue(\"Table\",\"getSelectedLines\",lines);
+  getValue(\"Table\",\"getColumnN\",0,allDevices);
+  
+  	for (int i=1;i<=dynlen(lines);i++) {
+      string dev=allDevices[1+lines[i]];
+      if (!dynContains(disabledItems,dev)) dynAppend(selectedItems,dev);
+	};
+
+	PanelOffReturn(makeDynFloat(dynlen(selectedItems)),selectedItems);
+}" 0
+ E E E
+13 1
+"CancelButton"
+""
+1 560 370 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  560 370 640 400
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+2 3
+"Text"
+""
+1 -111 4 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 4 90 20
+0 2 2 "0s" 0 0 0 192 0 0  20 4 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Select item:
+13 4
+"SelectAll"
+""
+1 490 26 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 16 Select all items
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  490 26 530 57
+
+T 
+1
+LANG:1 1 +
+"main()
+{
+SelectAll();
+}" 0
+ E E E
+13 5
+"UnselectAll"
+""
+1 530 26 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 18 Unselect all items
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  530 26 570 57
+
+T 
+1
+LANG:1 1 -
+"main()
+{
+SelectNone();
+}" 0
+ E E E
+13 6
+"InvertSelection"
+""
+1 570 26 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 16 Invert selection
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  570 26 610 57
+
+T 
+1
+LANG:1 1 *
+"main()
+{
+InvertSelection();
+}" 0
+ E E E
+13 7
+"ResetButton"
+""
+1 10 370 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 27 Reset to original selection
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  10 370 90 400
+
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+ResetSelection();
+}" 0
+ E E E
+1 14 0 "" 0
+0
+13 9
+"DPSelector"
+""
+1 120 370 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 25 Add datapoint to the list
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  120 370 160 400
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 9 DP Select
+"main()
+{
+
+// update the state of the selected lines..
+int mode=Table.tableMode();
+
+dyn_int selLines;
+if (mode==TABLE_SELECT_MULTIPLE) {
+	dynClear(selectedItems);
+	selLines=Table.getSelectedLines();
+	for (int i=1;i<=dynlen(selLines);i++) {
+		dyn_string line;
+		getValue(\"Table\",\"getLineN\",selLines[i],line);
+		dynAppend(selectedItems,line[1]);
+	};
+}
+
+
+
+
+
+string dp;
+dpSelector(dp,FALSE,\"OWN_SYSTEM_NAME_SYS\",\"\",\"*\");
+if (dp==\"\") return;
+
+if (!dynContains(items,dp)) {
+	dynAppend(items,dp);
+	Table.appendLine(\"Name\",dp);
+}
+
+dynAppend(selectedItems,dp);
+
+if (mode==TABLE_SELECT_MULTIPLE) {
+	int lines=Table.lineCount;
+	for (int i=0;i<lines;i++) {
+		string item;
+		getValue(\"Table\",\"cellValueRC\",i,\"Name\",item);
+		if (item==dp) {
+			dynAppend(selLines,i);
+			break;
+		}
+	}
+	Table.addSelectLines(selLines);
+}
+
+}" 0
+ E E E
+13 11
+"AliasSelector"
+""
+1 180 370 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 21 Add alias to the list
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  180 370 220 400
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 9 DP Select
+"main()
+{
+
+// update the state of the selected lines..
+int mode=Table.tableMode();
+
+dyn_int selLines,lines;
+if (mode==TABLE_SELECT_MULTIPLE) {
+	dynClear(selectedItems);
+	selLines=Table.getSelectedLines();
+	for (int i=1;i<=dynlen(selLines);i++) {
+		dyn_string line;
+		getValue(\"Table\",\"getLineN\",selLines[i],line);
+		dynAppend(selectedItems,line[1]);
+	};
+}
+
+
+
+
+
+dyn_float df;
+dyn_string ds;
+ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_DPAliasSelector.pnl\",
+		\"DP Alias Selector\",makeDynString(),df,ds);
+
+if (!dynlen(df)) return;
+if (df[1]<1) return;
+
+int ndps=dynlen(ds);
+for (int i=1;i<=ndps;i++) {
+	if (!dynContains(items,ds[i])) {
+		dynAppend(items,ds[i]);
+		Table.appendLine(\"Name\",ds[i]);
+	}
+}
+
+dynAppend(selectedItems,ds);
+
+if (mode==TABLE_SELECT_MULTIPLE) {
+	dyn_int selLines;
+	int nLines=Table.lineCount;
+	for (int i=0;i<nLines;i++){
+		string item;
+		getValue(\"Table\",\"cellValueRC\",i,\"Name\",item);
+		if (dynContains(selectedItems,item)) {
+			dynAppend(selLines,i);
+		}
+	}
+
+	Table.addSelectLines(selLines);
+}
+
+}" 0
+ E E E
+2 13
+"PleaseWait"
+""
+1 168 36 E E E 1 E 1 E N <"_3DText",1,{255,0,0,0},1,{0,0,0},0,{0,0,0},0,{0,0,0},0,{0,0,0},0> E N "_Window" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 168 36 429 56
+0 2 2 "0s" 0 0 0 192 0 0  168 36 1
+1
+LANG:1 31 Sans Serif,12,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 38 Initializing the list - please wait...
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "" -1
+"objects/fwGeneral/fwHelpButton.pnl" 270 20 T 38 1 0 1 362 -18
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_SelectionList"
+0

@@ -1,0 +1,150 @@
+main()
+{
+	int result;
+	string resultText;
+	dyn_float resultFloats;
+	dyn_string resultStrings;
+	
+	result = fwInstallationManager_appendDriver("SIM", "PVSS MODBUS driver", "PVSS00mod", "always", 30, 2, 2, "-num 15");
+
+	switch(result)
+	{
+		case 1:
+			resultText = "OK";
+			break;
+		case 2:
+			resultText = "Already exists";
+			break;
+		default:
+			resultText = "Failed";
+			break;
+	}
+
+	DebugN("fwCaV: Adding driver number 15 (MODBUS and SIM): " + resultText);
+
+	fwInstallation_popup("When configuring the Cooling & Ventilation system you must\n" +
+				   "have either a connection to the PLC with MODBUS driver\n" + 
+				   "-num 15, or use a simulation driver (PVSS00sim -num 15).\n" +
+				   "Both of these managers have already been added to your project\n" +
+				   "console.");
+				   
+				   
+	/*
+			After Cav 3.1.4 all the file- and foldernames were changed so that fwCoolingAndVentilation were replaced
+			with fwCaV. This because there was a mixture of file- and foldernames where both the fwCaV and the 
+			fwCoolingAndVentilation were used. This led to a new problem when upgrading from a older component;
+			two versions of the same component was then shown as installed in the installation tool. Both fwCaV
+			and the fwCoolingAndVentilation. So the next few lines are added to uninstall the old component 
+			(fwCoolingAndVentilation) from the project. 
+			
+			- Erik Morset 07/12-2007
+	*/
+	bool componentFound = false, componentDeleted;
+        dyn_anytype componentInfo;
+	dyn_dyn_anytype componentsInfo;
+	bool oldCompVersion = false;
+	dyn_string configEntry;
+	dyn_string compVersion;
+	dyn_int newVersion;
+
+        fwInstallation_getInstalledComponents(componentsInfo);
+        for(int i=1; i<=dynlen(componentsInfo); i++)
+        {
+          if(componentsInfo[i][1] == "fwCoolingAndVentilation")
+          {
+            componentInfo = componentsInfo[i];
+            componentFound = true;
+            break;
+          }
+        }
+        
+        newVersion = makeDynInt(3,1,5,0);
+        if(componentFound)
+	  compVersion = strsplit(componentInfo[2], "."); 
+	else
+          compVersion = newVersion;
+        
+//DebugN(compVersion, newVersion);
+	
+	for(int i=1; i<=dynlen(compVersion); i++)
+	{
+			if(i>dynlen(newVersion))
+			{
+					break;
+			}
+			
+			if((int)compVersion[i]<newVersion[i])
+			{
+					oldCompVersion = true;
+					break;
+			}
+	}
+//DebugN(oldCompVersion);
+
+	if(oldCompVersion)
+	{
+	        DebugN("fwCaV: Found old version of fwCoolingAndVentilation.  Removing...");
+		fwInstallation_getSection("mod_15", configEntry);
+		fwInstallation_clearSection("mod_15");
+//DebugN(configEntry);	
+		for(int i=1; i<=dynlen(configEntry); i++)
+                  strreplace(configEntry[i], "fwCoolingAndVentilation", "fwCaV");
+//DebugN(configEntry);
+
+  		fwInstallation_popup("IMPORTANT: The panels and libaries from this and future versions of\n" + 
+                                     "Cooling & Ventilation are now in fwCaV sub-directories.  Files from\n" + 
+                                     "previous versions remain in the fwCoolingAndVentilation sub-directories.\n" + 
+				     "Please change any references you have to use the new files.  The old\n" + 
+                                     "files will no longer be updated.  You may delete them if you wish.");
+
+		fwInstallation_deleteComponent("fwCoolingAndVentilation", componentDeleted, FALSE);  						
+		fwInstallation_setSection("mod_15", configEntry);
+
+                DebugN("fwCaV: Old fwCoolingAndVentilation removed.");
+	        DebugN("fwCaV: !!! The old files in the fwCoolingAndVentilation sub-directories are now deprecated.");
+	        DebugN("fwCaV: !!! Please change all references to use the new files in the fwCaV sub-directories.");
+	        DebugN("fwCaV: !!! You may delete the old fwCoolingAndVentilation manually if you wish.");
+
+                DebugN("fwCaV: Updating device definitions and models to use fwCaV panels.");
+                updateAllDefinitions();
+	}				   
+	
+}
+
+updateAllDefinitions()
+{
+  dyn_string deviceDefinitions, deviceModels;
+  dyn_dyn_string panelList;
+  
+  deviceDefinitions = dpNames("FwCaV*", "_FwDeviceDefinition");
+  deviceModels = dpNames("FwCaV*", "_FwDeviceModel");
+  for(int i=1; i<=dynlen(deviceModels); i++)
+    deviceModels[i] += ".modelDefinition.definition";
+
+  dynAppend(deviceDefinitions, deviceModels);
+  
+  for(int i=1; i<=dynlen(deviceDefinitions); i++)
+  {
+    dpGet(deviceDefinitions[i] + ".panels.navigator.hardware", panelList[1],
+	deviceDefinitions[i] + ".panels.navigator.logical", panelList[2],
+	deviceDefinitions[i] + ".panels.editor.hardware", panelList[3],			
+	deviceDefinitions[i] + ".panels.editor.logical", panelList[4],		
+	deviceDefinitions[i] + ".panels.editor.expert", panelList[5],		
+	deviceDefinitions[i] + ".panels.editor.hardwareAdd", panelList[6],					
+	deviceDefinitions[i] + ".panels.editor.hardwareRemove", panelList[7]);
+
+    for(int j=1; j<=dynlen(panelList); j++)
+    {
+      for(int k=1; k<=dynlen(panelList[j]); k++)
+        strreplace(panelList[j][k], "fwCoolingAndVentilation", "fwCaV"); 
+    }
+    
+    dpSet(deviceDefinitions[i] + ".panels.navigator.hardware", panelList[1],
+	deviceDefinitions[i] + ".panels.navigator.logical", panelList[2],
+	deviceDefinitions[i] + ".panels.editor.hardware", panelList[3],			
+	deviceDefinitions[i] + ".panels.editor.logical", panelList[4],		
+	deviceDefinitions[i] + ".panels.editor.expert", panelList[5],		
+	deviceDefinitions[i] + ".panels.editor.hardwareAdd", panelList[6],					
+	deviceDefinitions[i] + ".panels.editor.hardwareRemove", panelList[7]);
+  }
+}

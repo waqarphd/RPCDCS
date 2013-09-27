@@ -1,0 +1,293 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 985 447 N "_3DFace" 0
+"main()
+{
+  fmcNodes = dpNames(\"FMC*\", \"FwFMCNode\");
+
+  dimSubscribe();
+  dyn_string nodes, memories, osystems, cpuInfos, cpuStats, fsystems, loggers, taskManagers, nifs, processes;
+  string memory, os, cpuInfo, cpuStat, fs, logger, taskManager, nif, ps;
+  for (int i=1; i<=dynlen(fmcNodes); i++)
+  {
+    string dp = fmcNodes[i] + \".fmcVersions\";
+    string node = fwFMC_getNodeName(fmcNodes[i]);
+    dpGet(dp + \".memory\", memory,
+          dp + \".os\", os,
+          dp + \".cpuInfo\", cpuInfo,
+          dp + \".cpuStat\", cpuStat,
+          dp + \".fs\", fs,
+          dp + \".logger\", logger,
+          dp + \".taskManager\", taskManager,
+          dp + \".nif\", nif,
+          dp + \".ps\", ps);
+    dynAppend(nodes, node);
+    dynAppend(memories, memory);
+    dynAppend(cpuInfos, cpuInfo);
+    dynAppend(cpuStats, cpuStat);
+    dynAppend(fsystems, fs);
+    dynAppend(loggers, logger);
+    dynAppend(taskManagers, taskManager);
+    dynAppend(nifs, nif);
+    dynAppend(processes, ps);    
+    
+  }
+  tbVersions.appendLines(dynlen(nodes), \"node\", nodes, \"memory\", memories, \"os\", osystems, \"cpuInfo\", cpuInfos, \"cpuStat\", cpuStats, 
+                          \"fs\", fsystems, \"logger\", loggers, \"taskManager\", taskManagers, \"nif\", nifs, \"ps\", processes);
+}" 0
+ E E E E 1 -1 -1 0  30 30
+""0  1
+E "dyn_string fmcNodes;
+dimSubscribe()
+{
+  dyn_string service_names;
+  dyn_int defaults;
+  dyn_string dp_names;
+  dyn_int flags;
+  dyn_int timeouts;
+  dyn_int immediate_updates;
+ 
+  if (dynlen(fmcNodes) > 0)
+    openProgressBar(\"\",\"\",\"Subscribing...\", \"\",\"\", 2);
+  int index = 1;
+  for(int i=1; i <= dynlen(fmcNodes); i++)
+  {
+    showProgressBar(\"Subscribing...\", \"\", \"\", (100*i)/dynlen(fmcNodes));
+
+    string nodeName = fwFMC_getNodeName(fmcNodes[i]);
+    string nodeDp = dpSubStr(fmcNodes[i], DPSUB_DP);
+    dp_names[index] =nodeDp + \".fmcVersions.memory\";
+	  service_names[index] = \"/FMC/\" + nodeName + \"/memory/fmc_version\";
+	  defaults[index] = -1;
+	  timeouts[index] = -2;
+	  flags[index] = 0;
+	  immediate_updates[index] = 1;
+    index++;
+
+    dp_names[index] = nodeDp + \".fmcVersions.os\";
+	  service_names[index] = \"/FMC/\" + nodeName + \"/os/fmc_version\";
+	  defaults[index] = -1;
+	  timeouts[index] = -2;
+	  flags[index] = 0;
+	  immediate_updates[index] = 1;
+    index++;
+    
+    dp_names[index] = nodeDp + \".fmcVersions.cpuInfo\";
+	  service_names[index] = \"/FMC/\" + nodeName + \"/cpu/info/fmc_version\";
+	  defaults[index] = -1;
+	  timeouts[index] = -2;
+	  flags[index] = 0;
+	  immediate_updates[index] = 1;
+    index++;
+    
+    dp_names[index] = nodeDp + \".fmcVersions.cpuStat\";
+	  service_names[index] = \"/FMC/\" + nodeName + \"/cpu/stat/fmc_version\";
+	  defaults[index] = -1;
+	  timeouts[index] = -2;
+	  flags[index] = 0;
+	  immediate_updates[index] = 1;
+    index++;
+    
+    dp_names[index] = nodeDp + \".fmcVersions.fs\";
+	  service_names[index] = \"/FMC/\" + nodeName + \"/filesystems/fmc_version\";
+	  defaults[index] = -1;
+	  timeouts[index] = -2;
+	  flags[index] = 0;
+	  immediate_updates[index] = 1;
+    index++;
+    
+    dp_names[index] = nodeDp + \".fmcVersions.logger\";
+	  service_names[index] = \"/FMC/\" + nodeName + \"/logger/fmc/fmc_version\";
+	  defaults[index] = -1;
+	  timeouts[index] = -2;
+	  flags[index] = 0;
+	  immediate_updates[index] = 1;
+    index++;
+    
+    dp_names[index] = nodeDp + \".fmcVersions.taskManager\";
+	  service_names[index] = \"/FMC/\" + nodeName + \"/task_manager/fmc_version\";
+	  defaults[index] = -1;
+	  timeouts[index] = -2;
+	  flags[index] = 0;
+	  immediate_updates[index] = 1;
+    index++;
+    
+    dp_names[index] = nodeDp + \".fmcVersions.nif\";
+	  service_names[index] = \"/FMC/\" + nodeName + \"/net/ifs/fmc_version\";
+	  defaults[index] = -1;
+	  timeouts[index] = -2;
+	  flags[index] = 0;
+	  immediate_updates[index] = 1;
+    index++;
+    
+    dp_names[index] = nodeDp + \".fmcVersions.ps\";
+	  service_names[index] = \"/FMC/\" + nodeName + \"/ps/fmc_version\";
+	  defaults[index] = -1;
+	  timeouts[index] = -2;
+	  flags[index] = 0;
+	  immediate_updates[index] = 1;
+    index++;
+  }
+  
+  fwDim_subscribeServices(FW_FMC_DIM_CONFIG_PERMANENT, service_names, dp_names, defaults, timeouts, flags, immediate_updates, FW_FMC_DIM_SAVE_NOW);
+  closeProgressBar();
+}
+
+dimUnsubscribe()
+{
+  fwDim_unSubscribeServicesByDp(FW_FMC_DIM_CONFIG_PERMANENT,   \"*.fmcVersions.*\", 1);
+  DebugN(\"Unsubscribed!\");
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+  int i = 0;
+
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tbVersions"
+""
+1 30.00000000000001 30.00000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  28 28 952 402
+EE 1 0 1 10 0 "node" 9 1 0 "s" 1
+LANG:1 4 Node
+E
+1
+LANG:1 0 
+
+100 "memory" 9 1 0 "s" 1
+LANG:1 6 Memory
+E
+1
+LANG:1 0 
+
+100 "os" 9 1 0 "s" 1
+LANG:1 2 OS
+E
+1
+LANG:1 0 
+
+100 "cpuInfo" 9 1 0 "s" 1
+LANG:1 8 CPU Info
+E
+1
+LANG:1 0 
+
+100 "cpuStat" 9 1 0 "s" 1
+LANG:1 8 CPU Stat
+E
+1
+LANG:1 0 
+
+100 "ps" 9 1 0 "s" 1
+LANG:1 2 PS
+E
+1
+LANG:1 0 
+
+100 "nif" 9 1 0 "s" 1
+LANG:1 3 NIF
+E
+1
+LANG:1 0 
+
+100 "fs" 9 1 0 "s" 1
+LANG:1 2 FS
+E
+1
+LANG:1 0 
+
+100 "logger" 9 1 0 "s" 1
+LANG:1 6 Logger
+E
+1
+LANG:1 0 
+
+100 "taskManager" 9 1 0 "s" 1
+LANG:1 12 Task Manager
+E
+1
+LANG:1 0 
+
+100 
+16 16 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 1
+"btnClose"
+""
+1 830 410 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  828 408 952 435
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  dimUnsubscribe();
+  PanelOff();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

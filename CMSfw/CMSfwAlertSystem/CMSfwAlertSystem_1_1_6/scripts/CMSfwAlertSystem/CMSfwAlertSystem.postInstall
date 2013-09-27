@@ -1,0 +1,114 @@
+#uses "CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl"
+
+
+main(){
+  //CMSfwAccessControlServer.postInstall
+  dyn_string exceptionInfo;
+  string setupName = "RackAlertSettings";
+  //fwConfigurationDB_initialize( setupName, exceptionInfo);
+  //DebugN(exceptionInfo);
+  //MovingHierarchy("CMS_AlertSystem");
+
+  // this is needed to fix old sum alerts 
+  CMSfwAlertSystemUtil_fixAlertClassesForNotifications();  
+  
+  fwInstallation_appendManager(1,"Alert System Sender","PVSS00ctrl","always",5,3,5,
+        "CMSfwAlertSystem/CMSfwAlertSystem.ctl");    
+}
+void MovingHierarchy(string hName){
+  dyn_string deviceList;
+  dyn_string exceptionInfo,exInfo;
+  dyn_dyn_mixed recipeObject;
+  dyn_string topDevice=makeDynString(getSystemName()+"CAEN","");
+  
+  fwConfigurationDB_getDeviceConfigurationFromDB(hName,fwDevice_HARDWARE, recipeObject, exceptionInfo);
+  DebugN(recipeObject);
+  if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return; }
+
+  //DebugTN(recipeObject[fwConfigurationDB_DLO_DPNAME]);
+  DebugN("Checking Hierarchy consistency in DB");	
+  // find the system name in the db.
+  dyn_string temp = strsplit(recipeObject[fwConfigurationDB_DLO_DPNAME][1], ":");
+  string sysName = temp[1]+":";
+
+  //fwConfigurationDB_extractHierarchyFromDB(topDevice[2],hierarchyType[1], recipeObject,exceptionInfo,"rpcdcs03:");
+  //DebugTN(sysName);
+  string localSys = getSystemName();
+  if(sysName != localSys){
+    fwConfigurationDB_reconnectDevices(recipeObject[1],hName,fwDevice_HARDWARE,localSys,exInfo);
+    if (dynlen(exInfo)) { fwExceptionHandling_display(exInfo); return; }
+    DebugN("Hierarchy Correctly Moved");
+  }
+  else{
+    DebugN("DB Hierarchy consistets with SystemName");  
+  }
+  bool ok;
+  ConfigurationDBRecive (ok);
+  if(ok)
+    DebugN("Alert Notifications and Users succesfully imported from DB");
+}
+
+void ConfigurationDBRecive(bool & ok){
+   string setupName = "RackAlertSettings";
+  dyn_string deviceList;
+
+  dyn_string exceptionInfo,exInfo,
+  hierarchyType=makeDynString(fwDevice_HARDWARE, fwDevice_LOGICAL);
+  dyn_dyn_mixed recipeObject;
+  dyn_string list,HvDeviceList, LvDeviceList;
+  dyn_string topDevice=makeDynString(getSystemName()+"CMSAlertSystem","");
+  //dyn_string recipeName=makeDynString("Bue","RPCUSCGeneral");
+  dyn_string configurationName=makeDynString("CMS_AlertSystem","CMS_AlertSystem");
+
+
+  //dpGet(getSystemName()+"CMS_RPCfwSupervisor.ConfDB.General",recipeName[2]);
+  dpGet(getSystemName()+"CMS_RPCfwSupervisor.ConfDB.HardHierarchy",configurationName[1]);
+  //dpGet(getSystemName()+"CMS_RPCfwSupervisor.ConfDB.LogHierarchy",configurationName[2]);
+  // DebugN();
+  //check if the connection is properly initialized
+  //fwConfigurationDB_initialize(setupName,exceptionInfo);
+  //if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+  //  ok = false;
+  //  return;  
+  //}
+
+  //download hierarchy from ConfigDB
+  //first hardware then logical
+  //MovingHierarchy(configurationName[1]);
+  for(int i=1;i<=1;i++){
+	DebugN("Hard : 1, Logical: 2",i);
+	
+	fwConfigurationDB_updateDeviceConfigurationFromDB(configurationName[i],hierarchyType[i],exceptionInfo,0,"","",fwConfigurationDB_deviceConfig_ALLDEVPROPS);
+	//DebugN("muori",exceptionInfo);
+	//if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+          //DebugN("muori2",exceptionInfo);
+        //  ok = false;
+        //  return;  
+        //}
+        /*
+	if(i==2){
+    	fwConfigurationDB_getHierarchyFromPVSS("", hierarchyType[i], list,exceptionInfo,"",FALSE);
+ 	  if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+          ok = false;
+          return;  
+        }
+
+ 	fwConfigurationDB_getRecipeFromDB("",list, hierarchyType[i],recipeName[i], recipeObject,exceptionInfo);
+	  if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+          ok = false;
+          return;  
+        }
+
+	fwConfigurationDB_ApplyRecipe( recipeObject, hierarchyType[i],exceptionInfo); 
+        if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+          ok = false;
+          return;  
+        }
+          
+        }*/
+  }
+  DebugN("Hierarchy Applied");
+  ok = true;
+  
+  
+}

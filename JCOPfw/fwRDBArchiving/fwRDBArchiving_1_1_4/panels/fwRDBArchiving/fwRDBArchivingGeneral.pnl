@@ -1,0 +1,726 @@
+V 10
+1
+LANG:1 27 RDB Archiving Configuration
+PANEL,258 100 554 277 N "_3DFace" 1
+"$sDpe"
+"main() {
+	displayArchivingMode(ARCHIVEMODE_UNKNOWN);
+	bool dpeDefined=isDollarDefined(\"$sDpe\");
+	if(dpeDefined) {
+		string dpe = $sDpe;
+		strreplace(dpe, \" \", \"\");
+	  DPE_LIST = strsplit(dpe, \"|\");
+	}
+	updateAliases.visible=dpeDefined;
+}" 0
+EE E E 1 0 0 0  35 14
+"" 0 1
+E"#uses \"fwRDBArchiving/fwRDBConfig.ctl\"
+
+
+const string ARCHIVEMODE_UNKNOWN=\"UNKNOWN\"; //could not connect to the database to check the archive mode
+const string ARCHIVEMODE_OFF=\"OFF\"; //neither configuration has been set up properly in the database
+const string ARCHIVEMODE_AUTOMATIC=\"AUTOMATIC\";
+const string ARCHIVEMODE_CUSTOM=\"CUSTOM\";
+
+const string WRITEWITHBULK_ON=\"ON\";
+const string WRITEWITHBULK_OFF=\"OFF\";
+const string WRITEWITHBULK_UNKNOWN=\"UNKNOWN\";
+
+dyn_string DPE_LIST=makeDynString();
+
+string lastModeDescription=\"\";
+
+void checkForRDBSettingsChange() {
+	//If they are now editing the mappings for a database other than the one that the RDB archiver is using, enable the button
+	//to change the one used by the RDB archiver to the one they're editing. Perhaps it should display a warning as well.
+	SetasArchiveRDB.enabled=(txtUser.text!=fwRDBConfig_getUser() || txtdbName.text!=fwRDBConfig_getHost() || strlen(txtPwd.text)>0);
+}
+
+void clearModeDescription() {
+			modeDescription.text=\"\";
+			modeDescription2.text=\"\";
+}
+
+displayArchivingMode(string archivingMode) {
+	if (archivingMode==ARCHIVEMODE_UNKNOWN) {
+			//switchToAutomatic.enabled=FALSE;
+			//switchToCustom.enabled=FALSE;
+			configureMappings.enabled=FALSE;
+			currentMode.text=\"Unknown\";
+			clearModeDescription();
+	} else if (archivingMode==ARCHIVEMODE_OFF) {
+			//switchToAutomatic.enabled=TRUE;
+			//switchToCustom.enabled=TRUE;
+			configureMappings.enabled=FALSE;
+			currentMode.text=\"Off\";
+			modeDescription.text=\"You must set an archiving mode before data can be archived to the database.\";
+	} else if (archivingMode==ARCHIVEMODE_AUTOMATIC) {
+			//switchToAutomatic.enabled=FALSE;
+			//switchToCustom.enabled=TRUE;
+			configureMappings.enabled=FALSE;
+			currentMode.text=\"Automatic\";
+			modeDescription.text=\"Data will be archived according to datapoint type. You do not need to set up any mappings.\";
+	} else if (archivingMode==ARCHIVEMODE_CUSTOM) {
+			//switchToAutomatic.enabled=TRUE;
+			//switchToCustom.enabled=FALSE;
+			configureMappings.enabled=TRUE;
+			currentMode.text=\"Custom\";
+			//perhaps should check whether mappings have been set up already
+			modeDescription.text=\"You must set up mappings for these datapoints before they can be archived.\";
+	}
+	lastModeDescription=modeDescription.text;
+}
+
+void displayWriteWithBulkInconsistencyWarning(string databaseMode,string projectMode) {
+		toggleWriteWithBulk.text=\"Turn on\";
+		modeDescription.text=\"The database is configured for writeWithBulk \"+databaseMode+\", but in this project writeWithBulk is \"+projectMode+\".\";
+		modeDescription2.text=\"This will result in loss of data. Click 'Turn on' to turn writeWitbBulk on in both places.\";
+}
+
+void setWriteWithBulk(string writeWithBulk) {
+	if (askOkCancel(\"Stop Manager\",\"Please make sure the RDB Archive manager is not running.\")) {
+		if (openConnection()) {
+			fwRDBConfig_executeSQLCommand(\"CALL ENABLEWRITEWITHBULK('\"+writeWithBulk+\"')\");
+			setConfigValue(\"ValueArchiveRDB\",\"writeWithBulk\",writeWithBulk,false);
+			checkWriteWithBulkStatus();
+			closeConnection();
+		}
+	}
+}
+
+bool isWriteWithBulkEnabled() {
+	string writeWithBulk;
+	if (getConfigValue(\"ValueArchiveRDB\",\"writeWithBulk\",writeWithBulk)) {
+		return writeWithBulk==\"1\";
+	}
+	return false;
+}
+
+void displayWriteWithBulkStatus(string writeWithBulkStatus) {
+	bool configuredWriteWithBulk=isWriteWithBulkEnabled();
+	modeDescription.text=lastModeDescription;
+	modeDescription2.text=\"\";
+	if (writeWithBulkStatus==WRITEWITHBULK_ON) {
+		if (configuredWriteWithBulk) {
+			toggleWriteWithBulk.text=\"Turn off\";
+			currentWriteWithBulk.text=\"On\";
+		} else {
+			currentWriteWithBulk.text=\"On in database\";
+			displayWriteWithBulkInconsistencyWarning(\"on\",\"off\");
+		}
+	} else if (writeWithBulkStatus==WRITEWITHBULK_OFF) {
+		if (!configuredWriteWithBulk) {
+			toggleWriteWithBulk.text=\"Turn on\";
+			currentWriteWithBulk.text=\"Off\";
+		} else {
+			currentWriteWithBulk.text=\"Off in database\";
+			displayWriteWithBulkInconsistencyWarning(\"off\",\"on\");
+		}
+	} else {
+		toggleWriteWithBulk.text=\"Turn on\";
+		currentWriteWithBulk.text=\"Unknown\";
+	}
+}
+
+bool openConnection() {
+	return fwRDBConfig_openConnection(txtdbName.text,txtUser.text,txtPwd.text);
+}
+
+closeConnection() {
+	fwRDBConfig_closeConnection();
+}
+
+//gets the archiving mode from the database and enables the appropriate buttons
+//assumes the connection to the database has already been opened.
+checkArchivingMode() {
+	string archivingMode=ARCHIVEMODE_UNKNOWN;
+	string sSQL = \"SELECT ARCHIVINGMODE() FROM DUAL\";
+	dyn_dyn_mixed data;
+	dyn_dyn_mixed bindVariables;
+	if (runSelectCommand(sSQL,data,bindVariables) && dynlen(data) && dynlen(data[1])) {
+		archivingMode=data[1][1];
+	}
+	displayArchivingMode(archivingMode);
+}
+
+void setArchivingMode(string mode) {
+	if (openConnection()) {
+		dyn_dyn_mixed bindVariables;
+		fwRDBConfig_executeSQLCommand(\"CALL ENABLEARCHIVING('\"+mode+\"')\",bindVariables);
+		
+		checkArchivingMode();
+		closeConnection();
+	}
+}
+
+
+void checkWriteWithBulkStatus() {
+	string writeWithBulkStatus=WRITEWITHBULK_UNKNOWN;
+	string sSQL = \"SELECT WRITEWITHBULKSTATUS() FROM DUAL\";
+	dyn_dyn_mixed data;
+	dyn_dyn_mixed bindVariables;
+	if (runSelectCommand(sSQL,data,bindVariables) && dynlen(data) && dynlen(data[1])) {
+		writeWithBulkStatus=data[1][1];
+	}
+	displayWriteWithBulkStatus(writeWithBulkStatus);
+}
+
+bool askOkCancel(string title,string question) {
+	dyn_float df;
+	dyn_string ds, messages;
+
+	ChildPanelOnCentralModalReturn(	\"fwGeneral/fwOkCancel.pnl\", 
+												title,
+												makeDynString(\"$text: \"+question/*,
+																	\"Ok\",
+																	\"Cancel\"*/),
+												df, ds); 
+	//DebugN(ds[1]);
+	 return (ds[1] == \"true\" || ds[1]==\"ok\");
+}
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text6"
+""
+1 35 14 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 100 15 163 31
+0 2 2 "s" 0 0 0 194 0 0  100 15
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 9 User name
+2 1
+"Text7"
+""
+1 40 44 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 99 45 156 61
+0 2 2 "s" 0 0 0 194 0 0  99 45
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 8 Password
+2 2
+"Text2"
+""
+1 43 73 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 99 74 153 90
+0 2 2 "s" 0 0 0 194 0 0  99 74
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 7 DB name
+2 8
+"Text1"
+""
+1 21 147 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 23 149 105 165
+0 2 0 "s" 0 0 0 192 0 0  23 149
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 13 Current Mode:
+2 9
+"currentMode"
+""
+1 111 147 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 113 149 166 165
+0 2 0 "s" 0 0 0 192 0 0  113 149
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 7 Unknown
+2 13
+"modeDescription"
+""
+1 19 176 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 21 178 22 194
+0 2 0 "s" 0 0 0 192 0 0  21 178
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 0 
+2 22
+"aliases"
+""
+1 330 244 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 332 246 468 262
+0 2 0 "s" 0 0 0 64 0 0  332 246
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 0 
+2 24
+"Text3"
+""
+1 208 147 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 210 149 294 165
+0 2 0 "s" 0 0 0 192 0 0  210 149
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 14 writeWithBulk:
+2 25
+"currentWriteWithBulk"
+""
+1 302 147 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+21 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 304 149 357 165
+0 2 0 "s" 0 0 0 192 0 0  304 149
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 7 Unknown
+2 27
+"modeDescription2"
+""
+1 19 203 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 21 205 22 221
+0 2 0 "s" 0 0 0 192 0 0  21 205
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 0 
+14 3
+"txtUser"
+""
+1 110 10 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+4 0 0 0 0 0
+E"main() {
+	checkForRDBSettingsChange();
+}" 0
+ E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+108 8 263 35
+3 "s" 0 0 0 0 0 0 
+E
+"main() {
+	this.text=fwRDBConfig_getUser();
+}" 0
+
+E
+14 4
+"txtPwd"
+""
+1 110 39 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+5 0 0 0 0 0
+E"main() {
+	checkForRDBSettingsChange();
+}" 0
+ E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+108 37 263 64
+3 "S" 0 0 0 0 0 0 
+"main() {
+checkForRDBSettingsChange();
+}" 0
+
+E
+E
+14 5
+"txtdbName"
+""
+1 110 68 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+6 0 0 0 0 0
+E"main() {
+	checkForRDBSettingsChange();
+}" 0
+ E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+108 66 263 93
+3 "s" 0 0 0 0 0 0 
+E
+"main() {
+	this.text=fwRDBConfig_getHost();
+}" 0
+
+E
+13 11
+"connect"
+""
+1 110 100 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+EE E
+0
+1
+LANG:1 137 Connects to the database entered above so that you can check which mode it is in and configure mappings. This does not turn on archiving.
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+108 98 232 132
+T 
+1
+LANG:1 7 Connect
+"main() {
+	if (openConnection()) {
+		checkArchivingMode();
+		checkWriteWithBulkStatus();
+		closeConnection();
+		updateAliases.enabled=true;
+	} else {
+		displayArchivingMode(ARCHIVEMODE_UNKNOWN);
+		displayWriteWithBulkStatus(WRITEWITHBULK_UNKNOWN);
+		updateAliases.enabled=false;
+	}
+}" 0
+ E E E
+13 14
+"configureMappings"
+""
+1 11 234 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+9 232 163 268
+T 
+1
+LANG:1 21 Configure Mappings...
+"// SimpleCtrlScriptStart {EP_childPanelOn}
+main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+	dyn_string dollarParameters=makeDynString(\"$sDBName:\" + txtdbName.text, \"$sPassword:\" + txtPwd.text, \"$sUser:\" + txtUser.text);
+	if (isDollarDefined(\"$sDpe\")) {
+		dynAppend(dollarParameters,\"$sDpe:\" + $sDpe);
+	}
+  ChildPanelOnCentral(\"fwRDBArchiving/fwRDBArchivingMappings.pnl\",
+      \"RDB Custom Mappings\",
+      dollarParameters);
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnParent}
+// File {mapping.pnl}
+// Panel {}
+// Parent {Database Mappings}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// PanelPara1 {$sDBName:txtdbName.text}
+// PanelPara2 {$sDpe:$sDpe}
+// PanelPara3 {$sPassword:txtPwd.text}
+// PanelPara4 {$sUser:txtUser.text}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ E E E
+13 17
+"closeButton"
+""
+1 483 234 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+481 232 545 268
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+13 18
+"SetasArchiveRDB"
+""
+1 280 60 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+EE E
+0
+1
+LANG:1 71 Sets the database to be used for archiving to the one you have entered.
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+278 58 432 93
+T 
+1
+LANG:1 18 Set as Archive RDB
+"main() {
+	fwRDBConfig_setUser(txtUser.text);
+	fwRDBConfig_setHost(txtdbName.text);
+	fwRDBConfig_setPassword(txtPwd.text);
+	ChildPanelOnCentralModal(	/*\"vision/MessageInfo1\"*/\"fwGeneral/fwMessageInfo1.pnl\", 
+												\"Restart project\",
+												makeDynString(\"If you have changed anything other than the password, you should now restart the RDB Archive Manager.\"));
+}" 0
+ E E E
+1 28 0 "" 0
+0
+13 20
+"Settings"
+""
+1 450 60 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+448 58 532 92
+T 
+1
+LANG:1 11 Settings...
+"main()
+{
+		//code adapted from panels/para/archive/RDB/RDB_manSelect.pnl
+	string     module = \"RDB MAN\",
+  dp1, UI = \"RDB MAN\", dp,
+  FileName = \"para/archive/RDB/RDBArchive.pnl\", Parameter = \"\"; 
+  dyn_string diSelectedLines;
+  bool      _MOTIF = isMotif();
+
+  if ( !getUserPermission(4) ) return;
+  Parameter = \"$manager:_RDBArchive\";
+    ModuleOnWithPanel(module, 100, 110, (620 + (!_MOTIF?8:4)), (480 + (!_MOTIF?32:4)),
+                      1, 1, \"None\", 
+                      FileName, 
+                      \"\", makeDynString(Parameter));
+}" 0
+ E E E
+13 21
+"updateAliases"
+""
+1 171 234 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+EE E
+0
+1
+LANG:1 80 Update the ALIASES table with the aliases of the parent DPs of the selected DPEs
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+169 232 318 268
+T 
+1
+LANG:1 20 Update Aliases table
+"main() {
+	aliases.text=\"\";
+	if (openConnection()) {
+		int dpeCount=dynlen(DPE_LIST);
+		int dpeIndex;
+		dyn_string DPs;
+		for (dpeIndex=1;dpeIndex<=dpeCount;dpeIndex++) {
+			writeIntoAliasTableIfNecessary(DPE_LIST[dpeIndex],DPs);
+		}
+		closeConnection();
+		aliases.text=\"Aliases updated.\";
+	}
+}" 0
+ E E E
+13 26
+"toggleWriteWithBulk"
+""
+1 443 140 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+441 138 545 172
+T 
+1
+LANG:1 7 Turn on
+"main() {
+	if (this.text==\"Turn on\") {
+		setWriteWithBulk(1);
+	} else {
+		setWriteWithBulk(0);
+	}
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 510 10 T 19 1 0 1  6 1  
+1
+"$sPanelRelativePath""fwRDBArchiving/fwRDBArchivingGeneral "
+0

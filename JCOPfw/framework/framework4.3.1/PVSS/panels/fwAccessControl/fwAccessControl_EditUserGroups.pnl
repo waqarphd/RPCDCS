@@ -1,0 +1,586 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 702 479 N "_3DFace" 2
+"$groups"
+"$userName"
+"main()
+{
+dyn_string exceptionInfo;
+
+if (!isDollarDefined(\"$userName\")) {
+	fwAccessControl_raiseException(exceptionInfo,\"ERROR\",
+		\"Dollar parameter $userName missing\",\"\");
+};
+
+if (!isDollarDefined(\"$groups\")) {
+	fwAccessControl_raiseException(exceptionInfo,\"ERROR\",
+		\"Dollar parameter $groups missing\",\"\");
+};
+
+
+if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+}
+
+populatePanel();
+
+}
+" 0
+ E E E E 1 -1 -1 0  20 57
+""0  1
+E "// General functions...
+
+// this global variable stores currently edited group set
+global dyn_string g_Groups; 
+
+void populatePanel()
+{
+
+int i;
+
+if ($userName!=\"\") {
+	setValue(\"User\",\"text\",$userName);
+} else {
+	setValue(\"User\",\"text\",\"[New User]\");
+}
+
+dynClear(g_Groups);
+dyn_string groups=strsplit($groups,\"|\");
+for (i=1;i<=dynlen(groups);i++) {
+	g_Groups[i]=strltrim(strrtrim(groups[i]));
+}
+
+dyn_string groupList, groupFullNames, exceptionInfo;
+fwAccessControl_getAllGroups(groupList, groupFullNames, exceptionInfo);
+if (dynlen(exceptionInfo)) {
+	fwAccessControl_displayException(exceptionInfo);
+	return;
+}
+
+setValue(\"GroupsTable\",\"deleteAllLines\");
+setValue(\"GroupsTable\",\"appendLines\",
+			dynlen(groupList),\"Name\",groupList);
+
+
+
+repaintTables();
+
+}
+
+
+//__________________________________________________________________________
+void repaintTables()
+{
+
+int i,n;
+string group;
+
+
+setValue(\"MemberOfTable\",\"deleteAllLines\");
+setValue(\"MemberOfTable\",\"appendLines\",
+			dynlen(g_Groups),\"Name\",g_Groups);
+
+// scroll the table to the top
+getValue(\"MemberOfTable\",\"lineCount\",n);
+if (n>0) {
+	setValue(\"MemberOfTable\",\"lineVisible\",0);
+	// trick to overcome improper display of first line in Motif Gedi...
+	setValue(\"MemberOfTable\",\"addSelectLines\",makeDynInt(0));
+	setValue(\"MemberOfTable\",\"removeSelectLines\",makeDynInt(0));
+}
+
+getValue(\"GroupsTable\",\"lineCount\",n);
+for (i=1;i<=n;i++) {
+	getValue(\"GroupsTable\",\"cellValueRC\",i-1, \"Name\", group);
+	if (dynContains(g_Groups, group)) {
+		setValue(\"GroupsTable\",\"cellBackColRC\",i-1,
+				\"Name\",\"lightgrey\");
+	} else {
+		setValue(\"GroupsTable\",\"cellBackColRC\",i-1,
+				\"Name\",\"white\");
+	};
+};
+
+
+}
+
+
+
+
+// VARIOUS EVENT HANDLERS
+//__________________________________________________________________________
+void AddSelected()
+{
+	dyn_int selLines;
+	int i;
+	string group;
+
+
+	getValue(\"GroupsTable\",\"getSelectedLines\",selLines);
+	for (i=1;i<=dynlen(selLines);i++) {
+
+		getValue(\"GroupsTable\",\"cellValueRC\",
+			selLines[i], \"Name\", group);
+
+		dynAppend(g_Groups,group);
+	};
+	// unselect...
+	setValue(\"GroupsTable\",\"removeSelectLines\",selLines);
+	// sanity check...
+	dynUnique(g_Groups);
+
+	repaintTables();
+
+	// scroll the table so as the new line is visible
+	setValue(\"MemberOfTable\",\"lineVisible\",-1);
+}
+//__________________________________________________________________________
+void AddAll()
+{
+	dyn_int selLines;
+	int i,n;
+	string group;
+
+	getValue(\"GroupsTable\",\"lineCount\",n);
+
+	for (i=0;i<n;i++) {
+		getValue(\"GroupsTable\",\"cellValueRC\",
+			i, \"Name\", group);
+		dynAppend(g_Groups, group);
+	};
+	dynUnique(g_Groups);
+
+	// remove selection, if existed
+	getValue(\"GroupsTable\",\"getSelectedLines\",selLines);
+	setValue(\"GroupsTable\",\"removeSelectLines\",selLines);
+
+	repaintTables();
+
+}
+//__________________________________________________________________________
+void RemoveSelected()
+{
+	dyn_int selLines;
+	int i,j,n;
+	string group;
+
+	getValue(\"MemberOfTable\",\"getSelectedLines\",selLines);
+	getValue(\"GroupsTable\",\"lineCount\",n);
+
+	for (i=1;i<=dynlen(selLines);i++) {
+		getValue(\"MemberOfTable\",\"cellValueRC\",selLines[i],
+			 \"Name\", group);
+
+		dynRemove(g_Groups, dynContains(g_Groups,group));
+	}
+
+	repaintTables();
+
+}
+//__________________________________________________________________________
+void RemoveAll()
+{
+	dynClear(g_Groups);
+	repaintTables();
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+30 8
+"GroupsFrame"
+""
+1 20 120 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+1
+1
+LANG:1 20 Privileges in domain
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.233736059479554 0 1.555023923444976 -4.674721189591081 -76.60287081339716 0 E 20 120 260 330
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 All Groups:
+30 10
+"MemberOfFrame"
+""
+1 340 120 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+1
+1
+LANG:1 19 Granted Privileges:
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.20864312267658 0 1.555023923444976 -10.93866171003715 -76.60287081339713 0 E 340 120 580 330
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Member of:
+30 21
+"FRAME1"
+""
+1 189 46 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 189 46 429 106
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 26 Group membership for user:
+2 25
+"PRIMITIVE_TEXT1"
+""
+1 -318 -94 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 10 247 35
+0 2 2 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 JCOP Framework Access Control
+25 23
+"GroupsTable"
+""
+1 37.96747967479675 131.8508287292818 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 133 292 422
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE );
+
+}" 0
+"main(int row, string column, string value)
+{
+if (dynContains(g_Groups,value)) {
+		// unselect it...
+	setValue(\"\",\"removeSelectLines\",makeDynInt(row));
+};
+
+}" 0
+ 1 0 1 1 1 "Name" 21 1 0 "s" 1
+LANG:1 10 Group Name
+E
+1
+LANG:1 11 Domain name
+
+240 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 11
+"AddButton"
+""
+1 338 178 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 338 178 378 208
+
+T 
+1
+LANG:1 1 >
+"main()
+{
+AddSelected();
+}" 0
+ E E E
+13 12
+"AddAllButton"
+""
+1 338 218 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 338 218 378 248
+
+T 
+1
+LANG:1 2 >>
+"main()
+{
+AddAll();
+}" 0
+ E E E
+13 13
+"RemoveButton"
+""
+1 338 268 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 338 268 378 298
+
+T 
+1
+LANG:1 1 <
+"main()
+{
+RemoveSelected();
+}" 0
+ E E E
+13 14
+"RemoveAllButton"
+""
+1 338 308 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 338 308 378 338
+
+T 
+1
+LANG:1 2 <<
+"main()
+{
+RemoveAll();
+}" 0
+ E E E
+25 9
+"MemberOfTable"
+""
+1 417.9674796747967 131.8508287292818 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 418 133 672 422
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE );
+
+}" 0
+E 1 0 1 1 1 "Name" 21 1 0 "s" 1
+LANG:1 10 Group Name
+E
+1
+LANG:1 0 
+
+240 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 16
+"ResetButton"
+""
+1 8 443 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 443 88 473
+
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+	populatePanel();
+}" 0
+ E E E
+13 15
+"OKButton"
+""
+1 523 443 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 523 443 603 473
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+
+PanelOffReturn(makeDynFloat(1.0),g_Groups);
+
+}" 0
+ E E E
+13 1
+"CancelButton"
+""
+1 613 443 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 613 443 693 473
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+14 5
+"User"
+""
+1 199 66 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 199 66 419 95
+2 "0s" 0 0 0 0 0 -1  E E E
+1 26 1 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 1 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 10 1 0 1 318 -1
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_EditUserGroups"
+0

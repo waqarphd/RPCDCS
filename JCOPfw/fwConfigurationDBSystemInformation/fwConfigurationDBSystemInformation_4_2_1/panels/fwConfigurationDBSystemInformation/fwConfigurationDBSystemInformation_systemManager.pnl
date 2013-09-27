@@ -1,0 +1,1303 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 834 690 N "_3DFace" 2
+"$computer"
+"$id"
+"main()
+{
+  disableAllInProjectManagementPanel();
+  //Access Control:
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyProjectManagementAcCB\", ex);
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+  
+}
+
+" 0
+ E E E E 1 -1 -1 0  42 48
+""0  1
+E "#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+#uses \"fwSystemOverview/fwSystemOverview.ctl\" 
+ 
+void applyProjectManagementAcCB(string s1, string s2)
+{
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  {
+    string domain;
+    fwSysOverview_getACDomain(domain);
+    // at first, disable whatever was enabled to this moment
+    disableAllInProjectManagementPanel();
+    if(domain == \"\") //AC not yet configured. Enable access 
+    {
+      hasExpertPrivilege = true;
+    }
+    else
+    {
+      string expertPrivilege = fwSysOverview_getExpertPrivilege(1);
+      // check the current  privilege level 
+      if (expertPrivilege == \"\")
+      {
+        DebugN(\"No expert privilege defined!\");
+        return;
+      }
+      fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+    
+      // check and handle exceptions that might have been thrown by the function above
+      if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+    }
+  }
+  else
+    hasExpertPrivilege = true;
+  // enable UI elements, depending on the access rights:
+  if (hasExpertPrivilege)
+  {
+    //the user has the rights but, shall we enabled the widgets?
+    dyn_string hostnames = strsplit($computer, \"|\");    
+    //hosts:
+    if(dynlen(hostnames) <= 0)
+      btnAddHost.enabled = true;
+    else
+      btnAddHost.enabled = false;
+
+    //projects    
+    if(dynlen(hostnames) == 1)
+      btnAddProject.enabled = true;
+    else
+      btnAddProject.enabled = false;
+    
+    btnRemoveHost.enabled = true;
+    btnRemoveProject.enabled = true;
+  }
+}
+
+void disableAllInProjectManagementPanel()
+{
+  btnAddHost.enabled = false;
+  btnRemoveHost.enabled = false;
+  btnRemoveProject.enabled = false;
+  btnAddProject.enabled = false;
+}    
+   
+updatePanel()
+{
+  string computerName = \"\";
+  dyn_dyn_mixed hostsInfo;
+  dyn_string projectNames;
+  bool onlyActive = true;
+  dyn_mixed projectInfo;
+  string mode = \"\";
+  dyn_int states;
+  string integrity = \"\";
+  string color = \"\";
+  int row = 0;
+  int id;
+  int totalHosts = 0, totalProjs = 0, status = 0, wrong = 0, projectMode = 0, agentErrors = 0;
+  dyn_dyn_mixed badComponents;
+  int hosts = 0;
+  
+  if(fwInstallationDB_connect() != 0) 
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Connection Error\", makeDynString(\"$1:Ooopsss, connection to System Configuration DB\\ncould not be established!!!\"));
+    return;
+  }
+
+  tblProjects.deleteAllLines();
+  if(fwInstallationDB_getComponentsIncorrectlyInstalled(badComponents)!= 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Connection Error\", makeDynString(\"$1:Could not retrieve list of components incorrectly installed\"));
+    return;
+  }
+  
+  if(fwInstallationDB_getHostsInfo(hostsInfo) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Connection Error\", makeDynString(\"$1:Cannot access the DB. Please check the connection...\"));
+    return;
+  }
+  
+  dyn_string hostnames;  
+  if($computer != \"\")
+  {
+    btnAddProject.visible = true;
+    btnRemoveProject.visible = true;
+    btnAddHost.visible = false;
+    btnRemoveHost.visible = false;    
+    hostnames = strsplit($computer, \" | \");
+    for(int i = 1; i <= dynlen(hostnames); i++)
+      strreplace(hostnames[i], \" \", \"\");
+    
+    if(dynlen(hostnames) > 1)
+    {
+      btnAddProject.enabled = false;
+      btnRemoveProject.enabled = false;
+    }
+  }
+  else
+  {
+    btnAddProject.visible = false;
+    btnRemoveProject.visible = false;
+    btnAddHost.visible = true;
+    btnRemoveHost.visible = true;    
+  }
+
+//  tblProjects.deleteAllLines();  
+  for(int i = 1; i <= dynlen(hostsInfo); i++)
+  {
+    computerName = hostsInfo[i][1];
+//    if($computer != \"\" && $computer != computerName)
+    if($computer != \"\" && dynContains(hostnames, computerName) <= 0)
+      continue;
+    
+    ++hosts; 
+    if(fwInstallationDB_getPvssProjects(projectNames, computerName, onlyActive) != 0)
+    {
+      DebugN(\"Cannot access the DB. Please check the connection...\");
+      return;
+    }
+
+      if(dynlen(projectNames) <= 0)
+      {
+//        setValue(\"tblProjects\", \"appendLine\", \"pc\", computerName);
+        tblProjects.updateLine(1, \"pc\", computerName);
+        ++row;
+        continue;
+      } 
+       
+      for(int j = 1; j <= dynlen(projectNames); j++)
+      {
+        
+
+        ++totalProjs;
+        
+        fwInstallationDB_getProjectProperties(projectNames[j], computerName, projectInfo, id);
+        
+
+        if(dynlen(projectInfo) < FW_INSTALLATION_DB_PROJECT_CENTRALLY_MANAGED)
+        {
+          DebugN(\"Wrong project info: \", projectNames[j], computerName, projectInfo);
+          continue;
+        }
+        else if(projectInfo[FW_INSTALLATION_DB_PROJECT_CENTRALLY_MANAGED] == 1)
+        {
+          ++projectMode;
+          mode = \"Central\";
+        }
+        else
+          mode = \"Local\";
+      
+        states = makeDynString(projectInfo[FW_INSTALLATION_DB_PROJECT_PROJECT_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_PVSS_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_HOST_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_PATH_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_MANAGER_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_COMPONENT_OK]);
+
+        if(dynSum(states) == dynlen(states))
+        {
+          ++status;
+          integrity = \"OK\";
+          color = \"green\";
+        }
+        else
+        {
+          integrity = \"NOT OK\";
+          color = \"red\";
+        }
+
+        string componentIntegrity = \"NOT_OK\";
+        string componentColor = \"red\";        
+        bool isOk = false;
+        dyn_dyn_mixed requiredMissing, instMissing;
+        
+        fwConfigurationDBSystemInformation_checkProjectComponents(computerName, projectNames[j], isOk, requiredMissing, instMissing); 
+        if(isOk)
+        {
+          componentIntegrity = \"OK\";
+          componentColor = \"green\";
+        }
+
+        //Do not show redundant pair column if not a redundant system:
+        if(strtoupper(projectInfo[FW_INSTALLATION_DB_PROJECT_REDU_HOST]) == strtoupper(computerName))
+          projectInfo[FW_INSTALLATION_DB_PROJECT_REDU_HOST] = \"\";
+        
+        bool adopt;
+        if(strtoupper(mode) == \"LOCAL\")
+          adopt = fwConfigurationDBSystemInformation_isAdoptionPossible(computerName, projectNames[j]);
+        else
+          adopt = false;
+        
+        tblProjects.updateLine(2, \"pc\", computerName, 
+                               \"project\", projectInfo[FW_INSTALLATION_DB_PROJECT_NAME], 
+                               \"mode\", mode, 
+                               \"adopt\", adopt, 
+                               \"integrity\", integrity, 
+                               \"componentIntegrity\", componentIntegrity, 
+                               \"tool\", projectInfo[FW_INSTALLATION_DB_PROJECT_TOOL_VER], 
+                               \"reduHost\", projectInfo[FW_INSTALLATION_DB_PROJECT_REDU_HOST], 
+                               \"ver\", projectInfo[FW_INSTALLATION_DB_PROJECT_PVSS_VER],
+                               \"os\", projectInfo[FW_INSTALLATION_DB_PROJECT_OS]);
+        
+        setMultiValue(\"tblProjects\", \"cellBackColRC\", row, \"integrity\", color,
+                      \"tblProjects\", \"cellBackColRC\", row, \"componentIntegrity\", componentColor);
+        
+        //Check that the agent has updated the fields in the DB during the last 5 mins:
+        string str = projectInfo[FW_INSTALLATION_DB_PROJECT_LAST_CHECK];
+        if(!patternMatch(\"*.*\", str)) //not a proper time.
+        {
+          color = \"red\";
+          ++agentErrors;
+          setValue(\"tblProjects\", \"cellBackColRC\", row, \"time\", color);
+        }
+        else
+        {
+          dyn_string ds = strsplit(str, \" \");
+        
+          dyn_string ds1 = strsplit(ds[1], \".\");
+          dyn_string ds2 = strsplit(ds[2], \":\");
+        
+          time t1 = makeTime(ds1[1], ds1[2], ds1[3], ds2[1], ds2[2], ds2[3]);
+          time t0 = getCurrentTime();
+        
+          if(period(t0 - t1) > 360 || str == \"\")
+          {
+            color = \"red\";
+            ++agentErrors;
+          }
+          else
+            color = \"green\";
+          
+          string t = substr(str, 2, (strlen(str)-9));
+          setMultiValue(\"tblProjects\", \"cellBackColRC\", row, \"time\", color,
+                          \"tblProjects\", \"cellValueRC\", row, \"time\", t);
+        }
+
+        bool found = false;        
+        //Check if there are components incorrectly installed
+        for(int k = 1; k <= dynlen(badComponents); k++)
+        {
+          if(computerName == badComponents[k][FW_INSTALLATION_DB_COMP_BAD_HOST] &&
+             projectNames[j] == badComponents[k][FW_INSTALLATION_DB_COMP_BAD_PROJECT])
+          {
+            found = true;
+            break;
+          }
+        }
+        
+        string st;
+        bool inProgress = false;
+        
+        //check if the installation is in progress:
+        dyn_dyn_mixed componentsInfo;
+        fwInstallationDB_getCurrentProjectComponents(componentsInfo, projectNames[j], computerName);
+        for(int z = 1; z <= dynlen(componentsInfo);z++)
+        {
+          if(componentsInfo[z][FW_INSTALLATION_DB_COMPONENT_PENDING_POSTINSTALLS_IDX] != \"\")
+          {
+            inProgress = true;
+            break;
+          }
+        }
+        
+        if(inProgress)
+        {
+          st = \"IN PROGRESS\";
+          color = \"STD_trend_pen6\";
+        }
+        else if(found)
+        {
+          ++wrong;
+          color = \"red\";
+          st = \"NOT_OK\";
+        }
+        else
+        {
+          st = \"OK\";
+          color = \"green\";
+        }
+        
+        setValue(\"tblProjects\", \"cellValueRC\", row, \"installation\", st);
+        setValue(\"tblProjects\", \"cellBackColRC\", row, \"installation\", color);
+        ++row; 
+      }
+  }
+  
+  //Display summary information:
+  txTotalHosts.text = \"Hosts: \" + hosts;
+  txTotalProjs.text = \"Projects: \" + totalProjs;
+  txStatus.text = \"Centrally managed projects: \" + projectMode;
+  txMode.text = \"Projects in SYNC: \" + status;
+  txWrong.text = \"Projects having components incorrectly installed: \" + wrong;
+  txAgentErrors.text = \"Projects having problems with DB agent: \" + agentErrors;
+  tblProjects.removeSelectLines(0);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 1
+"btnAddHost"
+""
+1 610 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  608 568 708 598
+
+T 
+1
+LANG:1 8 Add host
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+ 
+  ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_computerProperties.pnl\", \"Add new computer\", makeDynString(\"$computer:\" + \"\"), df, ds);
+  if(dynlen(df) >0 && df[1] >= 1.){
+    updatePanel(); 
+  }
+  fwConfigurationDBSystemInformation_refreshSetupTree();
+}
+
+" 0
+ E E E
+13 2
+"btnRemoveHost"
+""
+1 710 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  708 568 808 598
+
+T 
+1
+LANG:1 11 Delete host
+"main()
+{
+  dyn_int lines;
+  string host;
+  dyn_string ds;
+  dyn_float df;
+  
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"Confirm\", makeDynString(\"Are you sure you want to delete this/these computer(s)\\nand all associated information from the\\nSystem Configuration DB\", \"Yes\", \"No\"), df, ds);
+  
+  if(dynlen(df) && df[1] >= 1.)
+  {
+    getValue(\"tblProjects\",\"getSelectedLines\", lines);
+    string description = myPanelName() + \": Deleting hosts: \";
+    for(int i = dynlen(lines); i >= 1; i--){
+      getValue(\"tblProjects\", \"cellValueRC\", lines[i], \"pc\", host);
+      description  += host + \"; \";
+      if(fwInstallationDB_deletePC(host) != 0){
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", \"$1:Could not delete PC: \" + host + \" from DB\");  
+      }
+    }
+    fwConfigurationDBSystemInformation_logAction(description);
+  }
+  
+  updatePanel();
+  fwConfigurationDBSystemInformation_refreshSetupTree();
+}
+
+
+
+
+
+
+" 0
+ E E E
+13 17
+"btnRemoveProject"
+""
+1 710 570 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  708 568 808 598
+
+T 
+1
+LANG:1 14 Delete Project
+"main()
+{
+  dyn_int lines;
+  string project;
+  string host;
+  string computerName = \"\";
+  string item = \"\";
+  dyn_float df;
+  dyn_string ds;
+  bool deleteSystems = false;
+
+  if(shapeExists(\"treeEditor\"))
+  {
+    string tagId = $id;
+    computerName = treeEditor.getText(tagId, FW_INST_TAG_COL);
+    item = treeEditor.currentItem();
+  }
+  else
+  {
+    dyn_string hosts = strsplit($computer, \" | \");
+    if(dynlen(hosts) > 1)
+    {
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Multiple hosts selected\", makeDynString(\"Not possible to delete a project from multiple hosts\"));
+      return;
+    }
+    computerName = hosts[1];
+    strreplace(computerName, \" \", \"\");
+    strreplace(computerName, \"|\", \"\");
+  }  
+  
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"Delete project\", makeDynString(\"$1:Are you sure you want to delete permantely these projects?\", \"Yes\", \"No\"), df, ds);
+  if(dynlen(df) && df[1] >= 2.)
+    return;    
+  
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"Delete associated PVSS systems\", makeDynString(\"$1:Would you like to delete also the associated PVSS systems?\", \"Yes\", \"No\"), df, ds);
+  if(dynlen(df) && df[1] >= 2.)
+    return;    
+
+  if(df[1] == 1.)
+    deleteSystems = true;
+     
+  getValue(\"tblProjects\",\"getSelectedLines\", lines);
+  string description = myPanelName() + \": Deleting projects. Computer: \" + computerName  + \" Projects: \";
+  for(int i = 1; i <= dynlen(lines); i++){
+    getValue(\"tblProjects\", \"cellValueRC\", lines[i], \"project\", project);
+    description += project + \"; \";
+    if(fwInstallationDB_deleteProject(project, computerName, deleteSystems) != 0){
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", \"$1:Could not unregister project: \" + project + \"in computer: \"+ computerName +\" from DB\");  
+    }
+  }
+  fwConfigurationDBSystemInformation_logAction(description);
+  updatePanel(computerName);
+
+  if(shapeExists(\"treeEditor\"))
+  {
+    fwConfigurationDBSystemInformation_refreshSetupTree();
+    treeEditor.ensureItemVisible(item);
+  }
+}
+
+
+
+
+
+" 0
+ E "main()
+{
+}" 0
+ E
+13 16
+"btnAddProject"
+""
+1 610 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  608 568 708 598
+
+T 
+1
+LANG:1 11 Add Project
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  
+  string hostname = \"\";
+  string item = \"\";
+  
+  if(shapeExists(\"treeEditor\"))
+  {
+    string tagId = $id;
+    hostname = treeEditor.getText(tagId, FW_INST_TAG_COL);
+    item = treeEditor.currentItem();
+  }
+  else
+  {
+    dyn_string hosts = strsplit($computer, \" | \");
+    if(dynlen(hosts) > 1)
+    {
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Multiple hosts selected\", makeDynString(\"Not possible to add a project to multiple hosts\"));
+      return;
+    }
+    hostname = hosts[1];
+    strreplace(hostname, \" \", \"\");
+    strreplace(hostname, \"|\", \"\");
+  }
+ 
+  ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_projectProperties.pnl\", \"Add a new project\", makeDynString(\"$computer:\" + hostname), df, ds);
+  
+  if(dynlen(df) >0 && df[1] == 1.)
+  {
+    updatePanel(hostname);
+    if(shapeExists(\"treeEditor\"))
+    {
+      fwConfigurationDBSystemInformation_refreshSetupTree();
+      treeEditor.ensureItemVisible(item);
+    }
+  }
+}
+
+
+
+
+" 0
+ E E E
+25 3
+"tblProjects"
+""
+1 10 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+   dyn_string txt; 
+   int answer;
+   int mode = 0; 
+   string command;
+   string project, hostname;
+   dyn_int lines = tblProjects.getSelectedLines();
+   dyn_string projectErrors;
+   string msg;
+   string management;
+   bool adopt;
+   string version;
+   dyn_string notAdoptedProjects;
+   dyn_string notAdoptedHosts;
+   dyn_string hostnames, projects, versions;
+   bool singleSelection = 0;
+   dyn_string param1, param2, param3, param4, param5;
+
+   if(dynlen(lines) == 1)
+   {
+     singleSelection = 1;  
+     if(lines[1] != row)
+       lines = makeDynInt(row);   
+   }
+
+  //Check Access Control:
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege = false; 
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+    string hostname, project, projectDp;
+    string domain;
+    // check the current  privilege level 
+    if (expertPrivilege != \"\")
+    {
+      for(int i = 1; i <= dynlen(lines); i++)   
+      {
+         getMultiValue(\"tblProjects\", \"cellValueRC\", lines[i], \"pc\", hostname,
+                       \"tblProjects\", \"cellValueRC\", lines[i], \"project\", project);
+         fwSysOverview_getProjectDp(hostname, project, projectDp, exceptionInfo);
+       
+         if (projectDp == \"\" || dynlen(exceptionInfo) >0 || !dpExists(projectDp))
+         {
+           fwSysOverview_getACDomain(domain);
+         }
+         else
+           fwSysOverview_getACDomain(domain, projectDp);
+         fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+         // check and handle exceptions that might have been thrown by the function above
+        if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+    
+        if(!hasExpertPrivilege)
+          break;
+      } 
+    }
+    else
+    {
+      fwSysOverview_getACDomain(domain);
+      if (domain == \"\")//AC not yet configured
+      {
+        hasExpertPrivilege = true;
+      }
+      else//AC configured but the expert privilege is not defined
+      {
+        DebugN(\"No expert privilege defined!\");
+        return;
+      }
+    }
+  }
+  else
+    hasExpertPrivilege = true;
+ 
+  // enable UI elements, depending on the access rights:
+   txt=makeDynString(\"CASCADE_BUTTON, Components, 1\",
+                     \"SEPARATOR\", // separating line 
+                     \"CASCADE_BUTTON, Project Handling, 1\", 
+                     \"SEPARATOR\", // separating line 
+                     \"CASCADE_BUTTON, DB-Agents, 1\", 
+                     \"SEPARATOR\", // separating line 
+                     \"CASCADE_BUTTON, Management Mode, 1\", // branch 
+                     \"SEPARATOR\", // separating line 
+                     \"PUSH_BUTTON, Adopt Configuration, 7, \" + (hasExpertPrivilege?1:0),
+                     \"SEPARATOR\", // separating line 
+                     \"CASCADE_BUTTON, Paths, 1\",
+                     \"SEPARATOR\", // separating line 
+                     \"PUSH_BUTTON, Upgrade Inst. Tool, 8, \" + (hasExpertPrivilege?1:0),
+                     \"Components\", // SubMenu for \"DB-Agents\"
+                     \"PUSH_BUTTON, Group Definition, 15, 1\", 
+                     \"PUSH_BUTTON, Group Assignement, 11, 1\", 
+                     \"PUSH_BUTTON, Reinstallations, 12, 1\", 
+                     \"Paths\", // SubMenu for \"DB-Agents\"
+                     \"PUSH_BUTTON, Project Paths, 13, 1\", 
+                     \"PUSH_BUTTON, Windows-Linux path mapping, 14, 1\", 
+                     \"Project Handling\", // SubMenu for \"DB-Agents\"
+                     \"PUSH_BUTTON, Copy..., 9, \" + (singleSelection?1:0), 
+                     \"PUSH_BUTTON, Redundant Copy..., 10, \" + (singleSelection?1:0), 
+                     \"DB-Agents\", // SubMenu for \"DB-Agents\"
+                     \"PUSH_BUTTON, Start, 3, \" + (hasExpertPrivilege?1:0), 
+                     \"PUSH_BUTTON, Restart, 4, \" + (hasExpertPrivilege?1:0), 
+                     \"PUSH_BUTTON, Stop, 5, \" + (hasExpertPrivilege?1:0),
+                     \"PUSH_BUTTON, Configure..., 6, \" +  (hasExpertPrivilege?1:0),                     
+                     \"Management Mode\", // SubMenu for \"Set Management Mode\"
+                     \"PUSH_BUTTON, Central, 1, \" + (hasExpertPrivilege?1:0), 
+                     \"PUSH_BUTTON, Local, 2, \" + (hasExpertPrivilege?1:0)); 
+    
+   popupMenu(txt, answer); 
+   
+   if(answer < 1 || answer > 15)
+     return;
+   
+  
+   
+   if(answer == 1)
+   {
+     mode = 1;
+     msg = \"Changing project management mode to central.\";
+   }
+   else if(answer == 2)
+   {
+     mode = 0; 
+     msg = \"Changing project management mode to local.\";     
+   }
+   else if (answer == 3)
+   {
+     msg = \"Starting DB-Agents. \";
+     command = \"START\";
+   }
+   else if (answer == 4)
+   {
+     msg = \"Restarting DB-Agents. \" ;    
+     command = \"RESTART\";
+   }
+   else if (answer == 5)
+   {
+     msg = \"Stopping DB-Agents. \"  ;   
+     command = \"STOP\";
+   }
+   else if (answer == 6)
+   {
+     msg = \"Changing the configuration of DB-Agents. \"  ;   
+     command = \"RECONFIGURE\";
+   }
+   else if(answer == 7)
+   {
+     msg = \"Adopting project configuration\";
+   }
+   else if(answer == 8)
+   {
+     msg = \"FW Component Installation Tool Remote Upgrade Request\";
+   }
+   dyn_float df;
+   dyn_string ds;
+      
+   if(answer < 8 && answer != 6)
+   {
+     ChildPanelOnCentralReturn(\"fwInstallation/fwInstallationDB_question.pnl\", \"Warning\", makeDynString(\"$txt:\" + msg + \".\\nAre you sure you want to proceed?\"), df, ds);
+     if(df[1] != 1.)
+       return;
+   }
+   string actionDescription; 
+   if (msg != \"\")
+     actionDescription = myPanelName() + \": \" + msg;  
+   for(int i = 1; i <= dynlen(lines); i++)   
+   {
+     hostname = \"\";
+     project = \"\";
+     getMultiValue(\"tblProjects\", \"cellValueRC\", lines[i], \"pc\", hostname,
+                   \"tblProjects\", \"cellValueRC\", lines[i], \"project\", project,
+                   \"tblProjects\", \"cellValueRC\", lines[i], \"mode\", management,
+                   \"tblProjects\", \"cellValueRC\", lines[i], \"adopt\", adopt,
+                   \"tblProjects\", \"cellValueRC\", lines[i], \"tool\", version);
+
+     if(project == \"\")
+     {
+       DebugN(\"INFO: \"+msg+\". Skipping computer: \" + hostname + \" as it does not have any valid project\");
+       continue;
+     }    
+    dynAppend(hostnames, hostname); 
+    dynAppend(projects, project); 
+    dynAppend(versions, version); 
+     
+   // DebugN(\"setting \", mode, project, hostname);
+     if (actionDescription != \"\")
+     actionDescription += \" Host: \" + hostname + \" Project: \" + project; 
+     if(answer == 1 || answer == 2)
+     {     
+       if(fwInstallationDB_setCentrallyManaged(mode, project, hostname) != 0)
+         dynAppend(projectErrors, project + \"@\"  + hostname);
+     }
+     else if (command != \"\" && (answer == 3 || answer == 4 || answer == 5 || answer == 6))
+     {
+       dyn_mixed projectProperties;
+       int projId;
+       int err = fwInstallationDB_getProjectProperties(project, hostname, projectProperties, projId);
+       if (!err)
+       {
+         int port = projectProperties[FW_INSTALLATION_DB_PROJECT_PMON_PORT];
+         string user = projectProperties[FW_INSTALLATION_DB_PROJECT_PMON_USER];
+         string pwd = projectProperties[FW_INSTALLATION_DB_PROJECT_PMON_PWD];
+
+         if(user == \"\")
+           user = \"N/A\";
+  
+         if(pwd == \"\")
+           pwd = \"N/A\";
+         if (command != \"RECONFIGURE\")
+         {
+           if (fwInstallationManager_command(command, \"PVSS00ctrl\", \"-f fwInstallationAgent.lst\", hostname, port, user, pwd))
+             dynAppend(projectErrors, project + \"@\"  + hostname);
+         }
+         else
+         {
+            dyn_dyn_mixed managersInfo;
+            string idx;
+            if(fwInstallationManager_pmonGetManagers(managersInfo, hostname, port, user, pwd) == 0)
+            {
+              for(int j=1; j<= dynlen(managersInfo[FW_INSTALLATION_MANAGER_TYPE]);j++)
+              {
+                if(managersInfo[FW_INSTALLATION_MANAGER_TYPE][j] == \"PVSS00ctrl\" && managersInfo[FW_INSTALLATION_MANAGER_OPTIONS][j] == \"-f fwInstallationAgent.lst\" )
+                {
+                  idx = managersInfo[FW_INSTALLATION_MANAGER_PMON_IDX][j];
+                  break;
+                }
+              }
+              if (idx != \"\")
+              {
+                dynAppend(param1, idx); 
+                dynAppend(param2, user);
+                dynAppend(param3, pwd);
+                dynAppend(param4, hostname);
+                dynAppend(param5, port);
+              }
+             }
+             else
+               dynAppend(projectErrors, project + \"@\"  + hostname);
+           }
+         
+       }
+       else
+         dynAppend(projectErrors, project + \"@\"  + hostname);
+     }
+     else if(answer == 7 && strtoupper(management) == \"LOCAL\")//adopt project configuration
+     {
+       if(adopt) //If adoption is possible do it otherwise display the problem:
+       {
+         if(fwConfigurationDBSystemInformation_adoptProjectConfiguration(hostname, project))
+           dynAppend(projectErrors, project + \"@\"  + hostname);
+       }
+       else
+       {
+         dynAppend(notAdoptedProjects, project);
+         dynAppend(notAdoptedHosts, hostname);
+       }
+     }
+   }//end of loop over projects
+   
+   if (actionDescription != \"\")
+   fwConfigurationDBSystemInformation_logAction(actionDescription);
+   if(dynlen(notAdoptedProjects))
+   {
+     dyn_string ds;
+     dyn_float df;
+     
+     ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_showErrorsTable.pnl\", \"ERRORS\", makeDynString(\"$computers:\" + notAdoptedHosts, \"$projects:\"+ notAdoptedProjects), df, ds);
+     if(dynlen(df) > 0 && df[1] == 1.)
+     {
+       //force adoption here:
+       for(int i = 1; i <= dynlen(notAdoptedProjects); i++)
+       {
+         if(fwConfigurationDBSystemInformation_adoptProjectConfiguration(notAdoptedHosts[i], notAdoptedProjects[i], \"\", true))
+         {
+           dynAppend(projectErrors, project + \"@\"  + hostname);
+         }
+       }
+     }
+   }
+   
+   if(dynlen(projectErrors))
+   {
+     ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"There were errors \"+msg+\".\\nCheck log-viewer for more details.\"));
+     DebugN(\"ERROR: \" + msg + \" for the following projects: \");
+     for(int i = 1; i <= dynlen(projectErrors); i++)
+       DebugN(projectErrors[i]);
+   }
+   if (answer == 6)
+   {
+     ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_managersProperties.pnl\", \"Managers Properties\", 
+                            makeDynString(\"$1:\"+param1, \"$2:\"+param2, \"$3:\"+param3, \"$4:\"+param4, \"$5:\"+param5), df, ds);
+
+   }
+   if(answer == 8)
+   {
+     ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_toolUpgrade.pnl\", \"Remote Installation Tool Upgrade\", makeDynString(\"$hostnames:\" + hostnames, \"$projects:\"+ projects, \"$versions:\" + versions), df, ds);
+   }   
+   else if(answer == 9)
+   {
+     ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_copyProject.pnl\", \"Copy Project\", makeDynString(\"$hostname:\" + hostnames[1], \"$project:\"+ projects[1]), df, ds);
+   }
+//   else if(answer == 10)
+//   {
+//     ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_moveProject.pnl\", \"Move Project\", makeDynString(\"$hostname:\" + hostnames[1], \"$project:\"+ projects[1]), df, ds);
+//   }
+   else if(answer == 10)
+   {
+     ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_redundantCopy.pnl\", \"Redundant Pair\", makeDynString(\"$hostname:\" + hostnames[1], \"$project:\"+ projects[1]), df, ds);
+   }
+   else if(answer == 11)
+   {
+     ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_addFwComponents.pnl\", \"Component Management\", makeDynString(\"$hostname:\" + hostnames, \"$project:\"+ projects, \"$fsm:TRUE\"), df, ds);
+   }
+   else if(answer == 12)
+   {
+     ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_reinstallComponentsIntoProjects.pnl\", \"Component Reinstallations\", makeDynString(\"$hostname:\" + hostnames, \"$project:\"+ projects, \"$fsm:TRUE\"), df, ds);
+   }
+   else if(answer == 13)
+   {
+     ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_addProjectPaths.pnl\", \"Project Paths\", makeDynString(\"$hostname:\" + hostnames, \"$project:\"+ projects, \"$fsm:TRUE\"), df, ds);
+   }
+   else if(answer == 14)
+   {
+     ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_pathMapping.pnl\", \"Path Mapping\", makeDynString(\"$hostname:\" + hostnames, \"$project:\"+ projects, \"$fsm:TRUE\"), df, ds);
+   }
+   else if(answer == 15)
+   {
+     ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_editComponentGroup.pnl\", \"Group Definition\", makeDynString(), df, ds);
+   }
+   updatePanel();
+   
+   if(shapeExists(\"treeEditor\"))
+     fwConfigurationDBSystemInformation_refreshSetupTree();   
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ "main(int row, string column)
+{
+  anytype line;
+  dyn_float df;
+  dyn_string ds;
+  
+  getValue(\"\", \"getLineN\", row, line);
+  
+  if(line[1] != \"\"){
+//    if($computer == \"\")
+//      ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_computerProperties.pnl\", \"Computer Info\", makeDynString(\"$computer:\" + line[1]), df, ds);
+//    else
+      ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_projectProperties.pnl\", \"Project Info\", makeDynString(\"$computer:\" + line[1], \"$project:\" + line[2]), df, ds);
+  }    
+  updatePanel();
+}
+
+
+" 0
+
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  8 28 822 562
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  
+  while(1)
+  {
+    if(cbAutoRefresh.state(0))
+      updatePanel(computerName);
+    
+    delay(60);
+  }
+}" 0
+E 1 0 1 12 0 "pc" 8 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 30 Double-click to view more info
+
+85 "project" 8 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 30 Double-click to view more info
+
+85 "ver" 4 1 0 "s" 1
+LANG:1 7 Version
+E
+1
+LANG:1 30 Double-click to view more info
+
+46 "os" 6 1 0 "s" 1
+LANG:1 2 OS
+E
+1
+LANG:1 30 Double-click to view more info
+
+65 "reduHost" 7 1 0 "s" 1
+LANG:1 8 ReduHost
+E
+1
+LANG:1 30 Double-click to view more info
+
+79 "mode" 4 1 0 "s" 1
+LANG:1 4 Mode
+E
+1
+LANG:1 30 Double-click to view more info
+
+50 "adopt" 6 1 0 "s" 1
+LANG:1 10 Can Adopt?
+E
+1
+LANG:1 30 Double-click to view more info
+
+66 "tool" 5 1 0 "s" 1
+LANG:1 10 Inst. Tool
+E
+1
+LANG:1 30 Double-click to view more info
+
+55 "integrity" 4 1 0 "s" 1
+LANG:1 9 Proj Info
+E
+1
+LANG:1 30 Double-click to view more info
+
+50 "componentIntegrity" 5 1 0 "s" 1
+LANG:1 9 Comp Info
+E
+1
+LANG:1 30 Double-click to view more info
+
+57 "installation" 5 1 0 "s" 1
+LANG:1 11 Inst Status
+E
+1
+LANG:1 30 Double-click to view more info
+
+60 "time" 9 1 0 "s" 1
+LANG:1 13 Last check at
+E
+1
+LANG:1 30 Double-click to view more info
+
+92 
+16 16 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+2 4
+"txMsg"
+""
+1 100 564 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 100 564 251 578
+0 2 2 "0s" 0 0 0 192 0 0  100 564 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 32 (Values are refreshed every min)
+20 6
+"cbAutoRefresh"
+""
+1 10 560 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  8 558 102 582
+1
+T 
+1
+LANG:1 12 Auto refresh
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  if(state)
+  {
+    txMsg.foreCol(\"black\");
+    txMsg.text = \"(Values are refreshed every min)\";
+  }
+    else
+  {
+    txMsg.foreCol(\"disturbanceCamWentUna\");
+    txMsg.text = \"(Autorefresh is disabled)\";
+  }
+}" 0
+30 7
+"FRAME1"
+""
+1 30 373 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+11 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.15942028985507 0 0.54421768707483 -24.7826086956521 397.0068027210884 0 E 30 373 721 521
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Summary
+2 8
+"txTotalHosts"
+""
+1 30.0000000000001 619.9999999999998 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30.0000000000001 619.9999999999998 320 639.9999999999998
+0 2 2 "0s" 0 0 0 64 0 0  30.0000000000001 619.9999999999998 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+2 10
+"txStatus"
+""
+1 30 659.9999999999998 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 659.9999999999998 319.9999999999999 679.9999999999998
+0 2 2 "0s" 0 0 0 64 0 0  30 659.9999999999998 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+2 12
+"txMode"
+""
+1 272 641.9999999999998 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 272 641.9999999999998 562 661.9999999999998
+0 2 2 "0s" 0 0 0 64 0 0  272 641.9999999999998 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+2 13
+"txTotalProjs"
+""
+1 30 639.9999999999998 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 639.9999999999998 319.9999999999999 659.9999999999998
+0 2 2 "0s" 0 0 0 64 0 0  30 639.9999999999998 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+2 14
+"txAgentErrors"
+""
+1 272 661.9999999999998 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 272 661.9999999999998 562 681.9999999999998
+0 2 2 "0s" 0 0 0 64 0 0  272 661.9999999999998 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+2 15
+"txWrong"
+""
+1 272 622 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 272 622 632 642
+0 2 2 "0s" 0 0 0 64 0 0  272 622 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

@@ -1,0 +1,234 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 669 104 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  if(!fwFMC_isEnabled())
+    return;
+  
+  string dp = $sDpName;
+  dyn_string deviceDps, ds;
+  string node = fwFMC_getNodeName($sDpName);
+  string systemName = dpSubStr($sDpName, DPSUB_SYS);
+  dyn_string devices;
+  float rxRate, txRate, rxErr, txErr;
+  string eth, ip, mac;  
+  
+  if(!dpExists(fwFMCMonitoring_getDp(node, systemName)))
+    return;
+
+  if(!fwFMCMonitoring_exists(node, systemName))
+    btTrend.enabled = false;
+
+  if(dpTypeName($sDpName) == \"FwFMCNode\")
+    dp = $sDpName + \"/Monitoring/Network\";
+  else if(dpTypeName($sDpName) == \"FwFMCMonitoring\")
+    dp = $sDpName + \"/Network\";
+  else
+    dp = $sDpName;
+  
+  while(1)
+  {  
+    dynClear(deviceDps);
+    dynClear(devices);
+    
+    fwFMCMonitoring_getDevices(node, \"network\", devices, systemName);
+    for(int i = 1; i <= dynlen(devices); i++)
+    {
+      if(devices[i] == \"-1\")
+        continue;
+      
+      dynAppend(deviceDps, dp + \"/\" + devices[i]);
+
+    }
+          
+//    tblNetwork.deleteAllLines();
+//    tblNetwork.appendLines(dynlen(devices));
+
+    for(int i = 1; i <= dynlen(deviceDps); i++)
+    {
+      dpGet(deviceDps[i] + \".readings.name\", eth,
+            deviceDps[i] + \".readings.rx_bit_rate\", rxRate,
+            deviceDps[i] + \".readings.tx_bit_rate\", txRate,
+            deviceDps[i] + \".readings.rx_errors_fraction\", rxErr,
+            deviceDps[i] + \".readings.tx_errors_fraction\", txErr,
+            deviceDps[i] + \".readings.ip\", ip,
+            deviceDps[i] + \".readings.mac\", mac);
+      
+      if(ip != \"N/A\" && ip != \"0.0.0.0\" && ip != \"\")
+        tblNetwork.updateLine(1, \"device\", eth, 
+                              \"rxRate\", floor(rxRate * 10.)/10,
+                              \"txRate\", floor(txRate * 10.)/10,
+                              \"rxErr\", floor(rxErr * 10.)/10,
+                              \"txErr\", floor(txErr * 10.)/10,
+                              \"ip\", ip,
+                              \"mac\", mac);
+       
+ /*     setMultiValue(\"tblNetwork\", \"cellValueRC\", i-1, \"device\", eth,
+                    \"tblNetwork\", \"cellValueRC\", i-1, \"rxRate\", floor(rxRate * 10.)/10,
+                    \"tblNetwork\", \"cellValueRC\", i-1, \"txRate\", floor(txRate * 10.)/10,
+                    \"tblNetwork\", \"cellValueRC\", i-1, \"rxErr\", floor(rxErr * 10.)/10,
+                    \"tblNetwork\", \"cellValueRC\", i-1, \"txErr\", floor(txErr * 10.)/10,
+                    \"tblNetwork\", \"cellValueRC\", i-1, \"ip\", ip,
+                    \"tblNetwork\", \"cellValueRC\", i-1, \"mac\", mac);
+*/      
+    }
+    delay(5);
+  }
+}
+
+
+" 0
+ E E E E 1 -1 -1 0  30 20
+""0  1
+E E 2
+"CBRef" "1"
+"EClose" "main()
+{
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tblNetwork"
+""
+1 20 27 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 25 602 92
+EE 1 0 1 7 0 "device" 23 1 0 "s" 1
+LANG:1 6 Device
+E
+1
+LANG:1 0 
+
+220 "ip" 9 1 0 "s" 1
+LANG:1 2 IP
+E
+1
+LANG:1 0 
+
+95 "mac" 9 1 0 "s" 1
+LANG:1 3 MAC
+E
+1
+LANG:1 0 
+
+95 "rxRate" 7 1 0 "s" 1
+LANG:1 11 Rx Bit Rate
+E
+1
+LANG:1 0 
+
+75 "txRate" 7 1 0 "s" 1
+LANG:1 11 Tx Bit Rate
+E
+1
+LANG:1 0 
+
+75 "rxErr" 6 0 0 "s" 1
+LANG:1 12 Rx Error (%)
+E
+1
+LANG:1 0 
+
+65 "txErr" 6 0 0 "s" 1
+LANG:1 12 Tx Error (%)
+E
+1
+LANG:1 0 
+
+65 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+30 1
+"FRAME1"
+""
+1 50 23 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+1 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 2 0 0.5732484076433135 -90 -3.184713375796194 0 E 50 23 371 181
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Network
+13 2
+"btTrend"
+""
+1 610 70 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  608 68 642 92
+
+P 
+4294967295
+"pictures/trend.png"
+1
+LANG:1 4 ...
+
+E E "main()
+{
+  ChildPanelOnCentral(\"fwFMC/fwFMC_nicsTrend.pnl\", \"NIC Trends\", makeDynString(\"$deviceDp:\" + $sDpName));
+}" 0
+ E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

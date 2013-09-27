@@ -1,0 +1,739 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 268 372 N "_3DFace" 1
+"$sTreeType"
+"main()
+{
+}" 0
+ E E E E 1 -1 -1 0  20 15
+""0  1
+E "
+const string SYSTEM_ICON = \"dptree/system.png\";
+const string NODE_ICON = \"dptree/struct.png\";
+const string DEVICE_ICON = \"automation/PLC.wmf\";
+string treeType;
+
+expand(string id)
+{
+  string name, dpName, iconFile;
+  dyn_string children, treeChildren, childrenOfChild, exceptionInfo;
+ 
+  //DebugN(\"Expanding \" + id); 
+  
+  if(this.parent(id) == \"\")
+  {
+    initTree(id);
+  }
+  else
+  {
+    treeChildren = this.children(id);
+    this.removeItems(treeChildren);
+    
+    fwDevice_getChildren(id, g_fwDEN_treeToHierarchy[treeType], children, exceptionInfo);
+    
+    // add all children of expanded node
+    for (int i = 1; i <= dynlen(children); i++)
+    {
+      fwDevice_getName(children[i], name, exceptionInfo);
+      this.appendItem(id, children[i], name);
+      
+      // if we are in a logical hierarchy, convert to dp
+      if(g_fwDEN_treeToHierarchy[treeType] == fwDevice_LOGICAL)
+      {	
+         dpName = dpSubStr(dpAliasToName(children[i]), DPSUB_SYS_DP);
+      }
+      else
+      {
+        dpName = children[i];
+      }     
+      
+      // see which icon to display
+      if(dpTypeName(dpName) == \"FwNode\")
+      {
+        iconFile = getPath(ICONS_REL_PATH, NODE_ICON, 1, SEARCH_PATH_LEN);
+        this.setIcon(children[i], 0, iconFile);
+      }
+      else
+      {
+        // iconFile = getPath(ICONS_REL_PATH, DEVICE_ICON, 1, SEARCH_PATH_LEN);
+      }
+      //DebugN(\"iconFile \" + iconFile);
+
+      
+      // If the node has more children add it as a branch
+      fwDevice_getChildren(children[i], g_fwDEN_treeToHierarchy[treeType], childrenOfChild, exceptionInfo);
+      
+      if (dynlen(childrenOfChild) > 0)
+        this.setExpandable(children[i], TRUE);
+      else
+        this.setExpandable(children[i], FALSE);                                                                        									
+    }
+  }
+}
+ 
+initTree(string systemName)
+{
+  int i, j, result, position = 0;
+  string nodeType, alias, iconFile, nodeName;
+  dyn_uint systemIds;
+  dyn_string nodes, children, treeChildren, systemNames, exceptionInfo;
+  dyn_anytype node;			
+  
+  this.addColumn(\"Device\");
+  this.showHeader(FALSE);
+
+//  DebugN(\"systemName \" + systemName);
+  
+  //fwDeviceEditorNavigator_refreshRootNode(0, \"\", fwDevice_HARDWARE, exceptionInfo); 
+  
+  // Check which systems have to be refreshed
+  if(systemName == \"\")
+  {
+    // initializing tree, update all systems
+    result = getSystemNames(systemNames, systemIds);
+  }
+  else
+  {
+    // displaying only requested system
+    systemNames[1] = systemName;	
+  }
+  
+//  DebugN(\"systemNames \" + systemNames);
+    
+  // Check which type of root nodes we have to look for   
+  nodeType = g_fwDEN_treeToNodeType[treeType];
+
+  // Add all selected systems
+  for(j = 1; j <= dynlen(systemNames); j++)
+  {
+    if(strpos(systemNames[j], \":\") != (strlen(systemNames[j]) - 1))
+      systemNames[j] = systemNames[j] + \":\";
+    nodes = makeDynString();
+                
+    fwNode_getNodes(systemNames[j], nodeType, nodes, exceptionInfo);
+    //DebugN(hierarchyType, nodes);
+    
+    // if we are in a logical hierarchy, get the aliases
+    if(g_fwDEN_treeToHierarchy[treeType] == fwDevice_LOGICAL)
+    {	
+      for(i = 1; i <= dynlen(nodes); i++)
+      {
+        alias = dpGetAlias(nodes[i] + \".\");
+	//DebugN(nodes[i], alias);
+	nodes[i] = systemNames[j] + alias;
+      }
+    }
+	
+    // append the system node
+    if(!this.itemExists(systemNames[j]))
+    {
+      this.appendItem(\"\", systemNames[j], systemNames[j]);
+      iconFile = getPath(ICONS_REL_PATH, SYSTEM_ICON, 1, SEARCH_PATH_LEN);
+      //DebugN(\"iconfile \" + iconFile);
+      this.setIcon(systemNames[j], 0, iconFile);
+    }
+    else
+    {
+      // remove children in case it is a refresh and children have changed
+      treeChildren = this.children(systemNames[j]);
+//      DebugN(\"treeChildren \" + treeChildren);
+      this.removeItems(treeChildren);
+    }
+                
+    // if there are nodes, expand it
+    if (dynlen(nodes) > 0)
+      this.setOpen(systemNames[j], TRUE);
+    
+    for(i = 1; i <= dynlen(nodes); i++)
+    {
+      fwDevice_getName(nodes[i], nodeName, exceptionInfo);
+      
+      // removal of cut mark only needed for the clipboard
+      nodeName = strltrim(nodeName, fwDevice_HIERARCHY_LOGICAL_CUT);
+      
+      // remove PVSS alias mark
+      nodeName = strltrim(nodeName, \"@\");
+      this.appendItem(systemNames[j], nodes[i], nodeName);
+      iconFile = getPath(ICONS_REL_PATH, NODE_ICON, 1, SEARCH_PATH_LEN);
+      //DebugN(\"iconfile \" + iconFile);
+      this.setIcon(nodes[i], 0, iconFile);
+      
+      fwDevice_getChildren(nodes[i], g_fwDEN_treeToHierarchy[treeType], children, exceptionInfo);		                        
+      if (dynlen(children) > 0)
+        this.setExpandable(nodes[i], TRUE);
+      else
+        this.setExpandable(nodes[i], FALSE);
+    }
+  }
+}
+
+rightClickedHardware(string id, int column)
+{
+  bool  ok,
+        isNode = FALSE, 
+	isConfigurationDBInstalled = FALSE;
+  unsigned parentPos;
+  int answer, configurationDBInstalled;
+  string dpName = id, panel, device; 
+  const string 	ADD			= 1,
+                REMOVE			= 2,
+                SETTINGS		= 3,
+                PROPERTIES		= 4,
+                INSTALLATION_TOOL	= 6,
+                CONFIGURATIONDB_TOOL	= 7,
+                USER_INTERFACE		= 8,
+                CLONE			= 9,
+                REGISTER_DEVICE_TYPE	= 10,
+                INACTIVE_ALARMS		= 11,
+                SYSTEM_SETTINGS		= 12;
+  dyn_bool status;
+  dyn_float df;
+  dyn_string ds, menuEntries, exceptionInfo;
+  dyn_dyn_string childrenDpTypesAndModels, panels;
+ 
+  //DebugN(\"rightClicked \" + id + \" \" + column);
+  // check if an entry was selected in the tree
+  if(id == \"\")
+    return;
+
+  device = id;
+	
+  // get current status
+  _fwDeviceEditorNavigator_getStatus(device, status, exceptionInfo);
+	
+  fwInstallation_componentInstalled(\"fwConfigurationDB\", \"1.0\", configurationDBInstalled);
+  if(configurationDBInstalled != 0)
+    isConfigurationDBInstalled = TRUE;
+
+  // prepare entries for menu
+  if(this.parent(id) == \"\")
+  {
+    menuEntries = makeDynString(\"PUSH_BUTTON, System settings..., \" + SYSTEM_SETTINGS + \", \" + (int)status[fwDEN_STATUS_EDIT],
+                                \"PUSH_BUTTON, Settings..., \" + SETTINGS + \", \" + (int)status[fwDEN_STATUS_EDIT],
+                                \"PUSH_BUTTON, Register device type..., \" + REGISTER_DEVICE_TYPE + \", \" + (int)status[fwDEN_STATUS_EDIT],
+                                \"SEPARATOR\",
+                                \"PUSH_BUTTON, Inactive Alarms..., \" + INACTIVE_ALARMS + \", \" + (int)(!status[fwDEN_STATUS_EDIT]),
+                                \"SEPARATOR\",
+                                \"PUSH_BUTTON, Configuration DB..., \" + CONFIGURATIONDB_TOOL + \", \" + (int)(isConfigurationDBInstalled && status[fwDEN_STATUS_EDIT]),
+                                \"PUSH_BUTTON, Installation Tool..., \" + INSTALLATION_TOOL + \", \" + (int)status[fwDEN_STATUS_EDIT]);
+
+    if(!status[fwDEN_STATUS_LOCAL])
+      menuEntries[dynlen(menuEntries) + 1] = \"PUSH_BUTTON, Open User Interface..., \" + USER_INTERFACE + \", 1\";
+			
+    device = \"\";
+  }
+  else
+  {
+    bool canHaveChildren = FALSE;
+    dyn_string dpTypesList;
+		
+    if(dpTypeName(dpName) == \"FwNode\")
+      isNode = true;
+		
+    // check if the device can have children
+    fwDevice_getPossibleChildren(makeDynString(dpName, \"\", \"\", \"\"), childrenDpTypesAndModels, exceptionInfo);
+
+//  fwDevice_getChildrenDpTypes(makeDynString(dpName), dpTypesList, exceptionInfo);
+    if(dynlen(childrenDpTypesAndModels) > 0)
+      canHaveChildren = TRUE;	
+		
+    menuEntries = makeDynString(\"PUSH_BUTTON, Add..., \" + ADD + \", \" + (int)(status[fwDEN_STATUS_EDIT] && canHaveChildren),
+                                \"PUSH_BUTTON, Clone..., \" + CLONE + \", \" + (int)(!isNode && status[fwDEN_STATUS_EDIT]),
+                                \"PUSH_BUTTON, Remove..., \" + REMOVE + \", \" + (int)(!isNode && status[fwDEN_STATUS_EDIT]),
+                                \"SEPARATOR\",
+                                \"PUSH_BUTTON, Settings..., \" + SETTINGS + \", \" + (int)(status[fwDEN_STATUS_EDIT]),
+                                \"PUSH_BUTTON, Properties, \" + PROPERTIES + \", \" + (int)(!isNode && status[fwDEN_STATUS_EDIT]),
+                                \"SEPARATOR\",
+				\"PUSH_BUTTON, Configuration DB..., \" + CONFIGURATIONDB_TOOL + \", \" + (int)(isConfigurationDBInstalled && status[fwDEN_STATUS_EDIT]));
+  }
+
+  popupMenu(menuEntries, answer);
+
+  switch(answer)
+  {
+    case ADD:
+      fwDevice_openPanelAdd(makeDynString(dpName, \"\", \"\", \"\"), df, ds, exceptionInfo);
+   			
+      // refresh current node in the tree
+      expand(id);
+      break;
+    case CLONE:
+      ChildPanelOnCentralModalReturn(\"fwDevice/fwDeviceCopy.pnl\",
+                                     \"Clone Device\",
+                                     makeDynString(\"$sDpName:\" + dpName),
+                                     df, ds);
+      // refresh parent node in the tree
+      expand(this.parent(id));
+      break;
+    case REMOVE:
+      fwDevice_getPanels(makeDynString(dpName, \"\", \"\", \"\"), panels, exceptionInfo);
+
+      if(panels[fwDevice_PANEL_EDITOR_HARDWARE_REMOVE] != \"\")
+      {
+        ChildPanelOnCentralModalReturn(panels[fwDevice_PANEL_EDITOR_HARDWARE_REMOVE] + \".pnl\",
+                                       \"Remove Device\",
+                                       makeDynString(\"$sDpName:\" + dpName),
+                                       df, ds);
+      }
+      else
+      {
+        fwGeneral_openMessagePanel(\"Are you sure you want to remove the device and all its children from the system?\",
+                                   ok, exceptionInfo, \"Remove from system\");
+        if(ok)
+        {
+          fwOpenProgressBar(\"MyProgress\", \"Removing device...\", 1);
+          fwDevice_delete(dpName, exceptionInfo);
+					
+	  if(dynlen(exceptionInfo) > 0)
+          {
+            fwExceptionHandling_display(exceptionInfo);
+            fwCloseProgressBar(\"There were errors while removing the device(s).\", 1);
+          }
+          else
+          {
+            fwCloseProgressBar(\"Device(s) removed successfully.\", 1);
+           }
+	}
+      }
+			
+      // refresh parent node in the tree
+      expand(this.parent(id));
+      break;
+    case SETTINGS:
+      ChildPanelOnCentralModalReturn(\"fwDevice/fwDeviceMassConfiguration.pnl\",
+                                     \"Simple Configuration for \" + dpName,
+                                     makeDynString(\"$sDpName:\" + dpName,
+                                                   \"$sHierarchyType:\" + fwDevice_HARDWARE),
+                                                   df, ds);
+      break;
+    case PROPERTIES:
+      ChildPanelOnCentralModalReturn(\"fwDevice/fwDeviceProperties.pnl\",
+                                     \"fwDeviceProperties\",
+                                     makeDynString(\"$sDpName:\" + dpName),
+                                     df, ds);
+      break;
+    case INSTALLATION_TOOL:
+      ModuleOnWithPanel (\"Installation Tool\",
+                         0, 0, 0, 0, 1, 1, \"\",
+                         \"fwInstallation/fwInstallation.pnl\", 
+                         \"Installation Tool\", 
+                         makeDynString());
+      break;
+    case CONFIGURATIONDB_TOOL:
+      ChildPanelOnCentralModalReturn(\"fwConfigurationDB/fwConfigurationDB.pnl\",
+                                     \"Configuration DB for \" + dpName,
+                                     makeDynString(\"$sDpName:\" + dpName,
+                                                   \"$sHierarchyType:\" + fwDevice_HARDWARE),
+                                     df, ds);
+      // refresh current node in the tree
+      expand(id);
+      break;
+    case REGISTER_DEVICE_TYPE:
+      ChildPanelOnCentralModalReturn(\"fwDevice/fwDeviceRegisterType.pnl\", 
+                                     \"Register new device type\",
+                                     makeDynString(),
+                                     df, ds); 
+      break;
+    case USER_INTERFACE:
+    {
+      string os = getenv(\"OS\"), ipAddress, hostName, command;
+        
+      //fwGeneral_getSystemName(device, g_fwDEN_selectedSystem, exceptionInfo);
+      fwGeneral_getSystemIpAddress(g_fwDEN_selectedSystem, ipAddress, hostName, exceptionInfo);
+      if (_UNIX)
+        command = \"PVSS00ui -data \" + ipAddress + \" -event \" + ipAddress + \" -p fwDeviceEditorNavigator/fwDeviceEditorNavigator.pnl &\";
+      else 
+        command = \"start /b PVSS00ui -data \" + ipAddress + \" -event \" + ipAddress + \" -p fwDeviceEditorNavigator/fwDeviceEditorNavigator.pnl\";
+      
+      //DebugN(\"Command \" + command);
+      system(command); 
+      break;
+    }
+    case INACTIVE_ALARMS:
+      ChildPanelOnCentralModalReturn(\"fwDevice/fwDeviceSystemInactiveAlarms.pnl\",
+                                       \"List of inactive alarms\",
+                                       makeDynString(),
+                                       df, ds);
+      break;
+    case SYSTEM_SETTINGS:
+      ChildPanelOnCentralModal(\"fwGeneral/fwGeneralSystemSettings.pnl\",
+                               \"System settings\",
+                               makeDynString());   										
+      break;
+    default:
+      break;
+  }
+
+  if(dynlen(exceptionInfo) > 0)
+    fwExceptionHandling_display(exceptionInfo);
+}
+
+rightClickedLogical(string id, int column)
+{  
+  bool  ok,
+        isNode = FALSE,
+        isConfigurationDBInstalled = FALSE;
+  int answer, configurationDBInstalled;
+  string dpName, dpAlias, dpAliasWithoutSN, deviceName, nodeType; 
+  const string	ADD_NODE              = 1,
+                ADD_FROM_HARDWARE     = 2,
+                REMOVE                = 3,
+                CUT                   = 4,
+                PASTE                 = 5,
+                SETTINGS              = 6,
+                PROPERTIES            = 7,
+                INSTALLATION_TOOL     = 9,
+                CONFIGURATIONDB_TOOL  = 10,
+                RENAME                = 11;
+  dyn_bool status;
+  dyn_float df;
+  dyn_string ds, deviceObject, menuEntries, allowedDpTypes, exceptionInfo;
+
+  // check if an entry was selected in the tree
+  if(id == \"\")
+    return;
+
+  // get current status
+  _fwDeviceEditorNavigator_getStatus(id, status, exceptionInfo);
+  
+  fwInstallation_componentInstalled(\"fwConfigurationDB\", \"1.0\", configurationDBInstalled);
+  if(configurationDBInstalled != 0)
+    isConfigurationDBInstalled = TRUE;
+
+  if(this.parent(id) == \"\")
+  {
+    menuEntries = makeDynString(\"CASCADE_BUTTON, Add, 1\",
+                                \"SEPARATOR\",
+                                \"PUSH_BUTTON, Paste, \" + PASTE + \", \" + (int)(status[fwDEN_STATUS_EDIT]),
+                                \"SEPARATOR\",
+                                \"PUSH_BUTTON, Settings, \" + SETTINGS + \", \" + (int)(status[fwDEN_STATUS_EDIT]),
+                                \"SEPARATOR\",
+                                \"PUSH_BUTTON, Configuration DB, \" + CONFIGURATIONDB_TOOL + \", \" + (int)(isConfigurationDBInstalled && status[fwDEN_STATUS_EDIT]),
+                                \"PUSH_BUTTON, Open Installation Tool..., \" + INSTALLATION_TOOL + \", \" + (int)status[fwDEN_STATUS_EDIT],
+                                \"Add\",
+                                \"PUSH_BUTTON, Add Node..., \" + ADD_NODE + \", \" + (int)status[fwDEN_STATUS_EDIT],
+                                \"PUSH_BUTTON, Add From Hardware..., \" + ADD_FROM_HARDWARE + \", 0\");
+    allowedDpTypes = makeDynString(\"FwNode\");
+    dpName = \"\";
+    dpAlias = \"\";
+  }
+  else
+  {
+    allowedDpTypes = makeDynString();
+    dpAlias = id;
+    
+    dpName = strrtrim(dpAliasToName(dpAlias), \".\");
+    
+    if(dpTypeName(dpName) == \"FwNode\")
+      isNode = true;
+    
+    menuEntries = makeDynString(\"CASCADE_BUTTON, Add, 1\",
+                                \"PUSH_BUTTON, Remove, \" + REMOVE + \", \" + + (int)(status[fwDEN_STATUS_EDIT]),
+                                \"SEPARATOR\",
+                                \"PUSH_BUTTON, Cut, \" + CUT + \", \" + + (int)(isNode && status[fwDEN_STATUS_EDIT]),
+                                \"PUSH_BUTTON, Paste, \" + PASTE + \", \" + (int)(isNode && status[fwDEN_STATUS_EDIT]),
+                                \"PUSH_BUTTON, Rename, \" + RENAME + \", \" + (int)(status[fwDEN_STATUS_EDIT]),									
+                                \"SEPARATOR\",
+                                \"PUSH_BUTTON, Settings, \" + SETTINGS + \", \" + (int)(status[fwDEN_STATUS_EDIT]),
+                                \"PUSH_BUTTON, Properties, \" + PROPERTIES + \", \" + (int)(!isNode && status[fwDEN_STATUS_EDIT]),
+                                \"SEPARATOR\",
+                                \"PUSH_BUTTON, Configuration DB, \" + CONFIGURATIONDB_TOOL + \", \" + (int)(isConfigurationDBInstalled && status[fwDEN_STATUS_EDIT]),
+                                \"Add\",
+                                \"PUSH_BUTTON, Add Node..., \" + ADD_NODE + \", \" + (int)(isNode && status[fwDEN_STATUS_EDIT]),
+                                \"PUSH_BUTTON, Add From Hardware..., \" + ADD_FROM_HARDWARE + \", \" + (int)(isNode && status[fwDEN_STATUS_EDIT]));
+  }
+  
+  fwGeneral_getNameWithoutSN(dpAlias, dpAliasWithoutSN, exceptionInfo);
+  
+  popupMenu(menuEntries, answer);
+//	DebugN(menuEntries);
+
+  switch(answer)
+  {
+    case PROPERTIES:
+      ChildPanelOnCentralModal(\"fwDevice/fwDeviceProperties.pnl\",
+                               \"fwDeviceProperties\",
+                               makeDynString(\"$sDpName:\" + dpName));
+      break;
+    case SETTINGS:
+      ChildPanelOnCentralModalReturn(\"fwDevice/fwDeviceMassConfiguration.pnl\",
+                                     \"Simple Configuration for \" + dpAlias,
+                                     makeDynString(\"$sDpName:\" + dpAlias,
+                                                   \"$sHierarchyType:\" + fwDevice_LOGICAL),
+                                                   df, ds);
+      break;
+    case CUT:
+      fwGeneral_openMessagePanel(\"Are you sure you want to cut the device and all its children and put them in the clipboard?\",
+                                 ok, exceptionInfo, \"Cut from logical view\");
+      if(ok)
+      {
+        fwDevice_deleteLogical(makeDynString(\"\", \"\", \"\", \"\", dpAlias), \"\", exceptionInfo);
+        //DebugN(\"Parent position is: \" + parentPos + \" \" + pos);
+        
+        // update tree
+        expand(this.parent(id));
+      }
+      break;
+    case ADD_FROM_HARDWARE:
+      ChildPanelOnCentralModalReturn(\"fwDeviceEditorNavigator/fwDeviceEditorNavigatorHardwareSelect.pnl\", 
+                                     \"Select device to paste from Hardware View\",
+                                     makeDynString(\"\"),
+                                     df, ds);
+      
+      // set the alias for the selected objects
+      //DebugN(\"ds \" + ds + \" length of ds \" + dynlen(ds));
+      for(int i = 1; i <= dynlen(ds); i++)
+      {
+        fwGeneral_stringToDynString(ds[i], deviceObject);
+        dpSetAlias(deviceObject[fwDevice_DP_NAME] + \".\", dpAliasWithoutSN + fwDevice_HIERARCHY_SEPARATOR + deviceObject[fwDevice_ALIAS]);
+        //DebugN(	\"Setting alias of \" + deviceObject[fwDevice_DP_NAME] + \".\" + \" to \" +
+        //			dpAliasWithoutSN + fwDevice_HIERARCHY_SEPARATOR + deviceObject[fwDevice_ALIAS]);
+      }
+      
+      // update tree
+      expand(id);
+      break;
+    case PASTE:
+      ChildPanelOnCentralModalReturn(\"fwDeviceEditorNavigator/fwDeviceEditorNavigatorClipboard.pnl\", 
+                                     \"Clipboard\",
+                                     makeDynString(\"$dsAlloweDpTypes:\" + allowedDpTypes),
+                                     df, ds);
+      // if a device was selected from the clipboard, then paste it
+      //DebugN(ds, df);
+      if (df[1] == fwDEN_CLIPBOARD_PASTE)
+      {
+        fwDeviceEditorNavigator_pasteLogical(makeDynString(dpName, \"\", \"\", \"\", dpAlias, \"\"),
+                                             makeDynString(\"\", \"\", \"\", \"\", ds[1], \"\"), exceptionInfo);
+        // update tree
+        expand(id);
+      }
+      break;
+    case ADD_NODE:
+      if(dpName == \"\")
+        nodeType = fwNode_TYPE_LOGICAL_ROOT;
+      else
+        nodeType = fwNode_TYPE_LOGICAL;
+      
+      ChildPanelOnCentralModalReturn(\"fwNode/fwNodeCreate.pnl\", 
+                                     \"Create Node\",
+                                     makeDynString(\"$sParentDpName:\" + dpName,
+                                                   \"$sNodeType:\" + nodeType),
+                                                   df, ds);
+      // update tree											
+      expand(id);
+      break;
+    case INSTALLATION_TOOL:
+      ModuleOnWithPanel(\"Installation Tool\",
+                        0, 0, 0, 0, 1, 1, \"\",
+                        \"fwInstallation/fwInstallation.pnl\",
+                        \"Installation Tool\",
+                        makeDynString());
+      break;
+    case CONFIGURATIONDB_TOOL:
+      ChildPanelOnCentralModalReturn(\"fwConfigurationDB/fwConfigurationDB.pnl\",
+                                     \"Configuration DB for \" + dpAlias,
+                                     makeDynString(\"$sDpName:\" + dpAlias,
+                                                   \"$sHierarchyType:\" + fwDevice_LOGICAL),
+                                                   df, ds);
+      // update tree											
+      expand(id);
+      break;
+    case REMOVE:
+      //dpSetAlias(dpName + \".\", \"\");
+      fwGeneral_openMessagePanel(\"Are you sure you want to remove the device and all its children from the logical view?\",
+                                 ok, exceptionInfo, \"Remove devices from logical view\");
+      
+      if(ok)
+      {
+        fwDevice_removeAliasRecursively(makeDynString(dpName, \"\", \"\", \"\", dpAlias), exceptionInfo);
+        
+        // update tree
+        expand(this.parent(id));
+      }
+      break;
+    case RENAME:
+      ChildPanelOnCentralModalReturn(\"fwGeneral/fwGeneralReadStringValue.pnl\", 
+                                     \"Create Node\",
+                                     makeDynString(\"$sTitle: Rename Device in Logical View\",
+                                                   \"$sDescription: Enter new alias:\"),
+                                                   df, ds);
+      if(dynlen(ds) > 0)
+      {
+        if(ds[1] != \"\")
+        {
+          fwDevice_renameLogical(makeDynString(\"\", \"\", \"\", \"\", dpAlias), ds[1], exceptionInfo);
+        }
+      }
+      
+      // update tree
+      expand(this.parent(id));
+      break;
+    default:
+      break;
+  }
+  
+  if(dynlen(exceptionInfo) > 0)
+    fwExceptionHandling_display(exceptionInfo);
+}
+
+
+rightClickedLogicalClipboard(string id, int column)
+{	
+  bool ok;
+  int answer;
+  dyn_string device, menuEntries, exceptionInfo;
+  const string	REMOVE = 1;
+  
+  // check if an entry was selected in the tree
+  if(id == \"\")
+    return;
+
+  if(this.parent(id) == \"\")
+    return;
+  
+  menuEntries = makeDynString(\"PUSH_BUTTON, Remove, \" + REMOVE + \", 1\");
+  popupMenu(menuEntries, answer);
+  
+  switch(answer)
+  {
+    case REMOVE:
+      fwGeneral_openMessagePanel(\"Are you sure you want to remove the device and all its children from the clipboard?\",
+                                 ok, exceptionInfo, \"Remove device from clipoboard\");
+      if(ok)
+      {
+        device[fwDevice_DP_ALIAS] = id;
+        fwDevice_removeAliasRecursively(device, exceptionInfo);
+        
+        // refresh the tree
+        expand(this.parent(id));
+
+      }
+      break;
+   default:
+      break;
+   }
+}
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+29 0
+"tree1"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+ 10 10 260 360.930033983494
+10 TreeWidget
+7
+0 "expanded" "(string id)"
+"  expand(id);"
+0 "collapsed" "(string id)"
+""
+0 "selectionChanged" "(string id)"
+""
+0 "clicked" "(string id, int column)"
+"  dyn_string children, exceptionInfo;		
+
+  //DebugN(\"Clicked: id = \" + id + \" column = \" + column);
+  
+  // if nothing was selected, just return
+  if(id == \"\")
+    return;
+  
+  // display associated device panel		
+  if(g_fwDEN_displayDevicePanel[treeType])
+  {
+    g_fwDEN_selectedDevice = id;
+  
+    if(this.parent(id) == \"\")  
+    {
+      _fwDeviceEditorNavigator_displayAssociatedDevicePanel(\"\", \"\", \"\", exceptionInfo);	
+    }
+    else
+    {
+      // make node expandable if it has children
+      fwDevice_getChildren(id, treeType, children, exceptionInfo);
+    
+      if(dynlen(children) > 0)
+        this.setExpandable(id, TRUE);
+
+      // display associated device panel		
+      if(treeType == fwDevice_LOGICAL)
+        g_fwDEN_selectedDevice = strrtrim(dpAliasToName(g_fwDEN_selectedDevice), \".\");
+      
+      _fwDeviceEditorNavigator_displayAssociatedDevicePanel(g_fwDEN_selectedDevice, treeType, g_fwDEN_mode, exceptionInfo);
+    }
+  }"
+0 "doubleClicked" "(string id, int column)"
+""
+0 "rightClicked" "(string id, int column)"
+"  switch(treeType)
+  {
+    case fwDevice_HARDWARE:
+      rightClickedHardware(id, column);
+      break;
+   case fwDevice_LOGICAL:
+      rightClickedLogical(id, column);
+      break;
+   case fwDevice_HARDWARE_SELECT:
+      break;
+   case fwDevice_LOGICAL_CLIPBOARD:
+      rightClickedLogicalClipboard(id, column);
+      break;
+   default:
+       break;
+  }"
+0 "itemRenamed" "(string id, int column, string text)"
+""
+"main()
+{
+  _fwDeviceEditorNavigator_init();
+  treeType = $sTreeType;
+  //DebugN(\"treeType = \" + treeType);
+  
+  initTree(\"\");  
+}" 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

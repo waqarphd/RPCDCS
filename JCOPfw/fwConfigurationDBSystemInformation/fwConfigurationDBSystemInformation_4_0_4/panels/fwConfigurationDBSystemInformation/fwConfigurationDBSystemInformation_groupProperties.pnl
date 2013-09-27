@@ -1,0 +1,670 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 954 489 N "_3DFace" 1
+"$groupName"
+"main()
+{
+  string groupName = $groupName;
+  
+  if(fwInstallationDB_connect() != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Connection failed.\\nPlease check DB connection parameters\"));
+  }else updateComponentTable(groupName);
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwInstallation.ctl\"
+    
+updateComponentTable(string groupName)
+{
+  dyn_dyn_mixed componentsInfo;
+  
+  if(fwInstallationDB_getGroupComponents(groupName, componentsInfo) != 0){
+     ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString (\"$1:Could not connect to DB. Check connection parameters\")); 
+     return;
+  }else{
+     tbGroupComponents.deleteAllLines();
+     for(int i = 1; i <= dynlen(componentsInfo); i++) {
+       //setValue(\"tbGroupComponents\", \"appendLine\", \"component\", componentsInfo[i][FW_INSTALLATION_DB_COMPONENT_NAME_IDX], \"version\", componentsInfo[i][FW_INSTALLATION_DB_COMPONENT_NAME_IDX], \"sourcePath\", componentsInfo[i][FW_INSTALLATION_DB_COMPONENT_SOURCE_DIR_IDX]);
+       setValue(\"tbGroupComponents\", \"appendLine\", \"component\", componentsInfo[i][FW_INSTALLATION_DB_COMPONENT_NAME_IDX], \"version\", componentsInfo[i][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX], \"sourcePath\", \"Not yet available\");
+     }//end of loop
+  }  
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 2
+"PUSH_BUTTON5"
+""
+1 870 456 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 868 454 942 488
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+2 3
+"PRIMITIVE_TEXT1"
+""
+1 40 78 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 12 42 26
+0 2 2 "0s" 0 0 0 192 0 0  10 12 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 6 Group:
+2 4
+"PRIMITIVE_TEXT2"
+""
+1 212 84 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = $groupName;
+}" 0
+ E 0 1 1 2 1 E U  1 E 62 12 132 26
+0 2 2 "0s" 0 0 0 192 0 0  62 12 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 14 xxxxxxxxxxxxxx
+2 5
+"Text2"
+""
+1 20 59 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 28 40 194 57
+0 2 0 "0s" 0 0 0 192 0 0  28 40 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 27 Look for new components in:
+25 6
+"tblAvailableComponents"
+""
+1 -121.2 -28 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "/**	if the user double clicks on the Status column 
+the panel with the component details is shown
+*/
+main()
+{	
+	
+	int xpos;
+	string columnName;
+	int columnNr;
+	string componentName;
+	string descFile;
+	string directoryInfo;
+	string typeOfDescription = \"xml\";
+	
+	// get the shape of the table
+	shape tab = getShape(\"tblAvailableComponents\");
+	
+	// get the coordinates of the current cell
+	getValue(tab, \"currentCell\", xpos, columnNr);
+	columnName = tab.currentColumn();
+
+	// check the column name
+	 if((columnName == \"componentName\") || (columnName == \"componentVersion\"))
+	 {
+		
+		// get the component name	 
+		componentName = tab.cellValueRC(xpos, \"componentName\");
+		
+		// get the description file name - it is stored in a hidden column
+		descFile = tab.cellValueRC(xpos, \"descFile\");	
+			
+			// open the panel with details of a component	 
+	 		ChildPanelOnCentral(\"fwInstallation/fwInstallationComponentDetails.pnl\", \"fwInstallation_ComponentDetails:xml\",
+			 makeDynString(\"$componentName:\" + componentName, \"$descFile:\" + descFile , \"$typeOfDescription:\" + typeOfDescription, \"$sourceDir:\" + txtSourceDir.text));
+	}
+
+}	" 0
+
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 24 168 396 412
+E"/**	if the user  clicks on the Status column 
+the column value is changed ( Install -> \"\" , or \"\" -> Install
+*/
+main(int row, string column, string value)
+{
+		// if user clicked on colStatus column
+		if (column == \"add\") 
+		{
+			// check the old value
+			if (value == \"Add\") 
+			{
+				// set new value to empty
+				setValue(\"\",\"cellValueRC\",row,column,\" \");
+			}
+			else 
+			{
+				// set new value to install
+				setValue(\"\",\"cellValueRC\",row,column,\"Add\");
+			}
+		}
+					
+
+}" 0
+ 1 0 1 5 1 "componentName" 20 1 0 "s" 1
+LANG:1 14 Component Name
+E
+1
+LANG:1 50 Subcomponents are shown with a leading underscore.
+
+188 "componentVersion" 7 1 0 "s" 1
+LANG:1 7 Version
+E
+1
+LANG:1 0 
+
+72 "add" 9 1 0 "s" 1
+LANG:1 13 Add to group?
+E
+1
+LANG:1 0 
+
+90 "colStatus" 0 0 0 "s" 1
+LANG:1 5 Add ?
+E
+1
+LANG:1 0 
+
+0 "descFile" 6 0 0 "s" 1
+LANG:1 8 descFile
+E
+1
+LANG:1 0 
+
+70 
+14 14 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 0 1 7
+1 0
+2 7
+"Text4"
+""
+1 20 145 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 28 126 175 143
+0 2 0 "0s" 0 0 0 192 0 0  28 126 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 21 Available Components:
+20 8
+"ShowSubComponents"
+""
+1 26 142 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 24 140 218 164
+1
+T 
+1
+LANG:1 24 Show also Sub-Components
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	fwInstallation_getComponentsInfo(\"tblAvailableComponents\", \"txtSourceDir\");
+}" 0
+14 9
+"txtSourceDir"
+""
+1 26 88 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 24 86 328 112
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+  string systemName; 
+  bool scanRecursively = cbScanRecursively.state(0);
+  
+  if(shapeExists(\"cbSystem\"))
+    systemName = cbSystem.text;
+  else
+    systemName = \"\";
+      
+	fwInstallation_getComponentsInfo(\"tblAvailableComponents\", \"txtSourceDir\", systemName, scanRecursively);
+}" 0
+
+13 10
+"btnSelectSourceDir"
+""
+1 336 85 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 334 83 378 117
+
+P 
+14215660
+"pictures/fileselektor.xpm"
+1
+LANG:1 0 
+"main()
+{
+
+  string sPath;
+  int    iErr;
+  bool scanRecursively = cbScanRecursively.state(0);
+
+  dpGet(\"fwInstallationInfo.lastSourcePath\", sPath);
+
+  iErr = folderSelector( sPath );
+
+  if(( iErr >= 1 ) && ( strlen( sPath ) > 0 ))
+  {
+    sPath += \"/\";
+    if (_WIN32) strreplace( sPath, \"/\", \"//\" ); 
+    // if NT -> replace 
+    strreplace( sPath, \"//\", \"/\" );
+    // update the widget with the directory path
+    txtSourceDir.text = sPath;  
+    dpSet(\"fwInstallationInfo.lastSourcePath\", sPath);
+
+  }  
+  // refresh the graphic tables with components  
+  fwInstallation_getComponentsInfo(\"tblAvailableComponents\", \"txtSourceDir\", \"\", scanRecursively);
+}" 0
+ E E E
+20 11
+"cbScanRecursively"
+""
+1 28 56 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 26 54 150 88
+1
+T 
+1
+LANG:1 16 Scan recursively
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+   string systemName;
+   
+   if(shapeExists(\"cbSystem\"))
+     systemName = cbSystem.text;
+   else
+     systemName = \"\";
+       
+  if(txtSourceDir.text != \"\"){
+    fwInstallation_disablePanel();
+    // refresh the graphic tables with components
+    fwInstallation_getComponentsInfo(\"tblAvailableComponents\", \"txtSourceDir\", systemName, state);
+  	fwInstallation_enablePanel();
+  }
+}" 0
+13 13
+"btnApplyDelete"
+""
+1 872 416 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 870 414 944 448
+
+T 
+1
+LANG:1 6 Delete
+"// Delete the components
+main()
+{
+  string componentName;
+  string componentVersion;
+  string groupName = $groupName;
+  	
+  // look for all the components that have \"Delete\" in the colStatus column of a table with installed components
+  
+  for(int i = 0 ; i < tbGroupComponents.lineCount(); i++)
+  {
+    if(tbGroupComponents.cellValueRC(i, \"colStatus\") == \"Delete\")
+    {
+      // store the component names in string		
+    
+      componentName = tbGroupComponents.cellValueRC(i, \"component\");
+      componentVersion = tbGroupComponents.cellValueRC(i, \"version\");
+      
+      //DebugN(\"Unregistering: \" + componentName + \" componentVersion: \" + componentVersion);
+      
+      if(fwInstallationDB_unregisterGroupComponent(componentName, componentVersion, groupName) != 0)
+      {
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not connect to DB.\\nCheck connection paramters\"));
+        return;
+        }else{
+           tbGroupComponents.deleteLineN(i);
+           --i;
+        }
+    }
+  }
+}
+
+
+
+
+
+
+
+" 0
+ E E E
+13 14
+"btnApplyInstall"
+""
+1 330 418 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 328 416 402 450
+
+T 
+1
+LANG:1 3 Add
+"// Install the components
+main()
+{
+  string componentName, componentVersion;
+  string descFile;
+  bool isSubComponent;
+  string sourceDir;
+  string groupName = $groupName;
+  int i;
+
+  // retrieve the component names and the description files of the components to be installed
+  sourceDir = txtSourceDir.text;
+
+  for(  i = 0 ; i < tblAvailableComponents.lineCount(); i++)
+  {
+    if((tblAvailableComponents.cellValueRC(i, \"add\") == \"Add\"))
+    {
+      componentName = tblAvailableComponents.cellValueRC(i, \"componentName\"); 
+      componentVersion =  tblAvailableComponents.cellValueRC(i, \"componentVersion\");
+      descFile =  tblAvailableComponents.cellValueRC(i, \"descFile\");
+      //Get subcomponent flag.
+      fwInstallation_isSubComponent(descFile, isSubComponent);
+      fwInstallationDB_registerComponentInGroup(componentName, componentVersion, isSubComponent, descFile, groupName);
+      //DebugN(\"Registering component: \" + componentName + \" version: \" + componentVersion + \" sourceDir: \" + sourceDir);
+      
+      //All OK, display that the component has been added
+      tblAvailableComponents.cellValueRC(i, \"add\", \"Added\");
+      
+    }  
+  }
+  updateComponentTable(groupName);
+}
+" 0
+ E E E
+13 15
+"btnRefresh"
+""
+1 792 416 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 790 414 864 448
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+  updateComponentTable($groupName);
+}" 0
+ E E E
+13 16
+"Button1"
+""
+1 250 418 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 248 416 322 450
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+	// refresh the  table widget
+	fwInstallation_getComponentsInfo(\"tblAvailableComponents\", \"txtSourceDir\");
+}" 0
+ E E E
+25 17
+"tbGroupComponents"
+""
+1 414 170 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 412 168 944 410
+E"main(int row, string column, string value)
+{
+  // check the name of column where the user clicked
+  if (column == \"colStatus\") 
+    if (value == \"Delete\") 
+      setValue(\"\",\"cellValueRC\",row,\"colStatus\",\" \");
+    else
+      setValue(\"\",\"cellValueRC\",row,\"colStatus\",\"Delete\");
+
+}" 0
+ 1 0 1 4 0 "component" 21 1 0 "s" 1
+LANG:1 9 Component
+E
+1
+LANG:1 0 
+
+200 "version" 5 1 0 "s" 1
+LANG:1 7 Version
+E
+1
+LANG:1 0 
+
+60 "sourcePath" 21 1 0 "s" 1
+LANG:1 11 Source Path
+E
+1
+LANG:1 0 
+
+200 "colStatus" 4 1 0 "s" 1
+LANG:1 6 Delete
+E
+1
+LANG:1 0 
+
+50 
+14 14 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 1 1 1 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

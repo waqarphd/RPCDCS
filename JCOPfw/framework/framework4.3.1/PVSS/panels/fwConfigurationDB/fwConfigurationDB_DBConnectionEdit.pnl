@@ -1,0 +1,698 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 317 408 N "_3DFace" 1
+"$dbConnectionName"
+"main()
+{
+
+	dyn_string exceptionInfo;
+
+	EnableAll(FALSE);
+
+	if (!isDollarDefined(\"$dbConnectionName\")) {
+		fwException_raise(exceptionInfo,\"ERROR\",
+				\"Dollar parameter $dbConnectionName not defined\",\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+
+	}
+
+
+	PopulatePanel();
+}" 0
+ E E E E 1 -1 -1 0  40 4
+""0  1
+E "string DPName=\"\";
+string DBCName=\"\";
+
+void PopulatePanel()
+{
+DBCName=$dbConnectionName;
+
+dyn_string exceptionInfo;
+dyn_string dbConnectionNames,dbConnectionDPs;
+fwConfigurationDB_getDBConnectionList(dbConnectionNames, dbConnectionDPs,
+					exceptionInfo,TRUE);
+if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+
+	if ($dbConnectionName==\"\") {
+		DBConnectionName.editable=TRUE;
+		ApplyButton.visible=FALSE;
+		OKButton.text=\"Create\";
+		DBType.text=\"ORACLE\";
+		SetDefaultConnectString();
+	} else {
+
+		int idx=dynContains(dbConnectionNames,DBCName);
+		if (idx<1) {
+			fwException_raise(exceptionInfo,\"ERROR\",
+				\"DB Connection \"+DBCName+\" does not exist\",\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+    
+		DPName=dbConnectionDPs[idx];
+
+		string description,dbUser,dbPassword,dbName,dbSchema,dbType,connectString;
+
+		fwConfigurationDB_getDBConnection(DBCName,
+                                        description, dbType, dbName,
+                                        dbUser, dbPassword, connectString,
+                                        dbSchema,exceptionInfo);
+		if (dynlen(exceptionInfo)) {
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+
+		DBConnectionName.text=DBCName;
+		DBConnectionName.editable=FALSE;
+		DBConnectionName.backCol=\"lightgrey\";
+		Description.text=description;
+	  UserName.text=dbUser;
+    SchemaName.text=dbSchema;
+		Password.text=\"\";
+		DBName.text=dbName;
+		DBType.text=dbType;
+		PopulateConnectString(connectString);
+	}
+EnableAll(TRUE);
+}
+
+void EnableAll(bool enabled)
+{
+	OKButton.enabled=enabled;
+	ApplyButton.enabled=enabled;
+
+	DBConnectionName.enabled=enabled;
+	DBType.enabled=enabled;
+	DBName.enabled=enabled;
+  SchemaName.enabled=enabled;
+	UserName.enabled=enabled;
+	Password.enabled=enabled;
+	ConnectString.enabled=enabled;
+	Description.enabled=enabled;
+	Connect.enabled=enabled;
+}
+
+
+
+bool Apply()
+{
+dyn_string exceptionInfo;
+int rc;
+string name=DBConnectionName.text;
+if (name==\"\") {
+	fwException_raise(exceptionInfo,\"ERROR\",
+		\"Connection name cannot be empty\",\"\");
+}
+
+if (strpos(name,\" \")>0){
+	fwException_raise(exceptionInfo,\"ERROR\",
+		\"Connection name cannot contain spaces\",\"\");
+}
+
+if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+	return FALSE;
+}
+
+
+string password=Password.text;
+string connectString=ConnectString.text;
+if (DPName!=\"\") {
+	// modify existing one...
+	fwConfigurationDB_modifyDBConnection(name,
+                                        Description.text, 
+					DBType.text,
+					DBName.text,
+                                        UserName.text, 
+					password, 
+					connectString,
+         SchemaName.text,
+                                        exceptionInfo);
+} else {
+
+	// create a new one
+
+	string dpname=fwConfigurationDB_createDBConnection(name,
+                                        Description.text, 
+					DBType.text,
+					DBName.text,
+                                        UserName.text, 
+					password, 
+					connectString,
+         SchemaName.text,
+                                        exceptionInfo);
+
+	if (dpname!=\"\") {
+		DPName=dpname;
+    DBCName=name;
+		DBConnectionName.editable=FALSE;
+		DBConnectionName.backCol=\"lightgrey\";
+	}
+
+}
+
+if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+	return FALSE;
+}
+
+return TRUE;
+
+}
+
+
+void SetDefaultConnectString()
+{
+	string defaultConnectString;
+	dyn_string exceptionInfo;	
+	ConnectString.text=\"\";
+	_fwConfigurationDB_getDefaultConnectString(DBType.text,defaultConnectString,exceptionInfo);
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	ConnectString.text=defaultConnectString;
+	ConnectString.backCol=\"lightgrey\";
+	ConnectString.editable=FALSE;
+}
+
+void PopulateConnectString(string connectString=\"\")
+{
+
+	if (DPName==\"\") {
+		SetDefaultConnectString();
+		return;
+	}
+
+	if (connectString!=\"\") {
+		ConnectString.text=connectString;
+		ConnectString.backCol=\"lightgrey\";
+		ConnectString.editable=FALSE;
+	} else {
+		SetDefaultConnectString();
+	}
+}
+
+void TryConnect()
+{
+dbConnection dbCon;
+dyn_string exceptionInfo;
+
+string password=Password.text;
+string connectString=ConnectString.text;
+
+if (password==\"\") {
+  if (dpExists(DPName)) {
+     dpGet(DPName+\".dbPassword\",password);
+   }
+} else {
+  if (strpos(strtolower(connectString),\"enc_pwd=\")>=0) {
+    string encPwd=rdbEncryptPassword(password);
+    password=encPwd;
+  }
+    
+}
+
+
+
+
+fwConfigurationDB_dbConnect(\"\",connectString, DBType.text,DBName.text, 
+				UserName.text,SchemaName.text, password, dbCon, exceptionInfo);
+if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+}
+rdbCloseConnection(dbCon);
+ChildPanelOnCentral(\"fwGeneral/fwMessageInfo1.pnl\",\"Connection OK\", 
+	makeDynString(\"$1: Database connection succesful\"));
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 36
+"PRIMITIVE_TEXT1"
+""
+1 20 -2 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 44 129 60
+0 2 2 "0s" 0 0 0 192 0 0  20 44 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Connection Name:
+2 37
+"Text1"
+""
+1 20 -2 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 74 89 90
+0 2 2 "0s" 0 0 0 192 0 0  20 74 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Description:
+2 39
+"Text2"
+""
+1 20 -2 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 164 88 180
+0 2 2 "0s" 0 0 0 192 0 0  20 164 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 10 User Name:
+2 42
+"Text3"
+""
+1 20 28 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 224 81 240
+0 2 2 "0s" 0 0 0 192 0 0  20 224 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Password:
+2 45
+"Text4"
+""
+1 20 -2 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 104 114 120
+0 2 2 "0s" 0 0 0 192 0 0  20 104 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Database Type:
+2 46
+"Text5"
+""
+1 20 -2 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 134 120 150
+0 2 2 "0s" 0 0 0 192 0 0  20 134 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Database Name:
+2 53
+"PRIMITIVE_TEXT2"
+""
+1 10 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 10 202 30
+0 2 2 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 25 Database connection setup
+30 55
+"FRAME1"
+""
+1 20 290 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -5 -30 0 E 20 290 300 350
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Connect String:
+14 35
+"DBConnectionName"
+""
+1 136.9230769230769 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  138 38 302 62
+3 "0s" 0 0 0 0 0 -1  E E E
+14 38
+"Description"
+""
+1 137.948717948718 70.00000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  138 68 302 92
+3 "0s" 0 0 0 0 0 -1  E E E
+22 50
+"DBType"
+""
+1 137.948717948718 104.3478260869565 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  138 98 302 122
+1
+1
+LANG:1 6 ORACLE
+
+1
+
+E
+E
+E
+ 0 0
+14 47
+"DBName"
+""
+1 137.948717948718 128.2608695652174 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  138 128 302 152
+3 "0s" 0 0 0 0 0 -1  E E E
+14 40
+"UserName"
+""
+1 137.948717948718 158.2608695652174 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  138 158 302 182
+3 "0s" 0 0 0 0 0 -1  E E E
+14 43
+"Password"
+""
+1 137.948717948718 218.2608695652174 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  138 218 302 242
+3 "0S" 0 0 0 0 0 -1  E E E
+13 57
+"Connect"
+""
+1 103.0862068965517 328 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  103 328 218 358
+
+T 
+1
+LANG:1 14 Try to connect
+"main()
+{
+	TryConnect();
+}" 0
+ E E E
+13 32
+"ApplyButton"
+""
+1 13 368 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  13 368 93 398
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+Apply();
+}" 0
+ E E E
+13 33
+"OKButton"
+""
+1 118 368 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  118 368 198 398
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+if (Apply()) {
+	PanelOffReturn(makeDynFloat(1.0),makeDynString(DBCName));
+}
+}" 0
+ E E E
+14 48
+"ConnectString"
+""
+1 25 280 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ "main()
+{
+dyn_string txt;
+  int answer;
+  txt=makeDynString(\"PUSH_BUTTON, Custom connect string, 1, 1\",
+  \"PUSH_BUTTON, Set default connect string, 2, 1\",
+  \"PUSH_BUTTON, Reset to original, 3, 1\");
+  popupMenu(txt, answer);
+  if(answer==1) {
+	setValue(\"ConnectString\",\"editable\",TRUE);
+	setValue(\"ConnectString\",\"backCol\",\"white\");
+  } else if (answer==2) {
+	SetDefaultConnectString();
+  } else if (answer==3) {
+	PopulateConnectString();
+  }
+}" 0
+ E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 19 Right-click to edit
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  23 278 287 305
+2 "0s" 0 0 0 0 0 -1  E E E
+13 1
+"CancelButton"
+""
+1 223 368 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  223 368 303 398
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+1 63 3 "" 0
+0
+14 61
+"SchemaName"
+""
+1 137.948717948718 188.2608695652174 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  138 188 302 212
+3 "0s" 0 0 0 0 0 -1  E E E
+2 62
+"PRIMITIVE_TEXT3"
+""
+1 20 28 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 194 112 210
+0 2 2 "0s" 0 0 0 192 0 0  20 194 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Schema Name:
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 3 "" -1
+"objects/fwGeneral/fwHelpButton.pnl" 270 20 T 22 1 0 1 10 -10
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_DBConnectionEdit"
+0

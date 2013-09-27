@@ -1,0 +1,651 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 420 400 N "_3DFace" 0
+"main()
+{
+  updateHostsTable();
+}" 0
+ E E E E 1 -1 -1 0  30 40
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+
+string hostName;
+
+updateHostsTable()
+{
+  dyn_string pvssHostDps=\"\", pvssProjNames=\"\";
+  string pvssHostName=\"\";
+  dyn_string exceptionInfo;
+  
+  hostName = \"\";
+  
+  pvssHostDps=dpNames(getSystemName() + \"SystemOverview*\",\"FwSystemOverviewPC\");
+//DebugTN(\"pvssHostDps  \", pvssHostDps);
+
+  for(int i=1; i<=dynlen(pvssHostDps); i++)
+  {
+//    fwSysOverview_getDeviceName(pvssHostDps[i], pvssHostName);
+    
+    fwSysOverview_getHostDb(pvssHostDps[i], hostName, exceptionInfo);
+    if(dynlen(exceptionInfo)){return;}
+    
+    setValue(\"tbHosts\", \"updateLine\",1, \"hosts\", hostName);
+  }
+  
+//  tbHosts.removeSelectLines(0); //only for Multiple selection mode!
+  tbHosts.deleteSelection();
+  tbHosts.lineVisible(0);
+  tbHosts.adjustColumn(0);
+}
+
+updateProjectsTable(string dbHost)
+{
+  dyn_string projectDpNames, exceptionInfo;
+  string pvssProject, dbProject, hostDpName;
+  
+  if(dbHost == \"\")
+    return;
+    
+  fwSysOverview_getHostDp(dbHost, hostDpName);
+
+  fwSysOverview_getPcProjects(hostDpName, projectDpNames);
+
+
+  if(dynlen(projectDpNames) == 0)
+  {
+    setValue(\"tbProjects\", \"updateLine\",1, \"projects\",\"No project defined\");
+//    ChildPanelOnCentral(\"vision/MessageInfo1\", \"WARNING:No project\", makeDynString(\"$1: There is no projects for selected host: \"+ value ));
+    //    ChildPanelOnCentral(\"fwSystemOverview/fwSystemOverview_searchManagers.pnl\",
+    tbProjects.removeSelectLines(0);
+  }
+  else
+  {
+    for(int i=1; i<=dynlen(projectDpNames); i++)
+    {
+      if(dpExists(projectDpNames[i]))
+      {
+        fwSysOverview_getProjectDb(projectDpNames[i], dbProject, exceptionInfo);
+        if(dynlen(exceptionInfo)){return;}
+        
+        setValue(\"tbProjects\", \"updateLine\",1, \"projects\",dbProject);
+      }
+    }
+
+    tbProjects.removeSelectLines(0);
+    tbProjects.lineVisible(0);
+    tbProjects.adjustColumn(0);
+  }
+}
+
+updateSystemsTable(string dbProject, string dbHost)
+{
+  string projectDpName, systemDpName, dbSystem = \"\";
+  dyn_string exceptionInfo;
+      
+  
+//  DebugTN(\"sysDP\", fwSysOverview_SYSTEM_DP + hostName + \"/\" + value + fwSysOverview_PROJECT_SYSNAME);
+  
+  if(dbProject == \"No project defined\")
+    return;
+  
+  fwSysOverview_getProjectDp(dbHost,  dbProject, projectDpName,  exceptionInfo);
+  if(dynlen(exceptionInfo)){return;}
+  
+  fwSysOverview_getProjectSystem(projectDpName, systemDpName,  exceptionInfo);
+  if(dynlen(exceptionInfo)){return;}
+      
+  fwSysOverview_getSystemDb(systemDpName, dbSystem, exceptionInfo);
+  if(dynlen(exceptionInfo)){return;}
+  
+             
+//  else if(!dpExists(fwSysOverview_SYSTEM_DP + hostName + \"/\" + pvssProject + fwSysOverview_PROJECT_SYSNAME))
+  if(dbSystem == \"\")
+      setValue(\"tbSystems\", \"updateLine\",1, \"systems\",\"No system defined\");
+  
+  else
+  {
+ //   dpGet(fwSysOverview_SYSTEM_DP + hostName + \"/\" + pvssProject + fwSysOverview_PROJECT_SYSNAME, sysName);
+      setValue(\"tbSystems\", \"updateLine\",1, \"systems\",dbSystem);    
+  }
+
+  tbSystems.removeSelectLines(0);
+  tbSystems.lineVisible(0);
+  
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tbHosts"
+""
+1 10 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  8 38 153 282
+"main()
+{
+//  this.tableMode(TABLE_SELECT_BROWSE);
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+
+}" 0
+"main(int row, string column, string value)
+{
+//DebugTN( \"row\", row, \"value\", value);
+//  dyn_string exceptionInfo
+  
+  hostName = value; //global variable
+      
+  tbProjects.deleteAllLines();
+  tbSystems.deleteAllLines();
+  updateProjectsTable(value);
+  
+//  fwSysOverview_convertDbName(value, \"host\", convertedName, exceptionInfo);
+//  updateProjectsTable(convertedName);
+  
+}" 0
+ 1 0 1 1 0 "hosts" 12 1 0 "s" 1
+LANG:1 5 Hosts
+E
+1
+LANG:1 0 
+
+140 
+16 16 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 2
+"btRemoveHost"
+""
+1 160 200 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 20 Delete selected Host
+
+0
+1
+LANG:1 25 Sans,-1,13,5,50,0,0,0,0,0
+0  158 198 192 232
+
+T 
+1
+LANG:1 1 X
+"main()
+{
+  string dbHost;
+  dyn_string dbHostNames, exceptionInfo;
+  dyn_string resultFloat, resultText;
+  dyn_int rows;
+    
+  dynClear(rows);  
+  getValue (\"tbHosts\", \"getSelectedLines\", rows);
+  
+  if(dynlen(rows) == 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"WARNING:No host\", makeDynString(\"$1: No host was selected.\"));
+    return;
+  }  
+  
+  dynClear(dbHostNames);
+
+  for (int i=1; i<=dynlen(rows); i++)
+  {
+    getValue(\"tbHosts\", \"getLineN\", rows[i], dbHost);
+    dynAppend(dbHostNames, dbHost);
+    
+  }
+ 
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation box\", 
+                            makeDynString(\"$1:Are you sure you want to delete following host(s): \\n\" + dbHostNames 
+                            + \"\\n\"+ \"and related projects?\", \"$2:YES\", \"$3:NO\"), resultFloat, resultText);
+                           
+  bool ok=FALSE;
+  if(dynlen(resultFloat) > 0 ) 
+    ok = resultFloat[1];
+
+  
+  if(ok)
+  {       
+    for(int i =1; i<=dynlen(rows); i++)
+    {
+      fwSysOverview_deleteHost(dbHostNames[i], exceptionInfo);
+      if(dynlen(exceptionInfo)){return;}
+    }   
+    
+    tbHosts.deleteAllLines();
+    updateHostsTable();
+    tbProjects.deleteAllLines();
+    tbSystems.deleteAllLines();
+  }    
+
+
+  
+  
+  
+  
+}" 0
+ E E E
+13 3
+"btAddHost"
+""
+1 160 250 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 14 Add a new Host
+
+0
+1
+LANG:1 25 Sans,-1,13,5,50,0,0,0,0,0
+0  158 248 192 282
+
+T 
+1
+LANG:1 2 <-
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  
+  ChildPanelOnCentralModalReturn(\"fwSystemOverview/fwSystemOverview_ConfigurationAddPc.pnl\", \"Add Host\", makeDynString(), df, ds); 
+  
+  if(df[1] == 1)
+    updateHostsTable();
+    
+}" 0
+ E E E
+13 4
+"btRemoveProject"
+""
+1 370 200 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 26 Delete selected project(s)
+
+0
+1
+LANG:1 25 Sans,-1,13,5,50,0,0,0,0,0
+0  368 198 402 232
+
+T 
+1
+LANG:1 1 X
+"main()
+{
+  dyn_string dbProjects, exceptionInfo, projects;
+//  dyn_string projectSystems, systemProjects;
+  dyn_string resultFloat, resultText;
+  string sys, proj, hostDpName;
+  dyn_int rows;
+    
+  dynClear(rows);  
+  getValue (\"tbProjects\", \"getSelectedLines\", rows);
+    
+  if(dynlen(rows) == 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"WARNING:No project\", makeDynString(\"$1: No projects was selected.\"));
+    return;
+  }  
+  
+  dynClear(dbProjects);
+
+  for (int i=1; i<=dynlen(rows); i++)
+  {
+    getValue(\"tbProjects\", \"getLineN\", rows[i], proj);
+    dynAppend(dbProjects, proj);
+  }
+
+  if(dynContains(dbProjects, \"No project defined\"))
+    return;
+  
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation box\", 
+                            makeDynString(\"$1:Are you sure you want to delete following project(s)? :\\n\" + dbProjects 
+                            + \"\\n\", \"$2:YES\", \"$3:NO\"), resultFloat, resultText);
+                           
+  bool ok=FALSE;
+  if(dynlen(resultFloat) > 0 ) 
+    ok = resultFloat[1];
+
+  
+  if(ok)
+  {         
+    for(int j=1; j<=dynlen(dbProjects); j++)
+    {
+      fwSysOverview_deleteProject(hostName, dbProjects[j], exceptionInfo);
+      if(dynlen(exceptionInfo)){return;}
+    }
+    
+      tbProjects.deleteAllLines();
+      updateProjectsTable(hostName);
+      tbSystems.deleteAllLines();   
+    
+    dynClear(projects);
+    
+    fwSysOverview_getHostDp(hostName, hostDpName);
+    fwSysOverview_getPcProjects(hostDpName, projects);
+    
+    if(dynlen(projects) == 0)
+    {
+      ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation\", 
+                                makeDynString(\"$1:There is no more project related with following host: \\n\" + hostName
+                                + \"\\n\"+ \"Do you want to delete this host?\", \"$2:YES\", \"$3:NO\"), resultFloat, resultText);
+      ok=FALSE;
+      if(dynlen(resultFloat) > 0 ) 
+        ok = resultFloat[1];
+      
+      if(ok)
+      {
+        fwSysOverview_deleteHost(hostName, exceptionInfo); 
+        if(dynlen(exceptionInfo)){return;}
+        
+        tbHosts.deleteAllLines();
+        updateHostsTable();
+        tbProjects.deleteAllLines();
+      }
+    }
+  }     
+}
+
+" 0
+ E E E
+13 5
+"btAddProject"
+""
+1 370 250 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 17 Add a new Project
+
+0
+1
+LANG:1 25 Sans,-1,13,5,50,0,0,0,0,0
+0  368 248 402 282
+
+T 
+1
+LANG:1 2 <-
+"main()
+{
+  string hostDp;
+  dyn_float df;
+  dyn_string ds;
+  
+  if(hostName != \"\")
+  {
+    fwSysOverview_getHostDp(hostName, hostDp);
+//    if(dpExists(fwSysOverview_SYSTEM_DP + hostName))  
+        
+    if(dpExists(hostDp))     
+    {
+      ChildPanelOnCentralModalReturn(\"fwSystemOverview/fwSystemOverview_ConfigurationAddProject.pnl\", \"Add Host\", makeDynString(\"$1:\"+hostName), df, ds); 
+      
+      if(df[1] == 1)
+      {
+        tbProjects.deleteAllLines();
+        updateProjectsTable(hostName);
+
+      }
+    }
+    else 
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"WARNING:No host's DP\", makeDynString(\"$1: Data Point for \" + hostName + \" does not exist.\"));
+//DebugN(\"DF\", df);    
+  }
+  else
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"WARNING:No host\", makeDynString(\"$1: You must select a host first.\"));
+  }
+}" 0
+ E E E
+25 6
+"tbSystems"
+""
+1 10 310 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  8 308 153 382
+"main()
+{
+  this.tableMode(TABLE_SELECT_BROWSE);
+  this.selectByClick(TABLE_SELECT_NOTHING);
+}" 0
+E 1 0 1 1 0 "systems" 12 1 0 "s" 1
+LANG:1 6 System
+E
+1
+LANG:1 0 
+
+140 
+16 16 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 7
+"btClose"
+""
+1 310 350 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 13 Close a panel
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  308 348 402 382
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}
+" 0
+ E E E
+2 9
+"PRIMITIVE_TEXT1"
+""
+1 60 20 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 60 20 95 37
+0 2 2 "0s" 0 0 0 192 0 0  60 20 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Hosts
+2 10
+"PRIMITIVE_TEXT2"
+""
+1 270 20 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 270 20 319 37
+0 2 2 "0s" 0 0 0 192 0 0  270 20 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Projects
+2 11
+"PRIMITIVE_TEXT3"
+""
+1 50 290 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 50 290 95 307
+0 2 2 "0s" 0 0 0 192 0 0  50 290 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 6 System
+25 12
+"tbProjects"
+""
+1 220 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  218 38 363 282
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+"main(int row, string column, string value)
+{
+  tbSystems.deleteAllLines();
+  updateSystemsTable(value, hostName);
+}" 0
+ 1 0 1 1 0 "projects" 12 1 0 "s" 1
+LANG:1 8 Projects
+E
+1
+LANG:1 0 
+
+140 
+16 16 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 13
+"btRefresh"
+""
+1 200 350 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0  198 348 282 382
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+  tbHosts.deleteAllLines();
+  tbProjects.deleteAllLines();
+  tbSystems.deleteAllLines();
+  updateHostsTable();
+}" 0
+ E E E
+30 14
+"FRAME1"
+""
+1 0 2 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+21 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 3.59649122807018 0 6.57627118644068 0 -11.1525423728814 0 E 0 2 115 62
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 25 Interactive Configuration
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

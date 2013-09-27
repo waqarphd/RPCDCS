@@ -1,0 +1,514 @@
+V 10
+1
+LANG:1 17 Installation Tool
+PANEL,-1 -1 458 242 N "_3DFace" 0
+"main()
+{
+DisableAll();
+//Start Database Connection and recive hardware and Logical schema
+Text6.visible=true;
+ConfigurationDBRecive();
+Text3.visible=true;
+Text7.visible=true;
+Text6.visible=false;
+// Generate the FSM Device Tree
+ generateTreeforDevice();
+Text4.visible=true;
+Text8.visible=true;
+// Insert the device node using hardware created
+InsertDeviceInFSM();
+Text5.visible=true;
+Text9.visible=true;
+// Set Alarm for devices
+//SetAlarmDevice();
+
+
+// Set archive for devices
+//SetDeviceConditionDB();
+Text10.visible=true;
+
+//PanelOff();
+}
+DisableAll()
+{
+Text7.visible=false;
+Text6.visible=false;
+for(int i=3;i<=5;i++)
+{
+setValue(\"Text\"+i,\"visible\",false);
+setValue(\"Text\"+(i+5),\"visible\",false);
+
+}
+
+
+
+
+}" 0
+ E E E E 1 0 0 0  20 20
+""0  1
+E "string setupName=\"RPCENDCAPConfig\";
+dyn_string deviceList;
+void ConfigurationDBRecive()
+{
+dyn_string exceptionInfo,
+					 hierarchyType=makeDynString(fwDevice_HARDWARE, fwDevice_LOGICAL);
+dyn_dyn_mixed recipeObject;
+dyn_string list,HvDeviceList, LvDeviceList;
+dyn_string topDevice=makeDynString(getSystemName()+\"CAEN\",\"\");
+dyn_string recipeName=makeDynString(\"HW030506\",\"LW030506\"),
+configurationName=makeDynString(\"try\",\"Logtry\");
+
+
+
+//check if the connection is properly initialized
+fwConfigurationDB_initialize(setupName,exceptionInfo);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;  
+
+//download hierarchy from ConfigDB
+//first hardware then logical
+
+for(int i=1;i<=2;i++)
+	{
+	DebugN(\"sono qui--------------------------------\",i);
+	fwConfigurationDB_updateDeviceConfigurationFromDB(configurationName[i],hierarchyType[i],exceptionInfo);
+	//if (fwConfigurationDB_handleErrors(exceptionInfo)) return;  
+	}
+
+
+	DebugN(\"++++++++++++++++++++++++++\");
+	fwConfigurationDB_getHierarchyFromPVSS(\"\", fwDevice_LOGICAL,  
+ 																					deviceList,exceptionInfo,\"\",FALSE);   	
+	DebugN(\"Hierarchy created\");
+	DebugN(deviceList);																	
+	
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;  
+	
+	fwConfigurationDB_getRecipeFromDB (\"\",deviceList, fwDevice_LOGICAL,recipeName[2],  
+																			recipeObject,exceptionInfo);
+	fwConfigurationDB_storeRecipeInCache(recipeObject,recipeName[2],fwDevice_LOGICAL,exceptionInfo);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;   
+	
+
+
+/*
+//get recipe from ConfigBD and copy it to cache
+
+fwConfigurationDB_getHierarchyFromPVSS(HvRootNode, fwDevice_LOGICAL,  
+ 																					HvDeviceList,exceptionInfo,\"\",FALSE);  
+fwConfigurationDB_getHierarchyFromPVSS(LvRootNode, fwDevice_LOGICAL,  
+ 																					LvDeviceList,exceptionInfo,\"\",FALSE); 
+dynAppend(deviceList,HvDeviceList);
+dynAppend(deviceList,LvDeviceList); 	
+																		
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;  
+	for(int i=1;i<=3;i++)
+	{
+	
+	
+	fwConfigurationDB_getRecipeFromDB (\"\",list, fwDevice_LOGICAL,recipeName[i],  
+																			recipeObject,exceptionInfo);
+	fwConfigurationDB_storeRecipeInCache(recipeObject,recipeName[i],fwDevice_LOGICAL,exceptionInfo);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;   
+	}
+*/	
+}
+
+
+void generateTreeforDevice()
+{
+dyn_string nodes, exInfo;
+string chamber_node,ring_node,disc_node, top_node;
+int chamberNum;
+
+dyn_string discs=makeDynString(\"_WM2\",\"_WM1\",\"_W00\",\"_WP1\",\"_WP2\");
+dyn_string rings=makeDynString(\"_S01\",\"_S02\",\"_S03\",\"_S04\",\"_S05\",\"_S06\",\"_S07\",
+				\"_S08\",\"_S09\",\"_S10\",\"_S11\",\"_S12\");
+dyn_string cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3left\",\"_RB3right\",\"_RB4left\",
+				\"_RB4right\",\"_RB4leftleft\",\"_RB4rightright\");
+//remove top node if already exists (all children are removed too)
+//fwFsmTree_removeNode(\"CMS_RPC\",\"RPC_BARREL\");
+//create top node (type DCSNode)
+fwTree_getRootNodes(nodes,exInfo);
+//DebugN(nodes, exInfo);
+
+top_node=fwFsmTree_addNode(\"FSM\",\"HVDevice\",\"ChamberNode\",1);
+top_node=fwFsmTree_addNode(\"FSM\",\"LVDevice\",\"ChamberNode\",1);
+top_node=fwFsmTree_addNode(\"FSM\",\"Crates\",\"PowerNode\",1);
+fwTree_getRootNodes(nodes, exInfo);
+
+//add list of children CU (type DiscNode)
+
+for(int i=1; i<=dynlen(discs);i++)
+	{
+	//disc_node=fwFsmTree_addNode(top_node,\"RPC\"+discs[i],\"WheelNode\",1);
+	
+	//add list of children CU(type RingNode)
+	for(int j=1;j<=dynlen(rings);j++)
+		{
+		//ring_node=fwFsmTree_addNode(disc_node,\"RPC\"+discs[i]+rings[j],\"SectorNode\",1);
+		
+		//add list of children CU (type ChamberNode)
+		if(j==4) 
+			chamberNum=10;
+		else if(j==9||j==11)
+			{
+			chamberNum=7;
+			cham[7]=\"_RB4\";
+			}
+		else
+			{
+			chamberNum=8;
+			cham[7]=\"_RB4left\";
+			}
+			
+			
+		for(int k=1;k<=chamberNum;k++)
+			{
+			
+			chamber_node=fwFsmTree_addNode(\"HVDevice\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_HV\",\"HVChannelNode\",0);
+			chamber_node=fwFsmTree_addNode(\"LVDevice\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_LV\",\"LVChannelNode\",0);
+			
+			}
+		}
+	}
+
+//generate and refresh tree
+fwFsmTree_generateAll();
+fwFsmTree_refreshTree();
+}
+
+void InsertDeviceInFSM()
+{
+dyn_string exInfo;
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+//DebugN(deviceList);
+int pos;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		//DebugN(\"cHc\",names);
+		if (fwTree_isNode(deviceList[i],exInfo)==0)
+		 fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelHV\", 0);
+	}
+}
+
+deviceList=dpAliases(\"*/LV/*\",\"*\");
+//DebugN(\"cc\",deviceList);
+int len;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		len = strlen(names);
+		names = substr(names,0,len-4);
+		//DebugN(\"cc\",names);		
+	
+		//if (fwTree_isNode(deviceList[i],exInfo)==0)
+			fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelLV\", 0);
+		
+	}
+	}
+}
+void SetAlarmDevice(){
+
+
+float diff1,diff2,value;
+dyn_string exceptionInfo,split,splitt;
+string channelName,channel;
+
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+
+for (int i=1;i<=dynlen(deviceList);i++)
+	{
+	deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+	dpGet(deviceList[i]+\".readBackSettings.i0\", value);
+	
+	diff1=value*0.1;//primo limite al 10%
+	diff2=value*0.2;//secondo limite al 20%
+	
+ 	
+///Set  Alarm channel for Imon
+
+	channel= deviceList[i]+\".actual.iMon\";
+	//DebugN(channel);
+	dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\") ;
+	dyn_float limits = makeDynFloat( value+diff1,value+diff2 ); 
+	dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\");
+ 	string alertPanel; dyn_string alertPanelParameters; string alertHelp;
+	
+	fwAlertConfig_setAnalog(channel,alertTexts,limits, alertClasses,alertPanel,alertPanelParameters,
+													alertHelp,exceptionInfo);
+	fwAlertConfig_activate(channel,exceptionInfo);
+	//DebugN(channel,exceptionInfo);												 
+	}
+}
+SetDeviceConditionDB(){
+// Ricorda che dovrebbe partire anche il manager ed essere settato
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+
+bool configExists; 
+string archiveClassName=\"RDB-99) EVENT\"; //Archive's name
+int archiveType=3,count=1,value,l;
+int smoothProcedure=1;//set old/new comparition 
+float deadband=2;
+float timeInterval=0; 
+bool isActive; 
+dyn_string exceptionInfo,channels;
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+fwArchive_configMultiple(deviceList[i]+\".actual.iMon\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+fwArchive_configMultiple(deviceList[i]+\".actual.vMon\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+}
+
+
+
+}  " 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text1"
+""
+1 20 20 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 22 458 48
+0 2 0 "0s" 0 0 0 64 0 0  22 22 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 43 Barrel Hardware Component Installation Tool
+2 3
+"Text2"
+""
+1 30 70 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 32 72 348 88
+0 2 0 "0s" 0 0 0 64 0 0  32 72 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 52 1) Importing Hardware and Logical views for DB......
+2 4
+"Text3"
+""
+1 30 100 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 32 102 348 118
+0 2 0 "0s" 0 0 0 64 0 0  32 102 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 38 2) Creating FSM Tree for devices......
+2 5
+"Text4"
+""
+1 30 130 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 32 132 348 148
+0 2 0 "0s" 0 0 0 64 0 0  32 132 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 48 3) Inserting the logical devices into Tree......
+2 6
+"Text5"
+""
+1 30 160 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 32 162 348 178
+0 2 0 "0s" 0 0 0 64 0 0  32 162 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 49 4) Configuring alarm and archiving settings......
+2 7
+"Text7"
+""
+1 350 70 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 352 72 428 88
+0 2 0 "0s" 0 0 0 64 0 0  352 72 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 Done
+2 9
+"Text8"
+""
+1 350 100 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 352 102 428 118
+0 2 0 "0s" 0 0 0 64 0 0  352 102 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 Done
+2 10
+"Text9"
+""
+1 350 130 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 352 132 428 148
+0 2 0 "0s" 0 0 0 64 0 0  352 132 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 Done
+2 11
+"Text10"
+""
+1 350 160 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 352 162 428 178
+0 2 0 "0s" 0 0 0 64 0 0  352 162 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 Done
+2 12
+"Text6"
+""
+1 60 100 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 62 102 398 118
+0 2 0 "0s" 0 0 0 64 0 0  62 102 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 51 This action could block NG manager for few seconds.
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

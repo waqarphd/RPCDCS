@@ -1,0 +1,1381 @@
+V 11
+2
+LANG:1 8 (NoName)
+LANG:0 8 (NoName)
+PANEL,-1 -1 529 644 N "_3DFace" 0
+"/**
+
+fwInstallationAdvandedOptions.pnl
+
+This panel is used for creating the new installation directory. 
+If the directory does not exist - it is created and added to the project config file. 
+The user can also change the installation directory to one of the directories contained in the proj_path of a config file. 
+The panel also displays the information about the current installation directory.
+
+Required $-parameters:
+
+none
+
+Panels called from this panel:
+
+none
+
+*/
+main()
+{
+	
+  dyn_string proj_paths;
+  int i;
+  string destinationDir;
+  int dpGetResult;
+  string dp = fwInstallation_getInstallationDp();
+  
+  
+  if(dpExists(dp + \".installationDirectoryPath\"))
+  {
+    dpGetResult = dpGet(dp + \".installationDirectoryPath:_original.._value\", destinationDir);
+    fwInstallation_loadProjPaths(proj_paths);
+    for(i = 1; i <= dynlen(proj_paths); i++)
+    {
+	sliProjPaths.appendItem(proj_paths[i]);
+    }
+    sliProjPaths.selectedText = destinationDir;
+    dpConnect(\"fwInstallation_changeTxtDestinationDir\", dp + \".installationDirectoryPath:_original.._value\");
+  }
+  
+  initDbDisplay();
+
+}
+
+ 
+fwInstallation_changeTxtDestinationDir(string dp1, string destinationDir)
+{
+ 	sliProjPaths.selectedText = destinationDir;
+}" 0
+ E E E E 1 -1 -1 0  28 56
+""0  1
+E "#uses \"fwInstallation.ctl\"
+#uses \"fwInstallationDB.ctl\"
+
+bool g_previousUseDB;
+
+
+void initDbDisplay()
+{
+  int projectId;
+  int projectRegistered = true; 
+  dyn_string ds;
+  dyn_float df;   
+  string schemaVersion;
+  int restartProject = 0;
+  string dpa = fwInstallation_getAgentDp();
+  
+  if(!fwInstallationDB_getUseDB())
+  {
+    btnUseDB.enabled = true;
+    rbManagement.enabled = false;
+    return;
+  } 
+  else
+  {
+    if(fwInstallationDB_connect() != 0)
+    {
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"DB ERROR\",makeDynString(\"$1:Could not connect to DB. Check log-viewer for error details\"));
+      fwInstallationDB_setUseDB(FALSE);
+      btnUseDB.enabled = false;
+      rbManagement.enabled = false;
+      return;
+    }
+  }
+    
+  string msg = \"\";
+  if(!fwInstallationDB_compareSchemaVersion()) 
+  {
+    fwInstallationDB_getSchemaVersion(schemaVersion);
+    if(schemaVersion == \"\")
+      msg = \"Could not read schema version from the DB\";
+    else
+      msg = \"Invalid DB schema version: \" + schemaVersion + \". This tool requires version \" + FW_INSTALLATION_DB_REQUIRED_SCHEMA_VERSION + \" or higher.\";  
+            
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:\" + msg)); 
+    fwInstallationDB_setUseDB(FALSE);
+    btnUseDB.enabled = false;
+    rbManagement.enabled = false;
+    return;
+  }
+ 
+  dpGet(dpa + \".db.useDB\", g_previousUseDB);;
+  dpConnect(\"setUseDBCB\", dpa + \".db.useDB\"); 
+  
+  if(fwInstallationDB_getUseDB())
+  {
+    //Check if the project is properly registered in the DB:
+    if(fwInstallationDB_isProjectRegistered(projectId) != 0)
+    {
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not connect to DB.\\nCheck connection parameters.\"));
+    }
+   
+    if(projectId <= 0)
+    {
+      //check whether the project registration is enabled in the DB
+      int regEnabled;
+      fwInstallationDB_getProjectAutoregistration(regEnabled);
+      if (regEnabled == 1)
+      {
+        ChildPanelOnCentralReturn(\"fwInstallation/fwInstallationDB_question.pnl\", \"Project not registered in DB\", makeDynString(\"$txt:Project \" + PROJ + \" not registered in DB.\\nDo you want to register it now\"), df, ds);
+        if(dynlen(df) && df[1] >= 1.)
+        {
+          openProgressBar(\"FW Component Installation\", \"copy.gif\", \"Exporting project configuration to DB. This may take a few seconds...\",\"\", \"Please wait\", 1); 
+          if(fwInstallationDBAgent_synchronize(restartProject) != 0)
+          {
+            ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Could not export project configuration to DB.\\nCheck DB connection.\"));
+            projectRegistered = false;
+          }
+          else
+          {
+            ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Project configuration successfully exported to DB.\"));
+            projectRegistered = true; 
+          }
+          closeProgressBar();         
+        }
+        else
+        {
+          projectRegistered = false; 
+        }
+      }
+    }
+    
+    if(projectRegistered)
+    {
+      rbManagement.enabled = true;
+      rbManagement.number(fwInstallationDB_getCentrallyManaged());
+    }
+    else
+    {
+      rbManagement.enabled = false;
+    }
+  }  
+  
+  if(restartProject)
+    ChildPanelOnCentralModal(\"fwInstallation/fwInstallation_projectRestart.pnl\", \"Project restart required\", makeDynString(\"\"));
+  
+}
+
+void setUseDBCB(string dpe, bool useDB)
+{
+  cbUseDB.state(0) = useDB;
+  
+  if(useDB)
+    btnUseDB.text	= \"Disable\";
+  else
+    btnUseDB.text	= \"Enable\";
+  
+  setManagementModeVisibility(useDB);
+  
+}
+
+void setManagementModeVisibility(bool val)
+{
+  frManagement.visible = val;  
+  rbManagement.visible = val;
+}
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 1
+"Text12"
+""
+1 13 44 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 15 12 171 35
+0 2 0 "0s" 0 0 0 192 0 0  15 12 1
+2
+LANG:1 26 Arial,-1,19,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 16 Advanced Options
+LANG:0 16 Advanced Options
+2 3
+"Text2"
+""
+1 20 126 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 102 286 119
+0 2 0 "0s" 0 0 0 192 0 0  22 102 1
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 48 Select the new project path (it will be created)
+LANG:0 60 Select the new installation directory ( it will be created )
+2 11
+"txtWarning"
+""
+1 20 85 E E E 1 E 0 E N {255,0,51} E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 62 126 79
+0 2 0 "0s" 0 0 0 192 0 0  22 62 1
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 15 Warning message
+LANG:0 15 Warning message
+30 14
+"frmCreateNew"
+""
+1 10 234 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+1
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.18881118881119 0 0.7455621301775151 -1.88811188811189 -7.71597633136095 0 E 10 64 440 234
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 16 Add Project Path
+LANG:0 26 Add Installation Directory
+30 15
+"Frame2"
+""
+1 10 411 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+1
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.18881118881119 0 1 -1.88811188811189 -68 0 E 10 244 440 411
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 29 Choose Installation directory
+LANG:0 29 Choose Installation directory
+2 16
+"Text1"
+""
+1 20 242 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 198 247 232
+0 2 0 "0s" 0 0 0 192 0 0  22 198 2
+129
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 41 Select an existing installation directory
+LANG:0 41 Select an existing installation directory
+129
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 38 New components will be installed there
+LANG:0 38 New components will be installed there
+30 30
+"Frame1"
+""
+1 10 521 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.18881118881119 0 1.41414141414142 -1.88811188811189 -249.353535353537 0 E 10 421 440 521
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 33 System Configuration DB Interface
+13 22
+"btnCancelAll"
+""
+1 448 606 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  446 604 520 638
+
+T 
+2
+LANG:1 6 Cancel
+LANG:0 6 Cancel
+"main()
+{
+  	PanelOffReturn(makeDynFloat(0.), makeDynString(\"Cancel\"));	
+
+}" 0
+ E E E
+13 21
+"btnOKAll"
+""
+1 370 607 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  368 605 442 639
+
+T 
+2
+LANG:1 2 OK
+LANG:0 2 OK
+"main()
+{
+	dyn_string ds;
+	dyn_float df;
+        string dp = fwInstallation_getInstallationDp();
+	
+	fwInstallation_changeProjPaths(sliProjPaths.items);	
+	dpSetWait(dp + \".addManagersDisabled\", !addManagerEnabled.state(0),
+                  dp + \".activateManagersDisabled\", !activateManagerEnabled.state(0));
+
+	/*if(!g_previousUseDB && cbUseDB.state(0))
+	{
+	   ChildPanelOnCentralReturn(\"fwInstallation/fwInstallation_dbSetup.pnl\", \"DB Setup\", makeDynString(\"\"), df, ds);
+	}*/
+	
+  PanelOffReturn(makeDynFloat(), makeDynString(\"OK\"));	
+}" 0
+ E E E
+14 10
+"txtDestinationDir"
+""
+1 20 130 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  18 128 392 154
+3 "0s" 0 0 0 0 0 -1  E E E
+13 9
+"btnSelectSourceDir"
+""
+1 400 128 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+2
+LANG:1 20 Select the directory
+LANG:0 20 Select the directory
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  398 126 432 156
+
+P 
+14215660
+"pictures/fileselektor.xpm"
+1
+LANG:1 0 
+"main()
+{
+
+string sPath;
+
+int iErr;
+
+	txtWarning.visible = false;
+		
+	sPath = txtDestinationDir.text;   // Content of textfield
+
+	iErr = folderSelector( sPath );
+
+	if(( iErr >= 1 ) && ( strlen( sPath ) > 0 ))
+	{
+
+	    if (_WIN32) 
+	    	strreplace( sPath, \"/\", \"//\" ); 
+		// if NT -> replace 
+	
+		strreplace( sPath, \"//\", \"/\" );
+	
+	    txtDestinationDir.text = sPath;  
+
+  }
+  
+}" 0
+ E E E
+13 5
+"btnOK"
+""
+1 440 128 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  438 126 512 156
+
+T 
+2
+LANG:1 5 Apply
+LANG:0 5 Apply
+"main()
+{
+  string path = txtDestinationDir.text;
+  
+  if(path == \"\")
+    return;
+
+	if(fwInstallation_createPath(path))
+  {
+     txtWarning.text = \"Failed to register the new project path.\\nCheck log-viewer for details\";
+     txtWarning.visible = true;
+     return;
+  }
+  
+  txtWarning.visible = false;
+  dyn_string projPaths = sliProjPaths.items;
+  dynInsertAt(projPaths, path,1);
+  sliProjPaths.items = projPaths;
+  sliProjPaths.selectedPos = 1;
+}
+
+
+
+
+
+
+" 0
+ E E E
+20 27
+"addManagerEnabled"
+""
+1 250 516 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 168 WARNING! If you disable the automatic addition of managers, component might not work correctly. This function is intended for NON-STANDARD JCOP Framework projects only!
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  248 514 402 538
+1
+T 
+1
+LANG:1 18 Automatic addition
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+	bool disabled;
+        string dp = fwInstallation_getInstallationDp();
+        
+	dpGet(dp + \".addManagersDisabled\", disabled);
+	
+//	DebugTN(disabled, this.state(0));
+	
+	this.state(0) = !disabled;
+}" 0
+"main(int button, bool state)
+{
+	if(!state)
+		activateManagerEnabled.state(0) = FALSE;
+}" 0
+17 23
+"sliProjPaths"
+""
+1 20 236 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  18 234 472 335
+0
+
+E
+"main()
+{
+	string destinationDir;
+        string dp = fwInstallation_getInstallationDp();
+	
+	destinationDir = sliProjPaths.selectedText;
+	
+	dpSet(dp + \".installationDirectoryPath:_original.._value\", destinationDir);
+}" 0
+
+E
+
+0 0
+13 24
+"Button1"
+""
+1 480 236 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  478 234 512 268
+
+P 
+10862530
+"pictures/dpeMon_up.gif"
+1
+LANG:1 0 
+"main()
+{
+	dyn_string listStrings = sliProjPaths.items;
+	string selectedString = sliProjPaths.selectedText;
+	int selectedPosition = sliProjPaths.selectedPos;
+        string strPath = selectedString;
+        string strProjPath = PROJ_PATH;
+        
+        strreplace(strPath, \"\\\\\", \"\");
+        strreplace(strPath, \"/\", \"\");
+        
+        strreplace(strProjPath, \"\\\\\", \"\");
+        strreplace(strProjPath, \"/\", \"\");
+        
+        strPath = strtolower(strPath);
+        strProjPath = strtolower(strProjPath);
+        
+        if(strPath == strProjPath)
+        {
+          ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Action not permitted\", makeDynString(\"Sorry but you cannot move the project path.\"));
+          return;
+        }
+	
+	if(selectedPosition != 1)
+	{
+		dynRemove(listStrings, selectedPosition);
+		dynInsertAt(listStrings, selectedString, selectedPosition - 1);
+	}	
+
+	sliProjPaths.items = listStrings;
+	sliProjPaths.selectedText = selectedString;
+
+}" 0
+ E E E
+13 26
+"Button3"
+""
+1 480 303 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  478 301 512 335
+
+P 
+10862530
+"pictures/dpeMon_down.gif"
+1
+LANG:1 0 
+"main()
+{
+	dyn_string listStrings = sliProjPaths.items;
+	string selectedString = sliProjPaths.selectedText;
+	int selectedPosition = sliProjPaths.selectedPos;
+	string strPath = selectedString;
+        string strProjPath = PROJ_PATH;
+        
+        strreplace(strPath, \"\\\\\", \"\");
+        strreplace(strPath, \"/\", \"\");
+        
+        strreplace(strProjPath, \"\\\\\", \"\");
+        strreplace(strProjPath, \"/\", \"\");
+        
+        strPath = strtolower(strPath);
+        strProjPath = strtolower(strProjPath);
+        
+        if(strPath == strProjPath)
+        {
+          ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Action not permitted\", makeDynString(\"Sorry but you cannot move the project path.\"));
+          return;
+        }
+
+	if(selectedPosition != dynlen(listStrings))
+	{
+		dynRemove(listStrings, selectedPosition);
+		dynInsertAt(listStrings, selectedString, selectedPosition + 1);
+	}	
+
+	sliProjPaths.items = listStrings;
+	sliProjPaths.selectedText = selectedString;
+
+}" 0
+ E E E
+20 29
+"activateManagerEnabled"
+""
+1 253.333333333333 976 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 168 WARNING! If you disable the automatic addition of managers, component might not work correctly. This function is intended for NON-STANDARD JCOP Framework projects only!
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  248 534 402 558
+1
+T 
+1
+LANG:1 20 Automatic activation
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+	bool disabled;
+        string dp = fwInstallation_getInstallationDp();
+        
+	dpGet(dp + \".activateManagersDisabled\", disabled);
+	
+//	DebugTN(disabled, this.state(0));
+	
+	this.state(0) = !disabled;
+}" 0
+E20 32
+"cbUseDB"
+""
+1 30 375.999999999998 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  28 374 162 398
+1
+T 
+1
+LANG:1 13 Is DB in use?
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE13 34
+"btnUseDB"
+""
+1 30 406 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  28 404 180 438
+
+T 
+1
+LANG:1 9 Enable DB
+"main()
+{
+  bool useDB = fwInstallationDB_getUseDB();
+  bool newUseDB = !useDB;
+  dyn_string ds;
+  dyn_float df;
+  
+  fwInstallationDB_setUseDB(newUseDB); 
+  
+  if(newUseDB){
+    fwInstallationDB_connect();     
+    initDbDisplay();
+  }
+}" 0
+ E E E
+19 38
+"rbManagement"
+""
+1 240 386 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  238 384 492 438
+2
+T 
+1
+LANG:1 26 Local (PVSS is the master)
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 47 Central (System Configuration DB is the master)
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  dyn_float df;
+  dyn_string ds;
+  string msg;
+  dyn_int status;
+  
+  if(button == 0)
+    msg = \"Setting project to be locally managed causes\\nDB contents to be overwritten.\\nAre you sure you want to do this?\"; 
+  else
+    msg = \"Setting project to be centrally managed causes\\nPVSS contents to be overwritten.\\nAre you sure you want to do this?\";
+
+  ChildPanelOnCentralReturn(\"fwInstallation/fwInstallation_messageInfo.pnl\", \"Question\", makeDynString(\"$1:\" + msg, \"$2:Yes\", \"$3:No\"), df, ds);
+  if(dynlen(df) && df[1] > 0.){
+    fwInstallationDB_setCentrallyManaged(button);  
+    fwInstallationDBAgent_checkIntegrity(status);  
+  }
+  else
+    if(button == 0)
+      this.number(1);
+    else
+      this.number = 0;
+  
+}" 0
+
+30 39
+"frManagement"
+""
+1 176 447 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+26 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.04651162790698 0 1.0958904109589 45.8139534883721 -123.863013698629 0 E 176 447 435 521
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 23 Project Management Mode
+13 40
+"PUSH_BUTTON1"
+""
+1 30 446 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  28 444 180 478
+
+T 
+1
+LANG:1 20 Change DB Connection
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  
+  ChildPanelOnCentralModalReturn(\"fwInstallation/fwInstallationDB_connectionSetup.pnl\", \"DB Connection Setup\",makeDynString(\"\"), df, ds);
+
+  
+  if(dynlen(df) && df[1] >= 1.)
+  {
+    initDbDisplay(); 
+  }
+  
+}" 0
+ E E E
+20 41
+"cbDist"
+""
+1 30 523 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 168 WARNING! If you disable the automatic addition of managers, component might not work correctly. This function is intended for NON-STANDARD JCOP Framework projects only!
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  28 521 92 545
+1
+T 
+1
+LANG:1 4 Dist
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+	int state;
+        string dp = fwInstallation_getAgentDp();
+	dpGet(dp + \".managers.stopDist\", state);
+	
+	this.state(0) = state;
+}" 0
+"main(int button, bool state)
+{
+    string dp = fwInstallation_getAgentDp();
+    dpSet(dp + \".managers.stopDist\", state);
+
+}" 0
+20 42
+"CHECK_BOX2"
+""
+1 30 543 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 168 WARNING! If you disable the automatic addition of managers, component might not work correctly. This function is intended for NON-STANDARD JCOP Framework projects only!
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  28 541 72 565
+1
+T 
+1
+LANG:1 3 UIs
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+	int state;
+        string dp = fwInstallation_getAgentDp();
+	dpGet(dp + \".managers.stopUIs\", state);
+	
+	this.state(0) = state;
+
+}" 0
+"main(int button, bool state)
+{
+      string dp = fwInstallation_getAgentDp();
+      dpSet(dp + \".managers.stopUIs\", state);
+
+}" 0
+20 43
+"CHECK_BOX3"
+""
+1 30 563 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 168 WARNING! If you disable the automatic addition of managers, component might not work correctly. This function is intended for NON-STANDARD JCOP Framework projects only!
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  28 561 82 585
+1
+T 
+1
+LANG:1 4 Ctrl
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+	int state;
+        string dp = fwInstallation_getAgentDp();
+	dpGet(dp + \".managers.stopCtrl\", state);
+	
+	this.state(0) = state;
+
+}" 0
+"main(int button, bool state)
+{
+      string dp = fwInstallation_getAgentDp();
+      dpSet(dp + \".managers.stopCtrl\", state);
+
+}" 0
+30 44
+"FRAME1"
+""
+1 10 521 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+35 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.18881118881119 0 1.11111111111111 -1.88811188811189 18.2222222222213 0 E 10 421 440 521
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 8 Managers
+30 45
+"FRAME2"
+""
+1 210 523 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+36 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.724137931034483 0 0.919540229885057 -132.068965517241 25.0804597701149 0 E 210 523 501 611
+1
+LANG:1 35 MS Shell Dlg 2,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 34 Stop Managers during Installations
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

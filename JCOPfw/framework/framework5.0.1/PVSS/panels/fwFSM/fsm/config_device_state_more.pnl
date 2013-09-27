@@ -1,0 +1,4018 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 770 447 N "_3DFace" 7
+"$1"
+"$2"
+"$3"
+"$4"
+"$5"
+"$6"
+"$7"
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "add_operations(string type, int num)
+{
+	int i, n;
+	dyn_string items;
+	
+	getValue(\"op\"+num,\"itemCount\",n);
+	getValue(\"op\"+num,\"items\",items);
+	for(i = 7; i <= n; i++)
+	{
+		setValue(\"op\"+num,\"deletePos\",7);
+	}
+//	setValue(\"op\"+num,\"text\",items[5]);
+	if((type == \"bit32\") || (type == \"int\") || (type == \"unsigned\"))
+	{
+		setValue(\"op\"+num,\"appendItem\",\"bit\");
+		setValue(\"op\"+num,\"appendItem\",\"!bit\");
+	}
+	setValue(\"op\"+num,\"appendItem\",\"Inv\");
+	setValue(\"op\"+num,\"appendItem\",\"!Inv\");
+}
+
+set_type(int num)
+{
+	string item, old_type, type;
+	
+	getValue(\"item\"+num,\"text\",item);
+	if(item != \"\")
+		type = fwFsm_getDeviceTypeItemType(item);
+	getValue(\"type\"+num,\"text\",old_type);
+	if(old_type != type)
+	{
+		setValue(\"type\"+num,\"text\",type);
+		add_operations(type, num);
+	}
+}
+
+put_more(string more, int num, int short_flag)
+{
+	int i, visible, prev_num;
+	string prev_item;
+	
+	if(more == \"then\")
+	{
+		if((num <= 2) && (short_flag))
+		{
+			setValue(\"more\",\"visible\", 0);
+		}
+		for(i = num+1; i <= 12; i++)
+		{
+			setValue(\"item\"+i,\"visible\",0);
+			setValue(\"item\"+i,\"text\",\"\");
+			setValue(\"dp\"+i,\"visible\",0);
+			setValue(\"type\"+i,\"visible\",0);
+			setValue(\"op\"+i,\"visible\",0);
+			setValue(\"limit\"+i,\"visible\",0);
+			setValue(\"par\"+i,\"visible\",0);
+			setValue(\"then\"+i,\"visible\",0);
+		}
+		return;
+	}
+	if((num == 2) && (short_flag))
+	{
+			setValue(\"more\",\"visible\", 1);
+	}
+	else
+	{
+		num++;
+		getValue(\"item\"+num,\"visible\",visible);
+		if(!visible)
+		{
+			setValue(\"item\"+num,\"visible\",1);
+			setValue(\"dp\"+num,\"visible\",1);
+			setValue(\"type\"+num,\"visible\",1);
+			setValue(\"op\"+num,\"visible\",1);
+			setValue(\"limit\"+num,\"visible\",1);
+			setValue(\"par\"+num,\"visible\",1);
+			setValue(\"then\"+num,\"visible\",1);
+			prev_num = num-1;
+			getValue(\"item\"+prev_num,\"text\",prev_item);
+			setValue(\"item\"+num,\"text\",prev_item);
+			set_type(num);
+			
+		}
+	}
+}
+
+read_settings(int n)
+{
+string display_line;
+string more, name, op, limit, type;
+dyn_string lines;
+int i;
+
+//	dynClear(_GlobalStatesLines[n]);
+	for(i = 1; i <= 12 ; i++)
+  {
+		getValue(\"then\"+i,\"text\",more);
+		getValue(\"item\"+i,\"text\",name);
+		if(name == \"\")
+			break;
+		getValue(\"type\"+i,\"text\",type);
+		getValue(\"type\"+i,\"text\",type);
+		getValue(\"op\"+i,\"text\",op);
+		getValue(\"limit\"+i,\"text\",limit);
+		display_line = name+\" \"+type+\" \"+op+\" \"+limit+\" \"+more;
+		dynAppend(lines, display_line);
+//		dynAppend(_GlobalStatesLines[n],display_line);
+		if(more == \"then\")
+			break;
+	}
+	if(_GlobalStatesLines[n] != lines)
+		_GlobalStatesLines[n] = lines;
+//DebugN(n, _GlobalStatesLines[n]);
+}
+
+apply_settings(int n, int short_flag)
+{
+string line, op;
+dyn_string items;
+int i;
+
+	for(i = 1; i <= dynlen(_GlobalStatesLines[n]); i++)
+	{
+		line = _GlobalStatesLines[n][i];
+		items = strsplit(line,\" \");
+		setValue(\"item\"+i,\"text\",items[1]);
+		setValue(\"type\"+i,\"text\",items[2]);
+		add_operations(items[2], i);
+		setValue(\"op\"+i,\"text\",items[3]);
+		op = items[3];
+		setValue(\"limit\"+i,\"text\",items[4]);
+		setValue(\"then\"+i,\"text\",items[5]);
+		if((short_flag) && (i > 2))
+		{
+			setValue(\"more\",\"visible\",1);
+		}
+		else
+		{
+			setValue(\"item\"+i,\"visible\",1);
+			setValue(\"dp\"+i,\"visible\",1);
+			setValue(\"type\"+i,\"visible\",1);
+			setValue(\"op\"+i,\"visible\",1);
+//			setValue(\"limit\"+i,\"visible\",1);
+			setValue(\"then\"+i,\"visible\",1);
+			if((op == \"Inv\") || (op == \"!Inv\"))
+			{
+				setValue(\"limit\"+i,\"visible\",0);
+				setValue(\"par\"+i,\"visible\",0);
+			}
+			else
+			{
+				setValue(\"limit\"+i,\"visible\",1);
+				setValue(\"par\"+i,\"visible\",1);
+			}
+		}
+	}
+	if(dynlen(_GlobalStatesLines[n]))
+		put_more(items[5], i-1, short_flag);
+}
+
+set_items_pars()
+{
+	dyn_string items, pars;
+	int i;
+	
+	items = fwFsm_getDeviceTypeItems($1);
+	dynAppend(items,\"\");
+	fwFsm_readObjectParameters($7, pars);
+
+	for(i = 1; i <= 12; i++)
+	{
+		setValue(\"item\"+i,\"items\",items);
+		if(!dynlen(pars))
+			setValue(\"par\"+i,\"enabled\",0);
+	}
+}
+" 0
+ 2
+"CBRef""0"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text1"
+""
+1 600 60 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	dyn_string items;
+	string line;
+	int i;
+
+	setValue(\"\",\"text\",$2);
+	if($6 == \"1\")
+		setValue(\"line\",\"visible\",1);
+	else
+		setValue(\"line1\",\"visible\",1);
+	if($3 == \"_3DFace\")
+	{
+		setValue(\"line\",\"foreCol\",\"black\");
+		setValue(\"line1\",\"foreCol\",\"black\");
+	}
+	else
+	{
+		setValue(\"line\",\"foreCol\",$3);
+		setValue(\"line1\",\"foreCol\",$3);
+	}
+	apply_settings($5, $6);
+}
+" 0
+ E 0 1 1 0 1 E U  1 E 600 60 631 77
+0 2 2 "0s" 0 0 0 192 0 0  600 60 1
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 State
+4 1
+"line"
+""
+1 580 30 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 4 1 0 1 E  580 110 580 30
+2 7
+"Text2"
+""
+1 0 0 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	string more, name, op, limit, s, type;
+	int i, index, visible, more_open;
+	dyn_string inst, in, comps, types;
+	string instr;
+
+  set_items_pars();
+	setValue(\"\",\"text\",$4);
+	if($4 == \"else\")
+	{
+		setValue(\"item1\",\"visible\",0);
+		setValue(\"item1\",\"text\",\"\");
+		setValue(\"dp1\",\"visible\",0);
+		setValue(\"type1\",\"visible\",0);
+		setValue(\"op1\",\"visible\",0);
+		setValue(\"limit1\",\"visible\",0);
+		setValue(\"par1\",\"visible\",0);
+		setValue(\"then1\",\"visible\",0);
+	}
+	index = $5;
+	if($6 == \"1\")
+		_GlobalStateFlags[index] = 1;
+	while(1)
+	{
+		delay(0,100);
+		if(_GlobalStateFlags[index])
+			read_settings($5);
+	}
+}" 0
+ E 0 1 1 0 1 E U  1 E 12 32 22 49
+0 2 2 "0s" 0 0 0 192 0 0  12 32 1
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 If:
+4 99
+"line1"
+""
+1 581 30 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+98 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 4 1 0 1 E  581 380 581 30
+22 3
+"item1"
+""
+1 59 29 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 28 252 55
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 4
+"op1"
+""
+1 327 29 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 28 379 55
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 5
+"limit1"
+""
+1 378 29 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 28 490 55
+3 "0s" 0 0 0 0 0 -1  E E E
+22 6
+"then1"
+""
+1 508 29 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 28 570 55
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 9
+"item2"
+""
+1 59 59 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 58 252 85
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 10
+"op2"
+""
+1 327 59 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 58 379 85
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 11
+"limit2"
+""
+1 378 59 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 58 490 85
+3 "0s" 0 0 0 0 0 -1  E E E
+22 12
+"then2"
+""
+1 508 59 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 58 570 85
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 14
+"item3"
+""
+1 59 89 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 88 252 115
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 15
+"op3"
+""
+1 327 89 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 88 379 115
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 16
+"limit3"
+""
+1 378 89 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 88 490 115
+3 "0s" 0 0 0 0 0 -1  E E E
+22 17
+"then3"
+""
+1 508 89 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 88 570 115
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+14 29
+"type1"
+""
+1 277 29 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 28 327 55
+3 "0s" 0 0 0 0 0 -1  E E E
+14 30
+"type2"
+""
+1 277 59 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 58 327 85
+3 "0s" 0 0 0 0 0 -1  E E E
+14 31
+"type3"
+""
+1 277 89 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 88 327 115
+3 "0s" 0 0 0 0 0 -1  E E E
+13 32
+"dp1"
+""
+1 250 29 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 28 279 54
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+13 35
+"dp2"
+""
+1 250 59 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 58 279 84
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+13 36
+"dp3"
+""
+1 250 89 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 88 279 114
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+22 37
+"item4"
+""
+1 59 119 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 118 252 145
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 38
+"op4"
+""
+1 327 119 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 118 379 145
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 39
+"limit4"
+""
+1 378 119 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 118 490 145
+3 "0s" 0 0 0 0 0 -1  E E E
+22 40
+"then4"
+""
+1 508 119 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 118 570 145
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 41
+"item5"
+""
+1 59 149 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 148 252 175
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 42
+"op5"
+""
+1 327 149 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 148 379 175
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 43
+"limit5"
+""
+1 378 149 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 148 490 175
+3 "0s" 0 0 0 0 0 -1  E E E
+22 44
+"then5"
+""
+1 508 149 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 148 570 175
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 45
+"item6"
+""
+1 59 179 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 178 252 205
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 46
+"op6"
+""
+1 327 179 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 178 379 205
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 47
+"limit6"
+""
+1 378 179 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 178 490 205
+3 "0s" 0 0 0 0 0 -1  E E E
+22 48
+"then6"
+""
+1 508 179 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 178 570 205
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+14 49
+"type4"
+""
+1 277 119 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 118 327 145
+3 "0s" 0 0 0 0 0 -1  E E E
+14 50
+"type5"
+""
+1 277 149 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 148 327 175
+3 "0s" 0 0 0 0 0 -1  E E E
+14 51
+"type6"
+""
+1 277 179 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 178 327 205
+3 "0s" 0 0 0 0 0 -1  E E E
+13 52
+"dp4"
+""
+1 250 119 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 118 279 144
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+13 53
+"dp5"
+""
+1 250 149 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 148 279 174
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+13 54
+"dp6"
+""
+1 250 179 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 178 279 204
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+22 59
+"item8"
+""
+1 59 239 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 238 252 265
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 60
+"op8"
+""
+1 327 239 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 238 379 265
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 61
+"limit8"
+""
+1 378 239 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 238 490 265
+3 "0s" 0 0 0 0 0 -1  E E E
+22 62
+"then8"
+""
+1 508 239 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 238 570 265
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 63
+"item9"
+""
+1 59 269 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 268 252 295
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 64
+"op9"
+""
+1 327 269 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 268 379 295
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 65
+"limit9"
+""
+1 378 269 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 268 490 295
+3 "0s" 0 0 0 0 0 -1  E E E
+22 66
+"then9"
+""
+1 508 269 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 268 570 295
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+14 68
+"type8"
+""
+1 277 239 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 238 327 265
+3 "0s" 0 0 0 0 0 -1  E E E
+14 69
+"type9"
+""
+1 277 269 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 268 327 295
+3 "0s" 0 0 0 0 0 -1  E E E
+13 71
+"dp8"
+""
+1 250 239 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 238 279 264
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+13 72
+"dp9"
+""
+1 250 269 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 268 279 294
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+22 73
+"item10"
+""
+1 59 299 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+72 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 298 252 325
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 74
+"op10"
+""
+1 327 299 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 298 379 325
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 75
+"limit10"
+""
+1 378 299 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 298 490 325
+3 "0s" 0 0 0 0 0 -1  E E E
+22 76
+"then10"
+""
+1 508 299 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 298 570 325
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 77
+"item11"
+""
+1 59 329 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 328 252 355
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 78
+"op11"
+""
+1 327 329 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 328 379 355
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 79
+"limit11"
+""
+1 378 329 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 328 490 355
+3 "0s" 0 0 0 0 0 -1  E E E
+22 80
+"then11"
+""
+1 508 329 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 328 570 355
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 81
+"item12"
+""
+1 59 359 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 358 252 385
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 82
+"op12"
+""
+1 327 359 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+81 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 358 379 385
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 83
+"limit12"
+""
+1 378 359 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+82 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 358 490 385
+3 "0s" 0 0 0 0 0 -1  E E E
+22 84
+"then12"
+""
+1 508 359 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+83 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 358 570 385
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+14 85
+"type10"
+""
+1 277 299 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+84 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 298 327 325
+3 "0s" 0 0 0 0 0 -1  E E E
+14 86
+"type11"
+""
+1 277 329 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+85 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 328 327 355
+3 "0s" 0 0 0 0 0 -1  E E E
+14 87
+"type12"
+""
+1 277 359 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+86 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 358 327 385
+3 "0s" 0 0 0 0 0 -1  E E E
+13 88
+"dp10"
+""
+1 250 299 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+87 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 298 279 324
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+13 89
+"dp11"
+""
+1 250 329 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 328 279 354
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+13 90
+"dp12"
+""
+1 250 359 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 358 279 384
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+22 91
+"item7"
+""
+1 59 209 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+90 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 208 252 235
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 92
+"op7"
+""
+1 327 209 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+91 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 327 208 379 235
+6
+1
+LANG:1 1 <
+
+0
+1
+LANG:1 2 <=
+
+0
+1
+LANG:1 1 >
+
+0
+1
+LANG:1 2 >=
+
+0
+1
+LANG:1 2 ==
+
+1
+1
+LANG:1 2 !=
+
+0
+
+E
+"main()
+{
+	string name, op;
+	char d1,d2;
+	int num;
+
+	getValue(\"\",\"name\",name);
+	getValue(\"\",\"text\",op);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	if((op == \"Inv\") || (op == \"!Inv\"))
+	{
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"text\",\"bool\");
+		setValue(\"par\"+num,\"visible\",0);
+	}
+	else
+	{
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"par\"+num,\"visible\",1);
+		set_type(num);
+	}
+}" 0
+
+E
+ 0 0
+14 93
+"limit7"
+""
+1 378 209 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+92 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 378 208 490 235
+3 "0s" 0 0 0 0 0 -1  E E E
+22 94
+"then7"
+""
+1 508 209 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 508 208 570 235
+3
+1
+LANG:1 4 then
+
+1
+1
+LANG:1 2 &&
+
+0
+1
+LANG:1 2 ||
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = $6;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+14 95
+"type7"
+""
+1 277 209 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+94 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 277 208 327 235
+3 "0s" 0 0 0 0 0 -1  E E E
+13 96
+"dp7"
+""
+1 250 209 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+95 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 248 208 279 234
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+  add_operations(type, num);
+}
+" 0
+ E E E
+13 97
+"more"
+""
+1 60 90 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+96 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 58 88 232 116
+
+T 
+1
+LANG:1 7 More...
+"main()
+{
+//	_GlobalSave = 1;
+	dyn_float res;
+	dyn_string ret;
+	int index = $5;
+	_GlobalStateFlags[index] = 0;
+	read_settings($5);
+	ChildPanelOnReturn(\"fwFSM/fsm/config_device_state_more.pnl\",\"config_state\",
+		makeDynString($1, $2, $3, $4, $5, \"0\", $7),
+		0, 0, res, ret);
+	apply_settings($5, $6);
+	_GlobalStateFlags[index] = 1;
+//DebugN(\"ApplYing \",$5,$6, res, ret);
+}" 0
+ E E E
+13 98
+"Button1"
+""
+1 668 408 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 668 408 758 438
+
+T 
+2
+LANG:1 5 Close
+LANG:0 9 Abbrechen
+"main()
+{
+	read_settings($5);
+	PanelOff();
+}" 0
+ E E "main()
+{
+	if($6 == \"0\")
+		setValue(\"\",\"visible\",1);
+}" 0
+
+13 101
+"par1"
+""
+1 490 30 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+100 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 28 509 53
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 103
+"par2"
+""
+1 490 60 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+102 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 58 509 83
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 104
+"par12"
+""
+1 490 360 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+103 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 358 509 383
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 105
+"par11"
+""
+1 490 330 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+104 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 328 509 353
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 106
+"par10"
+""
+1 490 300 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+105 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 298 509 323
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 107
+"par9"
+""
+1 490 270 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+106 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 268 509 293
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 108
+"par8"
+""
+1 490 240 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 238 509 263
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 109
+"par7"
+""
+1 490 210 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+108 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 208 509 233
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 110
+"par6"
+""
+1 490 180 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+109 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 178 509 203
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 111
+"par5"
+""
+1 490 150 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+110 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 148 509 173
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 112
+"par4"
+""
+1 490 120 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+111 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 118 509 143
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+13 113
+"par3"
+""
+1 490 90 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+112 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 88 509 113
+
+P 
+13434828
+"pictures/parameters.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string name;
+	int num;
+	char d1, d2, d3;
+	
+	ChildPanelOnReturn(\"fwFSM/fsm/parameter_dialog.pnl\",\"Choose Parameter\",
+		makeDynString($7, \"\", \"\"),
+		100, 60, res, ret);
+	if(res[1])
+	{
+		getValue(\"\",\"name\",name);
+		sscanf(name,\"%c%c%c%d\",d1,d2,d3,num);
+		setValue(\"limit\"+num,\"text\",\"Par(\"+ret[1]+\")\");
+	}
+}
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

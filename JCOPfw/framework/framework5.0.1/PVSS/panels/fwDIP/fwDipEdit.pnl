@@ -1,0 +1,2536 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 813 620 N "_3DFace" 0
+E "main()
+{
+	int i;
+}" 0
+ E E E 1 0 0 0  20 20
+""0  1
+E "
+// for unsubscribing
+dyn_string usedDps;
+dyn_string currentDpes;
+
+dyn_string publicationTags;
+
+int state = 0; // 1 - DIP Manager & Config
+							 // 2 - Subscriptions
+							 // 3 - Publications
+
+getConfigList()
+{
+	dyn_string items;
+	int i;
+	
+	items = dpNames(\"*:*\",\"_FwDipConfig\");
+	config.items = items;
+	config.selectedPos = 1;
+}
+
+hide()
+{
+	Text2.visible = false;
+	Text3.visible = false;
+	Text4.visible = false;
+	Text5.visible = false;
+	addDpeButton.visible = false;
+	addPubButton.visible = false;
+	bufferTime.visible = false;
+	delDpeButton.visible = false;
+	delPubButton.visible = false;
+	dpeToAdd.visible = false;
+	dipTagToAdd.visible = false;
+	dpeSelector.visible	= false;
+	savePublication.visible = false;
+	reloadPublicationDetails.visible = false;
+	publishedService.visible = false;
+	publishedServiceDetails.visible = false;
+	simplePublicationCheckButton.visible = false;
+	
+	PRIMITIVE_TEXT1.visible = false;
+	PRIMITIVE_TEXT3.visible = false;
+	TEXT_EDIT2.visible = false;
+        Frame3.visible = false;
+        Frame5.visible = false;
+	Text8.visible	= false;
+	Text9.visible = false;
+	Text7.visible	= false;
+	selectDpe.visible = false;
+	selectedDpe.visible	= false;
+	delSubButton.visible	= false;
+	delSubDpeButton.visible	= false;
+	subscribedService.visible	= false;
+	subscribedServiceDetails.visible	= false;
+	Text6.visible	= false;
+	addSubButton.visible	= false;
+	clearButton.visible	= false;
+	dipBrowserButton1.visible	= false;
+	dipPublicationTagToAdd.visible = false;
+	dipPublicationToAdd.visible = false;
+	dipTagRequired.visible = false;
+	Frame1.visible	= false;
+	subscriptionType.visible = false;
+	
+	addConfigButton.visible = false;
+	checkConfigDP.visible = false;
+	configToAdd.visible = false;
+	deleteConfigButton.visible = false;
+	Frame2.visible = false;
+	RefreshBrowserCache.visible = false;
+	Frame3.visible = false;
+	Text10.visible = false;
+	dipTimeout.visible = false;
+	SaveDipTimeout.visible	 = false;
+	Frame4.visible	= false;
+	Text11.visible	= false;
+	Text12.visible	= false;
+	Text13.visible	= false;
+	publisherName.visible = false;
+}
+
+
+updateConfigDetails()
+{
+		int timeout;
+		dpGet(config.selectedText+\".queryTimeout\", timeout);
+		dipTimeout.text=timeout;
+		
+		string pubName;
+		dpGet(config.selectedText+\".publishName\", pubName);
+		publisherName.text = pubName;
+}
+
+/**
+ * Updates the combo-box with the publications available under given DIP config
+ */
+updatePublicationList()
+{
+	int i, length, migration;
+	string dp;
+        dyn_float df;
+	dyn_string ds, exceptionInfo;
+	dyn_dyn_string currentData;
+	
+	dp = config.selectedText;
+	
+	if(!dpExists(dp))
+		return;
+        
+	publishedService.deleteAllItems;
+	publishedService.text=\"\";
+	publishedServiceDetails.deleteAllLines;	
+        
+        migration = fwDIP_migrateConfigToNewDelimeter(dp, exceptionInfo);     
+        if(migration > 0)
+        {
+          fwException_raise(exceptionInfo, \"INFO\", \"The DIP server configuration was updated to a new format. \"
+                                                    \"This will not affect your configuration.\", \"\");
+          fwExceptionHandling_display(exceptionInfo);
+        }
+        //check is server config has been disabled
+        if(fwDIP_isServerConfigDisabled(dp, exceptionInfo))
+        {            
+            ChildPanelOnCentralModalReturn(\"fwDIP/fwDipReplaceUnsupportedChar.pnl\",
+                                           \"Replace unsupported characters\",
+                                           makeDynString(\"$sDpName:\" + dp), df, ds);
+            if(strtolower(ds[1]) != \"ok\")
+            {
+              addPubButton.enabled = FALSE;
+              addDpeButton.enabled = FALSE;
+              delPubButton.enabled = FALSE;
+              delDpeButton.enabled = FALSE;
+              savePublication.enabled = FALSE;
+              return;
+            }  
+        }
+
+        addPubButton.enabled = TRUE;
+        delPubButton.enabled = TRUE;
+        savePublication.enabled = TRUE;
+
+        fwOpenProgressBar(\"Loading...\", \"Reading publication configuration\", 1);
+        fwDIP_getAllPublications(dp, currentData, exceptionInfo);	
+	if(dynlen(exceptionInfo)!=0)
+	{	
+                fwCloseProgressBar(\"Error while loading\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	if(dynlen(currentData)==0)
+	{
+		addDpeButton.enabled = false;
+		delDpeButton.enabled = false;
+                fwCloseProgressBar(\"No publications configured\");
+		return;
+	}
+	else
+	{
+		addDpeButton.enabled = true;
+		delDpeButton.enabled = true;	
+	}
+
+     	// we select the distinct (by address) DIP items to provide the aggregation
+	dyn_string dipItems = currentData[fwDIP_OBJECT_ITEM];
+	dynUnique(dipItems);
+	dynSortAsc(dipItems);
+	publishedService.items = dipItems;
+	publishedService.selectedPos = 1;
+	
+	updatePublicationDetails();
+        fwCloseProgressBar(\"Finished reading publications\");
+}
+
+/**
+ * Updates the data about selected publication details - populates the table
+ */
+void updatePublicationDetails()
+{
+	int i, length;
+	int count = 0;
+	string dp;
+	dyn_string exceptionInfo;
+	dyn_dyn_string currentData;
+	dyn_string dataTypes;
+	string val;
+	
+	dp = config.selectedText;
+	
+	if(!dpExists(dp))
+		return;
+		
+	fwDIP_getAllPublications(dp, currentData, exceptionInfo);
+	
+	publishedServiceDetails.deleteAllLines;
+	
+	if(dynlen(currentData)==0)
+		length = 0;
+	else
+		length = dynlen(currentData[fwDIP_OBJECT_ITEM]);
+	
+	dynClear(publicationTags);
+		
+	if(length > 0)
+	{		
+		for(int j=1; j<=length; j++)
+		{			
+			// we have to select only the dpes and tags related to specific DIP item
+			if(currentData[fwDIP_OBJECT_ITEM][j] == publishedService.selectedText)
+			{
+				// Check whether we have a structure defined
+				if (currentData[fwDIP_OBJECT_DPES][j]==\"\")
+					continue;
+				if(!dpExists(currentData[fwDIP_OBJECT_DPES][j]))
+					val = \"\";
+				else
+					dpGet(currentData[fwDIP_OBJECT_DPES][j], val);
+				fwConfigs_getDpeTypeText(currentData[fwDIP_OBJECT_DPES][j], dataTypes, exceptionInfo);
+				publishedServiceDetails.appendLine(\"dpe\", currentData[fwDIP_OBJECT_DPES][j],
+																\"dipTag\", currentData[fwDIP_OBJECT_TAGS][j],
+																\"dataType\", dataTypes,
+																\"value\", val);
+				if(!dpExists(currentData[fwDIP_OBJECT_DPES][j]))
+					publishedServiceDetails.cellBackColRC(publishedServiceDetails.lineCount-1,\"dpe\",\"DpDoesNotExist\");
+				dynAppend(publicationTags,currentData[fwDIP_OBJECT_TAGS][j]);
+				bufferTime.text = currentData[fwDIP_OBJECT_UPDATE_RATES][j];
+				count++;
+			}			
+		}
+	}
+	if(count==1 && currentData[fwDIP_OBJECT_TAGS][1]==\"\")
+	{
+		// there is only one tag, without name ==> this is a simple publication
+		simplePublicationCheckButton.visible = true;
+		simplePublicationCheckButton.state(0) = true;
+		dipTagToAdd.visible = false;
+	}
+	else if(count==0)
+	{
+		simplePublicationCheckButton.visible = true;
+		dipTagToAdd.visible = true;
+	}
+	else
+	{
+		simplePublicationCheckButton.visible = true;
+		dipTagToAdd.visible = true;
+		simplePublicationCheckButton.state(0) = false;
+	}
+}
+
+bool checkDpe(string s, dyn_string &exceptionInfo)
+{
+	string elementType; 
+	if(!dpExists(s))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The selected data point / data point element does not exist!\", \"\");
+		return false;
+	}
+	_fwConfigs_getConfigOptionsForDpe(s, fwConfigs_PVSS_ADDRESS, elementType, exceptionInfo);
+	if(elementType == fwConfigs_NOT_SUPPORTED)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The selected data point element does not have an original value.  No data can be published from this data point element.\", \"\");
+		return false;
+	}
+	return true;
+}
+
+/**
+ * Updates the combo-box with the subscriptions available under given DIP config
+ */
+updateSubscriptionList()
+{
+	int i, length;
+	string dp;
+	dyn_string exceptionInfo;
+	dyn_dyn_string currentData;
+	
+	dp = config.selectedText;
+	
+	if(!dpExists(dp))
+		return;
+	
+	subscribedService.deleteAllItems;
+	subscribedService.text = \"\";
+	subscribedServiceDetails.deleteAllLines;
+		
+        fwOpenProgressBar(\"Loading...\", \"Reading subscription configuration\", 1);
+	fwDIP_getAllSubscriptions(dp, currentData, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{	
+                fwCloseProgressBar(\"Error while loading\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	if(dynlen(currentData)==0)
+        {
+                fwCloseProgressBar(\"No subscriptions configured\");
+		return;
+        }
+	// we select the distinct (by address) DIP items to provide the aggregation
+	dyn_string dipItems = currentData[fwDIP_OBJECT_ITEM];
+	dynUnique(dipItems);
+	dynSortAsc(dipItems);
+	subscribedService.items = dipItems;
+	subscribedService.selectedPos = 1;
+	
+	updateSubscriptionDetails();
+        fwCloseProgressBar(\"Finished reading subscriptions\");
+}
+
+/**
+ * Updates the data about selected subscription details - populates the table
+ * also fills the global variable - with dpes used for subscription - to use
+ * in case of unsubscribing
+ */
+void updateSubscriptionDetails()
+{
+	int i, length;
+	string dp;
+	dyn_string exceptionInfo;
+	dyn_dyn_string currentData;
+	dyn_string dataTypes;
+	string val;
+	
+	dp = config.selectedText;
+	
+	dynClear(currentDpes); // this is used to store the dpes for unsubscription
+	dynClear(usedDps);
+	
+	if(!dpExists(dp))
+		return;
+		
+	fwDIP_getAllSubscriptions(dp, currentData, exceptionInfo);
+	
+	subscribedServiceDetails.deleteAllLines;
+
+	if(dynlen(currentData)==0)
+		return;
+
+	length = dynlen(currentData[fwDIP_OBJECT_ITEM]);
+	if(length > 0)
+	{		
+		for(int j=1; j<=length; j++)
+		{			
+			// we have to select only the dpes and tags related to specific DIP item
+			if(currentData[fwDIP_OBJECT_ITEM][j] == subscribedService.selectedText)
+			{
+				if(!dpExists(currentData[fwDIP_OBJECT_DPES][j]))
+					val = \"\";
+				else
+					dpGet(currentData[fwDIP_OBJECT_DPES][j], val);
+				fwConfigs_getDpeTypeText(currentData[fwDIP_OBJECT_DPES][j], dataTypes, exceptionInfo);
+				subscribedServiceDetails.appendLine(\"dpe\", currentData[fwDIP_OBJECT_DPES][j],
+																\"dipTag\", currentData[fwDIP_OBJECT_TAGS][j],
+																\"dataType\", dataTypes);
+				// And store this for unsubscribing
+				dynAppend(currentDpes,currentData[fwDIP_OBJECT_DPES][j]);
+				if(!dpExists(currentData[fwDIP_OBJECT_DPES][j]))
+					subscribedServiceDetails.cellBackColRC(subscribedServiceDetails.lineCount-1,\"dpe\",\"DpDoesNotExist\");
+			}
+			// store all the dps that are being used for subscription purposes
+			dynAppend(usedDps,dpSubStr(currentData[fwDIP_OBJECT_DPES][j],DPSUB_SYS_DP));
+		}
+	}
+	dynUnique(usedDps);
+	dynUnique(currentDpes);
+}
+
+
+void addPublishedServiceDetails(dyn_string exceptionInfo)
+{
+	string val, dataTypes;
+	dpGet(dpeToAdd.text, val);
+	fwConfigs_getDpeTypeText(dpeToAdd.text, dataTypes, exceptionInfo);
+	publishedServiceDetails.appendLine(\"dpe\", dpeToAdd.text, 
+																		 \"dipTag\", dipTagToAdd.text,
+																		 \"dataType\", dataTypes,
+																		 \"value\", val);
+	dynAppend(publicationTags, dipTagToAdd.text);
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 59
+"Text7"
+""
+1 38 526 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 40 528 286 544
+0 2 0 "0s" 0 0 0 64 0 0  40 528 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 39 Data Point Element for subscribed data:
+25 54
+"subscribedServiceDetails"
+""
+1 -1196.875 -1268.23529411765 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 138 792 342
+"main()
+{
+	this.tableMode(TABLE_SELECT_BROWSE);
+	this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 3 1 "dpe" 51 1 0 "s" 1
+LANG:1 18 Data Point Element
+E
+1
+LANG:1 0 
+
+475 "dipTag" 15 1 0 "s" 1
+LANG:1 7 DIP Tag
+E
+1
+LANG:1 0 
+
+150 "dataType" 12 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+120 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+2 0
+"Text1"
+""
+1 20 20 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 22 108 37
+0 2 0 "0s" 0 0 0 64 0 0  22 22 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 DIP Edit
+2 1
+"on_label"
+""
+1 260 20 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 262 22 348 37
+0 2 0 "0s" 0 0 0 64 0 0  262 22 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 2 on
+2 35
+"Text2"
+""
+1 20 70 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 72 148 88
+0 2 0 "0s" 0 0 0 64 0 0  22 72 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Published Items:
+2 45
+"Text3"
+""
+1 41 533 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 43 535 142 552
+0 2 0 "0s" 0 0 0 192 0 0  43 535 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Buffer Time [ms]:
+2 49
+"Text4"
+""
+1 40 465 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 42 467 88 483
+0 2 0 "0s" 0 0 0 64 0 0  42 467 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 DPE
+2 50
+"Text5"
+""
+1 41 498 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 43 500 89 516
+0 2 0 "0s" 0 0 0 64 0 0  43 500 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 Tag
+2 52
+"Text6"
+""
+1 18 71.2 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 0.9 0 1 0 E 20 80 146 96
+0 2 0 "0s" 0 0 0 64 0 0  20 80 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Subscribed Items:
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+30 57
+"Frame1"
+""
+1 20 440 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+56 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.32987910189983 0 1.30177514792899 -6.59758203799655 38.5207100591716 0 E 20 270 600 440
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 New Subscription
+2 63
+"Text8"
+""
+1 40 458 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 42 460 151 477
+0 2 0 "0s" 0 0 0 192 0 0  42 460 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Selected DIP Item:
+2 64
+"Text9"
+""
+1 124 487 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 126 489 212 505
+0 2 0 "0s" 0 0 0 64 0 0  126 489 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 Tag:
+30 72
+"Frame2"
+""
+1 40 350 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+69 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.40255009107468 0 0.446096654275093 -36.1020036429873 254.312267657993 0 E 40 80 590 350
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22 Detailed Configuration
+2 80
+"Text10"
+""
+1 40 363 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 42 365 158 391
+0 2 0 "0s" 0 0 0 64 0 0  42 365 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 DIP Query Timeout:
+30 83
+"Frame4"
+""
+1 40 430 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+79 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.40255009107468 0 1.15942028985507 -36.1020036429873 2.60869565217386 0 E 40 360 590 430
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 Browser Cache
+2 84
+"Text11"
+""
+1 38 448 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 40 450 581 501
+0 2 0 "0s" 0 0 0 192 0 0  40 450 3
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 53 Recreates the DIP API manager cache of DIP hierarchy.
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 94 This will make newly configured publications available without restarting the DIP API manager.
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 87
+"Text12"
+""
+1 40 170 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+81 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 42 172 1223 240
+0 2 0 "0s" 0 0 0 64 0 0  42 172 5
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 109 NOTE: Apart from creating a DIP config in this panel and adding a new DIP API Manager to your Project Console
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 92 it is necessary to make changes to the config file. Sample entries for the DIP API Manager: 
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1  
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1  
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1  
+2 90
+"Text13"
+""
+1 42 323 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+82 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 44 325 154 376
+0 2 0 "0s" 0 0 0 192 0 0  44 325 3
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 21 Publisher Identifier:
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+22 2
+"config"
+""
+1 290 20 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 288 18 591 45
+0
+
+"main()
+{
+	getConfigList();
+	
+//	updateSubscriptionList();
+//	updatePublicationList();
+}" 0
+
+"main()
+{
+	if(state==1)
+		updateConfigDetails();
+	if(state==2)
+		updateSubscriptionList();
+	if(state==3)
+		updatePublicationList();
+}" 0
+
+E
+ 0 0
+26 3
+"select"
+""
+1 100 20 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 98 18 252 45
+ 0 1
+LANG:1 20 Please Choose Option
+"" 0 0 0 0 0
+ 3 1 1
+LANG:1 11 DIP Manager
+"1" 0 0 0 0 0
+ 1 1
+LANG:1 13 Subscriptions
+"2" 0 0 0 0 0
+ 1 1
+LANG:1 12 Publications
+"3" 0 0 0 0 0
+ "main()
+{
+	hide();
+}
+" 0
+ "main(int id)
+{
+  string subscriptionTypeText;
+  const string subscriptionComplexText = \"Complex\";
+  bool tagRequiredState;
+  
+	hide();
+	switch(id)
+	{
+	case 1:
+		setValue(\"\",\"text\",\"DIP Manager\");
+		state = 1;
+		addConfigButton.visible = true;
+		checkConfigDP.visible = true;
+		configToAdd.visible = true;
+		deleteConfigButton.visible = true;
+		Frame2.visible = true;
+		RefreshBrowserCache.visible = true;
+		Frame3.visible = true;
+		Text10.visible = true;
+		dipTimeout.visible = true;
+		SaveDipTimeout.visible = true;
+		Frame4.visible = true;
+		Text11.visible = true;
+		Text12.visible = true;
+		Text13.visible	= true;
+		publisherName.visible = true;
+		PRIMITIVE_TEXT3.visible = true;
+		TEXT_EDIT2.visible = true;
+		Frame3.visible = true;
+		updateConfigDetails();
+		break;
+	case 2:
+		setValue(\"\",\"text\",\"Subscriptions\");
+                subscriptionTypeText = subscriptionType.text;
+                tagRequiredState = dipTagRequired.state(0);
+
+                state = 2;
+		delSubButton.visible	= true;
+		delSubDpeButton.visible	= true;
+		subscribedService.visible	= true;
+		subscribedServiceDetails.visible	= true;
+		Text6.visible	= true;
+		Frame1.visible	= true;
+		subscriptionType.visible = true;	
+		
+		selectDpe.visible = (subscriptionTypeText != subscriptionComplexText);
+		selectedDpe.visible	= (subscriptionTypeText != subscriptionComplexText);		
+		PRIMITIVE_TEXT1.visible = true;
+		Text8.visible	= true;
+		Text9.visible = ((subscriptionTypeText != subscriptionComplexText) && tagRequiredState);
+		Text7.visible	= (subscriptionTypeText != subscriptionComplexText);
+		addSubButton.visible	= true;
+		clearButton.visible	= true;
+		dipBrowserButton1.visible	= true;
+		dipPublicationTagToAdd.visible = ((subscriptionTypeText != subscriptionComplexText) && tagRequiredState);
+		dipPublicationToAdd.visible = true;
+		dipTagRequired.visible = (subscriptionTypeText != subscriptionComplexText);
+
+		updateSubscriptionList();	
+		break;
+	case 3:
+		setValue(\"\",\"text\",\"Publications\");
+		state = 3;		
+		Frame5.visible = true;
+		Text2.visible = true;
+		Text3.visible = true;
+		Text4.visible = true;
+		Text5.visible = true;
+		addDpeButton.visible = true;
+		addPubButton.visible = true;
+		bufferTime.visible = true;
+		delDpeButton.visible = true;
+		delPubButton.visible = true;
+		dpeToAdd.visible = true;
+		dipTagToAdd.visible = true;
+		dpeSelector.visible	= true;
+		savePublication.visible = true;
+		reloadPublicationDetails.visible = true;
+		publishedService.visible = true;
+		publishedServiceDetails.visible = true;			
+
+		updatePublicationList();
+		break;
+	}
+}
+" 0
+0 
+22 34
+"publishedService"
+""
+1 130 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 128 68 662 95
+0
+
+E
+"main()
+{
+	updatePublicationDetails();
+}" 0
+
+E
+ 0 0
+25 36
+"publishedServiceDetails"
+""
+1 -1141.875 -703.529411764706 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 138 792 342
+"main()
+{
+	this.tableMode(TABLE_SELECT_BROWSE);
+	this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 4 1 "dpe" 46 1 0 "s" 1
+LANG:1 18 Data Point Element
+E
+1
+LANG:1 0 
+
+425 "dipTag" 15 1 0 "s" 1
+LANG:1 7 DIP Tag
+E
+1
+LANG:1 0 
+
+150 "dataType" 12 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+120 "value" 4 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+50 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 37
+"addDpeButton"
+""
+1 410 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 408 488 592 522
+
+T 
+1
+LANG:1 22 Add Dpe to Publication
+"main()
+{
+	string dataTypes;
+	string val;
+	dyn_string exceptionInfo;
+
+	if(_fwDIP_checkDpeForPublication(dpeToAdd.text,exceptionInfo))
+	{
+		if(simplePublicationCheckButton.state(0)==1)
+		{
+			if(dipTagToAdd.text==\"\" && publishedServiceDetails.lineCount==0)
+			{
+				addPublishedServiceDetails(exceptionInfo);
+			}
+			else
+			{
+				fwException_raise(exceptionInfo, \"ERROR\", \"Simple publication cannot have more than one tag!\", \"\");
+			}
+		}
+		else
+		{
+			if((dipTagToAdd.text != \"\") && (dpeToAdd.text != \"\"))
+                        {
+  			  if((strpos(dipTagToAdd.text, fwDIP_SEPERATOR) < 0) && (strpos(dpeToAdd.text, fwDIP_SEPERATOR) < 0))
+                          {
+			    if(dynContains(publicationTags, dipTagToAdd.text) == 0)
+			    {
+			      addPublishedServiceDetails(exceptionInfo);
+			    }
+			    else
+			    {
+			      fwException_raise(exceptionInfo, \"ERROR\", \"That tag already exists in this publication\", \"\");
+			    }
+                          }
+                          else
+                          {
+			    fwException_raise(exceptionInfo, \"ERROR\",
+                                              \"You must not use the exclamation mark (!) in the PVSS DIP publication tag or source DPE.\", \"\");
+                          }
+                        }
+                        else
+			{
+				fwException_raise(exceptionInfo, \"ERROR\", \"Please provide both the dpe and the tag name\", \"\");
+			}		
+		}
+	}
+	if(dynlen(exceptionInfo)!=0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E E
+13 38
+"delDpeButton"
+""
+1 130 350 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 128 348 262.186335403727 382
+
+T 
+1
+LANG:1 13 Unpublish Dpe
+"main()
+{
+	int row, column;	
+	string tag;
+	getValue (\"publishedServiceDetails\", \"currentCell\", row, column);
+	getValue (\"publishedServiceDetails\", \"cellValueRC\", row, \"dipTag\", tag);
+	publishedServiceDetails.deleteLineN(row);
+	dynRemove(publicationTags,dynContains(publicationTags, tag));
+}" 0
+ E E E
+13 39
+"savePublication"
+""
+1 660 530 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 658 528 772 562
+
+T 
+1
+LANG:1 16 Save Publication
+"main()
+{
+	int buffer, i, length;
+	string dpe, dipItem, configDp, tempDpe, tempTag;
+	dyn_string tags, dpes;
+	dyn_string exceptionInfo;
+	dyn_string ds; dyn_float df;
+
+	dipItem = publishedService.selectedText;
+	buffer = bufferTime.text;
+	configDp = config.text;
+	length = publishedServiceDetails.lineCount;
+	
+	if(length == 0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"No data point elements have been selected for publication.\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+			
+	for(i=0; i<length; i++)
+	{
+		getValue(\"publishedServiceDetails\", \"cellValueRC\", i, \"dpe\", tempDpe);
+		getValue(\"publishedServiceDetails\", \"cellValueRC\", i, \"dipTag\", tempTag);
+				
+		dynAppend(dpes, tempDpe);
+		dynAppend(tags, tempTag);
+	}
+	
+	ChildPanelOnRelativModalReturn(\"fwGeneral/fwOkCancel.pnl\",
+		\"Confirm\",
+		makeDynString(\"$text:If one has modified the existing publication,\\none will have to restart the API manager to apply the changes.\\nOtherwise the cache refresh is needed.\"),
+		0,0,
+		df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+	
+	fwOpenProgressBar(\"Information\", \"Saving changes\", 1);
+	fwDIP_publishStructure(dipItem, dpes, tags, buffer, configDp, exceptionInfo, TRUE);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwCloseProgressBar(\"Error while saving the publication\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	fwCloseProgressBar(\"Success\");
+}" 0
+ E E E
+13 40
+"reloadPublicationDetails"
+""
+1 670 66 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 668 64 742 98
+
+T 
+1
+LANG:1 6 Reload
+"main()
+{
+	updatePublicationDetails();
+}" 0
+ E E E
+13 42
+"addPubButton"
+""
+1 280 100 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 98 452 132
+
+T 
+1
+LANG:1 22 Create New Publication
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+	dyn_string exceptionInfo;
+	string configDp;
+	configDp = config.text;
+	ChildPanelOnRelativModalReturn(\"fwDIP/fwDipInputDialog.pnl\",
+		\"Name of the publication\",
+		makeDynString(\"$sText:Publication name:\"),
+		0,0,
+		df,ds);
+//	DebugN(ds);
+	if(ds[1]==\"cancel\")
+		return;
+
+	if(strpos(ds[2], fwDIP_SEPERATOR) >= 0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"You must not use the exclamation mark (!) in PVSS DIP publication names.\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+        if(ds[2] == \"\")
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"You must specify a publication name before any action can be performed.\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+/*
+	fwOpenProgressBar(\"Information\", \"Creating the publication\", 1);
+	fwDIP_publishPrimitive(ds[2], \"\", 0, configDp, exceptionInfo, FALSE);
+
+	if(dynlen(exceptionInfo)!=0)
+	{
+//		fwException_raise(exceptionInfo, \"ERROR\", \"Error during creation of the publication\", \"\");
+		fwCloseProgressBar(\"There were errors during creation of the publication\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	fwCloseProgressBar(\"Success\");	
+	updatePublicationList();
+*/
+	// strip the leading slashes
+	ds[2] = strltrim(ds[2],\"/\");
+	publishedService.appendItem(ds[2]);
+	publishedService.selectedPos = publishedService.itemCount;
+	publishedServiceDetails.deleteAllLines;
+	dynClear(publicationTags);
+	simplePublicationCheckButton.visible = true;
+
+	addDpeButton.enabled = true;
+	delDpeButton.enabled = true;
+}" 0
+ E E E
+13 43
+"delPubButton"
+""
+1 130 100 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 128 98 262 132
+
+T 
+1
+LANG:1 18 Delete Publication
+"main()
+{
+	dyn_string exceptionInfo;
+	dyn_string ds;
+	dyn_float df;
+	if(publishedService.selectedText==\"\")
+		return;
+	ChildPanelOnRelativModalReturn(\"fwGeneral/fwOkCancel.pnl\",
+		\"Confirm the deletion\",
+		makeDynString(\"$text:Unpublish \"+publishedService.selectedText+\"?\\nIn order to see the changes you need to restart the API manager.\"),
+		0,0,
+		df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+		
+	fwOpenProgressBar(\"Information\", \"Unpublishing\", 1);
+	fwDIP_unpublish(publishedService.selectedText, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+//		fwException_raise(exceptionInfo, \"ERROR\", \"Error during deletion of the publication\", \"\");
+		fwCloseProgressBar(\"There were errors during deletion of the publication\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	fwCloseProgressBar(\"Success\");
+	updatePublicationList();
+}" 0
+ E E E
+21 44
+"bufferTime"
+""
+1 162 530 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 160 528 241 555
+0
+
+E
+E
+E
+
+N 0 100000 10 0 1 1
+14 47
+"dpeToAdd"
+""
+1 81 460 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 79 458 593 485
+3 "0s" 0 0 0 0 0 -1  E E E
+13 48
+"dpeSelector"
+""
+1 597 453 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 597 453 637 487
+
+P 
+13160660
+"pictures/dpsel.xpm"
+1
+LANG:1 0 
+"main()
+{
+  int pos;
+  string s;
+	dyn_string exceptionInfo;
+
+  dpSelector(s,false,\"ALL_SYSTEM_NAME_SYS\");
+  if( s != \"\" )
+  {
+  	if(strpos(s, \".\") < 0)
+  		s += \".\";
+		
+		if(!checkDpe(s,exceptionInfo))
+		{
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+
+    dpeToAdd.text = s;
+  }
+}
+" 0
+ E E E
+14 51
+"dipTagToAdd"
+""
+1 81 495 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 79 493 263 520
+3 "0s" 0 0 0 0 0 -1  E E E
+22 53
+"subscribedService"
+""
+1 130 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 128 68 662 95
+0
+
+E
+"main()
+{
+	updateSubscriptionDetails();
+}" 0
+
+E
+ 0 0
+13 55
+"addSubButton"
+""
+1 660 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 658 558 772 592
+
+T 
+1
+LANG:1 16 Add Subscription
+"main()
+{
+	dyn_string configParameters;
+	dyn_string exceptionInfo;
+	dyn_string ds; dyn_float df;
+
+	if (dipPublicationToAdd.text==\"\")
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"You must select a publication\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	if (subscriptionType.selectedPos==1) // Simple publication OR subscribing to a single tag of complex on
+	{
+		if (selectedDpe.text==\"\")
+		{
+			fwException_raise(exceptionInfo, \"ERROR\", \"You must select a dpe\", \"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+		if (!dpExists(selectedDpe.text))
+		{
+			fwException_raise(exceptionInfo, \"ERROR\", \"Dpe does not exist\", \"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+		if(dipTagRequired.state(0) == TRUE) // subscribing to a tag of a complex publicatiob
+		{
+			if (dipPublicationTagToAdd.text==\"\")
+			{
+				fwException_raise(exceptionInfo, \"ERROR\", \"You must select a tag\", \"\");
+				fwExceptionHandling_display(exceptionInfo);
+				return;
+			}
+			fwOpenProgressBar(\"Information\", \"Adding subscribption\", 1);
+			fwDIP_subscribeStructure(makeDynString(dipPublicationToAdd.text),
+															 makeDynString(selectedDpe.text),
+															 makeDynString(dipPublicationTagToAdd.text),
+															 config.selectedText, 
+															 exceptionInfo);
+		}
+		else // subscribing to a simple publication
+		{
+			fwOpenProgressBar(\"Information\", \"Adding subscribption\", 1);
+			fwDIP_subscribePrimitive(dipPublicationToAdd.text,
+															 selectedDpe.text,
+															 config.selectedText, 
+															 exceptionInfo);
+		}
+		if (dynlen(exceptionInfo) != 0)
+		{
+			fwCloseProgressBar(\"There were errors while adding the subscription\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+		fwCloseProgressBar(\"Success\");
+	}	
+	else // open panel for complex subscribtion
+	{
+		if (dipPublicationToAdd.text==\"\")
+			return;
+		ChildPanelOnParentModalReturn(\"fwDIP/fwDipEditDptCreate.pnl\",
+			\"Complex DIP Subscription\",
+			myPanelName(),
+			makeDynString(\"$sConfigDp:\"+config.selectedText,
+										\"$sDipPublicationName:\"+dipPublicationToAdd.text),
+			0,0,
+			df,ds);
+		if(df[1]==0)
+			return;
+	}
+	
+	updateSubscriptionList(); // refresh the subscription list
+}" 0
+ E E E
+13 56
+"delSubButton"
+""
+1 130 100 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 128 98 262 132
+
+T 
+1
+LANG:1 16 Unsubscribe Item
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+	dyn_string exceptionInfo;
+	if(subscribedService.selectedText==\"\")
+		return;
+	ChildPanelOnRelativModalReturn(\"fwGeneral/fwOkCancel.pnl\",
+		\"Confirm the unsubscripton\",
+		makeDynString(\"$text:Do you really want to proceed with unsubscription from\\n\"+subscribedService.selectedText+\"?\"),
+		0,0,
+		df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+
+	fwOpenProgressBar(\"Information\", \"Unsubscribing\", 1);
+	fwDIP_unsubscribeMany(currentDpes, exceptionInfo);
+
+	updateSubscriptionList();
+
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwCloseProgressBar(\"There were errors while removing the subscription\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	fwCloseProgressBar(\"Success\");
+}" 0
+ E E E
+22 58
+"subscriptionType"
+""
+1 160 420 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 158 418 252 445
+0
+
+"main()
+{
+	this.appendItem(\"Simple\");
+	this.appendItem(\"Complex\");
+	this.selectedPos=1;
+}" 0
+
+"main()
+{
+	if(this.selectedPos==1)
+	{
+		selectDpe.visible = true;
+		selectedDpe.visible	= true;		
+		Text8.visible	= true;
+		Text9.visible = true;
+		Text7.visible	= true;
+		addSubButton.visible	= true;
+		clearButton.visible	= true;
+		dipBrowserButton1.visible	= true;
+		dipPublicationToAdd.visible = true;
+		dipTagRequired.visible = true;
+		if(dipTagRequired.state(0)==1)
+			dipPublicationTagToAdd.visible = true;
+	}
+	if(this.selectedPos==2)
+	{
+		selectDpe.visible = false;
+		selectedDpe.visible	= false;		
+		Text8.visible	= true;
+		Text9.visible = false;
+		Text7.visible	= false;
+		clearButton.visible	= true;
+		dipBrowserButton1.visible	= true;
+		dipPublicationTagToAdd.visible = false;
+		dipPublicationToAdd.visible = true;
+		dipTagRequired.visible = false;	
+		addSubButton.visible	= true;
+	}
+}" 0
+
+E
+ 0 0
+14 60
+"selectedDpe"
+""
+1 40 550 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 548 542 575
+3 "0s" 0 0 0 0 0 -1  E E E
+13 61
+"selectDpe"
+""
+1 548 544 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 548 544 588 578
+
+P 
+13160660
+"pictures/dpsel.xpm"
+1
+LANG:1 0 
+"main()
+{
+  int pos;
+  string s;
+
+  dpSelector(s,false,\"ALL_SYSTEM_NAME_SYS\");
+  if( s != \"\" )
+  {
+  	if(strpos(s, \".\") < 0)
+  		s += \".\";
+    selectedDpe.text = s;
+  }
+}
+" 0
+ E E E
+14 62
+"dipPublicationToAdd"
+""
+1 160 454 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 158 452 652 479
+3 "0s" 0 0 0 0 0 -1  E E E
+14 65
+"dipPublicationTagToAdd"
+""
+1 160 486 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 158 484 342 511
+3 "0s" 0 0 0 0 0 -1  E E E
+13 66
+"dipBrowserButton1"
+""
+1 660 450 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 658 448 712 482
+
+T 
+1
+LANG:1 6 Browse
+"main()
+{
+	string startPoint = dipPublicationToAdd.text;
+	int iOperationMode; 
+	
+	iOperationMode = 1;
+	
+	dyn_float df;
+	dyn_string ds;
+
+	dyn_string childName;
+	dyn_int childType;
+	dyn_string fieldName;
+	dyn_string fieldType;
+	dyn_string exceptionInfo;
+		
+	int resultType;
+	
+	/*
+		Get the data from the 'API manager filled' dpe.
+	*/
+	fwOpenProgressBar(\"Information\", \"Querying API Manager\", 1);
+	
+	resultType = fwDIP_DipQuery(config.selectedText, startPoint,
+												childName, childType,
+												fieldName, fieldType,
+												exceptionInfo, dipTimeout.text);
+	
+	if (dynlen(exceptionInfo) != 0)
+	{
+		iOperationMode = -1;
+		fwCloseProgressBar(\"There were errors while querying API Manager\");
+		fwExceptionHandling_display(exceptionInfo);
+	}
+	else	
+	{
+		fwCloseProgressBar(\"No errors\");
+		if ( (resultType == fwDIPBrowser_ResultType_BRANCH) || (resultType == fwDIPBrowser_ResultType_LEAFBRANCH))
+			iOperationMode = 1;
+		else
+			iOperationMode = 0; 
+	}
+	
+	if (iOperationMode==1)
+	{
+		/*
+			This happens if the API manager has returned something useful to be
+			displayed in the Tree Widget - that is when an address of some branch
+			has been provided
+		*/
+		int noAdd = 1;
+		if(dipTagRequired.state(0)==0||subscriptionType.selectedPos==2)
+			noAdd = 0;
+		ChildPanelOnParentModalReturn(\"fwDIP/fwDipHierarchyBrowser.pnl\",
+			\"DIP Browser\",
+			myPanelName(),
+			makeDynString(\"$sInitialAddress:\"+startPoint,
+										\"$sChildName:\"+childName,
+										\"$iChildType:\"+childType,
+										\"$sApiManagerDp:\"+config.selectedText,
+										\"$iResultType:\"+resultType,
+										\"$bBrowser:\"+0/*,
+										\"$noAdd:\"+noAdd*/),
+			0,0,
+			df,ds);
+		if(df[1] == 0)
+			return;
+		dipPublicationToAdd.text = ds[1];
+		dipPublicationTagToAdd.text = ds[2];
+	}
+	else if (iOperationMode == 0)
+	{
+		ChildPanelOnParentModalReturn(\"fwDIP/fwDipPublicationContents.pnl\",
+			\"Contents of the publication\",
+			myPanelName(),
+			makeDynString(\"$sPublicationAddress:\"+startPoint,
+										\"$sFieldName:\"+fieldName,
+										\"$iFieldType:\"+fieldType,
+										\"$iInvokedFromMain:1\",
+										\"$bBrowser:\"+0),
+			0,0,
+			df,ds);
+		if(df[1] == 0)
+			return;
+		dipPublicationTagToAdd.text = ds[1];
+	}
+	else
+	{
+		/* 
+			This happens when the DPE with field names from the API manager is empty
+			or when the timeout occured.
+			It can happen when the address is invalid or if the publication structure
+			has not been defined yet.
+		*/
+		fwExceptionHandling_display(exceptionInfo);
+	}
+}" 0
+ E E E
+20 67
+"dipTagRequired"
+""
+1 355 488 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 353 486 672 510
+1
+T 
+1
+LANG:1 40 Required (if tag is not __DIP_DEFAULT__)
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	if(this.state(0)==1)
+	{
+		Text9.visible	= true;
+		dipPublicationTagToAdd.visible = true;
+	}
+	else
+	{
+		Text9.visible	= false;
+		dipPublicationTagToAdd.visible = false;	
+	}
+}" 0
+13 68
+"clearButton"
+""
+1 720 450 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 718 448 772 482
+
+T 
+1
+LANG:1 5 Clear
+"main()
+{
+	dipPublicationTagToAdd.text=\"\";
+	dipPublicationToAdd.text=\"\";
+}" 0
+ E E E
+13 69
+"delSubDpeButton"
+""
+1 130 350 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 128 348 252 382
+
+T 
+1
+LANG:1 15 Unsubscribe Dpe
+"main()
+{
+	int row, column;	
+	getValue(\"subscribedServiceDetails\", \"currentCell\", row, column);
+	string tempDpe;
+	getValue(\"subscribedServiceDetails\", \"cellValueRC\", row, \"dpe\", tempDpe);
+	
+	dyn_float df;
+	dyn_string ds;
+	dyn_string exceptionInfo;
+	if(subscribedService.selectedText==\"\")
+		return;
+	ChildPanelOnRelativModalReturn(\"fwGeneral/fwOkCancel.pnl\",
+		\"Confirm the unsubscripton\",
+		makeDynString(\"$text:Do you really want to proceed with unsubscription of\\n\"+tempDpe+\"?\"),
+		0,0,
+		df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+
+	fwOpenProgressBar(\"Information\", \"Removing subscribption\", 1);
+	fwDIP_unsubscribe(tempDpe, exceptionInfo);
+
+	updateSubscriptionList();
+
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwCloseProgressBar(\"There were errors while removing the subscription\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	fwCloseProgressBar(\"Success\");
+}" 0
+ E E E
+20 71
+"simplePublicationCheckButton"
+""
+1 43 430 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 41 428 188 452
+1
+T 
+1
+LANG:1 18 Simple Publication
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	if(this.state(0)==0)
+	{
+		if(publishedServiceDetails.lineCount!=0)
+		{
+			this.state(0)=1;
+			return;
+		}
+		Text5.visible	= true;
+		dipTagToAdd.visible = true;
+	}
+	else
+	{
+		if(publishedServiceDetails.lineCount!=0)
+		{
+			this.state(0)=0;
+			return;
+		}
+		Text5.visible	= false;
+		dipTagToAdd.visible = false;	
+		dipTagToAdd.text = \"\";
+	}
+}" 0
+13 74
+"deleteConfigButton"
+""
+1 40 90 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 88 212 122
+
+T 
+1
+LANG:1 21 Delete Current Config
+"main()
+{
+	dyn_string ds; dyn_float df;
+	dyn_string pubs, subs;
+	
+	dyn_string exceptionInfo;
+	
+	string configDp;
+	
+	configDp = config.selectedText;
+	ChildPanelOnRelativModalReturn(\"fwGeneral/fwOkCancel.pnl\",
+		\"Confirm the deletion\",
+		makeDynString(\"$text:Do you really want to proceed with deletion of \"+configDp+\" config?\"),
+		0,0,
+		df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+	dpGet(configDp+\".clientConfig\", subs,
+				configDp+\".serverConfig\", pubs);
+	if(dynlen(subs)!=0 || dynlen(pubs)!=0) 
+	{
+		fwException_raise(exceptionInfo, \"ERROR\",\"The config has some publications or subscriptions. Remove them before removing the config.\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	else
+		dpDelete(configDp);
+	getConfigList();
+}" 0
+ E E E
+13 75
+"addConfigButton"
+""
+1 40 130 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+72 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 128 212 162
+
+T 
+1
+LANG:1 14 Add New Config
+"main()
+{
+	dyn_string exceptionInfo;
+	string config;
+	config = configToAdd.text;
+	if(config==\"\")
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Please enter the new config name\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	if(!dpIsLegalName(config))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Provided name is not a valid name for a DP\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	if(dpExists(config))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"A DP with such name exists\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	dpCreate(config, fwDIP_CONFIG_DPT);
+	dpSet(config+\".publishName\",getHostname()+\"_\"+rand(),
+				config+\".queryTimeout\",15);
+
+	getConfigList();
+}" 0
+ E E E
+14 76
+"configToAdd"
+""
+1 310 135 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 308 133 591.92337164751 160
+3 "0s" 0 0 0 0 0 -1  E E E
+1 103 0 "" 0
+0
+13 78
+"RefreshBrowserCache"
+""
+1 600 450 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 598 448 772 482
+
+T 
+1
+LANG:1 21 Refresh Browser Cache
+"main()
+{
+	//dpSetWait(config.selectedText+\".command.refreshBrowser\",TRUE);
+	dyn_string exceptionInfo;
+	fwDIPBrowser_refreshCache(config.selectedText, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+}" 0
+ E E E
+21 79
+"dipTimeout"
+""
+1 162 360 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 160 358 264 385
+0
+
+"main()
+{
+	updateConfigDetails();
+}" 0
+
+E
+E
+
+N 0 100 1 3 1 1
+13 82
+"SaveDipTimeout"
+""
+1 670 370 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 668 368 772 402
+
+T 
+1
+LANG:1 4 Save
+"main()
+{
+	dpSet(config.selectedText+\".queryTimeout\", dipTimeout.text);
+	dpSet(config.selectedText+\".publishName\", publisherName.text);
+}" 0
+ E E E
+13 89
+"checkConfigDP"
+""
+1 600 15 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+82 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 598 13 712 47
+
+T 
+1
+LANG:1 15 Check Config DP
+"// SimpleCtrlScriptStart {invalid}
+main()
+{
+	if(config.selectedText!=\"\")
+	  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentralModal(\"fwDIP/fwDipAnalyseConfig.pnl\",
+      \"Analyse DIP Config DP\",
+      makeDynString(\"$sConfig:\"+config.selectedText));
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnCentralModal}
+// File {fwDIP/fwDipAnalyseConfig.pnl}
+// Panel {Analyse DIP Config DP}
+// Parent {}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ E E E
+14 91
+"publisherName"
+""
+1 162 320 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+83 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 160 318 444 345
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	updateConfigDetails();
+}" 0
+ E
+2 93
+"PRIMITIVE_TEXT1"
+""
+1 40 417.88 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+85 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 0.9 22 353.8 0 E 20 80 146 96
+0 2 0 "0s" 0 0 0 64 0 0  20 80 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Subscription Type:
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+29 97
+"TEXT_EDIT2"
+""
+1 82 212 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+ 82 212 353 263
+15 PVSS.TextEdit.1
+5
+0 "TextChanged" "()"
+""
+0 "ReturnPressed" "()"
+""
+0 "ModificationChanged" "(bool mod)"
+""
+0 "Clicked" "(int para, int pos)"
+""
+0 "CursorPositionChanged" "(int para, int pos)"
+""
+"main()
+{
+  this.textFormat = \"PlainText\";
+  this.bold = FALSE;
+  this.font = \"Arial,10,-1,5,50,0,0,0,0,0\";
+  this.text = \"[dip_1]\\nDipConfig = \\\"DIPConfig_1\\\"\";
+  this.readOnly = TRUE;
+}" 0
+2 99
+"PRIMITIVE_TEXT3"
+""
+1 218 138 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+92 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 220 140 298 191
+0 2 0 "0s" 0 0 0 192 0 0  220 140 3
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Config Name:
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+30 100
+"Frame3"
+""
+1 20 53 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+93 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.70866141732283 0 -30.5590551181102 0 E 20 53 791 181
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 Manage DIP Configurations
+30 102
+"Frame5"
+""
+1 20 353 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+96 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.66147859922179 0 166.498054474708 0 E 20 353 791 611
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 21 Configure Publication
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 580 10 T 74 1 0 1 200 9
+1
+"$sPanelRelativePath""fwDIP/fwDipEdit"
+0

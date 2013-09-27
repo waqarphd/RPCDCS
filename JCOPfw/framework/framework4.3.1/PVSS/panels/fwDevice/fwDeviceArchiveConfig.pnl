@@ -1,0 +1,405 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,382 163 670 450 N "_3DFace" 2
+"$bHierarchyBrowser"
+"$sDpName"
+"main()
+{
+	init();
+}" 0
+EE E E 1 -1 -1 0  0 0
+"" 0 1
+E"string panelName;
+string panelBarTitle;
+string config;
+int index;
+	
+init()
+{
+	int i, configType;
+	string deviceModel;
+	dyn_string exceptionInfo;
+	dyn_dyn_string elementsAndProperties;
+
+	// init global variables
+	panelName = \"fwConfigs/fwArchiveConfigPopup.pnl\";
+	panelBarTitle = \"Archive configuration\";
+	config = \"archive\";
+	index = fwDevice_ARCHIVE_INDEX;
+	
+	fwDevice_getModel(makeDynString($sDpName), deviceModel, exceptionInfo);
+	fwDevice_getConfigElements(dpTypeName($sDpName), index, elementsAndProperties, exceptionInfo, deviceModel);
+	
+	Table1.deleteAllLines();
+	Table1.selectByClick(TABLE_SELECT_LINE);
+	Table1.tableMode(TABLE_SELECT_MULTIPLE);	
+	
+	for (i = 1; i <= dynlen(elementsAndProperties[1]); i++) 
+	{
+//		DebugN(\"Element \" + $sDpName + alertElements[i]);		
+		dpGet($sDpName + elementsAndProperties[1][i] + \":_\" + config + \".._type\", configType);
+		
+		if(configType == DPCONFIG_NONE)
+			Table1.appendLine(\"conf\", \"N\", \"elements\", elementsAndProperties[1][i]);
+		else
+			Table1.appendLine(\"conf\", \"Y\", \"elements\", elementsAndProperties[1][i]);
+	}
+	
+	Table1.lineVisible(0);
+}
+
+updateRow(string table, int row)
+{
+	int configType;
+	shape tableShape = getShape(table);
+	dyn_string line = tableShape.getLineN(row);			
+
+	//DebugN(\"Updatig row \" + row + \" \" + line);
+	
+	dpGet($sDpName + line[2] + \":_\" + config + \".._type\", configType);					
+
+	if(configType == DPCONFIG_NONE)
+		tableShape.cellValueRC(row, \"conf\", \"N\"); 
+	else
+		tableShape.cellValueRC(row, \"conf\", \"Y\"); 
+}
+
+configureElement(dyn_int lineNumbers)
+{
+	int i;
+	dyn_float returnedValues;
+	dyn_string elements, line, returnedText, exceptionInfo;
+
+	enableButtons(FALSE);
+
+	for (i = 1; i <= dynlen(lineNumbers); i++) 
+	{	
+		line = Table1.getLineN(lineNumbers[i]);			
+		dynAppend(elements, $sDpName + line[2]);
+	}
+	
+	if(dynlen(elements) <= 0)
+	{
+		fwException_raise(	exceptionInfo, 
+							\"WARNING\", 
+							\"Select at least one element.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		enableButtons(TRUE);
+		return;
+	}
+	
+	if(getPath(PANELS_REL_PATH, panelName) == \"\")
+	{
+		fwException_raise(	exceptionInfo, 
+							\"WARNING\", 
+							\"The panel \\\"\" + panelName + \"\\\" \\ncould not be found\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		enableButtons(TRUE);
+		return;
+	}
+	
+	ChildPanelOnCentralModalReturn(	panelName,
+									panelBarTitle,
+									makeDynString(	\"$sDpName:\" + $sDpName,
+													\"$sDpe:\" + elements),
+									returnedValues, 
+									returnedText);
+	
+	for (i = 1; i <= dynlen(lineNumbers); i++) 
+	{	
+		updateRow(\"Table1\", lineNumbers[i]);
+	}						
+	
+	enableButtons(TRUE);
+}
+
+enableButtons(bool enabled)
+{
+	apply.enabled(enabled);
+	applyAll.enabled(enabled);
+	close.enabled(enabled);
+}" 0
+ 2
+"CBRef""0"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"panelTitle"
+""
+1 13 27 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 192 34
+0 2 0 "s" 0 0 0 192 0 0  12 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 21 Archive Configuration
+2 120
+"dpNameTitle"
+""
+1 33 90 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+119 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 27 42 69 58
+0 2 0 "s" 0 0 0 192 0 0  27 42
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 7 Device:
+25 78
+"Table1"
+""
+1 -333 -491 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+78 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+23 93 527 432
+E "main(int xpos,string columnName,string value)
+{
+	if(columnName == \"elements\")
+		configureElement(makeDynInt(xpos));
+}
+" 0
+ 1 0 1 2 1 "conf" 0 1 0 "s" 1
+LANG:1 4 Conf
+E1
+LANG:1 0 
+ 38 "elements" 0 1 0 "s" 1
+LANG:1 7 Element
+E1
+LANG:1 0 
+ 350 22 22 "" 1 1
+LANG:1 2 #1
+8 30 1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 3 0
+1 0
+13 108
+"apply"
+""
+1 534 352 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+108 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+532 350 661 378
+T 
+1
+LANG:1 18 Configure selected
+"main()
+{
+	configureElement(Table1.getSelectedLines);
+}" 0
+ E E E
+14 111
+"dpname"
+""
+1 70 40 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+111 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+68 38 662 65
+3 "s" 0 0 0 0 0 0 
+E
+"main()
+{
+	this.text = $sDpName;
+	this.editable = FALSE;
+}" 0
+
+E
+13 116
+"applyAll"
+""
+1 534 384 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+116 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+532 382 661 410
+T 
+1
+LANG:1 13 Configure all
+"main()
+{
+	int i;
+	dyn_int lineNumbers;
+
+	for (i = 1; i <= Table1.lineCount(); i++) 
+	{
+		lineNumbers[i] = i - 1;
+	}
+	
+	configureElement(lineNumbers);
+}" 0
+ E E E
+13 117
+"close"
+""
+1 534 415 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+117 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+532 413 661 441
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E "main()
+{
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if($bHierarchyBrowser)
+		{
+			this.visible = FALSE;
+		}
+		else
+		{
+			this.visible = TRUE;
+		}
+	}
+}" 0
+
+13 118
+"Button4"
+""
+1 578 98 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+118 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+2
+LANG:1 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+558 78 608 128
+P 
+13434828
+"pictures/archiveConfiguration.bmp"
+1
+LANG:1 0 
+"main()
+{
+	int iOK;
+	bool bNewDB;
+
+//
+//	Falls alte DB -> unsichtbar !!!
+//
+
+	iOK = dpGet(\"_DataManager.UseValueArchive:_online.._value\",bNewDB);
+	if (iOK!=-1 && bNewDB)	// nur wenn neue DB Aktiv
+	{
+		if(!isModuleOpen(\"PVSS\") )
+  			ModuleOn(\"PVSS\", 100, 100, 500, 500, 1, 1, \"None\");
+		RootPanelOnModule(\"para/archive/archive_select.pnl\", \"\", \"PVSS\", makeDynString());
+	}
+	else
+	{
+		if(!isModuleOpen(\"PVSS\") )
+			ModuleOn(\"PVSS\", 100, 100, 500, 500, 1, 1, \"None\");
+		RootPanelOnModule(\"vision/DataManager_par\", \"\", \"PVSS\", makeDynString());
+	}
+}" 0
+ E E E
+1 119 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 590 150 T 119 1 0 1  43 -140  
+1
+"$sPanelRelativePath""fwDevice/fwDeviceArchiveConfig"
+0

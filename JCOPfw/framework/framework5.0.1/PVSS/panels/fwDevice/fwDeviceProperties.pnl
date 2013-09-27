@@ -1,0 +1,455 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 892 412 N "_3DFace" 1
+"$sDpName"
+E "main()
+{
+	int i;
+}" 0
+ E E E 1 -1 -1 0  30 20
+""0  1
+E "dyn_string configs, configColumns, configPanels;
+
+initializeGlobals()
+{
+	configs = makeDynString(\"address\", \"alert_hdl\", \"archive\", \"pv_range\", \"msg_conv\", \"cmd_conv\", \"smooth\");
+	configColumns = makeDynString(\"Address\", \"Alarm\", \"Archive\", \"Range\", \"Message Conversion\", \"Command Conversion\", \"Smoothing\");
+	configPanels = makeDynString(	\"fwConfigs/fwPeriphAddressPopup.pnl\", 
+									\"fwConfigs/fwAlertConfigPopup.pnl\",
+									\"fwConfigs/fwArchiveConfigPopup.pnl\",
+									\"fwConfigs/fwPvRangeConfigPopup.pnl\",
+									\"fwConfigs/fwConversionConfigPopup.pnl\",
+									\"fwConfigs/fwConversionConfigPopup.pnl\",
+									\"fwConfigs/fwSmoothingConfigPopup.pnl\");
+}" 0
+ 2
+"CBRef""1"
+"EClose""main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 2
+"panelTitle"
+""
+1 12 27 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 247 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 26 Device Properties Overview
+2 4
+"dpNameTitle"
+""
+1 43 90 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 37 42 79 59
+0 2 0 "0s" 0 0 0 192 0 0  37 42 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Device:
+25 0
+"Table1"
+""
+1 10 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 68 882 372
+"main()
+{	
+  	int i, j;
+  	string dpe, model;
+  	dyn_string 	dpes, exceptionInfo, configMessages;
+  	dyn_anytype configTypes;
+  	dyn_dyn_string elements;
+  	
+  	initializeGlobals();
+  	
+  	fwDevice_getModel(makeDynString($sDpName), model, exceptionInfo);
+  	fwDevice_getConfigElements(dpTypeName($sDpName), fwDevice_ALL, elements, exceptionInfo, model);
+  	
+  	for(i = 1; i <= dynlen(elements[1]); i++)
+  	{
+  		// build list of datapoint elements attributes to be read
+  		dpe = $sDpName + elements[1][i];
+  		for(j = 1; j <= dynlen(configs); j++)
+  		{
+  			dpes[j] = dpe + \":_\" + configs[j] + \".._type\";
+  		}
+  		
+  		// check which configs are there
+                configTypes = makeDynAnytype();
+  		dpGet(dpes, configTypes);
+  
+  		// build messages depending on each config availability
+  		for(j = 1; j <= dynlen(configTypes); j++)
+  		{
+  			configMessages[j] = configTypes[j] != 0 ? \"SET\" : \"NOT SET\";
+  		}
+  		
+  		//DebugN(dpes, configTypes);				
+  		Table1.appendLine(	\"Property\", elements[2][i], 
+  							\"DPE\", elements[1][i],
+  							\"Address\", configMessages[1],
+  							\"Alarm\", configMessages[2],
+  							\"Archive\", configMessages[3],
+  							\"Range\", configMessages[4],
+  							\"Message Conversion\", configMessages[5],
+  							\"Command Conversion\", configMessages[6],
+  							\"Smoothing\", configMessages[7]);
+  	}
+  	Table1.lineVisible(0);
+}" 0
+"main(int row, string column, string value)
+{
+
+	int index, configType;
+	string dpe;
+	dyn_float returnedValues;
+	dyn_string exceptionInfo, returnedText, dollarParams;
+	dyn_anytype line;
+	
+	line = Table1.getLineN(row);
+//	DebugN(\"line \" + line);
+	index = dynContains(configColumns, column);
+	dpe = $sDpName + line[2];
+	
+	dollarParams = makeDynString(\"$sDpName:\" + $sDpName, \"$sDpe:\" + dpe);
+	
+	// for alarms an extra dollar parameter is required
+	if(column == \"Alarm\")
+	{
+		dynAppend(dollarParams, \"$sSummaryDpe:.\");	
+	}
+	
+	// if valid config, open panel to configure it and update cell
+	if (index > 0)
+	{
+		ChildPanelOnCentralModalReturn(	configPanels[index],
+										column + \" Configuration for \" + $sDpName + value,
+										dollarParams,
+										returnedValues,
+										returnedText);
+		
+		dpGet(dpe + \":_\" + configs[index] + \".._type\", configType);					
+//		DebugN(\"configs[index] \" + configs[index] + \" \" + index + \" \" + configType);
+
+		if(configType == DPCONFIG_NONE)
+			setValue(\"\", \"cellValueRC\", row, column, \"NOT SET\");
+		else
+			setValue(\"\", \"cellValueRC\", row, column, \"SET\");			
+	}
+}" 0
+ 1 0 1 9 1 "Property" 13 1 0 "s" 1
+LANG:1 8 Property
+E
+1
+LANG:1 0 
+
+160 "DPE" 13 1 0 "s" 1
+LANG:1 3 DPE
+E
+1
+LANG:1 0 
+
+160 "Address" 8 1 0 "s" 1
+LANG:1 7 Address
+E
+1
+LANG:1 0 
+
+100 "Alarm" 8 1 0 "s" 1
+LANG:1 5 Alarm
+E
+1
+LANG:1 0 
+
+100 "Archive" 8 1 0 "s" 1
+LANG:1 7 Archive
+E
+1
+LANG:1 0 
+
+100 "Range" 8 1 0 "s" 1
+LANG:1 5 Range
+E
+1
+LANG:1 0 
+
+100 "Message Conversion" 8 1 0 "s" 1
+LANG:1 18 Message Conversion
+E
+1
+LANG:1 0 
+
+100 "Command Conversion" 8 1 0 "s" 1
+LANG:1 18 Command Conversion
+E
+1
+LANG:1 0 
+
+100 "Smoothing" 8 1 0 "s" 1
+LANG:1 9 Smoothing
+E
+1
+LANG:1 0 
+
+100 
+24 24 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 1
+"Button5"
+""
+1 820 376 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 818 374 882 404
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+1 6 0 "" 0
+1 "message" 1 1 "main()
+{
+	time rootPanelPathTime, childPanelPathTime;
+	unsigned managerNumber = myManNum();
+	string rootPanelPath, childPanelPath, rootPanelName, childPanelName, panelName;
+	
+	
+	if(isDollarDefined(\"$sPanelRelativePath\"))
+	{
+		panelPath = $sPanelRelativePath;
+	}
+	
+	if(panelPath == \"\")
+	{
+		dpGet(	\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName\", rootPanelPath,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName:_original.._stime\", rootPanelPathTime,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.PanelName\", rootPanelName,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName\", childPanelPath,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName:_original.._stime\", childPanelPathTime,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.PanelName\", childPanelName);
+	
+
+		//	DebugN(rootPanelPath, rootPanelPathTime, childPanelPath, childPanelPathTime);
+	
+		if(rootPanelPathTime > childPanelPathTime)
+		{
+			panelPath = rootPanelPath;
+			panelName = rootPanelName;
+		}
+		else
+		{
+			panelPath = childPanelPath;
+			panelName = childPanelName;
+		}
+	
+		if(myPanelName() == panelName)
+		{
+			goodPanelName = TRUE;
+//			DebugN(\"Correct panel name\");
+		}
+		else
+		{
+			goodPanelName = FALSE;
+//			DebugN(\"Wrong panel name\");
+		}	
+	}
+//	DebugN(\"The good path is \" + panelPath);
+}" 0
+ 
+1 "leftClick" 1 1 "main()
+{
+	int replaced;
+	string 	componentName, path, tempPanelPath, helpFile, browserCommand;
+	dyn_string aux, exceptionInfo;
+	
+//	DebugN(\"The good path is \" + panelPath);
+	
+	if(!goodPanelName)
+	{
+		fwException_raise(	exceptionInfo,
+							\"ERROR\",
+							\"Open panel name doesn't match with PVSS database. Try opening the panel again.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Get component name. We assume panels are inside a directory
+	// named after the component name
+	strreplace(panelPath, \"\\\\\", \"/\");
+	aux = strsplit(panelPath, \"/\");
+	componentName = aux[1];
+//	DebugN(panelPath, componentName);
+	
+	// Remove extension if given
+	if(strpos(panelPath, \".pnl\") >= 0)
+	{
+		tempPanelPath = substr(panelPath, 0, strpos(panelPath, \".pnl\"));
+	}
+	else
+	{
+		tempPanelPath = panelPath;
+	}
+	
+	// try to find the help file associated with the panel
+	helpFile = tempPanelPath + \".html\";
+//	DebugN(\"helpFile \" + helpFile + \" tempPanelPath \" + tempPanelPath + \" componentName \" + componentName);
+	path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+	if(path == \"\")
+	{		
+		helpFile = tempPanelPath + \".htm\";
+//		DebugN(\"helpFile \" + helpFile);
+		path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+//	DebugN(componentName + \"/panels/\" + helpFile);
+		if(path == \"\")
+		{
+			fwException_raise(	exceptionInfo,
+								\"ERROR\",
+								\"Could not find the help file associated with the current panel\",
+								\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	
+//	DebugN(\"Final help path \" + path);
+	
+	fwOpenProgressBar(\"Help\", \"Opening help file...\", 1);
+	// If there were no exceptions, then display the help
+	if(_WIN32)
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandWindows\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+//		system(\"start iexplore \" + path + \" &\");
+		system(browserCommand);
+	}
+	else
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandLinux\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+		system(browserCommand);
+//		system(\"start iexplore \" + path + \" &\");
+	}
+	fwCloseProgressBar();
+}	" 0
+ 
+0
+14 5
+"dpname"
+""
+1 80 40 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 78 38 672 65
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = $sDpName;
+	this.editable = FALSE;
+}" 0
+ E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 780 20 T 2 1 0 1 74 -10
+1
+"$sPanelRelativePath""fwDevice/fwDeviceProperties"
+0

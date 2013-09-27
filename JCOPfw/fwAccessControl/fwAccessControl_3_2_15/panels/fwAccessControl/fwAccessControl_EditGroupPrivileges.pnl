@@ -1,0 +1,887 @@
+V 10
+1
+LANG:1 0 
+PANEL,48 62 640 480 N "_3DFace" 2
+"$groupName"
+"$privileges"
+"main()
+{
+dyn_string exceptionInfo;
+
+if (!isDollarDefined(\"$groupName\")) {
+	fwException_raise(exceptionInfo,\"ERROR\",
+		\"Dollar parameter $groupName missing\",\"\");
+};
+
+if (!isDollarDefined(\"$privileges\")) {
+	fwException_raise(exceptionInfo,\"ERROR\",
+		\"Dollar parameter $privileges missing\",\"\");
+};
+
+
+if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+}
+
+populatePanel();
+
+}
+" 0
+ E E E E 1 -1 -1 0  20 40
+""0  1
+E "// General functions...
+
+// this global variable stores currently edited privilege set (right panel)
+// [i][1]-> domain, [i][2]-> privilege, [i][3] -> domain:privilege
+global dyn_dyn_string g_GrantedPrivileges; 
+
+void populatePanel()
+{
+
+dyn_string domainlist, fullDomainNames, exceptionInfo;
+
+if ($groupName!=\"\") {
+	setValue(\"Group\",\"text\",$groupName);
+} else {
+	setValue(\"Group\",\"text\",\"[New Group]\");
+}
+setValue(\"Domain\",\"deleteAllItems\");
+
+fwAccessControl_getAllDomains(domainlist, fullDomainNames, exceptionInfo);
+if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+}
+
+setValue(\"PrivilegesFrame\",\"text\",\"Privileges\");
+setValue(\"Domain\",\"items\",domainlist);
+setValue(\"Domain\",\"text\",\"Select Domain\");
+setValue(\"PrivilegesTable\",\"visible\",FALSE);
+setValue(\"ShowAllPrivs\",\"enabled\",FALSE);
+
+populateGrantedPrivileges();
+}
+
+//  FUNCTIONS FOR GRANTED PRIVILEGES PANE
+//__________________________________________________________________________
+
+void populateGrantedPrivileges()
+{
+dyn_string privileges, exceptionInfo;
+int i;
+
+string groupName=$groupName;
+dyn_string domainNames;
+
+dynClear(g_GrantedPrivileges);
+
+privileges=strsplit($privileges,\"|\");
+
+for (i=1;i<=dynlen(privileges);i++) {
+
+	string privstr=strltrim(strrtrim(privileges[i]));
+	dyn_string spriv=strsplit(privstr,\":\");
+	g_GrantedPrivileges[i][1]=spriv[1];
+	g_GrantedPrivileges[i][2]=spriv[2];
+	g_GrantedPrivileges[i][3]=privstr;
+
+};
+
+repaintGrantedPrivileges();
+}
+
+//__________________________________________________________________________
+void repaintGrantedPrivileges()
+{
+
+int i,n;
+
+bool showAll;
+string domainFilter;
+
+getValue(\"ShowAllPrivs\",\"state\",0,showAll);
+getValue(\"Domain\",\"text\",domainFilter);
+
+if (showAll) domainFilter=\"\";
+
+
+setValue(\"GrantedPrivilegesTable\",\"deleteAllLines\");
+
+for (i=1;i<=dynlen(g_GrantedPrivileges);i++ ){
+
+	if ( (domainFilter!=\"\") && (g_GrantedPrivileges[i][1]!=domainFilter))
+		continue;
+
+	setValue(\"GrantedPrivilegesTable\",\"appendLine\",
+		\"Domain\",g_GrantedPrivileges[i][1],
+		\"Privilege\",g_GrantedPrivileges[i][2]);
+}
+
+// scroll the table to the top
+
+getValue(\"GrantedPrivilegesTable\",\"lineCount\",n);
+if (n>0) {
+	setValue(\"GrantedPrivilegesTable\",\"lineVisible\",0);
+	// trick to overcome improper display of first line in Motif Gedi...
+
+	setValue(\"GrantedPrivilegesTable\",\"addSelectLines\",makeDynInt(0));
+	setValue(\"GrantedPrivilegesTable\",\"removeSelectLines\",makeDynInt(0));
+}
+}
+
+//__________________________________________________________________________
+void filterGrantedPrivileges()
+{
+	bool showAll;
+	string domainFilter;
+
+	getValue(\"ShowAllPrivs\",\"state\",0,showAll);
+	getValue(\"Domain\",\"text\",domainFilter);
+
+	if (showAll) {
+		setValue(\"GrantedPrivilegesFrame\",\"text\",
+			\"Granted privileges:\");
+		domainFilter=\"\";
+	} else {
+		setValue(\"GrantedPrivilegesFrame\",\"text\",
+			\"Granted privileges in \"+domainFilter);
+
+	}
+	repaintGrantedPrivileges();
+}
+
+
+//  FUNCTIONS FOR DOMAIN PRIVILEGES PANE
+//__________________________________________________________________________
+
+
+void populatePrivileges(string domain)
+{
+dyn_string privilegeNames,exceptionInfo;
+string domainFullName,domainComment;
+int    domainId,i,j;
+dyn_int privilegeIds;
+dyn_string grantedPrivs;
+
+setValue(\"PrivilegesFrame\",\"text\",\"Privileges in \"+domain);
+setValue(\"PrivilegesTable\",\"deleteAllLines\");
+setValue(\"PrivilegesTable\",\"visible\",TRUE);
+
+// get all privileges in domain:
+fwAccessControl_getDomain(domain,
+			domainFullName,
+			domainComment,
+			domainId,
+			privilegeNames,
+			privilegeIds,
+			exceptionInfo);
+
+if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+}
+
+for (i=1;i<=dynlen(privilegeNames);i++) {
+
+	bool granted=FALSE;
+	for (j=1;j<=dynlen(g_GrantedPrivileges);j++) {
+	   if ( (g_GrantedPrivileges[j][1]==domain) &&
+	        (g_GrantedPrivileges[j][2]==privilegeNames[i])){
+		granted=TRUE;
+	   }
+		
+	}
+
+	setValue(\"PrivilegesTable\",\"appendLine\",
+		\"Ids\",privilegeIds[i],
+		\"Name\",privilegeNames[i],
+		\"Granted\",granted);
+}
+
+repaintPrivileges();
+setValue(\"PrivilegesTable\",\"lineVisible\",0);
+setValue(\"ShowAllPrivs\",\"enabled\",TRUE);
+
+}
+
+
+
+void repaintPrivileges()
+{
+	int i,numLines;
+	bool granted;
+	getValue(\"PrivilegesTable\",\"lineCount\",numLines);
+	for (i=1;i<=numLines;i++) {
+		getValue(\"PrivilegesTable\",\"cellValueRC\",i-1, \"Granted\", granted);
+		if (granted) {
+			setValue(\"PrivilegesTable\",\"cellBackColRC\",i-1,
+				\"Name\",\"lightgrey\");
+			setValue(\"PrivilegesTable\",\"cellBackColRC\",i-1,
+				\"Ids\",\"lightgrey\");
+		} else {
+			setValue(\"PrivilegesTable\",\"cellBackColRC\",i-1,
+				\"Name\",\"white\");
+			setValue(\"PrivilegesTable\",\"cellBackColRC\",i-1,
+				\"Ids\",\"white\");
+		};
+	};
+}
+
+
+
+
+
+// VARIOUS EVENT HANDLERS
+//__________________________________________________________________________
+
+void domainSelected(string domain)
+{
+	populatePrivileges(domain);
+	repaintPrivileges ();
+	filterGrantedPrivileges();
+}
+
+//__________________________________________________________________________
+void ShowAllPrivsChanged()
+{
+	filterGrantedPrivileges();
+}
+//__________________________________________________________________________
+void AddSelected()
+{
+	dyn_int selLines;
+	int i;
+	string domain,privilege;
+
+
+	getValue(\"Domain\",\"text\",domain);
+
+	getValue(\"PrivilegesTable\",\"getSelectedLines\",selLines);
+	for (i=1;i<=dynlen(selLines);i++) {
+		setValue(\"PrivilegesTable\",\"cellValueRC\",
+			selLines[i], \"Granted\", TRUE);
+
+		getValue(\"PrivilegesTable\",\"cellValueRC\",
+			selLines[i], \"Name\", privilege);
+
+		int idx=dynlen(g_GrantedPrivileges)+1;
+		g_GrantedPrivileges[idx][1]=domain;
+		g_GrantedPrivileges[idx][2]=privilege;
+		g_GrantedPrivileges[idx][3]=domain+\":\"+privilege;
+
+
+	};
+	setValue(\"PrivilegesTable\",\"removeSelectLines\",selLines);
+	repaintPrivileges();
+	repaintGrantedPrivileges();
+	// scroll the table so as the new line is visible
+	setValue(\"GrantedPrivilegesTable\",\"lineVisible\",-1);
+}
+//__________________________________________________________________________
+void AddAll()
+{
+	dyn_int selLines;
+	int i,n;
+	string domain,privilege;
+	bool granted;
+
+
+	getValue(\"Domain\",\"text\",domain);
+
+	getValue(\"PrivilegesTable\",\"lineCount\",n);
+
+	for (i=0;i<n;i++) {
+		getValue(\"PrivilegesTable\",\"cellValueRC\",
+			i, \"Granted\", granted);
+
+		if (!granted) {
+
+		setValue(\"PrivilegesTable\",\"cellValueRC\",
+			i, \"Granted\", TRUE);
+
+		getValue(\"PrivilegesTable\",\"cellValueRC\",
+			 i, \"Name\", privilege);
+
+		int idx=dynlen(g_GrantedPrivileges)+1;
+		g_GrantedPrivileges[idx][1]=domain;
+		g_GrantedPrivileges[idx][2]=privilege;
+		g_GrantedPrivileges[idx][3]=domain+\":\"+privilege;
+
+		}
+	};
+	
+	// remove selection:
+	getValue(\"PrivilegesTable\",\"getSelectedLines\",selLines);
+	setValue(\"PrivilegesTable\",\"removeSelectLines\",selLines);
+
+	repaintPrivileges();
+	repaintGrantedPrivileges();
+	// scroll the table so as the new line is visible
+	setValue(\"GrantedPrivilegesTable\",\"lineVisible\",-1);
+
+}
+//__________________________________________________________________________
+void RemoveSelected()
+{
+	dyn_int selLines;
+	int i,j,numPrivs;
+	string domain,privilege;
+	string selDomain;
+	dyn_string toRemove;
+
+	getValue(\"GrantedPrivilegesTable\",\"getSelectedLines\",selLines);
+	getValue(\"Domain\",\"text\",selDomain);
+	getValue(\"PrivilegesTable\",\"lineCount\",numPrivs);
+
+	for (i=1;i<=dynlen(selLines);i++) {
+		getValue(\"GrantedPrivilegesTable\",\"cellValueRC\",selLines[i],
+			 \"Domain\", domain);
+		getValue(\"GrantedPrivilegesTable\",\"cellValueRC\",selLines[i],
+			\"Privilege\",privilege);
+
+		// remove from granted privs list:
+		for (j=1;j<=dynlen(g_GrantedPrivileges);j++) {
+			if ( (g_GrantedPrivileges[j][1]==domain) &&
+			     (g_GrantedPrivileges[j][2]==privilege)) {
+				dynRemove(g_GrantedPrivileges,j);
+			}
+
+		}
+
+		// set \"Granted\" column to FALSE in PrivilegesTable
+		if ( domain == selDomain) {
+		   for (j=0;j<numPrivs;j++) {
+			string privname;
+			bool granted;
+			getValue(\"PrivilegesTable\",\"cellValueRC\",j,
+			 \"Name\", privname);
+			if (privname==privilege) {
+			   setValue(\"PrivilegesTable\",\"cellValueRC\",j,
+			    \"Granted\", FALSE);
+
+			}
+			
+		   }
+		};
+
+	}
+
+
+	repaintPrivileges();
+	repaintGrantedPrivileges();
+
+}
+//__________________________________________________________________________
+void RemoveAll()
+{
+	DebugN(\"Not implemented!\");
+}
+
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+22 0
+"Domain"
+""
+1 80 170 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  80 170 220 199
+0
+
+E
+"main()
+{
+	string domain;
+	getValue(\"\",\"selectedText\",domain);
+
+	domainSelected(domain);
+}" 0
+
+E
+ 0 0
+13 1
+"CancelButton"
+""
+1 540 440 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  540 440 620 467
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+2 3
+"PRIMITIVE_TEXT1"
+""
+1 22 22 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 22 22 257 40
+0 2 2 "s" 0 0 0 192 0 0  22 22 1
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 29 JCOP Framework Access Control
+14 5
+"Group"
+""
+1 80 90 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  80 90 220 119
+2 "s" 0 0 0 0 0 -1  E E E
+2 6
+"PRIMITIVE_TEXT2"
+""
+1 20 180 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 180 20 180
+0 2 2 "s" 0 0 0 192 0 0  20 180 1
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 7 Domain:
+25 7
+"PrivilegesTable"
+""
+1 30 230 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+95 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  30 230 220 400
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE );
+
+}" 0
+"main(int row, string column, string value)
+{
+
+	bool granted;
+	getValue(\"\",\"cellValueRC\",row,\"Granted\",granted);
+
+	if (granted) {
+		// unselect it...
+	setValue(\"\",\"removeSelectLines\",makeDynInt(row));
+	};
+}" 0
+ 1 0 1 3 1 "Ids" 2 1 0 "s" 1
+LANG:1 2 Id
+E
+1
+LANG:1 15 Privilege index
+
+30 "Granted" 0 0 0 "s" 1
+LANG:1 7 Granted
+E
+1
+LANG:1 15 Privilege index
+
+1 "Name" 16 1 0 "s" 1
+LANG:1 9 Privilege
+E
+1
+LANG:1 14 Privilege name
+
+140 
+17 17 "?" 0 10 84
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1 1 1 1 8
+1 0
+30 8
+"PrivilegesFrame"
+""
+1 20 110 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 20 Privileges in domain
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.9545454545454545 0 0.8750000000000001 0.9090909090909108 113.75 0 E 20 110 240 350
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 10 Privileges
+25 9
+"GrantedPrivilegesTable"
+""
+1 340 120 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+99 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  340 120 610 400
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE );
+
+}" 0
+E 1 0 1 2 1 "Domain" 12 1 0 "s" 1
+LANG:1 6 Domain
+E
+1
+LANG:1 11 Domain name
+
+110 "Privilege" 16 1 0 "s" 1
+LANG:1 9 Privilege
+E
+1
+LANG:1 14 Privilege name
+
+140 
+17 17 "?" 0 10 84
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1 1 1 1 8
+1 0
+30 10
+"GrantedPrivilegesFrame"
+""
+1 20 110 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+36 0 0 0 0 0
+E E E
+1
+1
+LANG:1 19 Granted Privileges:
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.318181818181818 0 1.372894353748571 303.6363636363636 -61.01837891234284 0 E 20 110 240 350
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 19 Granted privileges:
+13 11
+"AddButton"
+""
+1 250 230 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  250 230 310 257
+
+T 
+1
+LANG:1 1 >
+"main()
+{
+AddSelected();
+}" 0
+ E E E
+13 12
+"AddAllButton"
+""
+1 250 270 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  250 270 310 297
+
+T 
+1
+LANG:1 2 >>
+"main()
+{
+AddAll();
+}" 0
+ E E E
+13 13
+"RemoveButton"
+""
+1 250 330 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  250 330 310 357
+
+T 
+1
+LANG:1 1 <
+"main()
+{
+RemoveSelected();
+}" 0
+ E E E
+13 14
+"RemoveAllButton"
+""
+1 250 370 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  250 370 310 397
+
+T 
+1
+LANG:1 2 <<
+"main()
+{
+RemoveAll();
+}" 0
+ E E E
+13 15
+"OKButton"
+""
+1 440 440 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  440 440 520 467
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+int i;
+dyn_string privileges;
+
+for (i=1;i<=dynlen(g_GrantedPrivileges);i++) {
+privileges[i]=g_GrantedPrivileges[i][3];
+}
+
+
+PanelOffReturn(makeDynFloat(1.0),privileges);
+
+}" 0
+ E E E
+13 16
+"ResetButton"
+""
+1 20 440 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  20 440 100 467
+
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+	populatePanel();
+}" 0
+ E E E
+20 20
+"ShowAllPrivs"
+""
+1 420 50 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  420 50 618 78
+1
+T 
+1
+LANG:1 27 Show all granted privileges
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+setValue(\"\",\"state\",0,TRUE);
+}" 0
+"main(int button, int state)
+{
+	ShowAllPrivsChanged();
+}" 0
+30 21
+"FRAME1"
+""
+1 40 60 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+76 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8181818181818181 0 1 27.27272727272727 0 0 E 40 60 260 140
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 20 Privileges of group:
+1 22 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 270 20 T 101 1 0 1 332 -8
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_EditGroupPrivileges"
+0

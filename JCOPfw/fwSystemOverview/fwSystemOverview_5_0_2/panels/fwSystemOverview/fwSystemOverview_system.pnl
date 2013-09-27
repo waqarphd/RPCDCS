@@ -1,0 +1,533 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 804 659 N "_3DFace" 3
+"$host"
+"$projectDps"
+"$system"
+"main()
+{
+  while(1)
+  {
+    checkManagers();
+    delay(10);
+  }
+}
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  30 53
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+    
+void checkManagers()
+{
+  string user = \"\";
+  string pwd = \"\";
+  string port = 4999;
+  
+
+  //Find project where the event manager runs:
+  dyn_string ex;
+  string hostDp;
+  fwSysOverview_getHostDp($host, hostDp);
+  dyn_string projDps = fwSysOverview_getHostProjectDps(hostDp);  
+  for(int i = 1; i <= dynlen(projDps); i++)
+  {
+    dyn_mixed data;
+    dynClear(data);
+    fwSysOverview_getProjAccessData(projDps[i], data);
+//DebugN(projDps[i], data, fwSysOverview_PROJECT_SYSTEM_NAME_IDX);   
+    if(dynlen(data) > 0 && data[fwSysOverview_PROJECT_SYSTEM_NAME_IDX] == $system)
+    {
+      user = data[fwSysOverview_PROJECT_PMON_USER_IDX]; 
+      pwd  = data[fwSysOverview_PROJECT_PMON_PASS_IDX];
+      port = data[fwSysOverview_PROJECT_PMON_NUM_IDX];
+    }
+  }
+  
+  bool isRunning = false;  
+  int st = fwInstallationManager_isRunning(\"WCCILdist\", \"\", isRunning, $host, port, user, pwd);
+  if(st)
+    shDist.backCol = \"FwEquipmentDisabled\";
+  else if(isRunning)
+    shDist.backCol = \"FwStateOKPhysics\";
+  else
+    shDist.backCol = \"FwAlarmFatalAck\";
+
+  st = fwInstallationManager_isRunning(\"WCCOActrl\", \"fwInstallationAgent.lst\", isRunning, $host, port, user, pwd);
+  if(st)
+    shInstAgent.backCol = \"FwEquipmentDisabled\";
+  else if(isRunning)
+    shInstAgent.backCol = \"FwStateOKPhysics\";
+  else
+    shInstAgent.backCol = \"FwAlarmFatalAck\";
+  
+  st = fwInstallationManager_isRunning(\"WCCOActrl\", \"unSystemIntegrity.ctl\", isRunning, $host, port, user, pwd);
+  if(st)
+    shSysInt.backCol = \"FwEquipmentDisabled\";
+  else if(isRunning)
+    shSysInt.backCol = \"FwStateOKPhysics\";
+  else
+    shSysInt.backCol = \"FwAlarmFatalAck\";
+  
+  st = fwInstallationManager_isRunning(\"WCCOActrl\", \"unicos_scripts.lst\", isRunning, $host, port, user, pwd);
+  if(st)
+    shUnicos.backCol = \"FwEquipmentDisabled\";
+  else if(isRunning)
+    shUnicos.backCol = \"FwStateOKPhysics\";
+  else
+    shUnicos.backCol = \"FwAlarmFatalAck\";
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+1 223 1 "" 1
+0
+1 224 1 "" 3
+0
+1 225 1 "" 10
+0
+1 226 1 "" 11
+0
+1 227 1 "" 12
+0
+1 228 1 "" 13
+0
+1 229 1 "" 15
+0
+1 230 1 "" 16
+0
+1 231 1 "" 18
+0
+1 232 1 "" 19
+0
+1 233 1 "" 20
+0
+1 234 1 "" 21
+0
+13 81
+"PUSH_BUTTON2"
+""
+1 460 40 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  458 38 552 62
+
+T 
+1
+LANG:1 11 PVSS SysOv.
+"main()
+{
+  dyn_mixed data;
+  string host = $host;
+  fwInstallationDB_getPvssSystemProperties($system, data);
+  string cmd = PVSS_BIN_PATH + \"/WCCOAui -p 'vision/SystemOverviewNonRedundant.pnl,$System:\" + $system + 
+               \"' -event \" + data[FW_INSTALLATION_DB_SYSTEM_COMPUTER] + \":\" + data[FW_INSTALLATION_DB_SYSTEM_EVENT_PORT]+ 
+               \" -data \" + data[FW_INSTALLATION_DB_SYSTEM_COMPUTER] + \":\" + data[FW_INSTALLATION_DB_SYSTEM_DATA_PORT];
+  
+  dyn_mixed projData;
+  dyn_string ex;
+  string projDp = fwSysOverview_getSystemEventProjectDp($system, $host, ex);
+  fwSysOverview_getProjAccessData(projDp, projData);
+  if(projData[fwSysOverview_PROJECT_PMON_USER_IDX] != \"\" && projData[fwSysOverview_PROJECT_PMON_USER_IDX] != \"N/A\")
+    cmd += cmd + \" -user \" + projData[fwSysOverview_PROJECT_PMON_USER_IDX];    
+
+  if(projData[fwSysOverview_PROJECT_PMON_PASS_IDX] != \"\" && projData[fwSysOverview_PROJECT_PMON_PASS_IDX] != \"N/A\")
+    cmd += cmd + \":\" + projData[fwSysOverview_PROJECT_PMON_PASS_IDX];    
+  
+DebugN(cmd);
+
+  if(_WIN32)
+    system(\"cmd /c\" + cmd);    
+  else
+    system(cmd);
+}
+
+string fwSysOverview_getSystemEventProjectDp(string sys, string host, dyn_string &ex)
+{
+  dyn_string projDps;
+  string sysDp, hostDp, projHost;
+  fwSysOverview_getSystemDp(sys, host, sysDp, ex);
+  fwSysOverview_getSystemProjects(sysDp, projDps, ex);
+  for(int i = 1; i <= dynlen(projDps); i++)
+  {
+    fwSysOverview_getProjectPc(projDps[i], hostDp, ex);
+    fwSysOverview_getHostDb(hostDp, projHost, ex);
+    if(host == projHost) return projDps[i];
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+13 82
+"PUSH_BUTTON3"
+""
+1 460 70 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  458 68 552 92
+
+T 
+1
+LANG:1 12 Connectivity
+"main()
+{
+  ChildPanelOnCentral(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_pvssSystemProperties.pnl\", $system + \" : System Properties\", makeDynString(\"$sys:\" + $system));    
+}
+
+
+" 0
+ E E E
+7 83
+"shDist"
+""
+1 470 60 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 -103 -545 1 E 480 579 7 7
+7 84
+"shInstAgent"
+""
+1 470 60 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 -103 -551.909090909091 1 E 480 606 7 7
+7 85
+"shUnicos"
+""
+1 470 60 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 -103 -559.5454545454546 1 E 480 634 7 7
+7 86
+"shSysInt"
+""
+1 470 60 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 -103 -566.8181818181819 1 E 480 661 7 7
+2 130
+"PRIMITIVE_TEXT31"
+""
+1 260 27 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 260 27 358 42
+0 2 2 "0s" 0 0 0 192 0 0  260 27 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 20 Distribution Manager
+2 131
+"PRIMITIVE_TEXT32"
+""
+1 257 49 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 257 49 357 64
+0 2 2 "0s" 0 0 0 192 0 0  257 49 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Installation DB-Agent
+2 132
+"PRIMITIVE_TEXT33"
+""
+1 -1451.56752430282 125 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.9523809523809523 0 1 -244.2380952380952 7 0 E 522 62 630 77
+0 2 2 "0s" 0 0 0 192 0 0  522 62 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 23 System Integrity Script
+2 133
+"PRIMITIVE_TEXT34"
+""
+1 293 89 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 293 89 363 104
+0 2 2 "0s" 0 0 0 192 0 0  293 89 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Unicos Scripts
+30 177
+"FRAME5"
+""
+1 460 3 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+71 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.8121827411167512 -260 7.563451776649742 0 E 460 3 671 201
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Special Manager Statuses
+30 178
+"FRAME6"
+""
+1 470 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+72 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.4 0 0.772946859903382 -238 -0.04830917874396024 0 E 470 13 571 221
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Details
+1 235 2 "" 12
+0
+1 237 2 "" 2
+0
+1 238 2 "" 13
+0
+1 240 2 "" 20
+0
+1 241 2 "" 22
+0
+1 242 2 "" 23
+0
+1 243 2 "" 24
+0
+1 244 2 "" 28
+0
+1 245 2 "" 30
+0
+1 246 2 "" 31
+0
+1 247 2 "" 32
+0
+1 256 2 "" 61
+0
+1 258 2 "" 63
+0
+1 261 2 "" 67
+0
+1 262 2 "" 68
+0
+1 264 2 "" 70
+0
+1 267 2 "" 74
+0
+1 236 2 "" 1
+0
+1 239 2 "" 16
+0
+1 248 2 "" 41
+0
+1 249 2 "" 42
+0
+1 250 2 "" 43
+0
+1 251 2 "" 45
+0
+1 252 2 "" 46
+0
+1 253 2 "" 57
+0
+1 254 2 "" 58
+0
+1 255 2 "" 59
+0
+1 257 2 "" 62
+0
+1 259 2 "" 64
+0
+1 260 2 "" 65
+0
+1 263 2 "" 69
+0
+1 265 2 "" 71
+0
+1 266 2 "" 72
+0
+13 222
+"PUSH_BUTTON4"
+""
+1 690 600 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  688 598 792 632
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 1 "PANEL_REF1" -1
+"fwSystemOverview\\fwSystemOverview_systemInfo.pnl" 0 0 T 60 U 
+3
+"$host"""
+"$project"""
+"$system""$system"
+3 2 "PANEL_REF2" -1
+"fwSystemOverview\\fwSystemOverview_projectsSummary.pnl" 10 159 T 73 1 0 1 0 20
+2
+"$host""$host"
+"$projectDps""$projectDps"
+0

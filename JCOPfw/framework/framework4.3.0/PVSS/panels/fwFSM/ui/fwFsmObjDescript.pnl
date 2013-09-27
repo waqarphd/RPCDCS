@@ -1,0 +1,367 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 401 122 N "_3DFace" 2
+"$1"
+"$2"
+E E E E E 1 -1 -1 0  20 20
+""0  1
+E E 2
+"CBRef" "0"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"title"
+""
+1 20 20 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"string CurrState;
+time CurrStateTime;
+string CurrAction;
+time CurrActionTime;
+int MaxTime;
+
+main()
+{
+	string domain, obj, type, sys, sys1, pdev, objtype;
+	dyn_string pars;
+	 
+//	setValue(\"\",\"text\",\"Sub-System: \"+$1);
+	objtype = \"Object\";
+	domain = $1;
+	if(fwFsm_isAssociated($2))
+	{
+		domain = fwFsm_getAssociatedDomain($2);
+		obj = fwFsm_getAssociatedObj($2);
+		if(fwFsm_isProxy(obj))
+			objtype = \"Device\";
+	}
+	else
+	{
+		obj = $2;
+		if(fwFsm_isProxy($2))
+			objtype = \"Device\";
+	}
+	if($2 != $1)		
+		setValue(\"subtitle\",\"text\",objtype+\": \"+$2);
+	else
+		setValue(\"subtitle\",\"text\",\"\");
+	fwFsm_getObjectType($1+\"::\"+$2, type);
+	fwUi_getDomainSys(domain, sys);
+        sys1 = strrtrim(sys,\":\");
+	setValue(\"\",\"text\",\"Sub-System: \"+$1+\" (on \"+sys1+\")\");
+        if(objtype == \"Device\")
+        {
+          if(fwFsm_isLogicalDeviceName(sys+obj))
+          {
+            pdev = fwFsm_getPhysicalDeviceName(sys+obj);
+	    setValue(\"subtitle_phys\",\"text\",\"(\"+pdev+\")\");
+            setValue(\"subtitle_phys\",\"visible\", 1);
+          }
+        }
+	fwFsm_readObjectParameters(sys+type, pars);
+	if(dynlen(pars))
+	{
+		addSymbol(myModuleName(),myPanelName(),\"fwFSM/ui/fwFsmParams.pnl\",\"params\",
+			makeDynString(sys+type,\"\",\"\",$1,$2),30,95,0,1,1);
+	}
+	fwUi_connectCurrentState(\"check_state\",$1, $2);
+	fwUi_connectExecutingAction(\"check_action\",$1, $2);
+/*
+	while(1)
+	{
+		delay(1);
+		updateTime();
+	}
+*/
+}
+
+check_state(string dp, string state)
+{
+	dyn_string devices;
+	int i, flag, tout, tot_time;
+	time stime, timeout;
+	string s, du_state;
+
+//	fwUi_getCurrentStateTime($1, $2, stime);
+	CurrState = state;
+//	CurrStateTime = stime;
+/*
+	fwUi_getIncludedTreeDevices($1, $1, devices, flag);
+	tot_time = 0;
+	for(i = 1; i<= dynlen(devices); i++)
+	{
+//		fwDU_getParameter(devices[i],\"StateTimeout\",tout);
+		fwDU_getState(devices[i],du_state);
+		fwDU_getStateTime(devices[i],du_state,tout);
+		if(tout > tot_time)
+			tot_time = tout;
+	}
+	if(tot_time)
+	{
+		timeout = tot_time;
+		sprintf(s,\"%02d:%02d:%02d\",hour(timeout)-1,minute(timeout),second(timeout));
+		setValue(\"max_time\",\"text\",\"MAX: \"+s);
+		MaxTime = 1;
+	}
+	else
+	{
+		setValue(\"max_time\",\"text\",\"\");
+		MaxTime = 0;
+	}
+	*/
+	updateTime();
+}
+
+check_action(string dp, string action)
+{
+	dyn_string devices;
+	int i, flag, tout, tot_time;
+	time stime, timeout;
+	string s, du_state, du_cmd, du_action;
+
+//	fwUi_getExecutingActionTime($1, $2, stime);
+	CurrAction = action;
+/*
+	CurrActionTime = stime;
+	if(CurrAction == \"\")
+		return;
+
+	fwUi_getIncludedTreeDevices($1, $1, devices, flag);
+	tot_time = 0;
+	for(i = 1; i<= dynlen(devices); i++)
+	{
+//		fwDU_getParameter(devices[i],\"StateTimeout\",tout);
+		fwDU_getState(devices[i],du_state);
+		delay(0,100);
+		fwDU_getCommand(devices[i],du_cmd);
+		fwDU_getAction(du_cmd, du_action);
+		fwDU_getActionTime(devices[i],du_state,du_action,tout);
+DebugN(devices[i], du_state, du_action, tout);
+		if(tout > tot_time)
+			tot_time = tout;
+	}
+	if(tot_time)
+	{
+		timeout = tot_time;
+		sprintf(s,\"%02d:%02d:%02d\",hour(timeout)-1,minute(timeout),second(timeout));
+		setValue(\"max_time\",\"text\",\"MAX: \"+s);
+		MaxTime = 1;
+	}
+	else
+	{
+		setValue(\"max_time\",\"text\",\"\");
+		MaxTime = 0;
+	}
+	*/
+	updateTime();
+}
+
+updateTime()
+{
+	string s, msg;
+	time currtime, timeout;
+
+//	currtime = getCurrentTime();
+	if(CurrAction != \"\")
+	{
+//		timeout = currtime - CurrActionTime;
+//		sprintf(s,\"%02d:%02d:%02d\",hour(timeout)-1,minute(timeout),second(timeout));
+		msg = \"Executing \"+CurrAction;
+//		if(MaxTime)
+//			msg += \" since \"+s;
+		setValue(\"time\",\"text\",msg);	
+	}
+	else
+	{
+//		timeout = currtime - CurrStateTime;
+//		sprintf(s,\"%02d:%02d:%02d\",hour(timeout)-1,minute(timeout),second(timeout));
+		msg = \"In state \"+CurrState;
+//		if(MaxTime)
+//			msg += \" since \"+s;
+		setValue(\"time\",\"text\",msg);	
+	}
+}
+
+
+/*
+show_parameters(string dp, dyn_string pars)
+{
+	int i, pos;
+	dyn_string par_dps;
+	string name, value, def_value, par_type, type;
+	fwFsm_getObjectType($1+\"::\"+$2, type);
+	addSymbol(myModuleName(),myPanelName(),\"FwFSM/ui/fwFsmParams.pnl\",\"params\",
+		makeDynString(type,\"\",\"\",$1,$2),100,100,0,1,1);
+	fwFsm_readObjectParameters(type, par_dps);
+//	if(dynlen(par_dps))
+//	{
+//		setValue(\"param_label\",\"visible\",1);
+//		setValue(\"value_label\",\"visible\",1);
+//	}
+	for(i = 1; i <= dynlen(par_dps); i++)
+	{
+
+		def_value = \"\";
+		if((pos = strpos(par_dps[i],\" = \")) > 0)
+		{
+			def_value = substr(par_dps[i],pos+3);
+			par_dps[i] = substr(par_dps[i], 0, pos);
+		}
+		pos = strpos(par_dps[i],\" \");
+		par_type = substr(par_dps[i], 0, pos);
+		par_dps[i] = substr(par_dps[i],pos+1);
+		if((pos = strpos(def_value,\"\\\"\")) == 0)
+		{
+			def_value = substr(def_value,1,strlen(def_value)-2);
+		}
+
+//		items = strsplit(pars[i],\" \");
+//		name = items[1];
+ 
+		fwUi_getCurrentParameter($1, $2, par_dps[i], value);
+		if(value == \"\")
+		{
+			value = def_value;
+		}
+		setValue(\"Button\"+i,\"text\",par_dps[i]);
+//		setValue(\"type\"+i,\"text\",par_type);
+		setValue(\"value\"+i,\"text\",value);
+//		setValue(\"type\"+i,\"visible\",1);
+		setValue(\"Button\"+i,\"visible\",1);
+		setValue(\"value\"+i,\"visible\",1);
+	}
+//	setValue(\"type\"+i,\"text\",\"\");
+}
+*/
+//Function Button1_EventInitialize()
+" 0
+ E 0 1 1 0 1 E U  1 E 22 22 57 39
+0 2 0 "0s" 0 0 0 192 0 0  22 22 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Text1
+2 1
+"subtitle"
+""
+1 30 50 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 32 52 48 69
+0 2 0 "0s" 0 0 0 192 0 0  32 52 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3  ss
+2 3
+"time"
+""
+1 48 88 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 50 90 62 107
+0 2 0 "0s" 0 0 0 192 0 0  50 90 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 2 ss
+2 4
+"max_time"
+""
+1 300 60 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 302 62 303 79
+0 2 0 "0s" 0 0 0 192 0 0  302 62 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 6
+"subtitle_phys"
+""
+1 78 68 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 80 70 96 87
+0 2 0 "0s" 0 0 0 192 0 0  80 70 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3  ss
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

@@ -1,0 +1,692 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 738 177 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+	stateSetting.appendItem(\"Select option...\");
+	stateSetting.appendItem(\"Loop OFF\");
+	stateSetting.appendItem(\"Stand-by mode\");
+	stateSetting.appendItem(\"Loop ON\");
+	stateSetting.appendItem(\"Locked\");
+	//stateSetting.appendItem(\"Purge\");
+	stateSetting.selectedPos(1);
+        
+}" 0
+ E E E E 1 0 0 0  0 0
+""0  1
+E "
+dyn_string loopDps;
+string falseColor = \"White\";
+string trueColor  = \"FwStateAttention3\";
+dyn_dyn_string possibleLoopStates;
+dyn_string allowedStatus;
+string statusLoop;
+dyn_string children;
+
+// The function executed in case of update of the status information
+refresh_status(string dp, anytype val, string dp2, bool invalid, string dp3, bool driverStatus, string dp4, bool dataValid, string dp5, bool plcConn)
+{
+	if(!dataValid)
+             statusLoop=\"Invalid data\";
+        else if(!driverStatus)
+             statusLoop=\"Modbus driver not running\";         
+        else if(!plcConn)
+             statusLoop=\"No PLC connection\";   
+
+        if(!dataValid || !driverStatus || !plcConn)
+        {
+           for(int i=0; i<dynlen(children); i++)
+              setValue(\"Table1\", \"cellValueRC\", i, \"status\", statusLoop);   
+           return;   
+        }           
+          
+        // get the current state
+        dyn_string current;
+	for(int i=0; i<4; i++)
+            if(getBit(val,i))			
+		dynInsertAt(current, possibleLoopStates[i+1][2],1);
+
+	if(dynlen(current)==0 || dynlen(current)>1)
+		statusLoop=\"Invalid combination\";
+	else if(invalid)
+		statusLoop=\"Invalid data\";
+	else
+		statusLoop = current[1];		
+                
+        // loop through elements in table to find out which row was updated
+        string number;
+        int lenChildren = dynlen(children);
+        for(int i=1; i<=lenChildren; i++)
+        {
+               number = i;
+               
+               // the rest of a code is a nasty hack but it works :D
+               if(lenChildren>99 && i<10)
+                 number=\"00\"+i;
+               else if((lenChildren<100 && i<10) || (lenChildren>99 && i<100 && i>10))
+                 number=\"0\"+i;      
+
+               if(patternMatch(\"*Loop\"+number+\"*\",dp))
+               {
+                 dyn_string matchdp;
+                 matchdp = dynPatternMatch(\"*Loop\"+number+\"*\",children);
+                 if(dynContains(children,matchdp[1])>0)
+                     setValue(\"Table1\", \"cellValueRC\", dynContains(children,matchdp[1])-1, \"status\", statusLoop);        
+                 break;         
+               }
+        }   
+        
+}
+
+changeStateLoop(int pos, string loopSel)
+{
+
+	if(possibleLoopStates[pos][1]==\"0\")
+	{
+		DebugN(\"Not allowed state\");
+		return;
+	}
+	bit32 current_state;
+	// Do we want to get data from Actual or Readback ?
+	dpGet(loopSel+\".Actual.status\", current_state);	
+	// Zero the exclusive bits
+	setBit(current_state,0,0);
+	setBit(current_state,1,0);
+	setBit(current_state,2,0);
+	setBit(current_state,3,0);
+	// Set new state
+	setBit(current_state,(pos-1),1);
+	dpSet(loopSel+\".Settings.control\",current_state);
+}
+
+getValueStatus(string sDpName)
+{
+	string aStatus;
+	string aControl;
+	statusLoop = \"\";
+	// Obtain possible bits
+	string deviceDpType, deviceModel;
+	dyn_dyn_string elements;
+	dyn_string exceptionInfo;
+	deviceDpType = dpTypeName(sDpName);
+	fwDevice_getModel(makeDynString(sDpName), deviceModel, exceptionInfo);
+	fwDevice_getConfigElements(deviceDpType, fwDevice_ALL, elements, exceptionInfo, deviceModel, sDpName);
+        
+        /*if(dynlen(exceptionInfo)>0)
+        {
+               fwExceptionHandling_display(exceptionInfo);
+               return; 
+        }*/
+        
+	aStatus =  elements[fwDevice_USER_DATA_INDEX][1]; //\"1;1;1;0;1;1;1;0;1;0;0;0;0;1;1;0\";
+
+	// Convert to dyn_string - easier to handle	
+	fwGeneral_stringToDynString(aStatus,allowedStatus,\";\");
+	// Initialize the possibleLoopStates dyn_dyn_string
+	dynAppend(possibleLoopStates, makeDynString(\"0\", \"Loop OFF\"));
+	dynAppend(possibleLoopStates, makeDynString(\"0\", \"Stand-by mode\"));
+	dynAppend(possibleLoopStates, makeDynString(\"0\", \"Loop ON\"));
+	dynAppend(possibleLoopStates, makeDynString(\"0\", \"Locked\"));
+	//dynAppend(possibleLoopStates, makeDynString(\"0\", \"Purge\"));
+	for(int i=5; i<=16; i++)
+		dynAppend(possibleLoopStates, makeDynString(\"0\", \"\"));
+	
+	// initialize the allowed bits
+        for(int i=1; i<=16; i++)
+	{
+		possibleLoopStates[i][1] = allowedStatus[i];
+	}
+
+	if(dpExists(sDpName+\".Actual.status\"))
+	{
+		dpConnect(\"refresh_status\", 
+                            sDpName+\".Actual.status\", 
+                            sDpName+\".Actual.status:_online.._invalid\",
+                            $sDpName+\".Connection.driverStatus:_online.._value\",
+                            $sDpName+\".Connection.dataValid:_online.._value\",
+                            $sDpName+\".Connection.plcConnection:_online.._value\");
+	}
+}
+
+refresh(string dp1, anytype val1, string dp2, anytype val2)
+{
+	int tmp;
+	tmp = dynContains(loopDps, dpSubStr(dp1,DPSUB_SYS_DP));
+	if(tmp<=0)
+		return;
+	if(val1==0 && val2==0)
+	{
+		this.cellBackColRC(tmp-1,\"problem\",falseColor);
+		this.cellValueRC(tmp-1,\"problem\",\"0\");
+	}	
+	else
+	{
+		this.cellBackColRC(tmp-1,\"problem\",trueColor);
+		this.cellValueRC(tmp-1,\"problem\",\"1\");
+	}	
+}
+
+
+/* Following functions are based on the fwColour control library
+ * They have been modified to work with this table
+ */
+
+fwCaV_connectCellBackColToStatus(string object, int row, string col, string dpe, dyn_string &exceptionInfo)
+{
+	int configType;
+	string elementColour;
+
+	if(!dpExists(dpe))
+	{
+		fwException_raise(	exceptionInfo, 
+							\"ERROR\", 
+							\"fwColour_connectToStatus(): The data point element\\n\\\"\" + dpe + \"\\\" does not exist\", 
+							\"\");
+		setValue(object, \"cellBackColRC\", row, col, \"DpDoesNotExist\");
+		setValue(object, \"cellForeColRC\", row, col, \"DpDoesNotExist\");
+//		this.backCol(\"DpDoesNotExist\");
+//		this.foreCol(\"DpDoesNotExist\");
+		return;
+	}
+
+	dpGet(dpe + \":_alert_hdl.._type\", configType); 
+	
+	switch(configType)
+	{
+		case DPCONFIG_SUM_ALERT:
+   			if(dpConnect(	\"_fwCaVCalculateColourWithSummaryAlertCB\",
+							dpe + \":_alert_hdl.._act_state_color\", 
+							dpe + \":_alert_hdl.._active\") == -1) 
+  			{
+   				fwException_raise(	exceptionInfo, 
+   									\"INFO\", 
+   									\"fwColour_connectToStatus(): Connecting to the status of the data point element\\n\\\"\" + dpe + \"\\\" was unsuccessful\", 
+   									\"\");
+					setValue(object, \"cellBackColRC\", row, col, \"DpDoesNotExist\");
+					setValue(object, \"cellForeColRC\", row, col, \"DpDoesNotExist\");   									
+//  				this.backCol(\"DpDoesNotExist\");
+//  				this.foreCol(\"DpDoesNotExist\");
+			}
+			break;
+		
+		case DPCONFIG_NONE: 
+			if(dpElementType(dpe) == DPEL_STRUCT)
+  			{
+//		fwColour_convertStatusToColour(elementColour, \"\", FALSE, FALSE, exceptionInfo);
+				elementColour = \"FwStateOKPhysics\";
+				setValue(object, \"cellBackColRC\", row, col, elementColour);				
+//				this.backCol(elementColour);
+			}
+			else
+			{
+   				if(dpConnect(	\"_fwCaVCalculateColourWithoutAlertCB\",
+ 								dpe + \":_original.._invalid\") == -1)
+  				{
+   					fwException_raise(	exceptionInfo, 
+   										\"INFO\", 
+   										\"fwColour_connectToStatus(): Connecting to the status of the data point element\\n\\\"\" + dpe + \"\\\" was unsuccessful\", 
+   										\"\");
+						setValue(object, \"cellBackColRC\", row, col, \"DpDoesNotExist\");
+						setValue(object, \"cellForeColRC\", row, col, \"DpDoesNotExist\"); 										
+//  					this.backCol(\"DpDoesNotExist\");
+//  					this.foreCol(\"DpDoesNotExist\");
+				}
+			}
+			break;
+		default:
+			if(dpConnect(	\"_fwCaVCalculateColourWithAlertCB\",
+							dpe + \":_alert_hdl.._act_state_color\", 
+							dpe+\":_alert_hdl.._active\",
+							dpe+\":_original.._invalid\") == -1) 
+  			{
+  				fwException_raise(	exceptionInfo, 
+  									\"INFO\", 
+  									\"fwColour_connectToStatus(): Connecting to the status of the data point element\\n\\\"\" + dpe + \"\\\" was unsuccessful\",
+  									\"\");
+					setValue(object, \"cellBackColRC\", row, col, \"DpDoesNotExist\");
+					setValue(object, \"cellForeColRC\", row, col, \"DpDoesNotExist\");  									
+//  				this.backCol(\"DpDoesNotExist\");
+//  				this.foreCol(\"DpDoesNotExist\");
+  			}
+			break;
+	}
+}
+
+_fwCaVCalculateColourWithAlertCB(string dpe1, string alertColour, string dpe2, bool alarmActive, string dpe3, bool dataInvalid)
+{
+	string elementColour;
+	dyn_string exceptionInfo;
+
+	fwColour_convertStatusToColour(elementColour, alertColour, !alarmActive, dataInvalid, exceptionInfo);
+
+	_fwCaVsetColor(dpe1, elementColour);
+}
+
+_fwCaVCalculateColourWithSummaryAlertCB(string dpe1, string alertColour, string dpe2, bool alarmActive)
+{
+	string elementColour;
+	dyn_string exceptionInfo;
+
+	fwColour_convertStatusToColour(elementColour, alertColour, !alarmActive, FALSE, exceptionInfo);
+
+	_fwCaVsetColor(dpe1, elementColour);
+}
+
+_fwCaVCalculateColourWithoutAlertCB(string dpe1, bool dataInvalid)
+{
+	string elementColour;
+	dyn_string exceptionInfo;
+
+	fwColour_convertStatusToColour(elementColour, \"\", 0, dataInvalid, exceptionInfo);
+
+	_fwCaVsetColor(dpe1, elementColour);
+}
+
+_fwCaVsetColor(string dpe1, string elementColour)
+{
+	int tmp;
+	tmp = dynContains(loopDps, dpSubStr(dpe1,DPSUB_SYS_DP));
+	if(tmp<=0)
+		return;
+	this.cellBackColRC(tmp-1,\"problem\",elementColour);
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 4
+"Text1"
+""
+1 0 243 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 382 154 448 170
+0 2 0 "0s" 0 0 0 64 0 0  382 154 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Command to send:
+25 0
+"Table1"
+""
+1 -18.824088748019 -200.9 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ "main()
+{
+	this.selectLineN(-1);
+}" 0
+ "main()
+{
+	int column, row;
+	string dp;
+	getValue(\"\", \"currentCell\", row, column);
+	dp  = this.cellValueRC(row,\"devicedpname\");
+	if(dpExists(dp))
+	{	
+		// Obtain the information - which operational panel should be opened
+		dyn_string exceptionInfo;
+		string deviceDpType = dpTypeName(dp);
+		string model;
+		fwDevice_getModel(makeDynString(dp), model, exceptionInfo);
+		dyn_string panels;
+		fwDevice_getDefaultOperationPanels(deviceDpType, panels, exceptionInfo, model);
+
+	  ChildPanelOnCentral(panels[1]+\".pnl\",
+      \"Child Parameters - \"+dp,
+      makeDynString(\"$sDpName:\" + dp));
+	}
+}" 0
+
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 0 -2 734 149
+"main()
+{
+	int i, startingNumber;
+	string deviceName, model, description;
+	dyn_string exceptionInfo;
+
+        bool configExists, isActive;
+        dyn_anytype config;	
+        
+	fwDevice_getChildrenInSlots($sDpName, fwDevice_HARDWARE, children, exceptionInfo);
+        
+        if(dynlen(exceptionInfo)>0)
+        {
+               fwExceptionHandling_display(exceptionInfo);
+               return; 
+        }
+        
+	fwDevice_getModelStartingNumber($sDpName, startingNumber, exceptionInfo);
+
+        if(dynlen(exceptionInfo)>0)
+        {
+               fwExceptionHandling_display(exceptionInfo);
+               return; 
+        }        
+        
+	this.tableMode(TABLE_SELECT_MULTIPLE);
+	this.selectByClick(TABLE_SELECT_LINE);
+        this.selectColors(\"blue\", \"white\");
+        
+        int countNotConfigured=0;
+        int countLoops=0;
+	int countL=0, countG=0, countP=0, countA=0;;
+	string sTmp, cTmp;
+	for(i = 1; i <= dynlen(children); i++) 
+	{
+		if(dpExists(children[i]))
+		{
+			fwDevice_getName(children[i], deviceName, exceptionInfo);
+			description = dpGetComment(children[i]); 
+			dynAppend(loopDps, dpSubStr(children[i], DPSUB_SYS_DP));
+                        
+                        if((dpTypeName(children[i])!=\"FwCaVAreaflow\") && (dpTypeName(children[i])!=\"FwCaVAreatemp\"))
+                        {
+                            countLoops++;
+                            fwPeriphAddress_get(children[i]+\".Settings.control\", configExists, config, isActive, exceptionInfo);
+                            if(!configExists)
+                                countNotConfigured++;
+                        }
+
+			if(dpTypeName(children[i])==\"FwCaVLoop\")
+			{
+				countL++;
+				sTmp = \"L\";
+				cTmp = countL;
+				getValueStatus(children[i]);
+			}
+			else if(dpTypeName(children[i])==\"FwCaVGroup\")
+			{
+				countG++;
+				sTmp = \"G\";
+				cTmp = countG;
+                                statusLoop = \"---\";
+			}
+                        else if((dpTypeName(children[i])==\"FwCaVAreaflow\") || (dpTypeName(children[i])==\"FwCaVAreatemp\"))
+			{
+				countA++;
+				sTmp = \"A\";
+				cTmp = countA;
+                                statusLoop = \"---\";
+			}
+			else if(dpTypeName(children[i])==\"FwCaVPlant\")
+			{
+				countP++;
+				sTmp = \"P\";
+				cTmp = countP;
+			}
+                        //DebugN(dpTypeName(children[i]),i, statusLoop);                        
+			Table1.appendLine(\"type\", sTmp, \"number\", cTmp, \"status\", statusLoop, \"name\", deviceName, 
+						\"description\", description, \"devicedpname\", children[i], \"problem\", \"\");
+			fwCaV_connectCellBackColToStatus(\"Table1\", i-1, \"problem\", children[i]+\".\", exceptionInfo);
+		}
+	}
+	Table1.lineVisible(0);
+
+        // hide change setting options if no loop elements are configured.
+        if(countLoops==countNotConfigured)
+        {
+            string refName = this.refName();
+            setValue(refName+\".Text1\",\"visible\",false);
+            setValue(refName+\".stateSetting\",\"visible\",false);
+            setValue(refName+\".stateApplyChange\",\"visible\",false);
+        }
+        
+	//this.tableMode(TABLE_SELECT_BROWSE);
+	//this.selectByClick(TABLE_SELECT_LINE);
+	if(dynlen(exceptionInfo) > 0)
+        {
+		fwExceptionHandling_display(exceptionInfo);	
+        }
+}" 0
+E 1 0 1 7 1 "type" 2 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+40 "number" 2 1 0 "s" 1
+LANG:1 1 #
+E
+1
+LANG:1 0 
+
+30 "problem" 2 1 0 "s" 1
+LANG:1 5 Alert
+E
+1
+LANG:1 0 
+
+40 "status" 9 1 0 "s" 1
+LANG:1 5 State
+E
+1
+LANG:1 0 
+
+110 "name" 15 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+180 "description" 27 1 0 "s" 1
+LANG:1 11 Description
+E
+1
+LANG:1 0 
+
+310 "devicedpname" 18 0 0 "s" 1
+LANG:1 2 DP
+E
+1
+LANG:1 0 
+
+210 
+18 18 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 1 1 7
+1 0
+22 2
+"stateSetting"
+""
+1 505 150 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 503 148 637 175
+0
+
+E
+E
+E
+ 0 0
+13 3
+"stateApplyChange"
+""
+1 641 150 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 639 148 703 176
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	dyn_int loopNums;
+	dyn_string line,loopList;
+	string loopDpe;
+	int i, stateSel;
+
+	if (stateSetting.selectedPos == 1)
+	{
+		ChildPanelOnCentral(\"/fwGeneral/fwMessageInfo1.pnl\",\"\",makeDynString(\"$1: Select a state.\"));
+		return;
+	}
+
+        // get selected children
+        loopNums = Table1.getSelectedLines();
+        
+	if (dynlen(loopNums) <= 0)
+	{
+		ChildPanelOnCentral(\"/fwGeneral/fwMessageInfo1.pnl\",\"\",makeDynString(\"$1: Select lines in the table.\"));
+		return;
+	}
+
+        // Make sure that the selected elements doesnt contain Areas..
+        dyn_string areasSelected;
+	for(i = 1; i <= dynlen(loopNums); i++)
+	{
+		line = Table1.getLineN(loopNums[i]);
+                dynAppend(areasSelected,dynPatternMatch(\"Area*\", line));
+        }                
+	if(dynlen(areasSelected)!=0)
+	{
+		ChildPanelOnCentral(\"/fwGeneral/fwMessageInfo1.pnl\",\"\",makeDynString(\"$1: You can not select Areas.\"));
+                dynClear(areasSelected);
+		return;
+	}  
+        dynClear(areasSelected);      
+        
+	dynSortAsc(loopNums);
+	
+        dyn_string exceptionInfo;
+        bool configExists, isActive;
+        dyn_anytype config;
+	for(i = 1; i <= dynlen(loopNums); i++)
+	{
+		line = Table1.getLineN(loopNums[i]);
+		stateSel = (stateSetting.selectedPos)-1;
+		loopDpe = line[7];
+
+                fwPeriphAddress_get(loopDpe+\".Actual.status\", configExists, config, isActive, exceptionInfo);
+                if(!configExists)
+                {
+                    DebugN(\"Could not set new settings for \"+loopDpe+\" because there are no config for this loop.\");
+                    continue;
+                }
+		//loopList[i] = line[7];
+		changeStateLoop(stateSel,loopDpe); 
+	}
+	
+	
+}" 0
+ E E E
+20 7
+"selectAll"
+""
+1 10 152 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 8 150 132 174
+1
+T 
+1
+LANG:1 10 Select all
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  shape table = getShape(\"Table1\");  
+
+  if(state==0)
+  {
+      // deselect all 
+      table.deleteSelection();      
+  } 
+  else
+  {
+      // select all
+      for(int i=0; i<=table.lineCount();i++)
+        table.selectLineN(i); 
+  }
+  //setInputFocus(myModuleName(), myPanelName(), table);
+}" 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

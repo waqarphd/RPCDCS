@@ -1,0 +1,319 @@
+V 12
+2
+LANG:10001 0 
+LANG:1 0 
+PANEL,-1 -1 255 61 N "_3DFace" 0
+"main() 
+{ 
+  
+ // make the first line; otherwise we'll not be able to put user name...
+ CurrentUser.appendLine(\"Name\",\"\");
+ CurrentUser.appendLine(\"Name\",\"<role>\");  
+ CurrentUser.hideRow(1);
+ 
+ _fwAccessControl_checkInit();
+ bool useStrictRoles;
+ dpGet( g_fwAccessControl_ConfigurationDP+\".Authorization.StrictRoleChecking\",useStrictRoles);
+ if (useStrictRoles) {
+   // make additional row in the CurrentUser
+   ACDisabled.scale(1.0,1.5); // resize frame
+   CurrentUser.scale(1.0,1.8);
+   CurrentUser.showRow(1);
+   }
+
+  
+  dyn_string exceptionInfo;  
+  fwAccessControl_setupPanel(\"LoggedUserAccessControlCallback\",exceptionInfo); 
+ 
+  if (dynlen(exceptionInfo)) { 
+    fwAccessControl_displayException(exceptionInfo);
+    return;
+  }; 
+
+} 
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "void CurrentUserContextMenu()
+{
+_fwAccessControl_checkInit();
+
+  int pwdChangeAllowed=1;
+  int setupAllowed=0;
+  bool canLogout=false;
+  // if external auth: it is not allowed
+  dyn_string authConfiguration,exceptionInfo;
+  dpGet(g_fwAccessControl_ConfigurationDP+\".Authentication.Function\",authConfiguration);
+  if (dynlen(authConfiguration) && authConfiguration[1]!=\"\") pwdChangeAllowed=0;
+
+  if (getUserId()!=DEFAULT_USERID) {
+    canLogout=true;
+    bool localAccount=fwAccessControl_isUserAccountLocal(\"\", exceptionInfo);
+    if (localAccount) pwdChangeAllowed=TRUE;                                                                      
+    if (fwAccessControl_HasSystemAdminPrivilege(exceptionInfo,\"\",FALSE)) setupAllowed=TRUE;
+  }
+  
+  dyn_string menu;
+  dynAppend(menu,\"PUSH_BUTTON, Log in, 1, 1\");
+  if (canLogout) dynAppend(menu,\"PUSH_BUTTON, Log out, 2, 1\");
+  dynAppend(menu,\"SEPARATOR\"); 
+  //___________________________
+  dynAppend(menu,\"CASCADE_BUTTON, Tools, 1\");
+  dynAppend(menu,\"SEPARATOR\"); 
+  //___________________________
+  if (pwdChangeAllowed) {
+    dynAppend(menu,\"PUSH_BUTTON, Change password, 3, \"+pwdChangeAllowed);
+    dynAppend(menu,\"SEPARATOR\");
+  //___________________________
+  }
+  dynAppend(menu,\"CASCADE_BUTTON, Administration, 1\"); 
+  dynAppend(menu,\"SEPARATOR\");
+  //___________________________
+  dynAppend(menu,\"PUSH_BUTTON, Help, 99, 1\");
+//_________________ sub-menus _______________________
+  dynAppend(menu,\"Tools\");
+  dynAppend(menu,\"PUSH_BUTTON, Find user with privilege, 11, 1\");
+  dynAppend(menu,\"PUSH_BUTTON, Show logged-in users, 12, 1\");
+  dynAppend(menu,\"Administration\");
+  // from here level 2
+  dynAppend(menu,\"PUSH_BUTTON, Users, 101, 1\");
+  dynAppend(menu,\"PUSH_BUTTON, Groups, 102, 1\");
+  dynAppend(menu,\"PUSH_BUTTON, Domains, 103, 1\");
+  dynAppend(menu,\"PUSH_BUTTON, Setup, 104, \"+setupAllowed);
+
+  int answer;
+  popupMenu(menu, answer);
+
+  if (answer==1) {
+	fwAccessControl_login();
+  } else if (answer==2) {
+	fwAccessControl_logout();        
+  } else if (answer==3) {
+	ChildPanelOnCentral(\"vision/changePassword.pnl\",
+				\"Password change\",
+				makeDynString());
+  } else if (answer==11) {
+	ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_PrivHoldersList.pnl\", 
+				\"Find user having privilege\", 
+				makeDynString()); 
+  } else if (answer==12) {
+		ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_ActiveUserList.pnl\", 
+			\"Users logged in to the system\", 
+			makeDynString()); 
+  } else if (answer==99) {
+	fwAccessControl_help(\"fwAccessControl/fwAccessControl_CurrentUser\");
+  } else if (answer==101) {
+		ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_UserList.pnl\", 
+			\"List of Users\", 
+			makeDynString()); 
+  } else if (answer==102) {
+		ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_GroupList.pnl\", 
+			\"List of Groups\", 
+			makeDynString()); 
+  } else if (answer==103) {
+		ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_DomainList.pnl\", 
+			\"List of Domains\", 
+			makeDynString()); 
+  } else if (answer==104) {
+		ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_Setup.pnl\", 
+			\"Access Control Setup\", 
+			makeDynString()); 
+  } else if (answer!=0) {
+	DebugN(\"Option not implemented\",answer);
+  }
+
+//  if(answer==1)... // handling of the return value
+  
+}
+
+
+LoggedUserAccessControlCallback(string s1, string s2) 
+{ 
+	string userName, currentRole; 
+	fwAccessControl_getUserName(userName);
+	fwAccessControl_getCurrentRole(currentRole);
+        if (currentRole==\"\") currentRole=\"<no role>\";
+	CurrentUser.cellValueRC(0,\"Name\",userName); 
+ 	CurrentUser.cellValueRC(1,\"Name\",\"as:\"+currentRole);
+        
+        
+	dyn_string exceptionInfo;
+        
+	bool acIsDisabled=!(_fwAccessControl_isAccessControlEnabled(exceptionInfo));
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	}
+	ACDisabled.visible=acIsDisabled;
+
+} 
+
+
+
+
+
+void RoleSelector()
+{
+  dyn_string menu=makeDynString(
+      \"PUSH_BUTTON, Select Role:,0,1\",
+      \"SEPARATOR\");
+  
+  dyn_string userRoles,exceptionInfo;
+  dyn_int roleLevels;
+  
+  fwAccessControl_getUserRoles(\"\",userRoles,roleLevels,exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+
+    
+  string currentRole;
+  fwAccessControl_getCurrentRole(currentRole);
+
+  
+  for (int i=1;i<=dynlen(userRoles);i++) {
+    int enabled=0;
+    string roleName=userRoles[i];
+    if (roleName!=currentRole) enabled=1;
+    dynAppend(menu,\"PUSH_BUTTON,\"+roleName+\",\"+i+\",\"+enabled);
+  }
+  int answer=0;
+  popupMenu(menu, answer);
+  if (answer<=0) return;
+
+  string selectedRole=userRoles[answer];
+  fwAccessControl_setRole(selectedRole, exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+
+
+
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:10001 6 Layer1
+6 2
+"ACDisabled"
+""
+1 8 8 E E E 1 E 0 E N "yellow" E N "lightgrey" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 27 Access Control is disabled!
+LANG:1 27 Access Control is disabled!
+
+1
+"dashclr"N "_Transparent"
+E E 0 4 1 0 1 E 1.270967741935484 0 0.9090909090909088 -2.167741935483872 4.727272727272728 1 E 8 8 163 41
+13 1
+"LoginButton"
+""
+1 173 13 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ "main()
+{
+	CurrentUserContextMenu();
+}" 0
+ E
+3 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 35 Click to login, rightclick for menu
+LANG:1 35 Click to login, rightclick for menu
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  173 13 203 40
+
+P 
+13421772
+"pictures/login.xpm"
+2
+LANG:10001 0 
+LANG:1 0 
+"main()
+{
+	fwAccessControl_login();
+}
+" 0
+ E E E
+25 4
+"CurrentUser"
+""
+1 10 15 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  if (row==0) CurrentUserContextMenu(); 
+  else if (row==1) RoleSelector();
+}" 0
+ E
+5 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,50,0,0,0,0,0
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  8 13 177 39
+EE 0 0 1 1 2 "Name" 15 1 0 "s" 2
+LANG:10001 2 #1
+LANG:1 2 #1
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+180 
+19 19 "" 1 2
+LANG:10001 4 User
+LANG:1 4 User
+"" 1 2
+LANG:10001 6 <role>
+LANG:1 4 User
+10 10
+2
+LANG:10001 26 Arial,-1,13,5,50,0,0,0,0,0
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 0 0 0 0 7
+1 0
+0
+LAYER, 1 
+1
+LANG:10001 6 Layer2
+0
+LAYER, 2 
+1
+LANG:10001 6 Layer3
+0
+LAYER, 3 
+1
+LANG:10001 6 Layer4
+0
+LAYER, 4 
+1
+LANG:10001 6 Layer5
+0
+LAYER, 5 
+1
+LANG:10001 6 Layer6
+0
+LAYER, 6 
+1
+LANG:10001 6 Layer7
+0
+LAYER, 7 
+1
+LANG:10001 6 Layer8
+0
+0

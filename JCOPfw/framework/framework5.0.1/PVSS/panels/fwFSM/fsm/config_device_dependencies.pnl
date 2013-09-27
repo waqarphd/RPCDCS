@@ -1,0 +1,2357 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 410 499 N "_3DFace" 7
+"$1"
+"$2"
+"$3"
+"$4"
+"$5"
+"$6"
+"$7"
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "dyn_string InitialDependencies;
+dyn_string CurrentDependencies;
+dyn_string CurrentDependenciesTypes;
+
+init()
+{
+  int i;
+  string more;
+  
+  InitialDependencies = strsplit($2,\"|\");
+  set_items_pars();
+  
+  for(i = 1; i <= dynlen(InitialDependencies); i++)
+  {
+    more = \"and\";
+    if(i == dynlen(InitialDependencies))
+      more = \"\";
+    set_item(InitialDependencies[i], i, more);
+  }
+}
+
+set_item(string item, int num, string more)
+{
+  setValue(\"item\"+num,\"text\",item);
+  set_type(num);
+  setValue(\"then\"+num, \"text\", more);
+  put_more(more, num, 0);
+}
+
+set_type(int num)
+{
+	string item, old_type, type;
+	
+	getValue(\"item\"+num,\"text\",item);
+	if(item != \"\")
+		type = fwFsm_getDeviceTypeItemType(item);
+	getValue(\"type\"+num,\"text\",old_type);
+	if(old_type != type)
+	{
+		setValue(\"type\"+num,\"text\",type);
+//		add_operations(type, num);
+	}
+}
+
+put_more(string more, int num, int short_flag)
+{
+	int i, visible, prev_num;
+	string prev_item;
+	
+	if(more == \"\")
+	{
+		if((num <= 2) && (short_flag))
+		{
+			setValue(\"more\",\"visible\", 0);
+		}
+		for(i = num+1; i <= 12; i++)
+		{
+			setValue(\"item\"+i,\"visible\",0);
+			setValue(\"item\"+i,\"text\",\"\");
+			setValue(\"dp\"+i,\"visible\",0);
+			setValue(\"type\"+i,\"visible\",0);
+//			setValue(\"op\"+i,\"visible\",0);
+//			setValue(\"limit\"+i,\"visible\",0);
+//			setValue(\"par\"+i,\"visible\",0);
+			setValue(\"then\"+i,\"visible\",0);
+		}
+		return;
+	}
+	if((num == 2) && (short_flag))
+	{
+			setValue(\"more\",\"visible\", 1);
+	}
+	else
+	{
+		num++;
+		getValue(\"item\"+num,\"visible\",visible);
+		if(!visible)
+		{
+			setValue(\"item\"+num,\"visible\",1);
+			setValue(\"dp\"+num,\"visible\",1);
+			setValue(\"type\"+num,\"visible\",1);
+//			setValue(\"op\"+num,\"visible\",1);
+//			setValue(\"limit\"+num,\"visible\",1);
+//			setValue(\"par\"+num,\"visible\",1);
+			setValue(\"then\"+num,\"visible\",1);
+			prev_num = num-1;
+			getValue(\"item\"+prev_num,\"text\",prev_item);
+			setValue(\"item\"+num,\"text\",prev_item);
+			set_type(num);
+			
+		}
+	}
+}
+
+read_settings()
+{
+string display_line;
+string more, name, op, limit, type;
+dyn_string lines;
+int i;
+
+	dynClear(CurrentDependencies);
+	for(i = 1; i <= 12 ; i++)
+  {
+		getValue(\"then\"+i,\"text\",more);
+		getValue(\"item\"+i,\"text\",name);
+		if(name == \"\")
+			break;
+		getValue(\"type\"+i,\"text\",type);
+//		getValue(\"type\"+i,\"text\",type);
+//		getValue(\"op\"+i,\"text\",op);
+//		getValue(\"limit\"+i,\"text\",limit);
+//		display_line = name+\" \"+type+\" \"+op+\" \"+limit+\" \"+more;
+//		dynAppend(lines, display_line);
+//		dynAppend(_GlobalStatesLines[n],display_line);
+   dynAppend(CurrentDependencies,name);
+   dynAppend(CurrentDependenciesTypes,name+\" \"+type);
+		if(more == \"\")
+			break;
+	}
+//DebugN(n, _GlobalStatesLines[n]);
+}
+/*
+apply_settings(int n, int short_flag)
+{
+string line, op;
+dyn_string items;
+int i;
+
+	for(i = 1; i <= dynlen(_GlobalStatesLines[n]); i++)
+	{
+		line = _GlobalStatesLines[n][i];
+		items = strsplit(line,\" \");
+		setValue(\"item\"+i,\"text\",items[1]);
+		setValue(\"type\"+i,\"text\",items[2]);
+		add_operations(items[2], i);
+		setValue(\"op\"+i,\"text\",items[3]);
+		op = items[3];
+		setValue(\"limit\"+i,\"text\",items[4]);
+		setValue(\"then\"+i,\"text\",items[5]);
+		if((short_flag) && (i > 2))
+		{
+			setValue(\"more\",\"visible\",1);
+		}
+		else
+		{
+			setValue(\"item\"+i,\"visible\",1);
+			setValue(\"dp\"+i,\"visible\",1);
+			setValue(\"type\"+i,\"visible\",1);
+			setValue(\"op\"+i,\"visible\",1);
+//			setValue(\"limit\"+i,\"visible\",1);
+			setValue(\"then\"+i,\"visible\",1);
+			if((op == \"Inv\") || (op == \"!Inv\"))
+			{
+				setValue(\"limit\"+i,\"visible\",0);
+				setValue(\"par\"+i,\"visible\",0);
+			}
+			else
+			{
+				setValue(\"limit\"+i,\"visible\",1);
+				setValue(\"par\"+i,\"visible\",1);
+			}
+		}
+	}
+	if(dynlen(_GlobalStatesLines[n]))
+		put_more(items[5], i-1, short_flag);
+}
+*/
+set_items_pars()
+{
+	dyn_string items, pars;
+	int i;
+	
+	items = fwFsm_getDeviceTypeItems($1);
+	dynAppend(items,\"\");
+//	fwFsm_readObjectParameters($7, pars);
+
+	for(i = 1; i <= 12; i++)
+	{
+		setValue(\"item\"+i,\"items\",items);
+//		if(!dynlen(pars))
+//			setValue(\"par\"+i,\"enabled\",0);
+	}
+}
+" 0
+ 2
+"CBRef" "0"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 7
+"Text2"
+""
+1 0 0 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  init();
+/*
+	string more, name, op, limit, s, type;
+	int i, index, visible, more_open;
+	dyn_string inst, in, comps, types;
+	string instr;
+
+  set_items_pars();
+	setValue(\"\",\"text\",$4);
+	if($4 == \"else\")
+	{
+		setValue(\"item1\",\"visible\",0);
+		setValue(\"item1\",\"text\",\"\");
+		setValue(\"dp1\",\"visible\",0);
+		setValue(\"type1\",\"visible\",0);
+		setValue(\"op1\",\"visible\",0);
+		setValue(\"limit1\",\"visible\",0);
+		setValue(\"par1\",\"visible\",0);
+		setValue(\"then1\",\"visible\",0);
+	}
+	index = $5;
+	if($6 == \"1\")
+		_GlobalStateFlags[index] = 1;
+	while(1)
+	{
+		delay(0,100);
+		if(_GlobalStateFlags[index])
+			read_settings($5);
+	}
+*/
+}" 0
+ E 0 1 1 0 1 E U  1 E 12 32 174 49
+0 2 2 "0s" 0 0 0 192 0 0  12 32 1
+1
+LANG:1 26 Arial,10,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 24 Device State depends on:
+22 3
+"item1"
+""
+1 59 69 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 68 252 95
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 6
+"then1"
+""
+1 328 69 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 68 390 95
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 9
+"item2"
+""
+1 59 99 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 98 252 125
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 12
+"then2"
+""
+1 328 99 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 98 390 125
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 14
+"item3"
+""
+1 59 129 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 128 252 155
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 17
+"then3"
+""
+1 328 129 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 128 390 155
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+14 29
+"type1"
+""
+1 277 69 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 68 327 95
+3 "0s" 0 0 0 0 0 -1  E E E
+14 30
+"type2"
+""
+1 277 99 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 98 327 125
+3 "0s" 0 0 0 0 0 -1  E E E
+14 31
+"type3"
+""
+1 277 129 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 128 327 155
+3 "0s" 0 0 0 0 0 -1  E E E
+13 32
+"dp1"
+""
+1 250 69 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 68 279 94
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+13 35
+"dp2"
+""
+1 250 99 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 98 279 124
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+13 36
+"dp3"
+""
+1 250 129 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 128 279 154
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+22 37
+"item4"
+""
+1 59 159 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 158 252 185
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 40
+"then4"
+""
+1 328 159 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 158 390 185
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 41
+"item5"
+""
+1 59 189 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 188 252 215
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 44
+"then5"
+""
+1 328 189 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 188 390 215
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 45
+"item6"
+""
+1 59 219 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 218 252 245
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 48
+"then6"
+""
+1 328 219 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 218 390 245
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+14 49
+"type4"
+""
+1 277 159 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 158 327 185
+3 "0s" 0 0 0 0 0 -1  E E E
+14 50
+"type5"
+""
+1 277 189 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 188 327 215
+3 "0s" 0 0 0 0 0 -1  E E E
+14 51
+"type6"
+""
+1 277 219 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 218 327 245
+3 "0s" 0 0 0 0 0 -1  E E E
+13 52
+"dp4"
+""
+1 250 159 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 158 279 184
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+13 53
+"dp5"
+""
+1 250 189 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 188 279 214
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+13 54
+"dp6"
+""
+1 250 219 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 218 279 244
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+22 59
+"item8"
+""
+1 59 279 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 278 252 305
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 62
+"then8"
+""
+1 328 279 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 278 390 305
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 63
+"item9"
+""
+1 59 309 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 308 252 335
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 66
+"then9"
+""
+1 328 309 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 308 390 335
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+14 68
+"type8"
+""
+1 277 279 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 278 327 305
+3 "0s" 0 0 0 0 0 -1  E E E
+14 69
+"type9"
+""
+1 277 309 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 308 327 335
+3 "0s" 0 0 0 0 0 -1  E E E
+13 71
+"dp8"
+""
+1 250 279 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 278 279 304
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+13 72
+"dp9"
+""
+1 250 309 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 308 279 334
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+22 73
+"item10"
+""
+1 59 339 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+72 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 338 252 365
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 76
+"then10"
+""
+1 328 339 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 338 390 365
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 77
+"item11"
+""
+1 59 369 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 368 252 395
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 80
+"then11"
+""
+1 328 369 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 368 390 395
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+22 81
+"item12"
+""
+1 59 399 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 398 252 425
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 84
+"then12"
+""
+1 328 399 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+83 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 398 390 425
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+14 85
+"type10"
+""
+1 277 339 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+84 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 338 327 365
+3 "0s" 0 0 0 0 0 -1  E E E
+14 86
+"type11"
+""
+1 277 369 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+85 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 368 327 395
+3 "0s" 0 0 0 0 0 -1  E E E
+14 87
+"type12"
+""
+1 277 399 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+86 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 398 327 425
+3 "0s" 0 0 0 0 0 -1  E E E
+13 88
+"dp10"
+""
+1 250 339 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+87 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 338 279 364
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+13 89
+"dp11"
+""
+1 250 369 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 368 279 394
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+13 90
+"dp12"
+""
+1 250 399 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 398 279 424
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+22 91
+"item7"
+""
+1 59 249 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+90 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  58 248 252 275
+0
+
+E
+"main()
+{
+	string item, name, type;
+	int i, num, n;
+	char d1,d2,d3,d4;
+	dyn_string items, types;
+
+//	getValue(\"\",\"text\",item);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+	set_type(num);
+//	type = fwFsm_getDeviceTypeItemType(item);
+//	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+//	setValue(\"type\"+num,\"text\",type);
+//	add_operations(type, num);
+}" 0
+
+E
+ 0 0
+22 94
+"then7"
+""
+1 328 249 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  328 248 390 275
+2
+1
+LANG:1 0 
+
+1
+1
+LANG:1 3 and
+
+0
+
+E
+"main()
+{
+	string more, name;
+	int num, flag;
+	char d1,d2,d3,d4;
+
+	getValue(\"\",\"text\",more);
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%c%c%d\",d1,d2,d3,d4,num);
+/*
+	num++;
+	if (more != \"then\")
+	{
+		setValue(\"item\"+num,\"visible\",1);
+		setValue(\"dp\"+num,\"visible\",1);
+		setValue(\"type\"+num,\"visible\",1);
+		setValue(\"op\"+num,\"visible\",1);
+		setValue(\"limit\"+num,\"visible\",1);
+		setValue(\"then\"+num,\"visible\",1);
+	}
+	else
+	{
+		setValue(\"item\"+num,\"visible\",0);
+		setValue(\"dp\"+num,\"visible\",0);
+		setValue(\"type\"+num,\"visible\",0);
+		setValue(\"op\"+num,\"visible\",0);
+		setValue(\"limit\"+num,\"visible\",0);
+		setValue(\"then\"+num,\"visible\",0);
+	}
+*/
+	flag = 0;
+	put_more(more, num, flag);
+}" 0
+
+E
+ 0 0
+14 95
+"type7"
+""
+1 277 249 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+94 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  277 248 327 275
+3 "0s" 0 0 0 0 0 -1  E E E
+13 96
+"dp7"
+""
+1 250 249 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+95 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0  248 248 279 274
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp, name, type;
+	int pos;
+	char d1,d2;
+	int num;
+	int typ;
+
+	getValue(\"\",\"name\",name);
+	sscanf(name,\"%c%c%d\",d1,d2,num);
+	dp = \"\";
+	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+   		if (strpos(dp,\".\")<0) dp+=\".\";
+			setValue(\"item\"+num,\"text\",dp);
+ 	}
+
+	set_type(num);
+//	typ = dpAttributeType(dp+\":_online.._value\");
+//	type = _const2str(typ);
+//	setValue(\"type\"+num,\"text\",type);
+//  add_operations(type, num);
+}
+" 0
+ E E E
+13 97
+"more"
+""
+1 60 130 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+96 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  58 128 232 156
+
+T 
+1
+LANG:1 7 More...
+"main()
+{
+//	_GlobalSave = 1;
+	dyn_float res;
+	dyn_string ret;
+	int index = $5;
+	_GlobalStateFlags[index] = 0;
+	read_settings($5);
+	ChildPanelOnReturn(\"fwFSM/fsm/config_device_state_more.pnl\",\"config_state\",
+		makeDynString($1, $2, $3, $4, $5, \"0\", $7),
+		0, 0, res, ret);
+	apply_settings($5, $6);
+	_GlobalStateFlags[index] = 1;
+//DebugN(\"ApplYing \",$5,$6, res, ret);
+}" 0
+ E E E
+13 98
+"Button1"
+""
+1 298 448 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  298 448 388 478
+
+T 
+2
+LANG:1 6 Cancel
+LANG:0 9 Abbrechen
+"main()
+{
+	PanelOffReturn(makeDynFloat(0),makeDynString());
+}" 0
+ E E E
+13 114
+"PUSH_BUTTON1"
+""
+1 198 448 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+113 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  198 448 288 478
+
+T 
+2
+LANG:1 4 Save
+LANG:0 9 Abbrechen
+"main()
+{
+  read_settings();
+  if(CurrentDependencies != InitialDependencies)
+	  PanelOffReturn(makeDynFloat(1),CurrentDependenciesTypes);
+  else
+	  PanelOffReturn(makeDynFloat(0),makeDynString);    
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

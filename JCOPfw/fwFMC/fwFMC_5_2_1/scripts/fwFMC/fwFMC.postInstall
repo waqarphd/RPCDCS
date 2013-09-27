@@ -1,0 +1,117 @@
+#uses "fwFMC/fwFMC.ctl"
+#uses "fwInstallation.ctl"
+
+main()
+{
+  dyn_string exceptionInfo;
+  //dyn_string filenames = makeDynString("PVSS00procmon.exe", "Microsoft.VC80.DebugCRT.manifest", "msvcp80d.dll", "msvcr80d.dll",  "w2003_x86/Microsoft.VC80.DebugCRT.manifest", "w2003_x86/msvcp80d.dll", "w2003_x86/msvcr80d.dll");
+  //string fmcPath = "";  
+  
+  fwFMC_createLogicalVendorNode(exceptionInfo);
+
+  if(dynlen(exceptionInfo))
+	  DebugN("PostIntall WARNING: -> Could not create logical node for FMC: ", exceptionInfo);
+
+   //Add the process monitoring to the console
+  string manType = "PVSS00ctrl";
+  string procmonManType = "PVSS00procmon";
+  if (fwInstallation_checkToolVersion("6.2.0") > 0)
+  {
+    manType = fwInstallation_getWCCOAExecutable("ctrl");
+    procmonManType = fwInstallation_getWCCOAExecutable("procmon"); 
+  }
+
+  fwInstallationManager_append(0, "", manType, "always", 30, 3, 2, "fwFMC/fwFMCProcess.ctl");
+
+ 
+  
+/*
+  dpGet("fwInstallation_fwFMC.installationDirectory", fmcPath);
+  //DebugN(PROJ_PATH + "bin", fmcPath + "/bin");
+  
+  int err = 0;
+
+  strreplace(fmcPath, "\\", "/");
+  
+  string projPath = PROJ_PATH;
+  strreplace(projPath, "\\", "/");
+  
+  for(int i = 1; i <= dynlen(filenames); i++)
+  {
+    err += fwInstallation_copyFile(fmcPath + "/bin/" + filenames[i], projPath + "bin/" + filenames[i]);
+  }
+  
+  if(err!= 0)
+  {
+    DebugN("ERROR: fwFMC.postInstall script -> Failed to copy PVSS00procmon files to project bin directory");
+    
+    //signal that the installation of the component has failed for the installation tool
+    dpSet("fwInstallation_fwFMC.installationNotOK", 1);
+    return;
+  }
+*/
+  fwInstallationManager_appendDriver("DRIVER", "FW FMC WMI Process Monitor", procmonManType, "manual", 30, 2, 2, "-num 88");                 
+  dyn_string nodes;  
+  fwFMC_getNodes(nodes);
+  int n = dynlen(nodes);
+  dynSortAsc(nodes);
+  for(int i = 1; i <= n; i++)
+  {
+    DebugN("Updating node: " + nodes[i] + " (" + i + "/" + n + ")");
+    if(fwFMCIpmi_exists(nodes[i]))
+    {
+      string ipmiName;
+      dpGet(fwFMC_getNodeDp(nodes[i]) + ".IPMIDeviceName", ipmiName);
+      fwFMCIpmi_subscribeDim(nodes[i], ipmiName);
+    }
+    
+    if(fwFMCMonitoring_exists(nodes[i]))
+    {
+      fwFMCMonitoring_dimSubscribeMonitoringBase(nodes[i]);
+      fwFMCMonitoring_dimSubscribeCpuBase(nodes[i]); 
+      fwFMCMonitoring_dimSubscribeAllDevices(nodes[i], "cpu"); 
+      fwFMCMonitoring_dimSubscribeFSBase(nodes[i]); 
+      fwFMCMonitoring_dimSubscribeAllDevices(nodes[i], "fs"); 
+      fwFMCMonitoring_dimSubscribeNetworkBase(nodes[i]); 
+      fwFMCMonitoring_dimSubscribeAllDevices(nodes[i], "network"); 
+      fwFMCMonitoring_dimSubscribeMemory(nodes[i]); 
+      //fwFMCMonitoring_dimSubscribeProcess(nodes[i], "network"); 
+    }
+
+    if(fwFMCProcess_exists(nodes[i]))
+    {
+      bool win = false;
+      string winProcsController = "";
+      dpGet(fwFMC_getNodeDp(nodes[i]) + ".winProcsController", winProcsController);
+      fwFMCProcess_dimSubscribe(nodes[i], winProcsController==""?false:true);
+    }
+    
+    if(fwFMCTaskManager_exists(nodes[i]))
+    {
+      fwFMCTaskManager_subscribeDim(nodes[i]);
+    }
+
+    if(fwFMCLogger_exists(nodes[i]))
+    {
+      fwFMCLogger_subscribeDim(nodes[i]);
+    }
+
+    dyn_string exception;
+    dynClear(exception);
+    fwFMC_connectPowerStatusDpe(nodes[i], exception);
+    if(dynlen(exception))
+      DebugN("Node: " + nodes[i] + " Error: " + exception);
+    
+    dynClear(exception);
+    fwFMC_connectReadoutStatusDpe(nodes[i], exception);    
+    if(dynlen(exception))
+      DebugN("Node: " + nodes[i] + " Error: " + exception);
+	  
+    dynClear(exception);
+    fwFMCMonitoring_connectMemoryDpes(nodes[i], exception);    
+    if(dynlen(exception))
+      DebugN("Node: " + nodes[i] + " Error: " + exception);
+    
+  }
+  return;
+}

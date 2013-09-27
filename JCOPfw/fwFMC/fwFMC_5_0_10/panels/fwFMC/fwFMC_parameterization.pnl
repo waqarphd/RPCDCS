@@ -1,0 +1,284 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 290 100 N "_3DFace" 0
+"main()
+{
+  dpConnect(\"setStatusCB\", \"_fwFMCParameterization.enabled\");
+}
+
+void setStatusCB(string dp, bool enabled)
+{
+  txStatus.text = enabled?\"Enabled\":\"Disabled\";
+  txStatus.foreCol = enabled?\"FwStateOKPhysics\":\"FwStateAttention3\";
+  btFMCAction.text = enabled?\"Disable\":\"Enable\";
+}
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  30 40
+""0  1
+E E 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 22 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 30 119 45
+0 2 2 "0s" 0 0 0 192 0 0  22 30 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Current FMC Status:
+2 1
+"txStatus"
+""
+1 132 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 132 30 166 44
+0 2 2 "0s" 0 0 0 192 0 0  132 30 1
+1
+LANG:1 25 Arial,8,-1,5,75,1,0,0,0,0
+0 1
+LANG:1 6 Status
+13 2
+"btFMCAction"
+""
+1 190 20 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  188 18 272 52
+
+T 
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  
+  string txt = \"\";
+  if(fwFMC_isEnabled())
+    txt = \"Are you sure you want to enable the FMC package?\";
+  else
+    txt = \"Are you sure you want to disable the FMC package?\";
+
+  ChildPanelOnCentralModalReturn(\"fwInstallation/fwInstallationDB_question.pnl\", \"Confirmation Required\", makeDynString(\"$txt:\"+txt), df, ds);  
+  if(dynlen(df)<=0 || df[1] != 1.)
+    return;
+  
+  dyn_string ex;
+  openProgressBar(\"Alarm configuration\", \"copy.gif\", \"Configuring alarms\", \"Please wait\", \"This may take a few seconds...\", 1); 
+  fwFMC_toggle(ex);
+  closeProgressBar();
+  
+  if(dynlen(ex) > 0)
+    fwExceptionHandling_display(ex);
+}
+
+int fwFMC_toggle(dyn_string &ex)
+{
+  bool enabled = 0;
+  dpGet(\"_fwFMCParameterization.enabled\", enabled);
+  
+  fwFMC_toggleAlarms(!enabled, ex);
+  
+  return dpSet(\"_fwFMCParameterization.enabled\", !enabled);
+}
+
+int fwFMC_toggleAlarms(bool enable, dyn_string &ex)
+{
+  dyn_string ex;
+  dyn_dyn_anytype record;
+  //string query = \"SELECT ALERT '_alert_hdl.._value' FROM 'FMC/*.**'\";
+  //dyn_dyn_string dpes = dpQuery(query, record);
+  dyn_string dpes = dpNames(getSystemName() + \"FMC/*.**:_alert_hdl.._type\");
+  dyn_int alarms;
+  
+  if(dynlen(dpes)<=0) //nothing to be done
+    return 0;
+  
+  dpGet(dpes, alarms);
+
+  for(int i = 1; i <= dynlen(alarms); i++)
+  {
+    if(alarms[i])
+    {
+      if(enable)  
+      {
+        fwAlertConfig_activate(dpSubStr(dpes[i], DPSUB_DP_EL), ex);
+      }
+      else
+      {
+        fwAlertConfig_deactivate(dpSubStr(dpes[i], DPSUB_DP_EL), ex);
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+14 3
+"tfFMCSystem"
+""
+1 92 62.00000000000011 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  90 60 182 83
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  string fmcSystem;
+  
+  if(dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_FMC_SYSTEM))
+    dpGet(fwSysOverview_PARAMETRIZATION + fwSysOverview_FMC_SYSTEM, fmcSystem);
+   
+  tfFMCSystem.text = fmcSystem;
+}" 0
+ E
+2 4
+"PRIMITIVE_TEXT3"
+""
+1 22 62.00000000000011 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 62.00000000000011 91 77
+0 2 2 "0s" 0 0 0 192 0 0  22 62.00000000000011 1
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 12 System Name:
+13 5
+"btSetFMCSystem"
+""
+1 190 60.00000000000011 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  188 58 272 92
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+ string newFMCSystem = tfFMCSystem.text;
+ 
+ if(!dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_ACCESS_DOMAIN))
+ {
+   DebugTN(\"Data point: \" + fwSysOverview_PARAMETRIZATION + fwSysOverview_FMC_SYSTEM + \" does not exist!!!\" );
+   return;
+ }
+ 
+ dpSetWait(fwSysOverview_PARAMETRIZATION + fwSysOverview_FMC_SYSTEM, newFMCSystem);
+ 
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

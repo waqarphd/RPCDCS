@@ -1,0 +1,247 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 120 100 N "_3DFace" 3
+"$sBitmapDp"
+"$sForceDp"
+"$sMyReferenceName"
+"main()
+{
+	bitmapDp = $sBitmapDp;
+}" 0
+ E E E E 1 0 0 0  0 250
+""0  1
+E "
+int x, y; // size of the panel
+int offsetX, offsetY; // Offsets if we are the reference panel
+string bitmapDp; // Datapoint containing the description of the panel
+string plotType;
+
+dyn_dyn_string childPanelsInfo; // Data about all the child wigedts of the panel (name, visibility)
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+6 0
+"bitmapPanel"
+""
+1 0 0 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	dyn_string exceptionInfo;
+	dyn_string parameters;
+	
+	// dpGet(bitmapDp+\".Size.x\",x, bitmapDp+\".Size.y\",y);	
+	fwCaV_getSynopticsPanelDetails(bitmapDp, parameters, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	x = parameters[fwCaV_SynopticsBitmap_Size_x];
+	y = parameters[fwCaV_SynopticsBitmap_Size_y];
+	plotType = parameters[fwCaV_SynopticsBitmap_PlotType];
+	  
+	// resize - get the size from the proper dpes
+	this.scale(((float)x)/100, ((float)y)/100);
+
+       // get the offsets for adding symbols
+       if(isDollarDefined(\"$sMyReferenceName\"))
+  	  if(shapeExists($sMyReferenceName))
+  	  {
+           getValue($sMyReferenceName, \"position\", offsetX, offsetY);
+           offsetY-=250; // WHY -250? Because it works...
+          }
+
+	// Get the filename of the bitmap to load
+	string bitmapFile;
+//	dpGet(bitmapDp+\".image\",bitmapFile);
+	bitmapFile = parameters[fwCaV_SynopticsBitmap_Image];
+	
+	
+	// Determine the type of the bitmap: gif, bmp, xpm.
+	// Default is gif
+	string bitmapFormat=\"gif\";
+	if(strpos(bitmapFile,\".bmp\")>=0||strpos(bitmapFile,\".BMP\")>=0)
+	{
+		bitmapFormat=\"bmp\";
+	}
+	else if(strpos(bitmapFile,\".xpm\")>=0||strpos(bitmapFile,\".XPM\")>=0)
+	{
+		bitmapFormat=\"xpm\";
+	}
+	
+	//check if the bitmapFile exists, if it does not exist the rectangle is not filled
+	file f; // our file
+	 
+	f=fopen(bitmapFile,\"r\"); // open for reading
+	 
+	if (f != 0)
+	{
+		fclose(f);
+		// fill the rectangle with the bitmap
+		setValue(\"\",\"fill\",\"[pattern,[fit,\"+bitmapFormat+\",\"+bitmapFile+\"]]\");
+	}
+		
+	// Place the widgets
+	dyn_string bitmapNodes;
+	
+	// Get all the nodes describing the widgets for the current Bitmap
+	// dpGet(bitmapDp+\".widgets\",bitmapNodes);
+	fwCaV_listStrippedSynopticsPanelWidgets(bitmapDp, bitmapNodes, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+	}
+		
+	// Place all the widgets
+	for(int i=1; i<=dynlen(bitmapNodes); i++)
+	{
+		string widgetType;
+		string fileName;
+		int posX, posY;
+		bool isVisible;
+
+		string dp, model;
+		dyn_string properties, dpes, extraParameters;
+		dyn_dyn_string elementsAndProperties;
+
+		string _cv = bitmapDp + \"/\" + bitmapNodes[i];
+		/*
+		dpGet(_cv+\".panel\", widgetType,
+					_cv+\".Position.x\", posX,
+					_cv+\".Position.y\", posY,
+					_cv+\".visible\", isVisible,
+					_cv+\".Data.deviceDp\", dp,
+					_cv+\".Data.properties\", properties,
+					_cv+\".Data.extraParameters\", extraParameters);
+		*/
+		dyn_anytype _parameters;
+		dyn_string exceptionInfo;
+		fwCaV_getWidgetInstanceDetails(bitmapDp, bitmapNodes[i], _parameters, exceptionInfo);
+		if(dynlen(exceptionInfo)!=0)
+		{
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+		widgetType = _parameters[fwCaV_SynopticsBitmap_Type];
+		posX = _parameters[fwCaV_WidgetInstance_Position_x];
+		posY = _parameters[fwCaV_WidgetInstance_Position_y];
+		isVisible = _parameters[fwCaV_WidgetInstance_Visible];
+		dp = _parameters[fwCaV_WidgetInstance_DeviceDp];
+		properties = _parameters[fwCaV_WidgetInstance_Properties];
+		extraParameters = _parameters[fwCaV_WidgetInstance_ExtraParameters];
+		if(!dpExists(widgetType))
+		{
+			DebugN(\"NOT ADDING - widget type \" + widgetType + \" does not exist!\", dp);
+			continue;
+		}
+		dpGet(widgetType+\".filename\", fileName);
+		
+		// Determine if we are running the bitmap in a template mode
+		// In template mode all the widgets must reffer to dpes of ONE framework device
+		// (eg loop, plant).
+		// The datapoint name will be overriden with the DP passed as $sForceDp
+		if(isDollarDefined(\"$sForceDp\"))
+		{
+			string param = $sForceDp;
+			if(!dpExists(param))
+			{
+				DebugN(\"WARNING: DP passed as $sForceDp does not exist! Will proceed with defined DP:\"+dp,\"$sForceDp:\"+$sForceDp);
+			}
+			else
+			{
+				DebugN(\"$sForceDp (\"+param+\") is used instead of defined DP (\"+dp+\")\");
+				dp = param;
+			}
+		}
+		
+		// obtain the dpes using Framework Device Definition
+		if(dp!=\"\"&&dynlen(properties)>0)
+		{
+			if(!dpExists(dp))
+			{
+				DebugN(\"WARNING: dp \" + dp + \" does not exist!\");
+				continue;
+			}
+			fwDevice_getModel(makeDynString(dp), model, exceptionInfo);
+			fwDevice_getConfigElements(dpTypeName(dp), fwDevice_ALL, elementsAndProperties, exceptionInfo, model);
+
+                        // the properties array can contain dpe aliases OR dpe names
+			for(int j=1; j<=dynlen(properties); j++)
+			{
+                               if(dpExists(dp+properties[j]))
+				 dynAppend(dpes,dp+properties[j]);
+                               else
+                                 dynAppend(dpes,dpAliasToName(properties[j]));
+			}
+
+		}
+				
+		// Store the data about the widget
+		dyn_string widgetData = makeDynString(bitmapNodes[i], (int)isVisible);
+		dynAppend(childPanelsInfo, widgetData);		
+		
+		// Display the widget (or not)
+		if(isVisible)
+		{
+			string _dpes;
+			fwGeneral_dynStringToString(dpes,_dpes,\";\");
+			//DebugN(\"Adding widget:\"+fileName,\"refName:\"+_cv,\"filename:\"+fileName,\"dpes:\"+dpes,\"extraParameters:\"+extraParameters);
+			addSymbol(myModuleName(),myPanelName(), fileName,
+							 _cv, makeDynString(\"$sDpes:\"+_dpes,\"$sExtraParameters:\"+extraParameters,\"$plotType:\"+plotType),
+							 (float)posX*x/100+offsetX, (float)posY*y/100+offsetY, 0, 1, 1);
+		}
+	}
+}
+
+
+" 0
+ E 0 1 1 0 1 E U  1 E 0 0 100 100
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

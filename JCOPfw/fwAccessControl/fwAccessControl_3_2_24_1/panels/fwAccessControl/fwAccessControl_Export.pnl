@@ -1,0 +1,873 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 754 501 N "_3DFace" 0
+"main()
+{
+populatePanel();
+}
+" 0
+ E E E E 1 -1 -1 0  20 57
+""0  1
+E "// General functions...
+
+// this global variable stores currently edited set
+global dyn_string g_selectedNames, g_selectedTypes, g_allDomainNames, g_allGroupNames, g_allUserNames;
+global string g_currentObjectType;
+
+void populatePanel()
+{
+_fwAccessControl_checkInit();
+
+OKButton.enabled=FALSE;
+
+dynClear(g_selectedNames);
+dynClear(g_selectedTypes);
+dynClear(g_allDomainNames);
+dynClear(g_allGroupNames);
+dynClear(g_allUserNames);
+
+dyn_string exceptionInfo;
+dyn_string fullNames;
+
+fwAccessControl_getAllDomains (g_allDomainNames, fullNames, exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+int idx=dynContains(g_allDomainNames,g_fwAccessControl_systemDomainName);
+if (idx) dynRemove(g_allDomainNames,idx);
+if (dynlen(g_allDomainNames)<1) {
+	fwAccessControl_raiseException(exceptionInfo,\"INFO\",\"No domains defined in system\",\"\");
+	fwAccessControl_displayException(exceptionInfo);
+}
+
+
+fwAccessControl_getAllGroups(g_allGroupNames, fullNames, exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+fwAccessControl_getAllUsers(g_allUserNames, fullNames, exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+ObjectType.text=\"Domains\";
+ObjectTypeSelected(\"Domains\");
+
+repaintTables();
+
+OKButton.enabled=TRUE;
+}
+
+
+void ObjectTypeSelected(string what)
+{
+	if (what==\"Domains\") {
+		g_currentObjectType=\"DOMAIN\";
+	} else if (what==\"Groups\") {
+		g_currentObjectType=\"GROUP\";
+	} else if (what==\"Users\") {
+		g_currentObjectType=\"USER\";
+	}
+	repaintTables();
+}
+
+
+//__________________________________________________________________________
+void repaintTables()
+{
+
+int i,n;
+string domain;
+
+
+ObjectsTable.enabled=FALSE;
+SelectedTable.enabled=FALSE;
+
+
+setValue(\"ObjectsTable\",\"deleteAllLines\");
+setValue(\"SelectedTable\",\"deleteAllLines\");
+
+dyn_string allObjects;
+
+if (g_currentObjectType==\"DOMAIN\") {
+	allObjects=g_allDomainNames;
+} else if (g_currentObjectType==\"GROUP\") {
+	allObjects=g_allGroupNames;
+} else if (g_currentObjectType==\"USER\") {
+	allObjects=g_allUserNames;
+}
+ObjectsTable.appendLines(dynlen(allObjects),\"Name\",allObjects);
+
+SelectedTable.appendLines(dynlen(g_selectedNames),
+				\"Name\",g_selectedNames,
+				\"Type\",g_selectedTypes);
+
+
+// scroll the table to the top
+getValue(\"SelectedTable\",\"lineCount\",n);
+if (n>0) {
+	setValue(\"SelectedTable\",\"lineVisible\",0);
+	// trick to overcome improper display of first line in Motif Gedi...
+	setValue(\"SelectedTable\",\"addSelectLines\",makeDynInt(0));
+	setValue(\"SelectedTable\",\"removeSelectLines\",makeDynInt(0));
+}
+
+for (i=1;i<=dynlen(g_selectedNames);i++) {
+	if ( (g_selectedTypes[i]!=g_currentObjectType) ||
+             // special case: GROUPS with SUBGROUPS
+             (g_currentObjectType==\"GROUP\" && g_selectedTypes[i]==\"SUBGROUP\")
+             ) continue;
+
+	int idx=dynContains(allObjects,g_selectedNames[i]);
+	if (idx) {
+		ObjectsTable.cellBackColRC(idx-1,\"Name\",\"lightgrey\");
+	} else {
+		ObjectsTable.cellBackColRC(idx-1,\"Name\",\"white\");
+	}
+}
+ObjectsTable.enabled=TRUE;
+SelectedTable.enabled=TRUE;
+
+}
+
+
+
+
+// VARIOUS EVENT HANDLERS
+//__________________________________________________________________________
+void AddSelected()
+{
+	dyn_int selLines;
+	int i;
+	string obj;
+
+
+	getValue(\"ObjectsTable\",\"getSelectedLines\",selLines);
+	for (i=1;i<=dynlen(selLines);i++) {
+
+		getValue(\"ObjectsTable\",\"cellValueRC\",
+			selLines[i], \"Name\", obj);
+
+		dynAppend(g_selectedNames,obj);
+		dynAppend(g_selectedTypes,g_currentObjectType);
+	};
+	// unselect...
+	setValue(\"ObjectsTable\",\"removeSelectLines\",selLines);
+	repaintTables();
+
+	// scroll the table so as the new line is visible
+	setValue(\"SelectedTable\",\"lineVisible\",-1);
+}
+//__________________________________________________________________________
+void AddAll()
+{
+	dyn_int selLines;
+	int i,n;
+	string object;
+
+	getValue(\"ObjectsTable\",\"lineCount\",n);
+
+	for (i=0;i<n;i++) {
+		getValue(\"ObjectsTable\",\"cellValueRC\",
+			i, \"Name\", object);
+		dynAppend(g_selectedNames, object);
+		dynAppend(g_selectedTypes,g_currentObjectType);
+	};
+	// remove selection, if existed
+	getValue(\"ObjectsTable\",\"getSelectedLines\",selLines);
+	setValue(\"ObjectsTable\",\"removeSelectLines\",selLines);
+
+	repaintTables();
+
+}
+//__________________________________________________________________________
+void RemoveSelected()
+{
+	dyn_int selLines;
+	int i,j,n;
+	string obj, objtype;
+
+	getValue(\"SelectedTable\",\"getSelectedLines\",selLines);
+	getValue(\"ObjectsTable\",\"lineCount\",n);
+
+	dyn_string toRemove;
+
+	for (i=1;i<=dynlen(selLines);i++) {
+		getValue(\"SelectedTable\",\"cellValueRC\",selLines[i],
+			 \"Name\", obj);
+		getValue(\"SelectedTable\",\"cellValueRC\",selLines[i],
+			 \"Type\", objtype);
+		
+
+		dynAppend(toRemove,objtype+\"|\"+obj);
+	}
+
+
+	for (int i=1;i<=dynlen(g_selectedNames);i++) {
+		string rmv=g_selectedTypes[i]+\"|\"+g_selectedNames[i];
+		if (dynContains(toRemove,rmv)) {
+			dynRemove(g_selectedNames,i);
+			dynRemove(g_selectedTypes,i);
+			i--;
+		}
+	}
+
+	repaintTables();
+
+}
+//__________________________________________________________________________
+void RemoveAll()
+{
+	dynClear(g_selectedNames);
+	dynClear(g_selectedTypes);
+	repaintTables();
+}
+
+
+//__________________________________________________________________________
+bool CheckConsistency()
+{
+dyn_string expDomains, expGroups, expUsers;
+for (int i=1;i<=dynlen(g_selectedNames);i++) {
+	if (g_selectedTypes[i]==\"DOMAIN\") {
+		dynAppend(expDomains, g_selectedNames[i]);
+	} else if (g_selectedTypes[i]==\"GROUP\") {
+		dynAppend(expGroups, g_selectedNames[i]);
+	} else if (g_selectedTypes[i]==\"USER\") {
+		dynAppend(expUsers, g_selectedNames[i]);
+	}
+}
+
+//  gather missing requirements...
+dyn_string rWho, rWhat;// who requires what
+dyn_string aGroups=expGroups;// all groups that we will search, including the ones we find in users...
+dyn_string exceptionInfo;
+string fullName,description;
+int id;
+
+for (int i=1;i<=dynlen(expUsers);i++) {
+	bool   enabled;
+	dyn_string groupNames;
+	fwAccessControl_getUser(expUsers[i],fullName,description,id,
+                        enabled,groupNames,exceptionInfo);
+	if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return FALSE;};
+	for (int j=1;j<=dynlen(groupNames);j++) {
+		if (!dynContains(expGroups,groupNames[j])) {
+			dynAppend(rWho,\"USER \"+expUsers[i]);
+			dynAppend(rWhat,\"GROUP \"+groupNames[j]);
+			if (!dynContains(aGroups,groupNames[j])) dynAppend(aGroups,groupNames[j]);
+		}
+	}
+}
+
+// get the included groups, recursively...
+dyn_string includedGroups, includedBy;
+fwAccessControl_resolveGroupsRecursively(aGroups,includedGroups,includedBy,exceptionInfo,TRUE);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return FALSE;};
+for (int i=1;i<=dynlen(includedGroups);i++) {
+  if (!dynContains(expGroups,includedGroups[i])){
+     dynAppend(rWho,\"GROUP \"+includedBy[i]);
+     dynAppend(aGroups,includedGroups[i]);
+     dynAppend(rWhat,\"SUBGROUP \"+includedGroups[i]);     
+  }
+}
+
+
+for (int i=1;i<=dynlen(aGroups);i++) {
+	dyn_string grpPrivs;
+	fwAccessControl_getGroupPrivileges(aGroups[i], makeDynString(), 
+		grpPrivs, exceptionInfo);
+	if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return FALSE;};
+	dyn_string gMissingDomains;
+	for (int j=1;j<=dynlen(grpPrivs);j++) {
+		dyn_string dPriv=strsplit(grpPrivs[j],\":\");
+		string domain=dPriv[1];
+		if (domain==g_fwAccessControl_systemDomainName) continue;
+		if (!dynContains(expDomains,domain)) {
+			dynAppend(gMissingDomains,domain);
+		}
+	}
+	dynUnique(gMissingDomains);
+
+	for (int j=1;j<=dynlen(gMissingDomains);j++) {
+			dynAppend(rWho,\"GROUP \"+aGroups[i]);
+			dynAppend(rWhat,\"DOMAIN \"+gMissingDomains[j]);
+	};
+}
+
+
+// format the missing dependencies into a text,
+// suitable for being displayed...
+dyn_string missing;
+for (int i=1;i<=dynlen(rWho);i++) {
+	dynAppend(missing,\"Missing \"+rWhat[i]+\" needed by \"+rWho[i]);
+}
+
+if (!dynlen(missing)) return TRUE; // all dependencies OK!
+
+dyn_float df;
+dyn_string ds;
+ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_LogWindow.pnl\",
+			\"Dependencies for Access Control export\",
+			makeDynString(\"$log:\"+missing,
+				\"$text:The following objects should be exported to assure consistency of AC objects\",
+				\"$text2:Press OK to add them to the list\"),
+			df,ds);
+if (dynlen(df)<1) return FALSE;
+if (df[1]==0) return FALSE; 
+
+// otherwise: add them to the list...
+dynUnique(rWhat);
+for (int i=1;i<=dynlen(rWhat);i++){
+	dyn_string ds=strsplit(rWhat[i],\" \");
+	dynAppend(g_selectedTypes,ds[1]);	
+	dynAppend(g_selectedNames,ds[2]);
+}
+	repaintTables();
+	return FALSE;
+}
+
+
+
+
+//__________________________________________________________________________
+dyn_string GeneratePostinstallScript()
+{
+
+// at first: extract current version of the AC component...
+dyn_dyn_string componentsInfo;
+fwInstallation_getInstalledComponents(componentsInfo );
+string ACversion;
+for (int i=1;i<=dynlen(componentsInfo);i++) {
+	if (componentsInfo[i][1]==\"fwAccessControl\") {
+		ACversion=componentsInfo[i][2];
+		break;
+	}
+}
+
+	dyn_string acCommands=makeDynString(
+		\"void postInstall_fwAccessControl(dyn_string &exceptionInfo)\",
+		\"{\",
+		\"string acComponent=\\\"fwAccessControl\\\";\",
+		\"string acVersion=\\\"\"+ACversion+\"\\\";\",
+		\"int acInstalled;\",
+		\"fwInstallation_componentInstalled(acComponent, acVersion, acInstalled);\",
+		\"if (!acInstalled) { makeDynString(exceptionInfo,\\\"ERROR\\\",\\\"Access Control component \\\"+acVersion+\\\" not installed\\\",\\\"\\\");return;};\",
+		\"\");
+
+	if (!dynlen(g_selectedNames)) {
+		dynAppend(acCommands,\"}\");
+		return acCommands;
+	}
+
+dyn_string exceptionInfo;
+dyn_string expDomains, expGroups, expUsers;
+for (int i=1;i<=dynlen(g_selectedNames);i++) {
+	if (g_selectedTypes[i]==\"DOMAIN\") {
+		dynAppend(expDomains, g_selectedNames[i]);
+	} else if (g_selectedTypes[i]==\"GROUP\") {
+		dynAppend(expGroups, g_selectedNames[i]);
+	} else if (g_selectedTypes[i]==\"SUBGROUP\") {
+		dynAppend(expGroups, g_selectedNames[i]);
+	} else if (g_selectedTypes[i]==\"USER\") {
+		dynAppend(expUsers, g_selectedNames[i]);
+	}
+}
+
+for (int i=1;i<=dynlen(expDomains);i++) {
+	_fwAccessControl_exportDomain(acCommands,expDomains[i],exceptionInfo);
+	if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo); return makeDynString();}	
+}
+for (int i=1;i<=dynlen(expGroups);i++) {
+	_fwAccessControl_exportGroup(acCommands,expGroups[i],exceptionInfo);
+	if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo); return makeDynString();}	
+}
+for (int i=1;i<=dynlen(expGroups);i++) {
+	_fwAccessControl_exportSubGroup(acCommands,expGroups[i],exceptionInfo);
+	if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo); return makeDynString();}	
+}
+for (int i=1;i<=dynlen(expUsers);i++) {
+	_fwAccessControl_exportUser(acCommands,expUsers[i],exceptionInfo);
+	if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo); return makeDynString();}	
+}
+dynAppend(acCommands,\"}\\n\");
+return acCommands;
+
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 25
+"PRIMITIVE_TEXT1"
+""
+1 20 70 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 70 304 85
+0 2 2 "0s" 0 0 0 192 0 0  20 70 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 49 Select Access Control Objects you wish to export:
+2 30
+"Text1"
+""
+1 -318 -74 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 20 248 39
+0 2 2 "0s" 0 0 0 192 0 0  20 20 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 JCOP Framework Access Control
+25 23
+"ObjectsTable"
+""
+1 30 160 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 30 160 270 390
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE );
+
+}" 0
+"main(int row, string column, string value)
+{
+//if (dynContains(g_selectedNames,value)) {
+//		// unselect it...
+//	setValue(\"\",\"removeSelectLines\",makeDynInt(row));
+//};
+
+string color;
+getValue (\"\", \"cellBackColRC\", row, column, color );
+if (color==\"lightgrey\"){
+		// unselect it...
+	setValue(\"\",\"removeSelectLines\",makeDynInt(row));
+}
+
+}" 0
+ 1 0 1 1 1 "Name" 17 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 11 Domain name
+
+200 
+17 17 "" 1 1
+LANG:1 0 
+8 84
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 2 1 7
+1 0
+22 27
+"ObjectType"
+""
+1 30 120 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 30 120 270 149
+3
+1
+LANG:1 7 Domains
+
+1
+1
+LANG:1 6 Groups
+
+0
+1
+LANG:1 5 Users
+
+0
+
+E
+"main()
+{
+ObjectTypeSelected(this.selectedText);
+}" 0
+
+E
+ 0 0
+25 9
+"SelectedTable"
+""
+1 390 120 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 390 120 720 390
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE );
+
+}" 0
+E 1 0 1 2 1 "Type" 6 1 0 "s" 1
+LANG:1 6 Object
+E
+1
+LANG:1 11 Domain name
+
+80 "Name" 19 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 11 Domain name
+
+220 
+17 17 "" 1 1
+LANG:1 0 
+8 84
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 2 1 7
+1 0
+13 11
+"AddButton"
+""
+1 310 190 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 310 190 350 220
+
+T 
+1
+LANG:1 1 >
+"main()
+{
+AddSelected();
+}" 0
+ E E E
+13 12
+"AddAllButton"
+""
+1 310 240 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 310 240 350 270
+
+T 
+1
+LANG:1 2 >>
+"main()
+{
+AddAll();
+}" 0
+ E E E
+13 13
+"RemoveButton"
+""
+1 310 290 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 310 290 350 320
+
+T 
+1
+LANG:1 1 <
+"main()
+{
+RemoveSelected();
+}" 0
+ E E E
+13 14
+"RemoveAllButton"
+""
+1 310 340 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 310 340 350 370
+
+T 
+1
+LANG:1 2 <<
+"main()
+{
+RemoveAll();
+}" 0
+ E E E
+30 10
+"MemberOfFrame"
+""
+1 380 100 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 380 100 730 410
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Selected objects:
+20 28
+"EnforceConsistency"
+""
+1 570 420 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 570 420 725 448
+1
+T 
+1
+LANG:1 19 Enforce consistency
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+this.state(0,1);
+}" 0
+E13 16
+"ResetButton"
+""
+1 20 460 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 20 460 100 490
+
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+	populatePanel();
+}" 0
+ E E E
+13 15
+"OKButton"
+""
+1 560 460 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 560 460 640 490
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+this.enabled=FALSE;
+bool enforceConsistency;
+getValue(\"EnforceConsistency\",\"state\",0,enforceConsistency);
+
+if (enforceConsistency) {
+	bool ok=CheckConsistency();
+	if (!ok) {
+		this.enabled=TRUE;
+		return;
+	}
+}
+
+dyn_string ds=GeneratePostinstallScript();
+if (dynlen(ds)) PanelOffReturn(dynlen(ds),ds);
+// dynlen(ds)==0 means error - already handled...
+}
+" 0
+ E E E
+13 1
+"CancelButton"
+""
+1 660 460 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 660 460 740 490
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+30 8
+"AllFrame"
+""
+1 20 100 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 100 280 410
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Existing objects:
+1 31 1 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 1 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 12 1 0 1 380 0
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_Export"
+0

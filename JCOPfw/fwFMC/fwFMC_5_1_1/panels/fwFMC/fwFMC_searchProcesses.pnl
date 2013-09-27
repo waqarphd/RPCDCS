@@ -1,0 +1,771 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 782 706 N "_3DFace" 1
+"$nodes"
+"main()
+{
+  nodes = strsplit($nodes, \"|\");
+  for(int i =1; i <= dynlen(nodes); i++)
+    strreplace(nodes[i], \" \", \"\");
+
+  searchAbusing();
+  tblProcesses.removeSelectLines(0);
+}
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  40 70
+""0  1
+E "#uses \"fwFMC/fwFMCProcess.ctl\"
+
+dyn_string nodes;    
+    
+void getAllMonitoredProcesses(dyn_string nodes,
+                              dyn_string &allHosts, 
+                              dyn_string &allProcs, 
+                              dyn_string &allCmd, 
+                              dyn_int &allPid, 
+                              dyn_int &allMemory, 
+                              dyn_float &allCpu,
+                              dyn_string &allUser,
+                              dyn_int &allState,
+                              dyn_string &allDps,
+                              dyn_string &allStartDates)
+{
+  
+  string proc, cmd, user;
+  int memory, pid, state;
+  float cpu;
+  string host;
+  string startDate;
+
+  for(k = 1; k <= dynlen(nodes); k++)
+  {  
+    dyn_string procsDps = dpNames(\"FMC/\" + nodes[k] + \"/Process/MonitoredProcesses/*\", 
+                                  \"FwFMCMonitoredProcess\");
+    
+    for(int i = 1; i <= dynlen(procsDps); i++)
+    {
+      dpGet(procsDps[i] + \".config.name\", proc,
+            procsDps[i] + \".readings.pid\", pid,
+            procsDps[i] + \".config.cmd\", cmd,
+            procsDps[i] + \".readings.state\", state,
+            procsDps[i] + \".readings.memory\", memory,
+            procsDps[i] + \".readings.cpu\", cpu,
+            procsDps[i] + \".readings.startDate\", startDate);
+    
+      if(proc == \"-1\")
+        continue;
+    
+      host = fwFMCProcess_getProcessHost(procsDps[i]);
+    
+      dynAppend(allHosts, host);
+      dynAppend(allProcs, proc);
+      dynAppend(allPid, pid);
+      dynAppend(allCmd, cmd);
+      dynAppend(allMemory, memory);
+      dynAppend(allCpu, cpu);
+      dynAppend(allUser, \"N/A\");
+      dynAppend(allState, state);
+      dynAppend(allDps, procsDps[i]);
+      dynAppend(allStartDates, startDate);
+    } 
+  }
+}
+searchMonitored()
+{
+  dyn_string allHosts, allProcs, allCmd, allUser, allDps, allStartDates;
+  dyn_int allPid, allMemory, allState;
+  dyn_float allCpu;
+  string str;
+  string col;
+  
+  getAllMonitoredProcesses(nodes, 
+                           allHosts, 
+                           allProcs, 
+                           allCmd, 
+                           allPid, 
+                           allMemory, 
+                           allCpu,
+                           allUser,
+                           allState,
+                           allDps,
+                           allStartDates);
+  
+  for(int i = 1; i <= dynlen(allProcs); i++)
+  {
+    if(allState[i] == 1)
+    {
+      col = \"green\";
+      str = \"RUNNING\";
+    }else if(allState[i] == 2)
+    {
+      col = \"red\";
+      str = \"DEAD\";
+    }else 
+    {
+      str = \"UNKNOWN\";
+      col = \"yellow\";
+    }
+      
+    tblProcesses.appendLine(\"host\", allHosts[i], 
+                            \"pid\", allPid[i],
+                            \"process\", allProcs[i],
+                            \"user\", allUser[i],
+                            \"memory\", allMemory[i]/1048576,
+                            \"cpu\", (floor(allCpu[i]*10.))/10.,
+                            \"cmd\", allCmd[i],
+                            \"state\", str,
+                            \"started\", allStartDates[i], 
+                            \"dp\", allDps[i]);
+    
+    tblProcesses.cellBackColRC(i-1, \"state\", col);
+  }
+}
+
+void searchPattern(string pattern, string hostPattern, string optionsPattern)
+{
+  dyn_string allProcs, procs, allCmd, cmd, allUser, user, sortedProcs, sortedCmd, allHosts, sortedHosts, sortedUser, allStartDates, sortedStartDates;
+  dyn_int allMemory, memory, allPid, pid, sortedMemory, sortedPid;
+  dyn_float allCpu, cpu, sortedCpu;
+  string host;
+
+  if(pattern == \"\" && hostPattern == \"\" && optionsPattern == \"\")
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Error\", makeDynString(\"$1:Sorry, you must enter a pattern to search for\"));
+    return;
+  }
+  
+  tblProcesses.deleteAllLines();
+  if (hostPattern == \"\")
+    hostPattern = \"*\";
+  else 
+    hostPattern = \"*\" + hostPattern + \"*\";
+  
+  if (optionsPattern == \"\")
+    optionsPattern = \"*\";
+  else 
+    optionsPattern = \"*\" + optionsPattern + \"*\";
+  
+  if (pattern == \"\")
+    pattern = \"*\";
+  else 
+    pattern = \"*\" + pattern + \"*\";
+  
+  openProgressBar(\"Looking for processes matching: \" + pattern + \" on hosts \" + hostPattern + \" with cmd line \" + optionsPattern, \"copy.gif\", \"Analyzing \" + dynlen(allProcs) + \" processes\", \"This may take a while\", \"Please wait...\", \"\", 1);
+
+  fwFMCProcess_getAllProcesses(nodes, 
+                               allHosts,
+                  allProcs, 
+                  allCmd, 
+                  allPid, 
+                  allMemory, 
+                  allCpu,
+                  allUser,
+                  allStartDates);
+
+  for(int j = 1; j <= dynlen(allMemory); j++)
+  {
+    if(patternMatch(pattern, allProcs[j]) && patternMatch(hostPattern, allHosts[j]) && patternMatch(optionsPattern, allCmd[j]))
+    {
+      dynAppend(sortedHosts, allHosts[j]);
+      dynAppend(sortedProcs, allProcs[j]);
+      dynAppend(sortedPid, allPid[j]);
+      dynAppend(sortedCmd, allCmd[j]);
+      dynAppend(sortedMemory, allMemory[j]);
+      dynAppend(sortedCpu, allCpu[j]);
+      dynAppend(sortedUser, allUser[j]);
+      dynAppend(sortedStartDates, allStartDates[j]);
+        
+    }
+  }  
+  
+  for(int i = 1; i <= dynlen(sortedProcs); i++)
+  {
+    tblProcesses.appendLine(\"host\", sortedHosts[i], 
+                            \"pid\", sortedPid[i],
+                            \"process\", sortedProcs[i],
+                            \"user\", sortedUser[i],
+                            \"memory\", sortedMemory[i]/1048576,
+                            \"cpu\", (floor(sortedCpu[i]*10.))/10.,
+                            \"cmd\", sortedCmd[i],
+                            \"started\", sortedStartDates[i],
+                            \"state\", \"RUNNING\");
+    tblProcesses.cellBackColRC(i-1, \"state\", \"green\");
+  }
+  closeProgressBar();
+}
+    
+void searchAbusing(int n = 10)
+{
+  dyn_string allProcs, procs, allCmd, cmd, allUser, user, sortedProcs, sortedCmd, sortedUser, allHosts, sortedHosts, allStartDates, sortedStartDates, startDate;
+  dyn_int allMemory, memory, allPid, pid, sortedMemory, sortedPid;
+  dyn_float allCpu, cpu, sortedCpu;
+  string host;
+ 
+  tblProcesses.deleteAllLines();
+
+  fwFMCProcess_getAllProcesses(nodes,
+                  allHosts, 
+                  allProcs, 
+                  allCmd, 
+                  allPid, 
+                  allMemory, 
+                  allCpu,
+                  allUser,
+                  allStartDates);
+
+  openProgressBar(\"Looking for abusing processes\", \"copy.gif\", \"Analyzing \" + dynlen(allProcs) + \" processes\", \"This may take a while\", \"Please wait...\", \"\", 1);
+  for(int i = 1; i <= (n+1); i++)
+  {
+    int max = dynMax(allMemory);
+    int m = dynlen(allMemory);
+    
+    for(int j = m; j >=1; j--)
+    {
+      if(allPid[j] == 0) //skip non real processes
+      {
+        dynRemove(allHosts, j);
+        dynRemove(allProcs, j);
+        dynRemove(allPid, j);
+        dynRemove(allCmd, j);
+        dynRemove(allMemory, j);
+        dynRemove(allCpu, j);
+        dynRemove(allUser, j);
+        dynRemove(allStartDates, j);
+        continue;
+      }      
+      
+      if(allMemory[j] == max)
+      {
+        dynAppend(sortedHosts, allHosts[j]);
+        dynAppend(sortedProcs, allProcs[j]);
+        dynAppend(sortedPid, allPid[j]);
+        dynAppend(sortedCmd, allCmd[j]);
+        dynAppend(sortedMemory, allMemory[j]);
+        dynAppend(sortedCpu, allCpu[j]);
+        dynAppend(sortedUser, allUser[j]);
+        dynAppend(sortedStartDates, allStartDates[j]);
+        
+        dynRemove(allUser, j);
+        dynRemove(allHosts, j);
+        dynRemove(allProcs, j);
+        dynRemove(allPid, j);
+        dynRemove(allCmd, j);
+        dynRemove(allMemory, j);
+        dynRemove(allCpu, j);
+        dynRemove(allStartDates, j);
+        
+        break;
+      }
+    }
+  }  
+  
+  for(int i = 1; i <= dynlen(sortedProcs); i++)
+  {
+    
+    tblProcesses.appendLine(\"host\", sortedHosts[i], 
+                            \"pid\", sortedPid[i],
+                            \"process\", sortedProcs[i],
+                            \"user\", sortedUser[i],
+                            \"memory\", sortedMemory[i]/1024,
+                            \"cpu\", (floor(sortedCpu[i]*10.))/10.,
+                            \"cmd\", sortedCmd[i],
+                            \"state\", \"RUNNING\",
+                            \"started\", sortedStartDates[i]);
+    
+    tblProcesses.cellBackColRC(i-1, \"state\", \"green\");
+  }
+  closeProgressBar();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tblProcesses"
+""
+1 0 20 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  dyn_int lines;
+  dyn_string menu; 
+  int answer; 
+  string name, cmd;
+  int pid;
+  string node, dp;
+  dyn_string trendDps;
+  
+  getValue(\"\", \"getSelectedLines\", lines);
+  
+  if(rbType.number < 2)
+  {
+    menu = makeDynString(
+      \"PUSH_BUTTON, Start Monitoring, 4, 1\", 
+      \"SEPARATOR\"); 
+  }
+  else
+  {
+    menu = makeDynString(
+      \"PUSH_BUTTON, Trend, 6, 1\", 
+      \"SEPARATOR\"); 
+  }  
+  popupMenu(menu, answer); 
+
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    getMultiValue(\"\", \"cellValueRC\", lines[i], \"pid\", pid, 
+                  \"\", \"cellValueRC\", lines[i], \"process\", name, 
+                  \"\", \"cellValueRC\", lines[i], \"cmd\", cmd,
+                  \"\", \"cellValueRC\", lines[i], \"host\", node,
+                  \"\", \"cellValueRC\", lines[i], \"dp\", dp);
+    
+    if(answer == 4)
+    {
+      fwFMCProcess_sendProcessCommand(node, pid, name, cmd, answer);
+      delay(0,100);
+    }
+    else if(answer == 6)
+    {
+      dynAppend(trendDps, dp);
+    }
+  }
+  
+  if(answer == 6)
+  {
+    ChildPanelOnCentral(\"fwFMC/fwFMC_trendProcess.pnl\", \"Processes Trend\", makeDynString(\"$dps:\" + trendDps));  
+  }
+}
+
+
+
+
+
+
+
+
+" 0
+ E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  -2 18 762 512
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE); 
+  this.selectByClick(TABLE_SELECT_LINE);
+} 
+" 0
+E 1 0 1 10 0 "host" 8 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 0 
+
+90 "pid" 3 1 0 "s" 1
+LANG:1 3 PID
+E
+1
+LANG:1 0 
+
+40 "process" 11 1 0 "s" 1
+LANG:1 7 Process
+E
+1
+LANG:1 0 
+
+120 "user" 7 1 0 "s" 1
+LANG:1 4 User
+E
+1
+LANG:1 0 
+
+80 "memory" 3 1 0 "s" 1
+LANG:1 7 VM (MB)
+E
+1
+LANG:1 0 
+
+46 "cpu" 4 1 0 "s" 1
+LANG:1 7 CPU (%)
+E
+1
+LANG:1 0 
+
+50 "state" 5 1 0 "s" 1
+LANG:1 5 State
+E
+1
+LANG:1 0 
+
+60 "started" 6 1 0 "s" 1
+LANG:1 10 Started on
+E
+1
+LANG:1 0 
+
+70 "cmd" 99 1 0 "s" 1
+LANG:1 8 CMD Line
+E
+1
+LANG:1 0 
+
+1000 "dp" 5 0 0 "s" 1
+LANG:1 2 dp
+E
+1
+LANG:1 0 
+
+60 
+14 14 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+21 1
+"sbNProcs"
+""
+1 212 530.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  310 548 354 572
+0
+
+"main()
+{
+  this.text = 10;
+}
+" 0
+
+E
+E
+
+N 0 100 1 0 1 1
+2 2
+"PRIMITIVE_TEXT1"
+""
+1 222 552.0000000000002 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 222 552.0000000000002 302 566
+0 2 2 "0s" 0 0 0 192 0 0  222 552.0000000000002 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Processes Count
+13 3
+"PUSH_BUTTON1"
+""
+1 540 660.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  538 658 642 692
+
+T 
+1
+LANG:1 6 Search
+E E "main()
+{
+  if(rbType.number == 0)
+    searchAbusing(sbNProcs.text);
+  else if(rbType.number == 1)
+    searchPattern(tfPattern.text, tfHostPattern.text, tfOptionsPattern.text);
+  else if(rbType.number == 2)
+    searchMonitored();
+  
+  tblProcesses.removeSelectLines(0);
+}
+
+
+
+
+
+" 0
+ E
+13 4
+"PUSH_BUTTON2"
+""
+1 660 660.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  658 658 762 692
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}
+" 0
+ E E E
+19 5
+"rbType"
+""
+1 10 540.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  8 538 217 645
+3
+T 
+1
+LANG:1 30 Search memory hungry processes
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 36 Search processes matching a pattern:
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 27 Show my monitored processes
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  
+  tblProcesses.deleteAllLines();
+  if(button == 0)
+  {
+   sbNProcs.enabled = 1;
+   tfPattern.enabled = 0;
+   tfHostPattern.enabled = 0;
+   tfOptionsPattern.enabled = 0;
+  }
+  else if(button == 1)
+  {
+   sbNProcs.enabled = 0;
+   tfPattern.enabled = 1;
+   tfHostPattern.enabled = 1;
+   tfOptionsPattern.enabled = 1;
+  }
+  else
+  {
+   sbNProcs.enabled = 0;
+   tfPattern.enabled = 0;
+   tfHostPattern.enabled = 0;
+   tfOptionsPattern.enabled = 0;
+  }
+}
+
+" 0
+
+14 6
+"tfPattern"
+""
+1 220 580.0000000000002 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  218 578 372 601
+3 "0s" 0 0 0 0 0 -1  E E E
+30 7
+"FRAME1"
+""
+1 10 283 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+7 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.878048780487805 0 1.688311688311688 -18.78048780487802 42.20779220779232 0 E 10 283 421 361
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Search Type
+2 8
+"PRIMITIVE_TEXT2"
+""
+1 375 585 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 375 585 396 599
+0 2 2 "0s" 0 0 0 192 0 0  375 585 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 5 host:
+2 9
+"PRIMITIVE_TEXT3"
+""
+1 560 585 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 560 585 604 599
+0 2 2 "0s" 0 0 0 192 0 0  560 585 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 cmd line:
+14 10
+"tfHostPattern"
+""
+1 400 580.0000000000002 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  398 578 552 601
+3 "0s" 0 0 0 0 0 -1  E E E
+14 11
+"tfOptionsPattern"
+""
+1 610 580.0000000000002 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  608 578 762 601
+3 "0s" 0 0 0 0 0 -1  E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

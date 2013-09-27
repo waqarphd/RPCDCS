@@ -1,0 +1,707 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 426 501 N "_3DFace" 2
+"$domainName"
+"$mode"
+"main()
+{
+  
+//
+// $domainName should contain domain name that needs to be edited
+// or empty string if new domain should be defined.
+//
+// optional $mode should contain string \"RO\" for read-only (browse) mode
+//
+
+
+	string domainName, domainFullName, domainComment,domainId;
+	dyn_string exceptionInfo,privileges;
+
+	fwAccessControl_setupPanel(\"AccessControl\",exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		AccessControl(\"\",\"\"); // global \"reject\"
+		fwAccessControl_displayException(exceptionInfo);
+	};
+
+
+
+	if (!isDollarDefined(\"$domainName\")) {
+		fwAccessControl_raiseException(exceptionInfo,
+					\"PANEL ERROR\",
+					\"Domain name not specified in $domainName\",
+					\"\");
+		setValue(\"OKButton\",\"enabled\",FALSE);
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	};
+
+	domainName=$domainName;
+	if (domainName==\"\") {
+		setValue(\"OKButton\",\"text\",\"Create\");
+		setValue(\"ShowPrivHoldersButton\",\"visible\",FALSE);
+	}
+
+
+	string q=\"SELECT '_original.._value' FROM '\"+g_fwAccessControl_AreasDP+\".*'\";
+	int rc=dpQueryConnectAll(\"DomainsChanged\",FALSE,\"DomainsChangedCB\",q,1000);
+
+	populatePanel();
+
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "string g_domainName, g_domainFullName, g_domainComment;
+int g_domainId=-99;
+dyn_string g_privileges;
+dyn_int g_privIds;
+
+
+void populatePanel()
+{
+	string domainName, domainFullName, domainComment,domainId;
+	dyn_string exceptionInfo,privileges;
+	dyn_int privIds;
+
+	if (g_domainId==-99) { // only at initialization...
+		g_domainName=$domainName;
+	}
+
+	domainName=g_domainName;
+	
+	if (domainName!=\"\") {
+		fwAccessControl_getDomain(domainName,
+				  domainFullName,
+				  domainComment,
+				  domainId,
+				  privileges,
+				  privIds,
+				  exceptionInfo);
+	} else {
+		_fwAccessControl_GetDefaultPrivileges(privileges, privIds);
+	}
+
+	if (g_domainId==-99) {
+		// only at initialization!
+		g_domainName=domainName;
+		g_domainFullName=domainFullName;
+		g_domainComment=domainComment;
+		g_domainId=domainId;
+		g_privileges=privileges;
+		g_privIds=privIds;
+	}
+
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+	} else {
+		setValue(\"Name\",\"text\",domainName);
+		setValue(\"FullName\",\"text\",domainFullName);
+		setValue(\"Comment\",\"text\",domainComment);
+		setValue(\"Id\",\"text\",domainId);
+		setValue(\"PrivilegeTable\",\"deleteAllLines\");
+		for (int i=1;i<=dynlen(privileges);i++) {
+			setValue(\"PrivilegeTable\",\"updateLine\",1,
+					\"Level\",privIds[i],
+					\"Name\",privileges[i]);
+		}
+		setValue(\"PrivilegeTable\",\"lineVisible\",0);
+	}
+
+	if (isDollarDefined(\"$mode\")) {
+		if ($mode==\"RO\") {
+			setValue(\"Name\",\"editable\",false);
+			setValue(\"FullName\",\"editable\",false);
+			setValue(\"Comment\",\"editable\",false);
+			setValue(\"OKButton\",\"visible\",false);
+			setValue(\"ResetPermNamesButton\",\"visible\",false);
+			setValue(\"PrivilegeTable\",\"columnEditable\",1,false);
+		}
+	}
+
+	if (g_fwAccessControl_ModeUNICOS) {
+			setValue(\"FullName\",\"editable\",false);
+			setValue(\"Comment\",\"editable\",false);
+	}
+
+}
+
+void AccessControl(string dp, string username_from_ui)
+{
+	dyn_string exceptionInfo;
+	bool granted;
+
+	if (dp==\"\") {
+		// means reject mode:
+
+		granted=false;
+	} else {
+		granted=fwAccessControl_HasDomainAdminPrivilege(exceptionInfo,\"\",FALSE);
+	}
+
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		granted=false;
+	}
+
+
+
+	bool ReadOnlyMode=false;
+	if (isDollarDefined(\"$mode\")) {
+		if ($mode==\"RO\") ReadOnlyMode=true;
+	}
+
+	
+	if (granted && (!ReadOnlyMode)) {
+		setValue(\"OKButton\",\"visible\",TRUE);
+		setValue(\"Name\",\"editable\",true);
+		setValue(\"Name\",\"backCol\",\"white\"); 
+		setValue(\"FullName\",\"editable\",true);
+		setValue(\"FullName\",\"backCol\",\"white\"); 
+		setValue(\"Comment\",\"editable\",true);
+		setValue(\"Comment\",\"backCol\",\"white\"); 
+		setValue(\"ResetPermNamesButton\",\"visible\",true);
+		setValue(\"PrivilegeTable\",\"columnEditable\",1,true);
+		setValue(\"PrivilegeTable\",\"backCol\",\"white\"); 
+	} else {
+		setValue(\"OKButton\",\"visible\",FALSE);
+		setValue(\"Name\",\"editable\",false);
+		setValue(\"Name\",\"backCol\",\"lightgrey\"); 
+		setValue(\"FullName\",\"editable\",false);
+		setValue(\"FullName\",\"backCol\",\"lightgrey\"); 
+		setValue(\"Comment\",\"editable\",false);
+		setValue(\"Comment\",\"backCol\",\"lightgrey\"); 
+		setValue(\"ResetPermNamesButton\",\"visible\",false);
+		setValue(\"PrivilegeTable\",\"columnEditable\",1,false);
+		setValue(\"PrivilegeTable\",\"backCol\",\"lightgrey\"); 
+
+	}
+
+}
+
+void DomainsChanged(string s1, string s2)
+{
+dyn_float df;
+dyn_string ds;
+
+if ($domainName==\"\") return; // the mode is \"create\"
+
+// find out if this is the domain we edit, that was changed.
+dyn_int domainIds;
+dyn_string domainNames;
+
+bool isReadOnly=FALSE;
+if (isDollarDefined(\"$mode\")) {
+	if ($mode==\"RO\") isReadOnly=TRUE;
+}
+
+dpGet(g_fwAccessControl_AreasDP+\".UserName\",domainNames,
+      g_fwAccessControl_AreasDP+\".UserId\",domainIds);
+
+int idx=dynContains(domainIds,g_domainId);
+if (!idx) {
+	if (isReadOnly) {
+		ChildPanelOnCentralModalReturn(\"vision/MessageWarning\", \"WARNING:AC Data changed\",
+		makeDynString(\"Domain has been deleted!\\n I will close the panel.\"),df,ds);
+		PanelOff();
+	} else {
+		ChildPanelOnCentralModalReturn(\"vision/MessageWarning1\",\"WARNING:AC Data changed\",
+		makeDynString(\"Domain has been deleted!\\n Do you wish to re-create it?\",
+			\"OK\",\"Cancel\"),df,ds);
+                if (dynlen(df)<1) return;
+		if (df[1]) {
+			g_domainName=\"\"; // activate the \"create\" mode
+		}
+	}
+return;
+}
+
+string domainName=domainNames[idx];
+if (domainName!=g_domainName) {
+	ChildPanelOnCentralModalReturn(\"vision/MessageWarning\",\"WARNING:AC Data changed\",
+	makeDynString(\"The name of the domain you edit has been changed!\\n I will update it in the panel.\"),df,ds);
+	g_domainName=domainName;
+	setValue(\"Name\",\"text\",domainName);
+}
+
+
+string domainFullName, domainComment;
+int domainId;
+dyn_string exceptionInfo,privileges;
+dyn_int privIds;
+fwAccessControl_getDomain(domainName,
+			  domainFullName,
+			  domainComment,
+			  domainId,
+			  privileges,
+			  privIds,
+			  exceptionInfo);
+if (dynlen(exceptionInfo)) {
+	fwAccessControl_displayException(exceptionInfo);
+	return;
+}
+
+if ( g_domainFullName!=domainFullName ||
+     g_domainComment!=domainComment ||
+     g_privileges!=privileges||
+     g_privIds!=privIds) {
+
+	ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\",\"WARNING:AC Data changed\",
+		makeDynString(\"Domain data has changed.\\nDo you want to update the data in the panel?\",\"OK\",\"Cancel\"),df,ds);
+      if (dynlen(df)<1) return;
+	if (df[1]) populatePanel();
+}
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"CloseButton"
+""
+1 328 463 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 328 463 408 493
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	if (myModuleName()==\"Domain Details\") ModuleOff(\"Domain Details\");
+
+	dyn_float df;
+	dyn_string ds;
+	
+	df[1]=0;
+	PanelOffReturn(df,ds);
+}" 0
+ E E E
+14 1
+"Name"
+""
+1 137.96875 88 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 138 88 402 117
+3 "0s" 0 0 0 0 0 -1  E E E
+14 2
+"FullName"
+""
+1 137.96875 118 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 138 118 402 147
+3 "0s" 0 0 0 0 0 -1  E E E
+14 3
+"Comment"
+""
+1 137.96875 148 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 138 148 402 177
+3 "0s" 0 0 0 0 0 -1  E E E
+25 4
+"PrivilegeTable"
+""
+1 48 202.710843373494 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 48 203 386 397
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_BROWSE );
+}" 0
+"main(int row, string column, string value)
+{
+setValue(\"ShowPrivHoldersButton\",\"enabled\",TRUE);
+}" 0
+ 1 0 1 2 8 "Level" 4 1 0 "s" 1
+LANG:1 5 Level
+E
+1
+LANG:1 0 
+
+60 "Name" 22 1 1 "s" 1
+LANG:1 14 Privilege Name
+E
+1
+LANG:1 0 
+
+250 
+20 20 "" 1 1
+LANG:1 2 #1
+"" 1 1
+LANG:1 2 #2
+"" 1 1
+LANG:1 2 #3
+"" 1 1
+LANG:1 2 #4
+"" 1 1
+LANG:1 2 #5
+"" 1 1
+LANG:1 2 #6
+"" 1 1
+LANG:1 2 #7
+"" 1 1
+LANG:1 2 #8
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 1 1 7
+1 0
+13 5
+"ResetPermNamesButton"
+""
+1 53 403 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 53 403 133 433
+
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+	populatePanel();
+}" 0
+ E E E
+13 6
+"ShowPrivHoldersButton"
+""
+1 293 403 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 33 Groups holding selected privilege
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 293 403 373 433
+
+T 
+1
+LANG:1 10 Holders...
+"main()
+{
+	dyn_int lineno;
+	dyn_float df;
+	dyn_string ds,selline,holders,exceptionInfo;
+	int i;
+	getValue(\"PrivilegeTable\",\"getSelectedLines\",lineno);
+	if (dynlen(lineno) < 1) return;
+
+	getValue(\"PrivilegeTable\",\"getLineN\",lineno[1],selline);
+
+	ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_PrivHoldersList.pnl\",
+				\"Privilege holders\",
+				makeDynString(
+				 \"$domain:\"+$domainName,
+				 \"$privilege:\"+selline[2]
+				));
+
+}
+" 0
+ E E E
+13 7
+"OKButton"
+""
+1 238 462 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 238 462 318 492
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_float df;
+	dyn_string ds,exceptionInfo;
+	dyn_string privileges;
+	string newDomainName, domainFullName, domainComment;
+
+	getValue(\"Name\",\"text\",newDomainName);
+	getValue(\"FullName\",\"text\",domainFullName);
+	getValue(\"Comment\",\"text\",domainComment);
+
+	int nPrivs;
+	getValue(\"PrivilegeTable\",\"lineCount\",nPrivs);
+
+	dyn_string tablerow;
+	for (int i=0;i<nPrivs;i++) {
+    getValue(\"PrivilegeTable\",\"getLineN\",i,tablerow);
+    if (tablerow[2]!=\"\") dynAppend(privileges, tablerow[2]);
+	}
+
+	if (g_domainName==\"\") {
+		fwAccessControl_createDomain(newDomainName,
+				domainFullName,
+				domainComment,
+				privileges,
+				exceptionInfo);
+
+	} else {
+		fwAccessControl_updateDomain(g_domainName,
+				newDomainName,
+				domainFullName,
+				domainComment,
+				privileges,
+				exceptionInfo);
+	}	
+
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	};
+
+	df[1]=1;
+	PanelOffReturn(df,ds);
+}" 0
+ E E E
+1 16 0 "" 0
+0
+14 9
+"Id"
+""
+1 348 54 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 348 53 402 80
+2 "0s" 0 0 0 0 0 -1  E E E
+2 10
+"PRIMITIVE_TEXT1"
+""
+1 4 -97 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 15 341 35
+0 2 2 "0s" 0 0 0 192 0 0  20 15 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 42 JCOP Framework Access Control: edit domain
+2 11
+"Text3"
+""
+1 18 -26 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 330 60 343 76
+0 2 2 "0s" 0 0 0 192 0 0  330 60 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 id:
+2 12
+"PRIMITIVE_TEXT2"
+""
+1 22 101 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 97 107 113
+0 2 2 "0s" 0 0 0 192 0 0  22 97 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Domain name:
+2 13
+"Text1"
+""
+1 20 109 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 127 127 143
+0 2 2 "0s" 0 0 0 192 0 0  22 127 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Domain full name:
+2 14
+"Text2"
+""
+1 2 21 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 157 127 173
+0 2 2 "0s" 0 0 0 192 0 0  22 157 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Domain comment:
+30 15
+"FRAME1"
+""
+1 22 210 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+30 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.125523012552301 3 -56.35983263598321 0 E 22 210 400 450
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Privileges:
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "Group3" 
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 376 13 T 16 1 0 1 -8 -5
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_EditDomain"
+0

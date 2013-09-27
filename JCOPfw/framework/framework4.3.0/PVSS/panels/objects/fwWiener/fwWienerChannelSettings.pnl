@@ -1,0 +1,450 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 601 261 N "_3DFace" 2
+"$bShowLimits"
+"$sDpName"
+E E E E E 1 0 0 0  -148 -275
+""0  1
+E "bool gShowLimits;
+string gOnBit, gReadbackNames;" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+25 0
+"table"
+""
+1 -148 -275 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 8 592 252
+"dyn_string gListOfDpElementToConnect, gListOfSettingsDpElement;
+string gModel;
+
+main()
+{
+	dyn_string exceptionInfo, listOfRequiredElements, listOfElement,
+				 temp, unit, detail,setvalue;
+	int i, length, lenDpe, lenDp, rowNbr,lenS, pos;
+	string dpName,dpe,dpeCopy;
+	dyn_dyn_string elements;
+	dyn_dyn_string hierarchyInfo;
+	
+	fwDevice_getModel(makeDynString($sDpName), gModel, exceptionInfo);
+
+	if(strpos(gModel, \"(TCP/IP)\") > 0)
+		return;
+	else if(strpos(gModel, \"(CAN)\") > 0)
+	{
+		gOnBit = \".Status.On\";
+		gReadbackNames = \".ReadbackSettings.\";
+	}
+	else
+	{
+		gOnBit = \".General.Status.GetPowerOn\";
+		gReadbackNames = \".ReadBackSettings.\";
+	}
+
+	this.sortOnClick = FALSE;	
+	
+	if(isDollarDefined(\"$bShowLimits\"))
+	{
+		if($bShowLimits == \"\")
+			gShowLimits = TRUE;
+		else
+			gShowLimits = $bShowLimits;
+
+		if(!gShowLimits)
+		{
+			this.columnVisibility(3, FALSE);
+			this.columnVisibility(4, FALSE);
+			this.columnWidth(1, 75);
+			this.columnWidth(2, 75);
+		}
+	}	
+
+	listOfRequiredElements = makeDynString(	\".Settings.VoltageSetpoint\",
+												\".Settings.VoltageFineAdjust\",
+												\".Settings.CurrentLimitSetpoint\",
+												\".Settings.UnderVoltCompSetpoint\",
+												\".Settings.OverVoltCompSetpoint\",
+												\".Settings.OverVoltProtection\",
+												\".Settings.MinCurrentCompSetpoint\",
+												\".Settings.OverCurrentCompSetpoint\");
+
+	fwDevice_getConfigElements(dpTypeName($sDpName), fwDevice_ALL, elements, exceptionInfo, gModel);
+
+	length = dynlen(listOfRequiredElements);
+	for(i=1; i <= length; i++)
+	{
+		pos = dynContains(elements[1], listOfRequiredElements[i]);
+		if(pos > 0)
+		{
+			dynAppend(gListOfSettingsDpElement, $sDpName + elements[1][pos]);
+			dynAppend(listOfElement, elements[2][pos]);
+		}
+	}	
+
+	lenDpe = dynlen(gListOfDpElementToConnect);
+	lenDp = dynlen(listOfElement);
+	
+	if(lenDpe > lenDp)
+		rowNbr = lenDpe;
+	else
+		rowNbr = lenDp;
+		
+	for(i = 1; i <= lenDpe; i++) 
+	{
+		unit[i] = dpGetUnit(gListOfDpElementToConnect[i]);
+		detail[i] = \"Details\";
+		dpGet(gListOfSettingsDpElement[i] + \":_online.._value\", setvalue[i]);
+	}
+
+	this.deleteAllLines;
+	this.appendLines(rowNbr, \"element\", listOfElement, \"settings\", setvalue, \"unit\", unit);
+
+	lenS = dynlen(gListOfSettingsDpElement);
+	for(i = 1; i <= lenS; i++ ) 
+	{
+		if(!dpExists(gListOfSettingsDpElement[i]))
+		{
+			fwException_raise(	exception,
+								\"ERROR\", 
+								\"The data point element\" + gListOfSettingsDpElement[i] + \" does not exist.\", 
+								\"\");
+			this.cellBackColRC(i - 1, \"settings\", \"DpDoesNotExist\");
+		}
+		else 
+		{
+			dpName = dpSubStr(gListOfSettingsDpElement[i], DPSUB_SYS_DP_EL);
+			dpe = gListOfSettingsDpElement[i];
+  			gListOfSettingsDpElement[i] = dpName;
+			if(dpConnect(\"_fwSettingsDataCB\", TRUE, dpe + \":_online.._value\", dpe + \":_online.._stime\") == -1) 
+  				{
+  					fwException_raise(	exceptionInfo, 
+  										\"INFO\", 
+  										\"Connecting to the data point element\" + dpe + \" was unsuccessful.\", 
+  										\"\");
+					this.cellBackColRC(i - 1, \"settings\", \"DpDoesNotExist\");
+				}
+
+			dpeCopy = dpe;
+			
+			strreplace(dpe, \".Settings.\", gReadbackNames);
+
+			if(dpConnect(\"_fwSettingsDataCB\", TRUE, dpe + \":_online.._value\", dpe + \":_online.._stime\") == -1) 
+  				{
+  					fwException_raise(	exceptionInfo, 
+  										\"INFO\", 
+  										\"Connecting to the data point element\" + dpe + \" was unsuccessful.\", 
+  										\"\");
+					this.cellBackColRC(i - 1, \"status\", \"DpDoesNotExist\");
+				}
+
+
+			strreplace(dpeCopy, \".Settings.\", \".Limits.\");
+
+			if(gShowLimits)
+			{
+				if(dpConnect(\"_fwSettingsDataCB\", TRUE, dpeCopy + \"Min:_online.._value\", dpeCopy + \"Min:_online.._stime\") == -1) 
+	  		{
+	  			fwException_raise(	exceptionInfo, 
+	  										\"INFO\", 
+	  										\"Connecting to the data point element\" + dpeCopy + \" was unsuccessful.\", 
+	  										\"\");
+					this.cellBackColRC(i - 1, \"minValue\", \"DpDoesNotExist\");
+				}
+				if(dpConnect(\"_fwSettingsDataCB\", TRUE, dpeCopy + \"Max:_online.._value\", dpeCopy + \"Max:_online.._stime\") == -1) 
+	  		{
+	  			fwException_raise(	exceptionInfo, 
+	  										\"INFO\", 
+	  										\"Connecting to the data point element\" + dpeCopy + \" was unsuccessful.\", 
+	  										\"\");
+					this.cellBackColRC(i - 1, \"maxValue\", \"DpDoesNotExist\");
+				}
+			}
+		}
+	}
+
+	length = dynlen(gListOfSettingsDpElement);
+	for(i=1; i <= length; i++)
+	{
+		gListOfDpElementToConnect[i] = gListOfSettingsDpElement[i];
+		strreplace(gListOfDpElementToConnect[i], \".Settings.\", gReadbackNames);
+	}	
+
+	fwColourTable_connectCellBackColToStatus(exceptionInfo);
+
+//	lenS = dynlen(gListOfSettingsDpElement);
+//	for(i = 1; i <= lenS; i++ ) 
+//	{
+//  		this.cellBackColRC(i-1, \"settings\", \"_Window\");
+//	}
+
+	fwDevice_getHierarchy($sDpName, hierarchyInfo, exceptionInfo);
+	
+	if(dpExists(hierarchyInfo[2][1] + gOnBit))
+	{
+		if(dpTypeName(hierarchyInfo[2][1])!=\"FwWienerCrate\")
+			dpConnect(\"fwChangeColour\", TRUE, hierarchyInfo[2][1] + gOnBit + \":_online.._value\");
+	}
+}
+
+_fwSettingsDataCB(string dpe, float value, string dpe2, time sourceTime)
+{
+	int cellPos;
+	string elementColour, dpName,temp, columnName, format, cleanValue;
+	dyn_string exceptionInfo;
+
+	if(strpos(dpe, \"Min:_online.._value\") >= 0)
+		columnName = \"minValue\";
+	else if(strpos(dpe, \"Max:_online.._value\") >= 0)
+		columnName = \"maxValue\";
+	else if(strpos(dpe, gReadbackNames) >= 0)
+		columnName = \"status\";
+	else
+		columnName = \"settings\";
+//DebugN(columnName, dpe, value);
+	strreplace(dpe, gReadbackNames, \".Settings.\");
+	strreplace(dpe, \".Limits.\", \".Settings.\");
+	strreplace(dpe, \"Min:_online.._value\", \":_online.._value\");
+	strreplace(dpe, \"Max:_online.._value\", \":_online.._value\");
+
+	dpName = dpSubStr(dpe, DPSUB_SYS_DP_EL);
+	cellPos = dynContains(gListOfSettingsDpElement, dpName);
+
+	if(cellPos >= 1)
+	{
+		format = dpGetFormat(dpe);
+		if(format == \"\")
+			format = \"%.3f\";
+		else
+			format = \"%\" + substr(format, strpos(format, \".\"));
+
+		sprintf(cleanValue, format, value);
+                
+                if((columnName == \"minValue\") || (columnName == \"maxValue\"))
+                {
+                   if(sourceTime == 0)
+                     cleanValue = \"N/A\"; 
+                }
+//DebugN(columnName, cleanValue);
+		this.cellValueRC(cellPos-1, columnName, cleanValue);
+	}
+}
+
+fwChangeColour(string dpe, bool value)
+{
+	int i, length;
+	
+	if(value)
+	{
+		length = dynlen(gListOfSettingsDpElement);
+		for(i=1; i <= length; i++)
+		{
+			if(strpos(gListOfSettingsDpElement[i], \"Voltage\") < 0)
+				this.cellBackColRC(i-1, \"settings\", \"_3DFace\");
+			else
+				this.cellBackColRC(i-1, \"settings\", \"_Window\");
+		}	
+	}
+	else
+	{
+		length = dynlen(gListOfSettingsDpElement);
+		for(i=1; i <= length; i++)
+		{
+//			if(strpos(gListOfSettingsDpElement[i], \"Voltage\") < 0)
+				this.cellBackColRC(i-1, \"settings\", \"_Window\");
+//			else
+//				this.cellBackColRC(i-1, \"settings\", \"_Window\");
+		}	
+	}
+}" 0
+"main(int xpos,string columnName,string value)
+{
+	int i,len, row, col,nN, pos;
+	bool powerOn;
+	string elementName;
+	dyn_string listOfElement, exceptionInfo;
+	dyn_int selectedLine;
+	dyn_dyn_string hierarchyInfo;
+	float underV, overV, overVProt;
+        string upperLimit, lowerLimit;
+	
+	listOfElement = makeDynString(\"VoltageSetpoint\",
+									\"VoltageFineAdjust\",
+									\"CurrentLimitSetpoint\",
+									\"UnderVoltCompSetpoint\",
+									\"OverVoltCompSetpoint\",
+									\"OverVoltProtection\",
+									\"MinCurrentCompSetpoint\",
+									\"OverCurrentCompSetpoint\");
+
+	elementName = listOfElement[xpos + 1];
+
+//DebugN(xpos);
+	if(elementName == \"\" )
+		return;
+		
+	switch(columnName)
+	{
+	case \"settings\":
+		//first check that crate is off
+		fwDevice_getHierarchy($sDpName, hierarchyInfo, exceptionInfo);
+		
+		if(dpExists(hierarchyInfo[2][1] + gOnBit))
+		{
+			if(dpTypeName(hierarchyInfo[2][1])!=\"FwWienerCrate\")
+			{
+				if(xpos < 2) //voltage or current settings can be done any time
+				{
+					lowerLimit = this.cellValueRC(xpos, \"minValue\");
+					upperLimit = this.cellValueRC(xpos, \"maxValue\");
+					fwShowSettingsPanel(xpos, elementName, lowerLimit, upperLimit); 
+				}
+				else
+				{
+					dpGet(hierarchyInfo[2][1] + gOnBit, powerOn);
+					if(powerOn)
+					{
+						fwException_raise(exceptionInfo, \"WARNING\", \"You can not change this setting while the device is ON\", \"0\");
+						fwExceptionHandling_display(exceptionInfo);
+					}
+					else
+					{
+						lowerLimit = this.cellValueRC(xpos, \"minValue\");
+						upperLimit = this.cellValueRC(xpos, \"maxValue\");
+						fwShowSettingsPanel(xpos, elementName, lowerLimit, upperLimit); 
+					}
+				}
+			}
+			else
+			{
+				fwException_raise(exceptionInfo, \"WARNING\", \"It is not possible to modify the channel settings in a Wiener Crate\", \"0\");
+				fwExceptionHandling_display(exceptionInfo);
+			}
+		}
+		else
+		{
+			fwException_raise(exceptionInfo, \"ERROR\", \"The parent device could not be found\", \"0\");
+			fwExceptionHandling_display(exceptionInfo);
+		}
+		break;
+	case \"minValue\":
+		fwGeneral_openDetailsPanel($sDpName + \".Limits.\" + elementName + \"Min\", exceptionInfo);
+		break;
+	case \"maxValue\":
+		fwGeneral_openDetailsPanel($sDpName + \".Limits.\" + elementName + \"Max\", exceptionInfo);
+		break;
+	case \"status\":
+		fwGeneral_openDetailsPanel($sDpName + gReadbackNames + elementName, exceptionInfo);
+		break;
+	}
+}
+
+fwShowSettingsPanel(int rowNumber, string elementName, string minSetting, string maxSetting)
+{
+	dyn_string dollars;
+	
+	dollars = makeDynString(\"$sDpName:\" + $sDpName,
+					  							\"$dpSetName:\" + \".Settings.\" + elementName);
+
+	if(gShowLimits)
+	{
+          if(minSetting != \"N/A\")
+            dynAppend(dollars, \"$minValue:\" + minSetting);
+          if(maxSetting != \"N/A\")
+            dynAppend(dollars, \"$maxValue:\" + maxSetting);
+	}
+
+	ChildPanelOnCentral(\"fwGeneral/fwChangeSetting.pnl\", \"Settings\", dollars);
+}" 0
+ 1 0 1 6 1 "element" 13 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+160 "settings" 8 1 0 "s" 1
+LANG:1 7 Setting
+E
+1
+LANG:1 0 
+
+100 "status" 8 1 0 "s" 1
+LANG:1 8 ReadBack
+E
+1
+LANG:1 0 
+
+100 "minValue" 5 1 0 "s" 1
+LANG:1 7 Minimum
+E
+1
+LANG:1 0 
+
+70 "maxValue" 5 1 0 "s" 1
+LANG:1 7 Maximum
+E
+1
+LANG:1 0 
+
+70 "unit" 4 1 0 "s" 1
+LANG:1 5 Units
+E
+1
+LANG:1 0 
+
+55 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 0 1 1 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

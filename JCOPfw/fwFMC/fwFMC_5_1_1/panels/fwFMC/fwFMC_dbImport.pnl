@@ -1,0 +1,2783 @@
+V 11
+1
+LANG:1 22 FMC Mass Configuration
+PANEL,-1 -1 972 728 N "_3DFace" 0
+"main()
+{
+  string host = getHostname();
+  host = strtoupper(host);
+  dyn_string ds = strsplit(host, \".\");
+  
+  host = ds[1];
+
+  //some gym as hostname may contain '.'  
+  
+  for(int i = 2; i <= (dynlen(ds)-2); i++) //get rid of the domain
+    host += \"_\" + ds[i];
+  
+  tfIpmiMaster.text = host;
+  tfWinProcsController.text = host;
+  tfIpmiSuffix.text = \"-IPMI\";
+  
+  if(dpExists(\"fwInstallation_fwAccessControl\"))
+  {
+    dyn_string exceptionInfo;
+    //Access control callback function
+    fwAccessControl_setupPanel(\"applyAccessControl\",exceptionInfo);
+	
+    // check and handle exceptions that might have been thrown by the functions above
+    if (dynlen(exceptionInfo)) 
+    {
+      fwAccessControl_displayException(exceptionInfo);
+      return;
+    }    
+  }
+}
+
+
+
+" 0
+ E E E E 1 -1 -1 0  270 350
+""0  1
+E "#uses \"fwFMC/fwFMCDB.ctl\"
+#uses \"fwFMC/fwFMC.ctl\"    
+#uses \"fwInstallationDB.ctl\"
+#uses \"fwSystemOverview/fwSystemOverview.ctl\"    
+#uses \"fwSystemOverview/fwSystemOverviewDB.ctl\"    
+#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+void currentArchiveClass(string dpe, string newValue)
+{
+  if(newValue == \"\")
+    tfCurrentArchive.text = \"not defined\";   
+  else
+    tfCurrentArchive.text = newValue;
+  
+}
+
+void archivingStatus(string dpe, string newValue)
+{
+  if(newValue == 0)
+    cbEnableArchiving.state(0, false);
+  else if(newValue == 1)
+    cbEnableArchiving.state(0, true); 
+}    
+    
+void updateProjectsTable()
+{
+  dyn_dyn_mixed projectsInfo; 
+
+  tblProjects.deleteAllLines();
+  dyn_int lines = tblNodes.getSelectedLines();
+  int n = tblNodes.lineCount();
+  int m = 0;
+  
+  txTitle.text = \"Nodes found: \" + n + \" - Selected for import: \" + dynlen(lines); 
+
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    string node;
+    getValue(\"tblNodes\", \"cellValueRC\", lines[i], \"node\", node);
+    dynClear(projectsInfo);
+    if(rbSource.number() == 0)
+    {
+      fwSysOverview_getHostProjects(node, projectsInfo); 
+    }
+    else if(rbSource.number() == 1)
+    {
+      fwSysOverviewDB_getHostProjects(node, projectsInfo); 
+    }
+//DebugN(projectsInfo);    
+    for(int k = 1; k <= dynlen(projectsInfo);k++)
+    {
+       bool monitored = projectsInfo[k][fwSysOverview_PROJECT_DISABLE_MONITORING_IDX];
+       if(monitored)
+         ++m;
+       tblProjects.appendLine(\"project\", projectsInfo[k][fwSysOverview_PROJECT_NAME_IDX], 
+                              \"monitored\", monitored, 
+                              \"pmonPort\", projectsInfo[k][fwSysOverview_PROJECT_PMON_NUM_IDX], 
+                              \"user\", projectsInfo[k][fwSysOverview_PROJECT_PMON_USER_IDX], 
+                              \"pwd\", projectsInfo[k][fwSysOverview_PROJECT_PMON_PASS_IDX], 
+                              \"system\", projectsInfo[k][fwSysOverview_PROJECT_SYSTEM_NAME_IDX], 
+                              \"systemNr\", projectsInfo[k][fwSysOverview_PROJECT_SYSTEM_NUM_IDX], 
+                              \"host\", node);
+    }
+  }//end of loop
+  txProjectsTitle.text = \"Total Projects: \" + tblProjects.lineCount() + \" - Selected for import: \" + m; 
+  
+}
+void read()
+{
+  dyn_mixed hostInfo;
+  string host = getHostname();
+  dyn_string nodes, ips, macs, ips2, macs2, bmc_ips, bmc_ips2;
+
+  string filestr;
+  dyn_string ds, ds2;
+  dyn_float df;
+  string separator;
+  
+
+  disable();
+  tblNodes.deleteAllLines();
+  tblProjects.deleteAllLines();
+  if(rbSource.number() == 0 || rbSource.number() == 1)
+  {
+    if(rbSource.number() == 0)
+    {
+      openProgressBar(\"Reading FMC configuration\", \"copy.gif\", \"Reading configuration from the running system\", \"This may take a while\", \"Please wait...\", 0);    
+      //find out already defined hosts:  
+      if(fwFMC_getNodes(nodes) != 0)
+      {
+        ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"FMC error\", makeDynString(\"Could not retrieve the list of currently configured nodes\\nfrom the running project\"));
+        closeProgressBar();
+        disable(false);
+        return;
+      }
+    }  
+    
+    if(rbSource.number() == 1)
+    {
+      openProgressBar(\"Reading FMC configuration\", \"copy.gif\", \"Establishing connection to DB\", \"This may take a while\", \"Please wait...\", 0);    
+      //fetch from db the hosts info:  
+      if(fwInstallationDB_connect())
+      {
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Connection error\", makeDynString(\"$1:Could not connect to the system configuration DB\"));
+        closeProgressBar();
+        disable(false);
+        return;
+      }
+
+      string version;
+      fwInstallation_getToolVersion(version);
+      if(_fwInstallation_CompareVersions(version, FW_FMC_INSTALLATION_TOOL_VERSION)!= 1)
+      {
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"Installation Tool upgrade required\", makeDynString(\"$1:You have an old version of the installation tool: \" + version + \".\\nThis functionality requires at least v.\" + FW_FMC_INSTALLATION_TOOL_VERSION + \"\\nand System ConfDB schema v.\" + FW_FMC_SYSTEM_CONFDB_VERSION));
+        closeProgressBar();
+        disable(false);
+        return;
+      }
+      
+      if(fwInstallationDB_getHosts(nodes, ips, macs, ips2, macs2, bmc_ips, bmc_ips2) != 0)
+      {
+        ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"DB Connection Error\", makeDynString(\"Could not retrieve the list of nodes\\nfrom the FW System Configuration DB\"));
+        closeProgressBar();
+        disable(false);
+        return;
+      }
+    }
+    
+    int n = dynlen(nodes);
+    txTitle.text = \"Nodes found: \" + n + \" - Selected for import: 0\"; 
+    for(int i = 1; i <= n; i++)
+    {
+      bool ipmi = false;
+      bool monitoring;
+      bool tm = false;
+      bool logger = false;
+      string ipmiDeviceName;
+      dyn_string groups;
+  
+      dynClear(hostInfo);
+      showProgressBar(n +\" Nodes found\", \"copy.gif\", \"Reading node information. Processing \" + i +\" of \" + n + \"\", \"Please wait...\", \"\", floor((i/n)*100.));    
+    
+      if(rbSource.number() == 0)
+      {
+        if(fwFMC_getHostProperties(nodes[i], hostInfo))
+        {
+          ChildPanelOnCentral(\"vision/MessageInfo1\", \"FMC\", makeDynString(\"$1:Could not retrieve the hosts properties from the runnig PVSS project: \"  + nodes[i]));
+          closeProgressBar();
+          disable(false);
+          return;
+        }
+        
+        if(fwFMC_getHostGroups(nodes[i], groups))
+        {
+          ChildPanelOnCentral(\"vision/MessageInfo1\", \"FMC\", makeDynString(\"$1:Could not retrieve the the list of FMC groups from the runnig PVSS project:\" +  + nodes[i]));
+          closeProgressBar();
+          disable(false);
+          return;
+        }
+//        //Project Monitoring:
+//         fwSysOverview_getHostProjects(nodes[i], projectsInfo); 
+       }
+      
+      if(rbSource.number() == 1)
+      {
+        if(fwInstallationDB_getHostProperties(nodes[i], hostInfo))
+        {
+          ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Connection error\", makeDynString(\"$1:Could not retrieve the hosts properties from the System configuration DB: \" + nodes[i]));
+          disable(false);
+          closeProgressBar();
+          return;
+        }
+        
+        if(fwFMCDB_getHostGroups(nodes[i], groups))
+        {
+          ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Connection error\", makeDynString(\"$1:Could not retrieve the list of FMC groups from the System configuration DB: \" + nodes[i]));
+          disable(false);
+          closeProgressBar();
+          return;
+        }
+//        //Project Monitoring:
+//         fwSysOverviewDB_getHostProjects(nodes[i], projectsInfo); 
+       }
+      
+      if(hostInfo[FW_INSTALLATION_DB_HOST_FMC_ENABLE_IPMI_IDX])
+        ipmi = true;
+    
+      if(hostInfo[FW_INSTALLATION_DB_HOST_FMC_ENABLE_MONITORING_IDX])
+        monitoring = true;
+      
+      if(hostInfo[FW_INSTALLATION_DB_HOST_FMC_ENABLE_TM_IDX])
+        tm = true;
+      
+      if(hostInfo[FW_INSTALLATION_DB_HOST_FMC_ENABLE_LOGGER_IDX])
+        logger = true;
+      
+      ipmiDeviceName = hostInfo[FW_INSTALLATION_DB_HOST_FMC_IPMI_DEVICE_NAME_IDX];
+
+   
+       tblNodes.appendLine(\"node\", nodes[i], \"ipmi\", ipmi, \"monitoring\", monitoring, \"tm\", tm, \"logger\", logger, \"ipmiDeviceName\", ipmiDeviceName,
+                          \"location\", hostInfo[FW_INSTALLATION_DB_HOST_FMC_LOCATION_IDX], \"processMonitoring\", 
+                          (bool) hostInfo[FW_INSTALLATION_DB_HOST_FMC_ENABLE_PROCESS_IDX], \"os\", hostInfo[FW_INSTALLATION_DB_HOST_FMC_OS_IDX], 
+                          \"ipmiMaster\", hostInfo[FW_INSTALLATION_DB_HOST_FMC_IPMI_MASTER_IDX], 
+                          \"winProcsController\", hostInfo[FW_INSTALLATION_DB_HOST_FMC_WIN_PROCS_CONTROLLER_IDX], \"fmcGroup\", groups); 
+//                          \"archive\", hostInfo[FW_INSTALLATION_DB_HOST_FMC_ARCHIVING_IDX], 
+//                          \"alarms\", hostInfo[FW_INSTALLATION_DB_HOST_FMC_ALARMS_IDX]);
+       
+//        for(int k = 1; k <= dynlen(projectsInfo);k++)
+//        {
+//           bool monitored = projectsInfo[k][fwSysOverview_PROJECT_DISABLE_MONITORING_IDX];
+//           tblProjects.appendLine(\"project\", projectsInfo[k][fwSysOverview_PROJECT_NAME_IDX], 
+//                                 \"monitored\", monitored, 
+//                                 \"pmonPort\", projectsInfo[k][fwSysOverview_PROJECT_PMON_NUM_IDX], 
+//                                 \"user\", projectsInfo[k][fwSysOverview_PROJECT_PMON_USER_IDX], 
+//                                 \"pwd\", projectsInfo[k][fwSysOverview_PROJECT_PMON_PASS_IDX], 
+//                                 \"system\", projectsInfo[k][fwSysOverview_PROJECT_SYSTEM_NAME_IDX], 
+//                                 \"systemNr\", projectsInfo[k][fwSysOverview_PROJECT_SYSTEM_NUM_IDX], 
+//                                 \"host\", nodes[i]);
+//       }
+       
+     }//end of loop
+  }
+  else if(rbSource.number() == 2)
+  {
+    if(tfFilePath.text == \"\")
+    {
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Invalid filename\"));
+        disable(false);
+        closeProgressBar();
+        return;
+    }  
+    
+    fileToString(tfFilePath.text, filestr);
+    ds = strsplit(filestr, \"\\n\");
+    
+    for(int i = 1; i <= dynlen(ds); i++)
+    {
+      if(patternMatch(\"*#*\", ds[i]) >0)
+        continue; //this line is a comment. Skip it here.
+
+      //DebugN(ds[i]);
+      
+      if(!patternMatch(\"*,*\", ds[i])) //blank line
+        continue;
+        
+      ds2 = strsplit(ds[i], \",\");
+                  
+      string node = strtoupper(ds2[1]);      
+      string ipmiDeviceName = strtoupper(ds2[1]);
+      
+      separator = tfSeparator.text;
+      
+      dyn_string ds3;
+      
+      if(patternMatch(\"*\"+separator+\"*\", ds2[1]))
+      {
+        ds3 = strsplit(ds2[1], separator);
+        node = strtoupper(ds3[1]);
+      }
+
+      strreplace(node, \" \", \"\");      
+      strreplace(node, \"\\t\", \"\");
+        
+      tblNodes.appendLine(\"node\", node, \"ipmi\", true, \"monitoring\", 0, \"tm\", 0, \"logger\", 0, \"ipmiDeviceName\", ipmiDeviceName);
+    }
+  }
+
+  string col = \"red\";
+  if(checkConsistency(true))
+  {
+    txMsg.text = \"Configuration Consistency: OK\";
+    col = \"FwModeIncluded\";    
+  }
+  else
+  {
+    txMsg.text = \"Configuration Consistency: BAD\";    
+    col = \"FwAlarmFatalUnack\";    
+  }
+  
+  txMsg.visible = true;
+  txMsg.foreCol = col;
+  
+  disable(false);
+  closeProgressBar();
+  tblNodes.removeSelectLines(0);  
+}
+    
+void disable(bool val = true)
+{
+  btRead.enabled = !val;
+  btImport.enabled = !val;
+  btSave.enabled = !val;
+  btClose.enabled = !val;
+  
+  return;
+}
+
+
+bool checkConsistency(bool all = false)
+{
+  dyn_anytype da;
+  bool ok = true;
+  dyn_int lines;
+  
+  da[10] = \"\";
+  
+  if(!all)
+    lines = tblNodes.getSelectedLines();
+  else
+  {
+    for(int i = 1; i <= tblNodes.lineCount(); i++)
+      dynAppend(lines, i-1);
+  }
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    da = tblNodes.getLineN(lines[i]);
+
+    int ipmi = da[5];    
+    if(ipmi) //IPMI
+    {
+      string ipmiDevice = da[6];
+      if(ipmiDevice == \"\")//ipmi configure but empty ipmi device name
+      {
+        tblNodes.cellBackColRC(lines[i], \"node\", \"red\");
+        tblNodes.cellBackColRC(lines[i], \"ipmiDeviceName\", \"red\");
+        ok = false;
+      } 
+      
+      
+      string ipmiMaster = da[7];
+      if(ipmiMaster == \"\") //ipmi configure but empty master node
+      {
+        tblNodes.cellBackColRC(lines[i], \"node\", \"red\");
+        tblNodes.cellBackColRC(lines[i], \"ipmiMaster\", \"red\");
+        ok = false;
+      } 
+    }
+        
+    int process = da[9];
+    if(process) //Processes
+    {
+      string os = da[3];
+      string winProcsController = da[10];
+      if(strtoupper(os) == \"WINDOWS\" && winProcsController == \"\") //Windows machine and no win process controller defined
+      {
+        tblNodes.cellBackColRC(lines[i], \"node\", \"red\");
+        tblNodes.cellBackColRC(lines[i], \"winProcsController\", \"red\");
+        ok = false;
+      }
+    } 
+  }
+
+  return ok;
+}
+
+applyAccessControl(string s1, string s2)
+{
+  string domain;
+  dyn_string exceptionInfo;
+  bool granted = FALSE;
+  fwSysOverview_getACDomain(domain);
+
+  if(domain != \"\")
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(1);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, granted, exceptionInfo);
+    
+    if (dynlen(exceptionInfo)) {
+     fwAccessControl_displayException(exceptionInfo); return;
+    } 
+  }
+  else
+    granted = true;
+  
+  btSave.enabled = granted;
+  btImport.enabled = granted;
+  btRemoveHosts.enabled = granted;
+  btRemoveProjects.enabled = granted;
+  btAddProject.enabled = granted;
+  btAddHost.enabled = granted;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+19 14
+"rbSource"
+""
+1 30.00000000000008 20.00000000000007 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  28 18 202 92
+3
+T 
+1
+LANG:1 19 Running PVSS System
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 23 System Configuration DB
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 9 IPMI File
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  tblNodes.deleteAllLines();
+  tblProjects.deleteAllLines();
+  
+  if(button == 0) {txTitle.text = \"Existing nodes in current project\";btRemoveHosts.enabled = true; btRemoveProjects.enabled = true;}
+  else if(button == 1){txTitle.text = \"Existing nodes in System Configuration DB\"; btRemoveHosts.enabled = false; btRemoveProjects.enabled = false;}
+  else if(button == 2){txTitle.text = \"Existing nodes in IPMI file\";btRemoveHosts.enabled = false;; btRemoveProjects.enabled = false;}
+  
+  if(button > 1)
+  {
+    tfSeparator.visible = 1;
+    txSeparator.visible = 1;
+    btnPath.enabled = 1;
+    tfFilePath.enabled = 1;
+  }
+  else
+  {
+    tfSeparator.visible = 0;
+    txSeparator.visible = 0;
+    btnPath.enabled = 0;
+    tfFilePath.enabled = 0;
+  }
+
+  
+  
+}
+
+
+
+
+
+
+
+
+" 0
+
+13 1
+"btImport"
+""
+1 730 690 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  728 688 842 722
+
+T 
+1
+LANG:1 6 Import
+"//#uses \"icemon/icemon.ctl\"
+main()
+{
+  string ipmiMasterNode;
+  dyn_string exceptionInfo;
+  dyn_string ds;
+  dyn_float df;
+  dyn_string nodes;
+  string ipmiDeviceName;
+  dyn_int lines = tblNodes.getSelectedLines();
+  bool enableIpmi = false;
+  string node = \"\";
+
+  string msg;
+
+
+  if(!checkConsistency())
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Configuration ERROR\", makeDynString(\"$1:Configuration consistency failed.\\n Correct errors before importing the configuration.\"));
+    tblNodes.removeSelectLines(0);
+    return;
+  }
+  
+  if(dynlen(lines) <= 0)  
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"No nodes seletected\", makeDynString(\"$1:No nodes selected.\\nSelect them in the table above first\"));
+    return;
+  }    
+  
+  msg = \"Are you sure you want to import this configuration for the selected nodes?\";      
+    
+  ChildPanelOnCentralReturn(\"fwInstallation/fwInstallationDB_question.pnl\", \"Confirmation required\", makeDynString(\"$txt:\" + msg), df, ds);
+  
+  disable(); 
+  openProgressBar(\"Importing FMC configuration\", \"copy.gif\", \"This may take a while\", \"Please wait...\", \"\", 0);    
+  dyn_string importedHosts, importedProjects;
+  if(dynlen(df) > 0 && df[1] >= 1)
+  {
+      int n = dynlen(lines);
+      for(int i = 1; i <= n; i++)
+      {
+        dyn_anytype da = tblNodes.getLineN(lines[i]);
+        nodes[i] = da[1];
+        showProgressBar(\"Number of hosts to be configured: \" +  n, \"copy.gif\", \"Setting up node \" + nodes[i] + \". Nodes remaining \" + (n-i), \"Please wait...\", \"\", floor((i/n)*100.));    
+        ipmiDeviceName = da[5];
+        enableIpmi = da[4];
+        ipmiMasterNode = da[6];
+        
+        bool enableHost = da[7];
+        bool enableProcesses = da[8];
+        string winProcsController = da[9];
+        bool enableTm = da[10];
+        bool enableLogger = da[11];
+        string location = da[2];
+        string description = \"N/A\";
+        
+        dyn_string groups = strsplit(da[12], \",\");
+        for(int j = 1; j <= dynlen(groups); j++)
+        {
+          strreplace(groups[j], \" \", \"\");
+        }
+        
+ 
+        //Get rid of blanks or tabs in names:
+        strreplace(nodes[i], \"\\t\", \"\");
+        strreplace(nodes[i], \" \", \"\");
+        //
+        strreplace(ipmiDeviceName, \"\\t\", \"\");
+        strreplace(ipmiDeviceName, \" \", \"\");
+        
+        DebugN(\"Creating node: \" + nodes[i]);
+        if(fwFMC_createNode(nodes[i], 
+                      nodes[i],
+                      enableIpmi, 
+                      ipmiDeviceName, 
+                      ipmiMasterNode,
+                      enableHost, 
+                      0,
+                      enableTm, 
+                      enableLogger,
+                      enableProcesses,
+                      winProcsController,
+                      location, 
+                      description,
+                      groups,
+                      cbArchivingType.text,
+                      cbAlarms.state(0)) != 0)
+        {
+          fwException_raise(exceptionInfo, \"ERROR\", \"Failed to create node: \" + nodes[i] + \" from IPMI config file\", -9999);
+        }
+        else if (cbUnicosImport.state(0) && isFunctionDefined(\"icemon_unicosImportHost\"))
+        {
+          dynAppend(importedHosts, nodes[i]);
+          icemon_unicosImportHost(strtoupper(nodes[i]), exceptionInfo);
+        }
+
+//        fwFMC_setDefaultArchive(nodes[i], exceptionInfo, cbArchiving.state(0));
+              
+      }
+      
+     if(dynlen(exceptionInfo) > 0)
+      fwExceptionHandling_display(exceptionInfo); 
+     
+    }
+
+  //Create now project monitoring:
+  int m = tblProjects.lineCount();  
+  for(int i = 1; i <= m; i++)
+  {
+    dyn_mixed projectInfo;
+    bool monitored = true;
+    dyn_anytype da = tblProjects.getLineN(i-1);
+    projectInfo[fwSysOverview_PROJECT_NAME_IDX] = da[1];
+    projectInfo[fwSysOverview_PROJECT_SYSTEM_NAME_IDX] = da[2];
+    projectInfo[fwSysOverview_PROJECT_SYSTEM_NUM_IDX] = da[3];
+    projectInfo[fwSysOverview_PROJECT_PMON_NUM_IDX] = da[6];
+    projectInfo[fwSysOverview_PROJECT_PMON_USER_IDX] = da[7];
+    projectInfo[fwSysOverview_PROJECT_PMON_PASS_IDX] = da[8];
+    projectInfo[fwSysOverview_PROJECT_HOST_IDX] = da[4];
+    projectInfo[fwSysOverview_PROJECT_DISABLE_MONITORING_IDX] = !((bool)da[5]);
+
+    if(!projectInfo[fwSysOverview_PROJECT_DISABLE_MONITORING_IDX])
+    {
+      fwSysOverview_createProject(projectInfo, cbAlarms.state(0), exceptionInfo);  
+      if(dynlen(exceptionInfo) == 0 && cbUnicosImport.state(0) && isFunctionDefined(\"icemon_unicosImportProject\"))
+      {
+        dynAppend(importedProjects, da[1]); 
+        icemon_unicosImportProject(strtoupper(da[1]), strtoupper(da[4]), exceptionInfo);
+      }
+    }
+  }
+
+  string logDescription = myPanelName() + \": Importing projects and hosts to monitoring. Hosts: \" + importedHosts + \" Projects: \" + importedProjects;
+  fwConfigurationDBSystemInformation_logAction(logDescription);
+  
+  if(dynlen(exceptionInfo) > 0)
+    fwExceptionHandling_display(exceptionInfo); 
+ 
+  
+  fwFMC_updateDbTs();
+  disable(false);
+  applyAccessControl(\"\",\"\");
+  closeProgressBar();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+13 2
+"btClose"
+""
+1 850 690 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  848 688 962 722
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOffReturn(makeDynFloat(0.), makeDynString(\"Cancel\"));
+}" 0
+ E E E
+2 4
+"PRIMITIVE_TEXT2"
+""
+1 352.0000000000002 392.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 352.0000000000002 392.0000000000001 562.0000000000001 412.0000000000001
+0 2 2 "0s" 0 0 0 64 0 0  352.0000000000002 392.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 23 Win Process Controller:
+14 6
+"tfWinProcsController"
+""
+1 470.0000000000001 390.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  468 388 591 411
+3 "0s" 0 0 0 0 0 -1  E E E
+25 8
+"tblNodes"
+""
+1 10 170 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  8 168 912 342
+"main()
+{
+  tblNodes.tableMode(TABLE_SELECT_MULTIPLE);
+  tblNodes.selectByClick(TABLE_SELECT_LINE);  
+}" 0
+"main(int row, string column, string value)
+{
+  updateProjectsTable();
+}
+
+
+
+
+
+
+
+
+
+" 0
+ 1 0 1 12 0 "node" 15 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 0 
+
+133 "location" 6 1 0 "s" 1
+LANG:1 8 Location
+E
+1
+LANG:1 0 
+
+60 "os" 7 1 0 "s" 1
+LANG:1 2 OS
+E
+1
+LANG:1 0 
+
+65 "ipmi" 4 1 0 "s" 1
+LANG:1 4 IPMI
+E
+1
+LANG:1 0 
+
+40 "ipmiDeviceName" 16 1 0 "s" 1
+LANG:1 9 IPMI Name
+E
+1
+LANG:1 0 
+
+138 "ipmiMaster" 10 1 0 "s" 1
+LANG:1 11 IPMI Master
+E
+1
+LANG:1 0 
+
+92 "monitoring" 4 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 0 
+
+42 "processMonitoring" 7 1 0 "s" 1
+LANG:1 9 Processes
+E
+1
+LANG:1 0 
+
+65 "winProcsController" 16 1 0 "s" 1
+LANG:1 20 WIN Procs Controller
+E
+1
+LANG:1 0 
+
+140 "tm" 6 1 0 "s" 1
+LANG:1 8 Task Mgr
+E
+1
+LANG:1 0 
+
+59 "logger" 4 1 0 "s" 1
+LANG:1 6 Logger
+E
+1
+LANG:1 0 
+
+46 "fmcGroup" 9 0 0 "s" 1
+LANG:1 6 Groups
+E
+1
+LANG:1 0 
+
+81 
+16 16 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+2 9
+"txTitle"
+""
+1 610 150 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 610 150 681 165
+0 2 2 "0s" 0 0 0 192 0 0  610 150 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Nodes found:0
+14 10
+"tfFilePath"
+""
+1 120.0000000000001 64.00000000000011 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  118 62 382 85
+3 "0s" 0 0 0 0 0 -1  E E E
+13 12
+"btnPath"
+""
+1 390.0000000000001 59.00000000000011 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  388 57 422 91
+
+P 
+4294967295
+"pictures/file_opened_en.gif"
+1
+LANG:1 6 Browse
+E E "main()
+{
+  string filename;
+  
+  fileSelector(filename, PROJ_PATH, false, \"*.conf\");
+  
+  tfFilePath.text = filename;  
+}" 0
+ E
+30 13
+"FRAME1"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+17 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.291666666666662 0 1.203269623752853 -28.74999999999984 -50.53732419761984 0 E 30 42 511 161
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Source
+13 15
+"btRead"
+""
+1 500.0000000000001 90.00000000000011 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  498 88 612 122
+
+T 
+1
+LANG:1 4 Read
+E E "main()
+{
+  read();
+  applyAccessControl(\"\",\"\");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E
+2 16
+"txSeparator"
+""
+1 432.0000000000002 71.00000000000011 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 432.0000000000002 67.00000000000011 579 82
+0 2 2 "0s" 0 0 0 192 0 0  432.0000000000002 67.00000000000011 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 31 Hostname separator in IPMI file
+14 17
+"tfSeparator"
+""
+1 580.0000000000002 64.00000000000011 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  578 62 612 85
+3 "0s" 0 0 0 0 0 -1  E E E
+2 18
+"PRIMITIVE_TEXT5"
+""
+1 352.0000000000002 362.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 352.0000000000002 362.0000000000001 562.0000000000001 382.0000000000001
+0 2 2 "0s" 0 0 0 64 0 0  352.0000000000002 362.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 IPMI master node:
+14 19
+"tfIpmiMaster"
+""
+1 470.0000000000001 360.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  468 358 590 381
+3 "0s" 0 0 0 0 0 -1  E E E
+30 20
+"FRAME3"
+""
+1 30 533 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+27 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.636363636363637 0 0.7344632768361583 -39.09090909090908 -51.46892655367239 0 E 30 533 581 711
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Set to selected nodes
+13 21
+"PUSH_BUTTON5"
+""
+1 598.0000000000001 360.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  596 358 650 382
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  
+  if(dynlen(lines) <= 0)
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Warning\", makeDynString(\"No nodes selected in the table\"));
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    tblNodes.cellValueRC(lines[i], \"ipmiMaster\", tfIpmiMaster.text);
+  }
+  
+  string col = \"red\";
+  if(checkConsistency(true))
+  {
+    txMsg.text = \"Configuration Consistency: OK\";
+    col = \"green\";    
+  }
+  else
+  {
+    txMsg.text = \"Configuration Consistency: BAD\";    
+    col = \"red\";    
+  }
+  
+  txMsg.visible = true;
+  txMsg.foreCol = col;
+}
+
+
+
+
+" 0
+ E E E
+13 23
+"PUSH_BUTTON7"
+""
+1 598.0000000000001 390.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  596 388 650 412
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  
+  if(dynlen(lines) <= 0)
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Warning\", makeDynString(\"No nodes selected in the table\"));
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    tblNodes.cellValueRC(lines[i], \"winProcsController\", tfWinProcsController.text);
+  }
+  
+  string col = \"red\";
+  if(checkConsistency(true))
+  {
+    txMsg.text = \"Configuration Consistency: OK\";
+    col = \"green\";    
+  }
+  else
+  {
+    txMsg.text = \"Configuration Consistency: BAD\";    
+    col = \"red\";    
+  }
+  
+  txMsg.visible = true;
+  txMsg.foreCol = col;
+
+}
+
+
+
+
+
+" 0
+ E E E
+20 24
+"CHECK_BOX2"
+""
+1 30.00000000000018 380 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  28 378 182 402
+1
+T 
+1
+LANG:1 4 IPMI
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    string node;
+    getValue(\"tblNodes\", \"cellValueRC\", lines[i], \"node\", node);
+    tblNodes.cellValueRC(lines[i], \"ipmi\", (bool) state);
+    if(state == 0)
+    {  
+      tblNodes.cellValueRC(lines[i], \"ipmiDeviceName\", \"\");
+      tblNodes.cellValueRC(lines[i], \"ipmiMaster\", \"\");
+    }
+    else
+    {
+      tblNodes.cellValueRC(lines[i], \"ipmiDeviceName\", node + tfIpmiSuffix.text);
+      tblNodes.cellValueRC(lines[i], \"ipmiMaster\", tfIpmiMaster.text);
+    }
+  }
+}
+
+
+
+
+
+
+
+" 0
+20 25
+"CHECK_BOX3"
+""
+1 30.00000000000018 400 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  28 398 182 422
+1
+T 
+1
+LANG:1 4 Host
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+    dyn_int lines = tblNodes.getSelectedLines();
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    tblNodes.cellValueRC(lines[i], \"monitoring\", (bool) state);
+  }
+}
+
+" 0
+20 26
+"cbProcesses"
+""
+1 30.00000000000018 420 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  28 418 182 442
+1
+T 
+1
+LANG:1 24 Processes (Set OS first)
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    tblNodes.cellValueRC(lines[i], \"processMonitoring\", (bool) state);
+  }  
+}
+
+" 0
+20 27
+"CHECK_BOX5"
+""
+1 170.0000000000002 380.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  168 378 322 402
+1
+T 
+1
+LANG:1 12 Task Manager
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    tblNodes.cellValueRC(lines[i], \"tm\", (bool) state);
+  }
+}
+
+
+" 0
+20 28
+"CHECK_BOX6"
+""
+1 170.0000000000002 400.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  168 398 322 422
+1
+T 
+1
+LANG:1 6 Logger
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+    dyn_int lines = tblNodes.getSelectedLines();
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    tblNodes.cellValueRC(lines[i], \"logger\", (bool) state);
+  }
+}
+
+
+" 0
+2 30
+"PRIMITIVE_TEXT6"
+""
+1 674.0000000000001 362.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 674.0000000000001 362.0000000000001 884 382.0000000000001
+0 2 2 "0s" 0 0 0 64 0 0  674.0000000000001 362.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Location:
+14 31
+"tfRoom"
+""
+1 718.0000000000001 362.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  716 360 839 383
+3 "0s" 0 0 0 0 0 -1  E E E
+2 32
+"PRIMITIVE_TEXT7"
+""
+1 672.0000000000001 396.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 672.0000000000001 396.0000000000001 882 416.0000000000001
+0 2 2 "0s" 0 0 0 64 0 0  672.0000000000001 396.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Groups:
+14 33
+"tfGroup"
+""
+1 718.0000000000001 392.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  716 390 838 413
+3 "0s" 0 0 0 0 0 -1  E E E
+13 34
+"PUSH_BUTTON8"
+""
+1 846 394 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  844 392 898 416
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  
+  if(dynlen(lines) <= 0)
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Warning\", makeDynString(\"No nodes selected in the table\"));
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    tblNodes.cellValueRC(lines[i], \"fmcGroup\", tfGroup.text);
+  }
+
+  string col = \"red\";
+  if(checkConsistency(true))
+  {
+    txMsg.text = \"Configuration Consistency: OK\";
+    col = \"green\";    
+  }
+  else
+  {
+    txMsg.text = \"Configuration Consistency: BAD\";    
+    col = \"red\";    
+  }
+  
+  txMsg.visible = true;
+  txMsg.foreCol = col;
+ 
+}
+
+
+
+
+
+" 0
+ E E E
+13 35
+"PUSH_BUTTON9"
+""
+1 846 364 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  844 362 898 386
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  
+  if(dynlen(lines) <= 0)
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Warning\", makeDynString(\"No nodes selected in the table\"));
+
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    tblNodes.cellValueRC(lines[i], \"location\", tfRoom.text);
+  }
+  
+  string col = \"red\";
+  if(checkConsistency(true))
+  {
+    txMsg.text = \"Configuration Consistency: OK\";
+    col = \"green\";    
+  }
+  else
+  {
+    txMsg.text = \"Configuration Consistency: BAD\";    
+    col = \"red\";    
+  }
+  
+  txMsg.visible = true;
+  txMsg.foreCol = col;
+
+}
+
+
+
+
+
+
+
+" 0
+ E E E
+2 36
+"PRIMITIVE_TEXT8"
+""
+1 672.0000000000001 422.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 672.0000000000001 422.0000000000001 882 442.0000000000001
+0 2 2 "0s" 0 0 0 64 0 0  672.0000000000001 422.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 OS:
+13 37
+"PUSH_BUTTON10"
+""
+1 846 424 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  844 422 898 446
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  string os = tfOs.text;
+  
+  if(dynlen(lines) <= 0)
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Warning\", makeDynString(\"No nodes selected in the table\"));
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    string winProcsController = tblNodes.cellValueRC(lines[i], \"winProcsController\");
+    if(winProcsController != \"\" && os == \"LINUX\") {tblNodes.cellValueRC(lines[i], \"winProcsController\", \"\");}
+    
+    tblNodes.cellValueRC(lines[i], \"os\", os);
+  }
+  
+  string col = \"red\";
+  if(checkConsistency(true))
+  {
+    txMsg.text = \"Configuration Consistency: OK\";
+    col = \"green\";    
+  }
+  else
+  {
+    txMsg.text = \"Configuration Consistency: BAD\";    
+    col = \"red\";    
+  }
+  
+  txMsg.visible = true;
+  txMsg.foreCol = col;
+
+  cbProcesses.enabled = true;
+}
+
+
+
+
+
+
+
+" 0
+ E E E
+22 38
+"COMBO_BOX1"
+""
+1 718.0000000000001 422.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  716 420 720 444
+2
+1
+LANG:1 5 LINUX
+
+0
+1
+LANG:1 7 WINDOWS
+
+0
+
+E
+E
+E
+ 1 0
+22 43
+"tfOs"
+""
+1 718.0000000000001 422.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  716 420 840 444
+2
+1
+LANG:1 5 LINUX
+
+0
+1
+LANG:1 7 WINDOWS
+
+0
+
+E
+E
+E
+ 1 0
+13 44
+"btSave"
+""
+1 610 690 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  608 688 722 722
+
+T 
+1
+LANG:1 17 Save Config to DB
+E E "main()
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  bool enableIpmi = false;
+  string node = \"\";
+  dyn_string ds;
+  dyn_float df;
+  dyn_string exceptionInfo;
+
+  string msg = \"Are you sure you want to update the\\nDB information for the selected nodes?\";
+  
+  if(!checkConsistency())
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Configuration ERROR\", makeDynString(\"$1:Configuration consistency failed.\\n Correct errors before importing the configuration.\"));
+    tblNodes.removeSelectLines(0);
+    return;
+  }
+  
+  if(dynlen(lines) <= 0)  
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"No nodes seletected\", makeDynString(\"$1:No nodes selected.\\nSelect them in the table above first\"));
+    return;
+  }
+  
+  disable();
+  if(fwInstallationDB_connect())
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"DB Connection ERROR\", makeDynString(\"$1:Could not connect to the system configuration DB.\\nPlease check the connection parameters using the Installation Tool\"));
+    disable(false);
+    return;
+  }
+
+  ChildPanelOnCentralReturn(\"fwInstallation/fwInstallationDB_question.pnl\", \"Confirmation required\", makeDynString(\"$txt:\" + msg), df, ds);
+  if(dynlen(df) > 0 && df[1] >= 1)
+  {
+      openProgressBar(\"Exporting FMC configuration to the System Configuration DB\", \"copy.gif\", \"This may take a while\", \"Please wait...\", \"\", 0);    
+      int n = dynlen(lines);
+      for(int i = 1; i <= n; i++)
+      {
+        showProgressBar(n +\" Nodes selected\", \"copy.gif\", \"Exporting information to DB. Processing \" + i +\" of \" + n + \"\", \"Please wait...\", \"\", floor((i/n)*100.));    
+        
+        dyn_anytype da = tblNodes.getLineN(lines[i]);
+        
+        //DebugN(\"Update information in the System Configuration DB for host: \", da[1]);        
+        dyn_mixed hostInfo;
+        
+        hostInfo[FW_INSTALLATION_DB_HOST_NAME_IDX] = da[1];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_ENABLE_IPMI_IDX] = da[4];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_IPMI_DEVICE_NAME_IDX] = da[5];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_ENABLE_MONITORING_IDX] = da[7];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_MONITORING_LEVEL_IDX] = 0;
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_ENABLE_TM_IDX] = da[10];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_ENABLE_LOGGER_IDX] = da[11];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_ENABLE_PROCESS_IDX] = da[8];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_WIN_PROCS_CONTROLLER_IDX] = da[9];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_LOCATION_IDX] = da[2];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_OS_IDX] = da[3];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_IPMI_MASTER_IDX] = da[6];
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_ALARMS_IDX] = cbAlarms.state(0);
+        hostInfo[FW_INSTALLATION_DB_HOST_FMC_ARCHIVING_IDX] = cbArchivingType.text;
+        
+        dyn_string groups = strsplit(da[12], \",\");
+        for(int j = 1; j <= dynlen(groups); j++)
+          strreplace(groups[j], \" \", \"\");
+        
+        
+        if(fwFMCDB_setHostProperties(da[1], hostInfo) != 0)
+//        if(fwInstallationDB_setHostProperties(da[1], hostInfo) != 0)
+        {
+          fwException_raise(exceptionInfo, \"ERROR\", \"Failed to register in System Configuration DB node: \" + da[1], -9999);
+        }
+        
+        if(dynlen(groups))
+        {
+          if(fwFMCDB_registerGroups(da[1], groups) != 0)
+          {
+            fwException_raise(exceptionInfo, \"ERROR\", \"Failed to register FMC groups for node: \" + da[1], -9999);
+          }
+        }
+
+      }     
+    }
+
+  if(dynlen(exceptionInfo))
+    fwExceptionHandling_display(exceptionInfo);
+ 
+  disable(false);
+  closeProgressBar(); 
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E
+2 45
+"PRIMITIVE_TEXT10"
+""
+1 352.0000000000002 422.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 352.0000000000002 422.0000000000001 562.0000000000001 442.0000000000001
+0 2 2 "0s" 0 0 0 64 0 0  352.0000000000002 422.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 IPMI I/F suffix*:
+14 46
+"tfIpmiSuffix"
+""
+1 470.0000000000001 420.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  468 418 591 441
+3 "0s" 0 0 0 0 0 -1  E E E
+13 47
+"PUSH_BUTTON12"
+""
+1 598.0000000000001 420.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  596 418 650 442
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  
+  if(dynlen(lines) <= 0)
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Warning\", makeDynString(\"No nodes selected in the table\"));
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    string node = tblNodes.cellValueRC(lines[i], \"node\");
+    tblNodes.cellValueRC(lines[i], \"ipmiDeviceName\", node + tfIpmiSuffix.text);
+  }
+  
+  string col = \"red\";
+  if(checkConsistency(true))
+  {
+    txMsg.text = \"Configuration Consistency: OK\";
+    col = \"green\";    
+  }
+  else
+  {
+    txMsg.text = \"Configuration Consistency: BAD\";    
+    col = \"red\";    
+  }
+  
+  txMsg.visible = true;
+  txMsg.foreCol = col;
+
+}
+
+
+
+
+
+
+
+
+" 0
+ E E E
+2 48
+"PRIMITIVE_TEXT11"
+""
+1 470 448 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 470 448 680 468
+0 2 2 "0s" 0 0 0 64 0 0  470 448 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 38 (*it will be appended to the hostname)
+2 49
+"txMsg"
+""
+1 10 670 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 10 670 509.9999999999999 690
+0 2 2 "0s" 0 0 0 64 0 0  10 670 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 32 Configuration status: INCOMPLETE
+30 50
+"FRAME5"
+""
+1 50 593 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+56 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.5 0 2.490979221102402 615 -1477.150678113724 0 E 50 593 591 651
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Apply Defaults
+20 52
+"cbAlarms"
+""
+1 810 29.99999999999989 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  808 28 872 52
+1
+T 
+1
+LANG:1 6 Alarms
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  dyn_int lines = tblNodes.getSelectedLines();
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    tblNodes.cellValueRC(lines[i], \"alarms\", (bool) state);
+  }
+}
+
+
+" 0
+2 53
+"PRIMITIVE_TEXT12"
+""
+1 659 34 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 659 34 705 49
+0 2 2 "0s" 0 0 0 192 0 0  659 34 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Archiving
+22 54
+"cbArchivingType"
+""
+1 712 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  710 28 784 52
+3
+1
+LANG:1 8 Standard
+
+0
+1
+LANG:1 8 Advanced
+
+0
+1
+LANG:1 4 NONE
+
+0
+
+E
+"main()
+{
+  string type = cbArchivingType.text;
+  
+  dyn_int lines = tblNodes.getSelectedLines();
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    tblNodes.cellValueRC(lines[i], \"archive\", type);
+  }
+}
+" 0
+
+E
+ 1 0
+25 56
+"tblProjects"
+""
+1 10 480 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  8 478 752 652
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);  
+
+}" 0
+"main(int row, string column, string value)
+{
+  int n = this.lineCount();
+  int m;
+
+  for(int k = 1; k <= n;k++)
+  {
+     bool monitored;
+     getValue(\"\", \"cellValueRC\", k-1, \"monitored\", monitored);
+     if(monitored)
+       ++m;
+  }
+  txProjectsTitle.text = \"Total Projects: \" + tblProjects.lineCount() + \" - Selected for import: \" + m; 
+  
+}
+
+" 0
+ 1 0 1 8 0 "project" 16 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 0 
+
+160 "system" 16 1 0 "s" 1
+LANG:1 6 System
+E
+1
+LANG:1 0 
+
+160 "systemNr" 5 1 0 "s" 1
+LANG:1 10 System Nr.
+E
+1
+LANG:1 0 
+
+60 "host" 16 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 0 
+
+157 "monitored" 6 1 1 "s" 1
+LANG:1 10 monitored?
+E
+1
+LANG:1 0 
+
+63 "pmonPort" 5 1 0 "s" 1
+LANG:1 9 Pmon Port
+E
+1
+LANG:1 0 
+
+60 "user" 5 1 0 "s" 1
+LANG:1 4 User
+E
+1
+LANG:1 0 
+
+60 "pwd" 5 0 0 "s" 1
+LANG:1 3 pwd
+E
+1
+LANG:1 0 
+
+60 
+14 14 10 10
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+2 57
+"txProjectsTitle"
+""
+1 540 660 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 540 660 620 674
+0 2 2 "0s" 0 0 0 192 0 0  540 660 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Projects found: 0
+13 58
+"btAddHost"
+""
+1 920 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 14 Add a new Host
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  918 308 952 342
+
+P 
+4294967295
+"pictures/append.xpm"
+1
+LANG:1 2 <-
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  
+  ChildPanelOnCentralModalReturn(\"fwSystemOverview/fwSystemOverview_ConfigurationAddPc.pnl\", \"Add Host\", makeDynString(), df, ds); 
+  
+  if(df[1] == 1)
+    tblNodes.appendLine(\"node\", ds[1]);
+     
+}
+
+
+" 0
+ E E E
+13 59
+"btAddProject"
+""
+1 760 620 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 17 Add a new Project
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  758 618 792 652
+
+P 
+4294967295
+"pictures/append.xpm"
+1
+LANG:1 2 <-
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  
+  ChildPanelOnCentralModalReturn(\"fwSystemOverview/fwSystemOverview_ConfigurationAddProject.pnl\", \"Add Host\", makeDynString(), df, ds); 
+      
+  if(df[1] == 1)
+  {
+    tblProjects.appendLine(\"project\", ds[1], \"system\", ds[2], \"systemNr\", ds[3], \"host\", ds[4], \"monitored\", true, \"pmonPort\", ds[5], \"user\", ds[6], \"pwd\", ds[7]);
+    //check if it is necessary to add the host:
+    int n = tblNodes.lineCount();
+    bool found = false;
+    for(int i = 1; i <= n; i++)
+    {
+      getValue(\"tblNodes\", \"cellValueRC\", i-1, \"node\", node);
+      if(strtoupper(node) == strtoupper(ds[4]))
+      {
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+      tblNodes.appendLine(\"node\", ds[4]);
+  }
+}
+
+
+" 0
+ E E E
+30 29
+"FRAME4"
+""
+1 50 593 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+31 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.5740740740740742 0 1.578947368421053 -8.70370370370371 -576.3157894736845 0 E 50 593 591 651
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Enable Monitoring
+13 60
+"btRemoveHosts"
+""
+1 920 270 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 14 Add a new Host
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  918 268 952 302
+
+P 
+4294967295
+"pictures/delete_24.bmp"
+1
+LANG:1 2 <-
+"main()
+{
+  dyn_float df;
+  dyn_string ds, ex;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageStop\", \"Remove Host\", makeDynString(\"Are you sure you want to remove the selected host(s) and all associted projects?\", \"YES\", \"NO\"), df, ds); 
+  
+  if(df[1] == 1.)
+  {
+    dyn_int nodeLines = tblNodes.getSelectedLines();
+    string description = myPanelName() + \": Removing nodes from monitoing. Hosts:\";
+    for(int j = dynlen(nodeLines); j >= 1; j--)
+    {    
+      string host, project;
+      getValue(\"tblNodes\", \"cellValueRC\", nodeLines[j], \"node\", host);
+      int n = tblProjects.lineCount();
+      for(int i = n; i >=1; i--)
+      {
+        string projectHost;
+        getMultiValue(\"tblProjects\", \"cellValueRC\", i-1, \"host\", projectHost, 
+                      \"tblProjects\", \"cellValueRC\", i-1, \"project\", project); 
+
+        if(strtoupper(host) == strtoupper(projectHost))
+        {
+          fwSysOverview_deleteProject(host, project, ex);
+        }
+      }
+      description += host + \", \";
+      fwFMC_removeNodes(makeDynString(host));
+    }
+    
+    fwConfigurationDBSystemInformation_logAction(description);
+  }
+  read();
+  updateProjectsTable();
+  if(dynlen(ex))
+  fwExceptionHandling_display(ex);
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+13 61
+"btRemoveProjects"
+""
+1 760 580 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 17 Add a new Project
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  758 578 792 612
+
+P 
+4294967295
+"pictures/delete_24.bmp"
+1
+LANG:1 2 <-
+"main()
+{
+  dyn_float df;
+  dyn_string ds, ex;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageStop\", \"Remove Host\", makeDynString(\"Are you sure you want to remove the selected projects?\", \"YES\", \"NO\"), df, ds); 
+  
+  if(df[1] == 1.)
+  {
+    string host, project;
+    dyn_int projectLines = tblProjects.getSelectedLines();
+    for(int i = dynlen(projectLines); i >= 1; i--)
+    {
+      getMultiValue(\"tblProjects\", \"cellValueRC\", projectLines[i], \"host\", host, 
+                    \"tblProjects\", \"cellValueRC\", projectLines[i],\"project\", project); 
+              fwSysOverview_deleteProject(host, project, ex);
+    }
+  }
+  updateProjectsTable();
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+}
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+20 62
+"cbUnicosImport"
+""
+1 430 690 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  428 688 602 722
+1
+T 
+1
+LANG:1 21 Create UNICOS Devices
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+"main()
+{
+  if (fwInstallation_checkInstalledComponent(\"projectMonitoring\") || 
+      fwInstallation_checkInstalledComponent(\"hostMonitoring\"))
+    this.visible = false; 
+  else
+    this.visible = true;
+}" 0
+E30 63
+"FRAME6"
+""
+1 10 323 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+69 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.6097560975609756 0 0.7331042382588775 643.9024390243903 -176.7926689576175 0 E 10 323 421 421
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 8 Projects
+13 64
+"btChangeArchiving"
+""
+1 334 333.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  832 76 893 104
+
+T 
+1
+LANG:1 6 Change
+"main()
+{
+  dyn_float resultFloat;
+  dyn_string resultText;  
+  
+  ChildPanelOnCentralReturn(\"fwSystemOverview/fwSystemOverview_changeArchiveClass.pnl\", \"Change Archive Class\", 
+                          makeDynString(),resultFloat, resultText);
+                  
+}" 0
+ E E E
+14 65
+"tfCurrentArchive"
+""
+1 730 80.00000000000011 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  728 78 831 101
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  if(dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_ARCHIVE_CLASS))
+    dpConnect(\"currentArchiveClass\", fwSysOverview_PARAMETRIZATION + fwSysOverview_ARCHIVE_CLASS);
+    
+}" 0
+ E
+2 66
+"PRIMITIVE_TEXT4"
+""
+1 660 80.00000000000006 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+72 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 660 80.00000000000006 728 95
+0 2 2 "0s" 0 0 0 192 0 0  660 80.00000000000006 1
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 13 Archive Class
+20 67
+"cbEnableArchiving"
+""
+1 660 106.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  658 104 782 128
+1
+T 
+1
+LANG:1 16 Enable Archiving
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+  if(dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_ARCHIVING))
+    dpConnect(\"archivingStatus\", fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_ARCHIVING);
+    
+}" 0
+"main(int button, int state)
+{
+  bool  ok = FALSE;
+  dyn_float resultFloat;
+  dyn_string resultText, systemDps;
+  string archiveClass = \"\";
+  dyn_string exceptionInfo;
+  
+  fwSysOverview_getAchiveClass(archiveClass);
+  if(archiveClass == \"\")
+  {
+    this.state(0) = false;
+    return;
+  }
+          
+  if(state == true ) // archiving enabled
+  {
+    ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation\", 
+                          makeDynString(\"$1:You are about to enable archiving for all systems. Are you sure you want to do that?\" , \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+    if(dynlen(resultFloat) > 0 ) 
+      ok = resultFloat[1];
+    
+    if(ok)
+    {
+      fwSysOverview_getSystemsDps(systemDps);
+
+      for(int i =1; i<= dynlen(systemDps); i++)
+      {
+//        fwSysOverview_stopArchivingSystemState(systemDps[i], exceptionInfo);
+//        if(dynlen(exceptionInfo)){continue;}
+        
+        fwSysOverview_startArchivingSystemState(systemDps[i], archiveClass, exceptionInfo);
+        if(dynlen(exceptionInfo)){continue;}
+      }
+      
+      dpSetWait(fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_ARCHIVING, 1);
+    }
+    else
+      this.state(0) = false;
+  }
+  
+  else if(state == false) // archiving disabled
+  {
+    ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation\", 
+                          makeDynString(\"$1:You are about to disable archiving for all systems. Are you sure you want to do that?\" , \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+
+    if(dynlen(resultFloat) > 0 ) 
+      ok = resultFloat[1];
+
+    if(ok)
+    {
+      fwSysOverview_getSystemsDps(systemDps);
+      
+      for(int i =1; i<= dynlen(systemDps); i++)
+      {
+        fwSysOverview_stopArchivingSystemState(systemDps[i], exceptionInfo);
+        if(dynlen(exceptionInfo)){continue;}
+      }
+      
+      dpSetWait(fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_ARCHIVING, 0);
+    }
+    else
+      this.state(0) = true;
+  }
+}
+
+//void fwSysOverview_enableArchiving(string archiveClass) //void fwSysOverview_startArchiving(string archiveClass) 
+//void fwSysOverview_disableArchiving() //void fwSysOverview_stopArchiving() 
+" 0
+30 68
+"FRAME7"
+""
+1 10 323 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+74 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.6097560975609756 0 0.4143925611481706 643.9024390243902 -118.8487972508591 0 E 10 323 421 421
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 5 Hosts
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

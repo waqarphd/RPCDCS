@@ -1,0 +1,581 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,308 224 606 441 N "_3DFace" 2
+"$sDpName"
+"$sHierarchyType"
+"
+main()
+{
+	string type;
+	dyn_string exceptionInfo, device = makeDynString($sDpName, \"\", \"\", \"\");
+	
+	if(isEditingMode())
+	{
+		if(dpTypeName($sDpName) == \"FwNode\")
+		{
+			dpGet($sDpName + \".type\", type);
+			if(type == fwNode_TYPE_VENDOR)
+			{
+				dpGet($sDpName + \".dpTypes\", childrenDpTypes);
+			}
+			// try dpts for device model
+			if(dynlen(childrenDpTypes) == 0)
+				fwDevice_getModelChildrenDpTypes(device, childrenDpTypes, exceptionInfo);
+		}
+		else
+		{
+			fwDevice_getChildrenDpTypes(device, childrenDpTypes, exceptionInfo);
+		}
+	}
+}" 0
+"main()
+{
+	int i;
+}" 0
+E E E 1 -1 -1 0  10 10
+"" 0 1
+E"const int DEVICE_POSITION_INDEX = 1;
+const int DEVICE_DP_NAME_COLUMN = 4;
+string advancedOptionsPanel, hierarchyType;
+dyn_string childrenDpTypes;
+
+updateDeviceListTable()
+{
+	bool withSlots = FALSE;
+	int i, pos, numberOfSlots, startingNumber;
+	string deviceType, device, deviceModel, s, posString, systemName, backColor, foreColor;
+	dyn_string children, exceptionInfo;
+	dyn_dyn_anytype deviceNames, deviceTypes, deviceModels, devicePositions, deviceDpNames;
+	
+	deviceListTable.deleteAllLines();
+	
+	if(isDollarDefined(\"$sHierarchyType\"))
+		hierarchyType = $sHierarchyType;
+	else
+		hierarchyType = fwDevice_HARDWARE;
+	
+	switch(hierarchyType)
+	{
+		case fwDevice_LOGICAL:
+			systemName = substr($sDpName, 0, strpos($sDpName, \":\") + 1);
+			device = systemName + dpGetAlias($sDpName + \".\");
+			//DebugN(\"fwDeviceManage: device \" + device + \" systemName \" + systemName +  \" $sDpName \" + $sDpName);
+			break;
+		case fwDevice_HARDWARE:
+			device = $sDpName;
+			fwDevice_getModelSlots(makeDynString($sDpName), numberOfSlots, exceptionInfo);
+			if(numberOfSlots != 0)
+			{
+				fwDevice_getChildrenInSlots(makeDynString($sDpName), hierarchyType, children, exceptionInfo);
+				fwDevice_getModelStartingNumber(makeDynString($sDpName), startingNumber, exceptionInfo);
+				//DebugN(\"startingNumber \" + startingNumber);
+				withSlots = TRUE;
+			}
+			break;
+		default:
+			break;
+	}
+	
+	if(!withSlots)
+	{
+		fwDevice_getChildren(device, hierarchyType, children, exceptionInfo);
+	}
+	//DebugN(device, $sDpName);
+	//DebugN(\"Children \" + children + \" \" + withSlots + \" \" + hierarchyType);
+	// add the children to the table
+	for(i = 1; i <= dynlen(children); i++)
+	{
+		//DebugN(\"Adding children \" + children[1] + \" in position \" + i);
+		
+		backColor = \"_3DFace\";
+		foreColor = \"_3DText\";
+		if(children[i] != \"\")
+		{
+			fwDevice_getName(children[i], device, exceptionInfo);
+
+			if(hierarchyType == fwDevice_LOGICAL)
+				children[i] = strrtrim(dpAliasToName(children[i]), \".\");
+				
+			//DebugN(\"Children i \" + children[i] + \" \" + i);
+
+			fwDevice_getType(dpTypeName(children[i]), deviceType, exceptionInfo);
+			fwDevice_getModel(makeDynString(children[i]), deviceModel, exceptionInfo);
+		}
+		else
+		{
+			device = \"\";
+			deviceType = \"\";
+			deviceModel = \"\";
+			if(isEditingMode())
+			{
+				backColor = \"_Window\";
+				foreColor = \"_WindowText\";
+			}
+		}
+
+		if(withSlots)
+		{
+			posString = startingNumber + i - 1;
+		}
+		else
+		{
+			fwDevice_getPosition(device, s, pos, exceptionInfo);			
+			if(pos == -1)
+				posString = \"\";
+			else
+				posString = pos;
+		}
+
+		deviceNames[i] = makeDynString(device, backColor, foreColor);
+		deviceTypes[i] = makeDynString(deviceType, backColor, foreColor);
+		deviceDpNames[i] = makeDynString(children[i], backColor, foreColor);
+		devicePositions[i] = makeDynString(posString, backColor, foreColor);
+		deviceModels[i] = makeDynString(deviceModel, backColor, foreColor);
+	}
+
+	deviceListTable.appendLines(dynlen(deviceNames),
+								\"deviceName\", deviceNames, 
+								\"deviceType\", deviceTypes, 
+								\"datapointName\", children,
+								\"position\", devicePositions,
+								\"deviceModel\", deviceModels);
+								
+	deviceListTable.lineVisible(0);
+}
+
+bool isEditingMode()
+{
+	string mode, hierarchyType;
+	
+	if(globalExists(\"g_fwDEN_mode\"))
+		mode = g_fwDEN_mode;
+	if(isDollarDefined(\"$sHierarchyType\"))
+		hierarchyType = $sHierarchyType;
+	//DebugN(hierarchyType, mode);
+	if(mode == fwDEN_MODE_NAVIGATOR || hierarchyType == fwDevice_LOGICAL)
+	{
+		//DebugN(\"FALSE\");
+		return FALSE;
+	}
+	else
+	{
+		//DebugN(\"TRUE\");
+		return TRUE;
+	}
+}" 0
+ 2
+"CBRef""1"
+"EClose""main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 12 153 34
+0 2 0 "s" 0 0 0 192 0 0  12 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 14 Manage Devices
+25 1
+"deviceListTable"
+""
+1 16 50 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E "main()
+{
+	dyn_int selectedLines;
+	dyn_float df;
+	dyn_string ds;
+	dyn_anytype line;
+	
+	if(!isEditingMode())
+		return;
+	selectedLines = this.getSelectedLines();
+	if (dynlen(selectedLines) <= 0)
+		return;
+	line = this.getLineN(selectedLines[1]);
+	
+	// if no device is available in the selected slot, then create one
+	if(line[DEVICE_DP_NAME_COLUMN] == \"\")
+	{
+	   	ChildPanelOnCentralModalReturn(	\"fwDevice/fwDeviceCreate.pnl\",
+   										\"Create Device\",
+   										makeDynString(	\"$sDpName:\" + $sDpName,
+   														\"$iPosition:\" + line[DEVICE_POSITION_INDEX],
+					   									\"$sDeviceTypes:\" + childrenDpTypes),
+   										df, ds);
+   	}
+	updateDeviceListTable();
+}" 0
+
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+14 48 598 392
+"main()
+{
+	if(isEditingMode())
+	{
+		// Put table in multiple selection mode
+		deviceListTable.tableMode(TABLE_SELECT_MULTIPLE); 
+		deviceListTable.selectByClick(TABLE_SELECT_LINE);
+	}
+	
+	updateDeviceListTable();
+}" 0
+ "main(int row, string column, string value)
+{
+ 
+
+}" 0
+ 1 0 1 5 1 "position" 0 1 0 "s" 1
+LANG:1 3 Pos
+E1
+LANG:1 0 
+ 35 "deviceName" 0 1 0 "s" 1
+LANG:1 11 Device Name
+E1
+LANG:1 0 
+ 200 "deviceType" 0 1 0 "s" 1
+LANG:1 11 Device Type
+E1
+LANG:1 0 
+ 150 "datapointName" 0 0 0 "s" 1
+LANG:1 15 Data Point Name
+E1
+LANG:1 0 
+ 150 "deviceModel" 0 -1 0 "s" 1
+LANG:1 12 Device Model
+E1
+LANG:1 0 
+ 150 26 26 "" 1 1
+LANG:1 2 #1
+8 30 1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 3 0
+1 0
+13 2
+"createButton"
+""
+1 243 405 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+241 403 321 432
+T 
+1
+LANG:1 3 Add
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+	
+   	ChildPanelOnCentralModalReturn(	\"fwDevice/fwDeviceCreate.pnl\",
+   									\"Create Device\",
+   									makeDynString(	\"$sDpName:\" + $sDpName),
+   									df, ds);
+   	updateDeviceListTable();
+	//fwDeviceEditorNavigator_executeCommand(fwDEN_COMMAND_REFRESH);
+}" 0
+ E E "main()
+{
+	this.visible = isEditingMode();
+}" 0
+
+13 3
+"deleteButton"
+""
+1 327 405 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+325 403 405 432
+T 
+1
+LANG:1 6 Remove
+"main()
+{
+	dyn_int selectedLines;
+	dyn_float df;
+	dyn_string tableLine, ds, exceptionInfo;
+	
+	// build list of selected devices
+	selectedLines = deviceListTable.getSelectedLines();
+	if(dynlen(selectedLines) < 1)
+	{
+		fwException_raise(	exceptionInfo, 
+							\"WARNING\",
+							\"You should select at least one device from the table to be removed.\",
+		 					\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}		
+
+	ChildPanelOnCentralModalReturn(	\"vision/MessageInfo\", 
+									\"Remove device\",
+									makeDynString(	\"Are you sure you want to remove the selected devices and all its children from the system?\",
+													\"Ok\",
+													\"Cancel\"),
+													df, ds); 
+	if(ds[1] == \"true\")
+	{
+		fwOpenProgressBar(\"MyProgress\", \"Removing device...\", 1);
+
+					
+		for (int i = 1; i <= dynlen(selectedLines); i++)
+		{
+			tableLine = deviceListTable.getLineN(selectedLines[i]);
+			//DebugN(\"tableline \" + selectedLines[i] + \" \" + tableLine);
+			fwDevice_delete(tableLine[DEVICE_DP_NAME_COLUMN], exceptionInfo);
+		}
+	
+		updateDeviceListTable();
+	
+		if(dynlen(exceptionInfo) > 0)
+		{
+			fwExceptionHandling_display(exceptionInfo);
+			fwCloseProgressBar(\"There were errors while removing.\", 1);
+		}
+		else
+		{
+			fwCloseProgressBar(\"Device removed successfully.\", 1);
+		}
+	}
+	//fwDeviceEditorNavigator_executeCommand(fwDEN_COMMAND_REFRESH);
+}" 0
+ E E "main()
+{
+	this.visible = isEditingMode();
+}" 0
+
+13 4
+"modifyButton"
+""
+1 411 405 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+409 403 514 432
+T 
+1
+LANG:1 15 Simple Settings
+"main()
+{
+	string panelName;
+	dyn_int selectedLines;
+	dyn_string tableLine, exceptionInfo, deviceList = makeDynString();
+	
+	// build list of selected devices
+	selectedLines = deviceListTable.getSelectedLines();		
+	if(dynlen(selectedLines) < 1)
+	{
+		fwException_raise(	exceptionInfo, 
+							\"WARNING\",
+							\"You should select at least one device from the table to be modified.\",
+		 					\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}		
+	for (int i = 1; i <= dynlen(selectedLines); i++)
+	{
+		tableLine = deviceListTable.getLineN(selectedLines[i]);
+		//DebugN(\"tableline \" + tableLine);
+		dynAppend(deviceList, tableLine[DEVICE_DP_NAME_COLUMN]);
+	}
+	
+	// call simple configuration for selected devices
+	if(dynlen(deviceList) > 1)
+		panelName = \"Modify Device Configuration for multiple devices\";
+	else
+		panelName = \"Modify Device Configuration for \" + deviceList[1];
+
+   	ChildPanelOnCentralModal(	\"fwDevice/fwDeviceSimpleConfiguration.pnl\",
+   								panelName,
+   								makeDynString(\"$sDpName:\" + deviceList));
+}" 0
+ E E "main()
+{
+	this.visible = isEditingMode();
+}" 0
+
+13 6
+"closeButton"
+""
+1 520 405 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+518 403 598 432
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+13 7
+"Button1"
+""
+1 17 405 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+15 403 159 432
+T 
+1
+LANG:1 16 Advanced options
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+   	ChildPanelOnCentralModalReturn(	advancedOptionsPanel + \".pnl\",
+									\"Advanced Options\",
+									makeDynString(	\"$sDpName:\" + $sDpName),
+									df, ds);
+}" 0
+ E E "main()
+{
+	string deviceModel;
+	dyn_string panels, exceptionInfo;
+	
+	advancedOptionsPanel = \"\";
+	
+	if(isEditingMode())
+	{
+		if(dpTypeName($sDpName) == \"FwNode\")
+		{
+			fwNode_getPanels($sDpName, fwDEN_MODE_EDITOR, panels, exceptionInfo);
+		}
+		else
+		{
+			fwDevice_getModel(makeDynString($sDpName), deviceModel, exceptionInfo);
+			fwDevice_getDefaultConfigurationPanels(dpTypeName($sDpName), panels, exceptionInfo, deviceModel, $sDpName);
+		}
+	}
+	else
+	{
+		if(dpTypeName($sDpName) == \"FwNode\")
+		{
+			fwNode_getPanels($sDpName, fwDEN_MODE_NAVIGATOR, panels, exceptionInfo);
+		}
+		else
+		{
+			fwDevice_getModel(makeDynString($sDpName), deviceModel, exceptionInfo);
+			fwDevice_getDefaultOperationPanels(dpTypeName($sDpName), panels, exceptionInfo, deviceModel, $sDpName);
+		}
+	}
+	
+//	DebugN(\"panels \" + panels);
+	
+	if(dynlen(panels) > 1)
+	{
+		if(panels[2] != \"\")
+		{
+			advancedOptionsPanel = panels[2];
+		}
+   	}
+   	if(advancedOptionsPanel == \"\")
+   	{
+   		this.enabled = FALSE;
+   	}
+}" 0
+
+1 8 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 490 20 T 8 1 0 1  79 -10  
+1
+"$sPanelRelativePath""fwDevice/fwDeviceManage"
+0

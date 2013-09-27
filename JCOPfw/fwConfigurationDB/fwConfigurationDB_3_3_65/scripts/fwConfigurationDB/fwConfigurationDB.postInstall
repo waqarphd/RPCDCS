@@ -1,0 +1,117 @@
+main()
+{
+
+    updateRecipeCaches();
+    updateConnections();
+    updateSetups();
+
+}
+
+
+void updateConnections()
+{
+    dyn_string connectionNames=dpNames("*","_FwDBConnection");
+
+    if (dynlen(connectionNames)<1) return;
+    
+    // firstly check if we have CtrlRDBAccess at all, and it has a proper version...
+    if (!isFunctionDefined("rdbOption")) { DebugN("ERROR!","CtrlRDBAccess not available.","DB Connection parameters will not be updated!"); return;};
+                                                                    
+    mixed mVer;
+    int rc=rdbOption("GetVersion",0,mVer);
+    if (rc) { DebugN("ERROR!","Cannot determine the version of CtrlRDBAccess.","DB Connection parameters will not be updated!"); return;};
+    float ver=mVer;
+    if (ver<fwConfigurationDB_minimalRDBAccessVersion) { 
+	DebugN("ERROR!","Wrong version of CtrlRDBAccess("+ver+").",
+	       "Required version:"+fwConfigurationDB_minimalRDBAccessVersion,
+	       "DB Connection parameters will not be updated!"); 
+	return;
+    }; 
+
+
+    // do the actual conversion
+    for (int i=1;i<=dynlen(connectionNames);i++) {
+	string dp=connectionNames[i];
+	float version;
+	string connectString,dbType,password;
+	dyn_string exceptionInfo;
+	dpGet(dp+".version",version);
+	dpGet(dp+".connectString",connectString);
+  	dpGet(dp+".dbType",dbType);
+  	dpGet(dp+".dbPassword",password);
+  
+	if (version>=fwConfigurationDB_version) continue;
+    	DebugN("Updating parameters for DB Connection "+dp);
+
+	if (version<=2) {
+    	    string defConStr;
+	    _fwConfigurationDB_getDefaultConnectString(dbType, defConStr,exceptionInfo);
+	    if (dynlen(exceptionInfo)) {
+		DebugN("WARNING: Could not reset DB Connection parameters",exceptionInfo);
+		dynClear(exceptionInfo);
+		continue;
+	    }
+	    connectString=defConStr;
+	}
+	
+	if (version<=2) {
+	    string encPwd=rdbEncryptPassword(password);
+	    password=encPwd;
+	}
+
+
+	dpSet(dp+".version",fwConfigurationDB_version,
+	      dp+".dbPassword",password,
+  	      dp+".connectString",connectString);
+
+    }
+
+}
+
+void updateSetups()
+{
+
+    // update setups
+
+    dyn_string setups=dpNames("*","_FwConfigurationDB_setup");
+    for (int i=1;i<=dynlen(setups);i++) {
+	string dp=setups[i];
+	float version;
+	dpGet(dp+".version",version);
+	if (version>=fwConfigurationDB_version) continue;
+    	DebugN("Updating version of CDB Setup "+dp);
+	dpSet(dp+".version",fwConfigurationDB_version);
+    }
+
+}
+
+void updateRecipeCaches()
+{
+    dyn_string caches=dpNames("*","_FwRecipeCache");
+    for (int i=1;i<=dynlen(caches);i++) {
+	string dp=caches[i];
+	dyn_string dataPoints,hierarchies;
+	string sVersion;
+	dpGet(dp+".Version",sVersion);
+	dpGet(dp+".DataPoints.DPNames",dataPoints);
+	float version=sVersion;
+	if (version>=fwConfigurationDB_version) continue;
+
+	DebugN("Updating Recipe Cache "+dp);
+	    
+	    for (int j=1;j<=dynlen(dataPoints);j++) {
+		string device=dataPoints[j];
+		string hier="";
+		if (strpos(device,":")>=0) {
+		    hier="HARDWARE";
+		} else {
+		    hier="LOGICAL";		
+		}
+		hierarchies[j]=hier;
+	    }
+	    dpSet(dp+".Version",(string)fwConfigurationDB_version,
+		  dp+".DataPoints.Hierarchy",hierarchies);
+	
+	
+    }
+}

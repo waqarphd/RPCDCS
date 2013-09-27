@@ -1,0 +1,265 @@
+# ascii dump of database
+
+# Datapoint/DpId
+DpName	TypeName	ID
+fwOT_FwFMCNodeBasic	_FwFsmObjectType	945737
+fwOT_FwSystemOverviewProjectBasic	_FwFsmObjectType	946411
+fwOT_FwFMCNodeGroupBasic	_FwFsmObjectType	948036
+fwOT_FwSystemOverviewProjectGroupBasic	_FwFsmObjectType	948039
+fwOT_FwSystemOverviewApplicationBasic	_FwFsmObjectType	952973
+
+# DpValue
+ElementName	TypeName	_original.._value	_original.._status64	_original.._stime
+fwOT_FwFMCNodeBasic.panel	_FwFsmObjectType	"FwFMCNode|FwFMCNodeBasic.pnl"	0x101	17.02.2011 14:29:43.657
+fwOT_FwFMCNodeBasic.components	_FwFsmObjectType	"int readings.power_status
+int agentCommunicationStatus.summary
+int agentCommunicationStatus.ipmi
+", "", "#uses \"fwFMC/fwFMC.ctl\"
+
+FwFMCNodeBasic_initialize(string domain, string device)
+{
+}
+", "FwFMCNodeBasic_valueChanged( string domain, string device,
+      int readings_dot_power_status,
+      int agentCommunicationStatus_dot_summary,
+      int agentCommunicationStatus_dot_ipmi, string &fwState )
+{
+	if (
+	(readings_dot_power_status == 1) &&
+	(agentCommunicationStatus_dot_summary == 1) )
+	{
+		fwState = \"ON\";
+	}
+	else if (
+	(readings_dot_power_status == 0) &&
+	(agentCommunicationStatus_dot_ipmi == 1) )
+	{
+		fwState = \"OFF\";
+	}
+  else if(readings_dot_power_status < 0)
+  {
+    fwState = \"UNKNOWN\";
+  }
+	else if (agentCommunicationStatus_dot_summary < 0)
+	{
+		fwState = \"COMM_ERROR\";
+	}
+	else 
+	{
+		fwState = \"UNKNOWN\";
+	}
+}
+
+", "FwFMCNodeBasic_doCommand(string domain, string device, string command)
+{
+  string systemName = dpSubStr(device, DPSUB_SYS);    
+  string node = fwFMC_getNodeName(device);
+  string currentFsmState;
+  fwDU_getState(domain, device, currentFsmState);
+ 
+  if(command == \"SWITCH_ON\")
+  {
+    if (fwFMCIpmi_switchOn(node, systemName) == -1) {fwDU_setState(domain, device, currentFsmState);}     
+  }
+  else if(command == \"SWITCH_OFF\")
+  {
+     if(fwFMCIpmi_switchOff(node, systemName) == -1) {fwDU_setState(domain, device, currentFsmState);}    
+  }
+  else if(command == \"POWER_CYCLE\")
+  {
+     if(fwFMCIpmi_powerCycle(node, systemName) == -1) {fwDU_setState(domain, device, currentFsmState);}
+  }
+  else if(command == \"REBOOT\")
+  {
+     if(fwFMCTaskManager_rebootNode(node, systemName) == -1) {fwDU_setState(domain, device, currentFsmState);}
+  } 
+  else if(command == \"SHUTDOWN\")
+  {
+     if(fwFMCTaskManager_shutdownNode(node, systemName) == -1) {fwDU_setState(domain, device, currentFsmState);}
+  } 
+  
+}
+"	0x101	22.02.2011 11:08:12.130
+fwOT_FwFMCNodeBasic.states	_FwFsmObjectType	"ON", "FwStateOKPhysics", "", "", "", "OFF", "FwStateOKNotPhysics", "", "", "", "COMM_ERROR", "FwStateAttention1", "", "", "", "UNKNOWN", "FwStateAttention3", "", "", ""	0x101	22.02.2011 11:08:12.125
+fwOT_FwFMCNodeBasic.actions	_FwFsmObjectType	"ON/SWITCH_OFF", "", "1", "", "0", "ON/POWER_CYCLE", "", "1", "", "0", "ON/REBOOT", "", "1", "", "0", "ON/SHUTDOWN", "", "1", "", "0", "OFF/SWITCH_ON", "", "1", "", "0", "COMM_ERROR/SWITCH_OFF", "", "1", "", "0", "COMM_ERROR/POWER_CYCLE", "", "1", "", "0", "COMM_ERROR/REBOOT", "", "1", "", "0", "COMM_ERROR/SWITCH_ON", "", "1", "", "0", "COMM_ERROR/SHUTDOWN", "", "1", "", "0"	0x101	22.02.2011 11:08:12.124
+fwOT_FwSystemOverviewProjectBasic.panel	_FwFsmObjectType	"FwSystemOverviewProject|FwSystemOverviewProjectBasic.pnl"	0x101	17.02.2011 14:29:43.660
+fwOT_FwSystemOverviewProjectBasic.components	_FwFsmObjectType	"int readings.state
+", "", "#uses \"fwSystemOverview/fwSystemOverviewFsm.ctl\"
+
+FwSystemOverviewProjectBasic_initialize(string domain, string device)
+{
+}
+", "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+FwSystemOverviewProjectBasic_valueChanged( string domain, string device,
+      int readings_dot_state, string &fwState)
+{
+	fwState = fwSysOverviewFsm_getProjectState(device);
+}
+", "FwSystemOverviewProjectBasic_doCommand(string domain, string device, string command)
+{
+  string host, project, hostDp;
+  dyn_string ex;
+  fwSysOverview_getProjectDb(device, project, ex);
+  if(dynlen(ex)) {DebugN(ex); return;}
+  
+  fwSysOverview_getProjectPc(device, hostDp, ex);
+  if(dynlen(ex)) {DebugN(ex); return;}
+  
+  fwSysOverview_getHostDb(hostDp, host, ex);
+  if(dynlen(ex)) {DebugN(ex); return;}
+  
+  fwSysOverview_projectCommand(command, project, host);
+}
+
+"	0x101	22.02.2011 11:08:12.383
+fwOT_FwSystemOverviewProjectBasic.states	_FwFsmObjectType	"RUNNING", "FwStateOKPhysics", "", "", "", "STOPPED", "FwStateOKNotPhysics", "", "", "", "ERROR", "FwStateAttention3", "", "", ""	0x101	22.02.2011 11:08:12.376
+fwOT_FwSystemOverviewProjectBasic.actions	_FwFsmObjectType	"RUNNING/STOP", "", "1", "", "0", "RUNNING/RESTART", "", "1", "", "0", "STOPPED/START", "", "1", "", "0", "ERROR/STOP", "", "1", "", "0", "ERROR/RESTART", "", "1", "", "0", "ERROR/START", "", "1", "", "0"	0x101	22.02.2011 11:08:12.375
+fwOT_FwSystemOverviewProjectBasic.parameters	_FwFsmObjectType		0x141	16.02.2011 16:29:38.123
+fwOT_FwFMCNodeGroupBasic.panel	_FwFsmObjectType	"FwFMCNode|FwFMCNodeGroupBasic.pnl"	0x101	17.02.2011 14:29:43.658
+fwOT_FwFMCNodeGroupBasic.states	_FwFsmObjectType	"READY", "FwStateOKPhysics", "when ( $ANY$FwCHILDREN in_state {OFF, NOT_READY} ) move_to NOT_READY|when ( $ANY$FwCHILDREN in_state UNKNOWN ) move_to UNKNOWN|when ( $ANY$FwCHILDREN in_state COMM_ERROR )  move_to COMM_ERROR|", "", "", "NOT_READY", "FwStateOKNotPhysics", "when ( $ANY$FwCHILDREN in_state UNKNOWN ) move_to UNKNOWN|when ( ( $ALL$FwCHILDREN not_in_state {NOT_READY,OFF} ) and
+       ( $ANY$FwCHILDREN in_state COMM_ERROR ) )  move_to COMM_ERROR|when ( $ALL$FwCHILDREN in_state {ON, READY} )  move_to READY|", "", "", "COMM_ERROR", "FwStateAttention1", "when ( $ANY$FwCHILDREN in_state {NOT_READY,OFF} )  move_to NOT_READY|when ( $ANY$FwCHILDREN in_state UNKNOWN )  move_to UNKNOWN|when ( $ALL$FwCHILDREN in_state  {ON, READY} )  move_to READY|", "", "", "UNKNOWN", "FwStateAttention3", "when ( ( $ALL$FwCHILDREN not_in_state UNKNOWN ) and
+       ( $ANY$FwCHILDREN in_state COMM_ERROR ) )  move_to COMM_ERROR|when ( $ALL$FwCHILDREN not_in_state {COMM_ERROR,UNKNOWN} )  move_to NOT_READY|when ( $ALL$FwCHILDREN in_state  {ON, READY} )  move_to READY|", "", ""	0x101	22.02.2011 11:08:13.515
+fwOT_FwFMCNodeGroupBasic.actions	_FwFsmObjectType	"READY/REBOOT", "", "1", "do REBOOT $ALL$FwCHILDREN
+if ( $ANY$FwCHILDREN in_state {NOT_READY,OFF} )  then
+  move_to NOT_READY
+endif
+move_to READY", "0", "READY/POWER_CYCLE", "", "1", "do POWER_CYCLE $ALL$FwCHILDREN
+if ( $ANY$FwCHILDREN in_state {ON,READY} )  then
+  move_to READY
+endif
+move_to NOT_READY", "0", "READY/SWITCH_OFF", "", "1", "do SWITCH_OFF $ALL$FwCHILDREN
+if ( $ANY$FwCHILDREN in_state {ON,READY} )  then
+  move_to READY
+endif
+move_to NOT_READY", "0", "NOT_READY/REBOOT", "", "1", "do REBOOT $ALL$FwCHILDREN
+if ( $ANY$FwCHILDREN in_state {NOT_READY,OFF} )  then
+  move_to NOT_READY
+endif
+move_to READY", "0", "NOT_READY/POWER_CYCLE", "", "1", "do POWER_CYCLE $ALL$FwCHILDREN
+if ( $ANY$FwCHILDREN in_state {ON,READY} )  then
+  move_to READY
+endif
+move_to NOT_READY", "0", "NOT_READY/SWITCH_OFF", "", "1", "do SWITCH_OFF $ALL$FwCHILDREN
+if ( $ANY$FwCHILDREN in_state {ON,READY} )  then
+  move_to READY
+endif
+move_to NOT_READY", "0", "NOT_READY/SWITCH_ON", "", "1", "do SWITCH_ON $ALL$FwCHILDREN
+if ( $ANY$FwCHILDREN in_state {READY,OFF} )  then
+  move_to NOT_READY
+endif
+move_to READY", "0", "COMM_ERROR/POWER_CYCLE", "", "1", "do POWER_CYCLE $ALL$FwCHILDREN
+if ( $ANY$FwCHILDREN in_state {ON,READY} )  then
+  move_to READY
+endif
+move_to NOT_READY", "0", "COMM_ERROR/SWITCH_OFF", "", "1", "do SWITCH_OFF $ALL$FwCHILDREN
+if ( $ANY$FwCHILDREN in_state {ON,READY} )  then
+  move_to READY
+endif
+move_to NOT_READY", "0", "COMM_ERROR/REBOOT", "", "1", "do REBOOT $ALL$FwCHILDREN
+if ( $ANY$FwCHILDREN in_state {NOT_READY,OFF} )  then
+  move_to NOT_READY
+endif
+move_to READY", "0"	0x101	22.02.2011 11:08:13.514
+fwOT_FwFMCNodeGroupBasic.parameters	_FwFsmObjectType		0x141	16.02.2011 16:29:38.126
+fwOT_FwSystemOverviewProjectGroupBasic.panel	_FwFsmObjectType	"FwSystemOverviewProject|FwSystemOverviewProjectGroupBasic.pnl"	0x101	17.02.2011 14:29:43.661
+fwOT_FwSystemOverviewProjectGroupBasic.states	_FwFsmObjectType	"READY", "FwStateOKPhysics", "when ( $ANY$FwCHILDREN in_state ERROR ) move_to ERROR|when ( $ANY$FwCHILDREN in_state {NOT_READY,STOPPED} ) move_to NOT_READY|", "", "", "NOT_READY", "FwStateOKNotPhysics", "when ( $ANY$FwCHILDREN in_state ERROR ) move_to ERROR|when ( $ALL$FwCHILDREN in_state {READY,RUNNING} ) move_to READY|", "", "", "ERROR", "FwStateAttention3", "when ( $ALL$FwCHILDREN not_in_state ERROR ) move_to NOT_READY|", "", ""	0x101	22.02.2011 11:08:14.645
+fwOT_FwSystemOverviewProjectGroupBasic.actions	_FwFsmObjectType	"READY/RESTART", "", "1", "do RESTART $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to READY
+endif
+move_to NOT_READY", "0", "READY/STOP", "", "1", "do STOP $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to READY
+endif
+move_to NOT_READY", "0", "NOT_READY/START", "", "1", "do START $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state READY ) then
+	move_to NOT_READY
+endif
+move_to READY", "0", "NOT_READY/RESTART", "", "1", "do RESTART $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state READY ) then
+	move_to NOT_READY
+endif
+move_to READY", "0", "ERROR/RESTART", "", "1", "do RESTART $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to ERROR
+endif
+move_to NOT_READY", "0", "ERROR/START", "", "1", "do START $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state RUNNING ) then
+	move_to ERROR
+endif
+move_to RUNNING", "0", "ERROR/STOP", "", "1", "do STOP $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to ERROR
+endif
+move_to NOT_READY", "0"	0x101	22.02.2011 11:08:14.644
+fwOT_FwSystemOverviewApplicationBasic.panel	_FwFsmObjectType	"FwSystemOverviewApplicationBasic.pnl"	0x101	18.02.2011 14:44:51.919
+fwOT_FwSystemOverviewApplicationBasic.states	_FwFsmObjectType	"READY", "FwStateOKPhysics", "when ( $ANY$FwCHILDREN in_state {ERROR,UNKNOWN} )  move_to ERROR|when ( $ANY$FwCHILDREN in_state COMM_ERROR ) move_to COMM_ERROR|when ( $ANY$FwCHILDREN in_state NOT_READY ) move_to NOT_READY|", "", "", "NOT_READY", "FwStateOKNotPhysics", "when ( $ANY$FwCHILDREN in_state {ERROR,UNKNOWN} )  move_to ERROR|when ( $ANY$FwCHILDREN in_state COMM_ERROR ) move_to COMM_ERROR|when ( ( $ALL$FwFMCNodeBasic in_state ON ) and
+       ( $ALL$FwFMCNodeGroupBasic in_state READY ) and
+       ( $ALL$FwSystemOverviewApplicationBasic in_state READY ) and
+       ( $ALL$FwSystemOverviewProjectBasic in_state RUNNING ) and
+       ( $ALL$FwSystemOverviewProjectGroupBasic in_state READY ) )  move_to READY|", "", "", "COMM_ERROR", "FwStateAttention1", "when ( $ANY$FwCHILDREN in_state {ERROR,UNKNOWN} )  move_to ERROR|when ( $ALL$FwCHILDREN in_state NOT_READY ) move_to NOT_READY|when ( ( $ALL$FwFMCNodeBasic in_state ON ) and
+       ( $ALL$FwFMCNodeGroupBasic in_state READY ) and
+       ( $ALL$FwSystemOverviewApplicationBasic in_state READY ) and
+       ( $ALL$FwSystemOverviewProjectBasic in_state RUNNING ) and
+       ( $ALL$FwSystemOverviewProjectGroupBasic in_state READY ) )  move_to READY|", "", "", "ERROR", "FwStateAttention3", "when ( $ALL$FwCHILDREN not_in_state {ERROR,UNKNOWN} ) move_to NOT_READY|", "", ""	0x101	22.02.2011 11:08:14.378
+fwOT_FwSystemOverviewApplicationBasic.actions	_FwFsmObjectType	"READY/STOP_PROJECTS", "", "1", "do STOP_PROJECTS $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to READY
+endif
+move_to NOT_READY", "0", "READY/RESTART_PROJECTS", "", "1", "do RESTART_PROJECTS $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to READY
+endif
+move_to NOT_READY", "0", "READY/SHUTDOWN", "", "1", "do SHUTDOWN $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to READY
+endif
+move_to NOT_READY", "0", "READY/REBOOT", "", "1", "do REBOOT $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to READY
+endif
+move_to NOT_READY", "0", "NOT_READY/GO_READY", "", "1", "do GO_READY $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state READY ) then
+	move_to NOT_READY
+endif
+move_to READY", "0", "NOT_READY/STOP_PROJECTS", "", "1", "do STOP_PROJECTS $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state READY ) then
+	move_to NOT_READY
+endif
+move_to READY", "0", "NOT_READY/RESTART_PROJECTS", "", "1", "do RESTART_PROJECTS $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state READY ) then
+	move_to NOT_READY
+endif
+move_to READY", "0", "NOT_READY/SHUTDOWN", "", "1", "do SHUTDOWN $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state READY ) then
+	move_to NOT_READY
+endif
+move_to READY", "0", "NOT_READY/REBOOT", "", "1", "do REBOOT $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state READY ) then
+	move_to NOT_READY
+endif
+move_to READY", "0", "COMM_ERROR/GO_READY", "", "1", "do GO_READY $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state READY ) then
+	move_to COMM_ERROR
+endif
+move_to READY", "0", "COMM_ERROR/SHUTDOWN", "", "1", "do SHUTDOWN $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to COMM_ERROR
+endif
+move_to NOT_READY", "0", "COMM_ERROR/REBOOT", "", "1", "do REBOOT $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to COMM_ERROR
+endif
+move_to NOT_READY", "0", "ERROR/GO_READY", "", "1", "do GO_READY $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state READY ) then
+	move_to ERROR
+endif
+move_to READY", "0", "ERROR/SHUTDOWN", "", "1", "do SHUTDOWN $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to ERROR
+endif
+move_to NOT_READY", "0", "ERROR/REBOOT", "", "1", "do REBOOT $ALL$FwCHILDREN
+if ( $ALL$FwCHILDREN not_in_state NOT_READY ) then
+	move_to ERROR
+endif
+move_to NOT_READY", "0"	0x101	22.02.2011 11:08:14.377

@@ -1,0 +1,46 @@
+#uses "fwSystemOverview/fwSystemOverview.ctl"
+#uses "fwInstallation.ctl"
+#uses "fwDIM"
+//#uses "fwGeneral/fwExeptionHandling"
+
+main()
+{
+  dyn_string exceptionInfo;
+  string version;
+  string ctrlManType = "WCCOActrl";
+  string uiManType = "WCCOAui";
+  string dimManType = "WCCOAdim";
+  if (fwInstallation_checkToolVersion("6.2.0") > 0)
+  {
+    ctrlManType = fwInstallation_getWCCOAExecutable("ctrl");
+    uiManType = fwInstallation_getWCCOAExecutable("ui");
+    dimManType = fwInstallation_getWCCOAExecutable("dim");
+  }
+
+  
+  fwInstallationManager_append(0,"FW System Overview",uiManType,"manual",5,3,5, 
+      "-p fwSystemOverview/fwSystemOverview.pnl -iconBar -menuBar");	
+
+  if(!dpExists(fwSysOverview_PARAMETRIZATION))
+  	dpCreate(fwSysOverview_PARAMETRIZATION, "_FwSystemOverviewParametrization");
+
+  if(fwInstallation_isComponentInstalled("fwDIM", version))
+  {
+    if(!dpExists(fwSysOverview_DIM_CONFIG))
+      fwDim_createConfig(fwSysOverview_DIM_CONFIG);
+
+    fwInstallationManager_append(0, "", dimManType, "manual", 30, 2, 2, "-dim_dp_config fwDimSystemOverview -dim_dns_node localhost");
+  }
+  
+  fwSysOverview_upgrade(exceptionInfo);
+	if(dynlen(exceptionInfo)) {DebugN(exceptionInfo);} 
+  
+  //Start Control manager for PMON Monitoring
+  string host = fwInstallation_getHostname();
+  int port = pmonPort();
+  string user, pwd;
+  fwInstallation_getPmonInfo(user, pwd);
+  fwInstallationManager_setMode(ctrlManType, "fwSystemOverview/fwSystemOverview.ctl", "always", host, port, user, pwd, true);
+  
+  return 0;
+}

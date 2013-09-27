@@ -1,0 +1,20 @@
+// mapping.cpp: implementation of the Cmapping class.
+//
+//////////////////////////////////////////////////////////////////////
+#include "PVSSDIPAPIOptions.h"
+#include "mapping.h"
+
+//////////////////////////////////////////////////////////////////////
+// Construction/Destruction
+//////////////////////////////////////////////////////////////////////
+
+Cmapping::Cmapping(CsimpleDPEWrapper & dpId, const CharString & tagName):
+valueConverter(NULL), mappedDpe(dpId), dipTagName(tagName){
+}
+
+
+
+Cmapping::~Cmapping()
+{
+
+}

@@ -1,0 +1,581 @@
+V 10
+1
+LANG:1 0 
+PANEL,48 73 541 373 N "_3DFace" 2
+"$groups"
+"$userName"
+"main()
+{
+dyn_string exceptionInfo;
+
+if (!isDollarDefined(\"$userName\")) {
+	fwException_raise(exceptionInfo,\"ERROR\",
+		\"Dollar parameter $userName missing\",\"\");
+};
+
+if (!isDollarDefined(\"$groups\")) {
+	fwException_raise(exceptionInfo,\"ERROR\",
+		\"Dollar parameter $groups missing\",\"\");
+};
+
+
+if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+}
+
+populatePanel();
+
+}
+" 0
+ E E E E 1 -1 -1 0  20 57
+""0  1
+E "// General functions...
+
+// this global variable stores currently edited group set
+global dyn_string g_Groups; 
+
+void populatePanel()
+{
+
+int i;
+
+if ($userName!=\"\") {
+	setValue(\"User\",\"text\",$userName);
+} else {
+	setValue(\"User\",\"text\",\"[New User]\");
+}
+
+dynClear(g_Groups);
+dyn_string groups=strsplit($groups,\"|\");
+for (i=1;i<=dynlen(groups);i++) {
+	g_Groups[i]=strltrim(strrtrim(groups[i]));
+}
+
+dyn_string groupList, groupFullNames, exceptionInfo;
+fwAccessControl_getAllGroups(groupList, groupFullNames, exceptionInfo);
+if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+}
+
+setValue(\"GroupsTable\",\"deleteAllLines\");
+setValue(\"GroupsTable\",\"appendLines\",
+			dynlen(groupList),\"Name\",groupList);
+
+
+
+repaintTables();
+
+}
+
+
+//__________________________________________________________________________
+void repaintTables()
+{
+
+int i,n;
+string group;
+
+
+setValue(\"MemberOfTable\",\"deleteAllLines\");
+setValue(\"MemberOfTable\",\"appendLines\",
+			dynlen(g_Groups),\"Name\",g_Groups);
+
+// scroll the table to the top
+getValue(\"MemberOfTable\",\"lineCount\",n);
+if (n>0) {
+	setValue(\"MemberOfTable\",\"lineVisible\",0);
+	// trick to overcome improper display of first line in Motif Gedi...
+	setValue(\"MemberOfTable\",\"addSelectLines\",makeDynInt(0));
+	setValue(\"MemberOfTable\",\"removeSelectLines\",makeDynInt(0));
+}
+
+getValue(\"GroupsTable\",\"lineCount\",n);
+for (i=1;i<=n;i++) {
+	getValue(\"GroupsTable\",\"cellValueRC\",i-1, \"Name\", group);
+	if (dynContains(g_Groups, group)) {
+		setValue(\"GroupsTable\",\"cellBackColRC\",i-1,
+				\"Name\",\"lightgrey\");
+	} else {
+		setValue(\"GroupsTable\",\"cellBackColRC\",i-1,
+				\"Name\",\"white\");
+	};
+};
+
+
+}
+
+
+
+
+// VARIOUS EVENT HANDLERS
+//__________________________________________________________________________
+void AddSelected()
+{
+	dyn_int selLines;
+	int i;
+	string group;
+
+
+	getValue(\"GroupsTable\",\"getSelectedLines\",selLines);
+	for (i=1;i<=dynlen(selLines);i++) {
+
+		getValue(\"GroupsTable\",\"cellValueRC\",
+			selLines[i], \"Name\", group);
+
+		dynAppend(g_Groups,group);
+	};
+	// unselect...
+	setValue(\"GroupsTable\",\"removeSelectLines\",selLines);
+	// sanity check...
+	dynUnique(g_Groups);
+
+	repaintTables();
+
+	// scroll the table so as the new line is visible
+	setValue(\"MemberOfTable\",\"lineVisible\",-1);
+}
+//__________________________________________________________________________
+void AddAll()
+{
+	dyn_int selLines;
+	int i,n;
+	string group;
+
+	getValue(\"GroupsTable\",\"lineCount\",n);
+
+	for (i=0;i<n;i++) {
+		getValue(\"GroupsTable\",\"cellValueRC\",
+			i, \"Name\", group);
+		dynAppend(g_Groups, group);
+	};
+	dynUnique(g_Groups);
+
+	// remove selection, if existed
+	getValue(\"GroupsTable\",\"getSelectedLines\",selLines);
+	setValue(\"GroupsTable\",\"removeSelectLines\",selLines);
+
+	repaintTables();
+
+}
+//__________________________________________________________________________
+void RemoveSelected()
+{
+	dyn_int selLines;
+	int i,j,n;
+	string group;
+
+	getValue(\"MemberOfTable\",\"getSelectedLines\",selLines);
+	getValue(\"GroupsTable\",\"lineCount\",n);
+
+	for (i=1;i<=dynlen(selLines);i++) {
+		getValue(\"MemberOfTable\",\"cellValueRC\",selLines[i],
+			 \"Name\", group);
+
+		dynRemove(g_Groups, dynContains(g_Groups,group));
+	}
+
+	repaintTables();
+
+}
+//__________________________________________________________________________
+void RemoveAll()
+{
+	DebugN(\"Not implemented!\");
+}
+
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 1
+"CancelButton"
+""
+1 440 337 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  440 337 520 364
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+2 3
+"PRIMITIVE_TEXT1"
+""
+1 20 3 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 20 255 38
+0 2 2 "s" 0 0 0 192 0 0  20 20 1
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 29 JCOP Framework Access Control
+14 5
+"User"
+""
+1 350 70 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  350 70 490 99
+2 "s" 0 0 0 0 0 -1  E E E
+30 8
+"GroupsFrame"
+""
+1 20 110 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 20 Privileges in domain
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8636363636363635 0 0.7916666666666667 2.727272727272729 32.91666666666666 0 E 20 110 240 350
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 11 All Groups:
+25 9
+"MemberOfTable"
+""
+1 340 137 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+102 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  340 137 500 297
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE );
+
+}" 0
+E 0 0 1 1 1 "Name" 17 1 0 "s" 1
+LANG:1 10 Group Name
+E
+1
+LANG:1 11 Domain name
+
+150 
+17 17 "?" 0 10 84
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1 1 1 1 8
+1 0
+30 10
+"MemberOfFrame"
+""
+1 20 110 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+36 0 0 0 0 0
+E E E
+1
+1
+LANG:1 19 Granted Privileges:
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.8636363636363633 0 0.7928569216177158 312.7272727272727 32.78573862205124 0 E 20 110 240 350
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 10 Member of:
+13 11
+"AddButton"
+""
+1 240 137 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  240 137 300 164
+
+T 
+1
+LANG:1 1 >
+"main()
+{
+AddSelected();
+}" 0
+ E E E
+13 12
+"AddAllButton"
+""
+1 240 177 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  240 177 300 204
+
+T 
+1
+LANG:1 2 >>
+"main()
+{
+AddAll();
+}" 0
+ E E E
+13 13
+"RemoveButton"
+""
+1 240 227 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  240 227 300 254
+
+T 
+1
+LANG:1 1 <
+"main()
+{
+RemoveSelected();
+}" 0
+ E E E
+13 14
+"RemoveAllButton"
+""
+1 240 267 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  240 267 300 294
+
+T 
+1
+LANG:1 2 <<
+"main()
+{
+RemoveAll();
+}" 0
+ E E E
+13 15
+"OKButton"
+""
+1 340 337 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  340 337 420 364
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+
+PanelOffReturn(makeDynFloat(1.0),g_Groups);
+
+}" 0
+ E E E
+13 16
+"ResetButton"
+""
+1 20 337 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  20 337 100 364
+
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+	populatePanel();
+}" 0
+ E E E
+30 21
+"FRAME1"
+""
+1 40 60 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+76 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8636363636363636 0 0.75 295.4545454545454 5.000000000000004 0 E 40 60 260 140
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 26 Group membership for user:
+25 23
+"GroupsTable"
+""
+1 29.99999999999998 137 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+109 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  29.99999999999998 137 190 297
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE );
+
+}" 0
+"main(int row, string column, string value)
+{
+if (dynContains(g_Groups,value)) {
+		// unselect it...
+	setValue(\"\",\"removeSelectLines\",makeDynInt(row));
+};
+
+}" 0
+ 0 0 1 1 1 "Name" 17 1 0 "s" 1
+LANG:1 10 Group Name
+E
+1
+LANG:1 11 Domain name
+
+150 
+17 17 "?" 0 10 84
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1 1 1 1 8
+1 0
+1 24 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 270 20 T 111 1 0 1 232 -8
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_EditUserGroups"
+0

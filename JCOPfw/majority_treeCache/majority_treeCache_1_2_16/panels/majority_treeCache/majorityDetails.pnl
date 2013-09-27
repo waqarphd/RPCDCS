@@ -1,0 +1,1258 @@
+V 11
+1
+LANG:1 13 majorityPanel
+PANEL,-1 -1 593 510 N "_3DFace" 3
+"$1"
+"$majority_topNode"
+"$treeCache_topNode"
+"dyn_string devicesXstates, devices;
+string node_for_color;
+string foreCol = \"_3DText\";
+dyn_string devices;
+dyn_float compPerc;
+
+
+main()
+{
+   majority_new($majority_topNode, $treeCache_topNode);
+   majority_readConfigObject(majority_object,$majority_topNode);
+ 
+    bool disabled;
+    
+   majority_getAccessControlConfiguration(disabled, majoritypanel_required_privilege);  
+   functionNodeName = majority_getNodeNameFunction($majority_topNode);
+      
+   InitAccessControl((! disabled));
+   
+   
+    string node = $1;
+    majority = majority_getDpFromNode(node);
+    dpGet(majority + \".admin.percentages\", compPerc);
+
+
+   string devs = getDollarValue(\"$devices\");
+   fwGeneral_stringToDynString(devs, devices);
+   if (dynlen(devices) == 0) {
+       devices = majority_object[majority_DEVICES];
+   }
+   
+    
+    initTable(\"tblIncl\");
+    initTable(\"tblTotal\");
+    initTable(\"tblExcl\");
+   
+    
+    int xframe, yframe;
+    getValue(\"FRAME1\", \"position\",xframe,yframe);
+    
+    int xtable, ytable;
+    getValue(\"tblIncl\", \"position\", xtable, ytable);
+    
+    int sizexframe, sizeyframe;
+    getValue(\"FRAME1\", \"size\",sizexframe,sizeyframe);
+    
+    int sizextable, sizeytable;
+    getValue(\"tblIncl\", \"size\", sizextable, sizeytable);
+    setValue(\"tblExcl\", \"size\", sizextable, sizeytable);
+    
+    sizeyframe = sizeytable + (ytable-yframe) + 10;
+    setValue(\"FRAME1\", \"size\",sizexframe,sizeyframe);
+    setValue(\"FRAME2\", \"size\",sizexframe,sizeyframe);
+    setValue(\"FRAME3\", \"size\",sizexframe,sizeyframe);
+    int sizextablenodes, sizeytablenodes;
+    
+    getValue(\"tableNodes\", \"size\", sizextablenodes, sizeytablenodes);    
+    if (sizeytablenodes<sizeyframe) {
+      setValue(\"tableNodes\", \"size\", sizextablenodes, sizeyframe);
+    }
+    
+    h_panel = yframe + sizeyframe + 70;
+    if (h_panel<450) h_panel = 450;
+    
+    setValue(\"txtIgnore\", \"position\", xframe, h_panel - 60);
+    setValue(\"txtValid\", \"position\", 260, h_panel - 60);
+    setValue(\"btnClose\", \"position\", 494, h_panel - 40);
+    setValue(\"btnHide\",\"position\", 691, h_panel - 40);
+    
+    
+    setBig(false); // this resizes the panel
+    
+   // DebugN(majority, devices, devicesXstates);
+  dpConnect(\"update\",majority + \".included.states.n\", majority + \".included.all.n\", majority + \".included.majStates\");
+
+      
+   dpConnect(\"update\", majority + \".total.states.n\", majority + \".total.all.n\", majority + \".total.majStates\");
+   
+  
+
+   dpConnect(\"updateStateIncl\", majority + \".included.fsmState\");
+   dpConnect(\"updateStateTotal\", majority + \".total.fsmState\");
+   dpConnect(\"updateIgnore\", majority + \".admin.ignore\");
+   dpConnect(\"updateValid\", majority + \".admin.valid\");
+   int i;
+   for (int k=1; k<= dynlen(devices); k++) {
+     i = dynContains(majority_object[majority_DEVICES], devices[k]);
+     btnColorLegend.insertItemId(\"\",CB_POPUP,-1, majority_object[majority_DEVICES][i],majority_object[majority_DEVICES][i]);
+     for (int s=1; s<= dynlen(majority_object[majority_DEVICESSTATES][i]); s++) {
+         btnColorLegend.insertItemId(majority_object[majority_DEVICES][i],CB_ITEM,-1, majority_object[majority_DEVICES][i] + \":\" +  majority_object[majority_DEVICESSTATES][i][s],majority_object[majority_DEVICESSTATES][i][s]);
+     }
+   } 
+
+}
+
+void initTable(string name) {
+   shape table = getShape(name);
+   table.sortOnClick = false;
+   
+   int row = 0;
+   
+   int i; 
+   for (int k=1; k<= dynlen(devices); k++) {
+     i = dynContains(majority_object[majority_DEVICES], devices[k]);     
+     table.appendLine(\"dev\", majority_object[majority_DEVICES][i]);
+     row++;
+     for (int s=1; s<= dynlen(majority_object[majority_DEVICESSTATES][i]); s++) {
+         table.appendLine(\"dev\",\"\",\"state\", majority_object[majority_DEVICESSTATES][i][s]);
+         rowMapping[majority_object[majority_DEVICES][i] + \":\" + majority_object[majority_DEVICESSTATES][i][s]] = row;
+         row++;
+     }
+   } 
+  int sizey = 27*row;
+  if (sizey > 800) {
+      sizey =800;
+      setValue(name, \"vScrollBarMode\",\"Auto\" );      
+  }
+   
+   table.size(256, sizey);
+   
+}
+void update (string dp1, dyn_int n, string dp2, dyn_int all, string dp3, dyn_int states) {
+
+    string tableName;
+    if (strpos(dp1,\".included\")>-1) {
+      tableName = \"tblIncl\";
+    }  else {
+      tableName = \"tblTotal\";
+          
+    }
+   shape table = getShape(tableName);
+   
+  string dev, state; dyn_string split;
+   string text; string color;
+  for (int d=1; d<= dynlen(majority_object[majority_DEVICESXSTATES]); d++) {
+      split = strsplit(majority_object[majority_DEVICESXSTATES][d], \":\");
+      dev = split[1];
+      state = split[2];
+      if (! dynContains(devices, dev) ) continue;
+      text =n[d] + \"/\" + all[dynContains(majority_object[majority_DEVICES], dev)];
+//      DebugN(\"majority_object[majority_COLORS]\", majority_object[majority_COLORS]);
+      color= majority_getColor(majority_object,states[d], dev,state);
+          
+      table.cellValueRC(rowMapping[majority_object[majority_DEVICESXSTATES][d]],
+                        \"counts\", makeDynString(text,color,foreCol));
+  }
+  updateExcl();
+}
+
+updateExcl() {
+    shape table = getShape(\"tblExcl\");
+       
+  string dev, state, text; dyn_string split; dyn_string incl, total;
+   string text; string color; dyn_anytype row; int majState;
+   int n,nAll; float perc; 
+   
+  for (int d=1; d<= dynlen(majority_object[majority_DEVICESXSTATES]); d++) {
+      split = strsplit(majority_object[majority_DEVICESXSTATES][d], \":\");
+      dev = split[1];
+      state = split[2];
+      if (! dynContains(devices, dev) ) continue;
+      getValue(\"tblIncl\",\"getLineN\",rowMapping[majority_object[majority_DEVICESXSTATES][d]],row);
+      incl = strsplit(((string) row[3]),\"/\");
+      getValue(\"tblTotal\",\"getLineN\",rowMapping[majority_object[majority_DEVICESXSTATES][d]],row);
+      total = strsplit(((string) row[3]),\"/\");
+      if (dynlen(total)<2) return; // total table still initializing
+      nAll = (((int) total[2]) - ((int) incl[2]));
+      n = (((int) total[1]) - ((int) incl[1]));
+      text = n + \"/\" + nAll;
+
+      if (nAll ==0) perc=0;
+      else perc = 100*n/nAll;
+    
+    if (nAll == 0) majState = majority_TOTALZERO;
+    else if ( perc == 0 ) majState = majority_OFF;
+    else if ( (   0 <  perc ) &&  ( perc <  compPerc[d] ) ) majState = majority_MIXED;
+    else if  (  ( 100 >  perc ) && ( perc == compPerc[d] ) )  majState = majority_ON;
+    else if ( ( 100 >  perc ) && ( perc > compPerc[d] ) ) majState = majority_MORE;
+    else majState = majority_ALL;
+  
+    color= majority_getColor(majority_object,majState, dev,state);
+    if (nAll == 0) color = \"_Window\"; // makes no sense to gray out if nothing is excluded
+     
+      table.cellValueRC(rowMapping[majority_object[majority_DEVICESXSTATES][d]],
+                        \"counts\", makeDynString(text,color,foreCol));
+    }
+}
+
+
+void updateStateIncl(string dp, string state) {
+  
+   txtStateIncluded.text = state; 
+}
+
+void updateStateTotal(string dp, string state) {
+
+  txtStateTotal.text = state; 
+}
+
+void updateIgnore(string dp, bool ignore) {
+   txtIgnore.visible = ignore; 
+}
+
+void updateValid(string dp, bool valid) {
+   txtValid.visible = (! valid); 
+}
+" 0
+ E E E E 1 0 0 0  20 20
+""0  1
+E "#uses \"majority_treeCache/majorityLib.ctl\"
+
+
+// See below in function fillWithNodes for customizing the name that is used in the list of the nodes
+
+mapping rowMapping;
+mapping row2devstate;
+string majoritypanel_required_privilege;
+int h_panel = 510;
+dyn_mixed majority_object;
+
+string majority;
+dyn_string selected_nodes; string selected_type;
+string functionNodeName;
+bool visible_excluded = false;
+
+void showDevices(bool included, string widgetName,string txt) {
+  dynClear(selected_nodes);
+  
+    tableNodes.deleteAllLines();
+    txtTitle.text = \"\";
+    int ndev = (int) (strsplit(txt,\"/\")[1]);
+    int totdev = (int) (strsplit(txt,\"/\")[2]);
+    int notdev = totdev-ndev;
+    
+    dyn_int index_devXstate_arr;
+    
+    int index_devXstate = dynContains(majority_object[majority_DEVICESXSTATES], widgetName);
+    
+    dyn_string dev_state = strsplit(widgetName,\":\");
+    selected_type = dev_state[1];
+    
+    bool not = false;
+    
+    if (notdev >0) {
+      int answer;
+      string menu;
+      if (ndev > 0) {
+         menu +=\"PUSH_BUTTON,Show \" + dev_state[1] + \" in \" + dev_state[2] + \",1,1,\"; 
+      }
+      menu += \"PUSH_BUTTON,Show \" + dev_state[1] + \" not in \" + dev_state[2] + \",2,1\";
+      popupMenu(makeDynString(menu), answer);
+      not = (answer == 2);
+    }                    
+    
+    if (not) {
+       ndev = notdev; 
+    }
+    if ((ndev == 0)) {
+       open_info(\"No \" + getTitle(included,dev_state[1],dev_state[2],not)+ 
+                            \" below \" + treeCache_getFsmUserLabel($1));
+        return; 
+    }
+    
+    if ((ndev > 50)) {
+     if ( ! promptUser(\"Are you sure you want to display all \" + ndev  +\"\\n\" + getTitle(included,dev_state[1],dev_state[2],not) + \"?\") ) {
+       selected_nodes = makeDynString();       
+       return; 
+      }
+    }
+    setBig(true);
+    fwOpenProgressBar(\"Searching nodes\",\"Searching nodes\",1,0);
+
+      int index_dev = dynContains(majority_object[majority_DEVICES], dev_state[1]);
+      int index_state = dynContains(majority_object[majority_DEVICESSTATES][index_dev],dev_state[2]); 
+    
+      dyn_string device_types = majority_object[majority_DEVICESFSMTYPES][index_dev];
+    selected_nodes = majority_findNodes($majority_topNode,$1,  included, index_devXstate, index_dev,device_types,  not, majority_object[majority_INTERNALMODE]);  
+ 
+    
+    fillWithNodes();
+    txtTitle.text = getTitle(included,dev_state[1],dev_state[2],not);
+    fwCloseProgressBar();
+     
+     
+}
+
+string getLabelForNode(string node) {
+  if (strlen(functionNodeName) == 0) {
+   // DebugN(\"Empty functionNodeName using the default\");
+     return treeCache_getFsmUserLabel(node); 
+  }
+  
+  string label;
+  //DebugN(\"Executing \" + functionNodeName);
+  
+  int res  = evalScript(label,functionNodeName,makeDynString(),node);
+  if (res == -1) {
+      return treeCache_getFsmUserLabel(node); // in case of errors in the script we switch back to default
+  }
+  return label;
+  
+}
+
+void fillWithNodes() {     
+//    dynSortAsc(selected_nodes);
+     string node;
+     tableNodes.deleteAllLines();
+
+     for (int i=1; i<= dynlen(selected_nodes); i++) {
+       tableNodes.appendLine(\"#1\",\"\");
+       node = selected_nodes[i];
+      tableNodes.cellValueRC(i-1,\"#1\", getLabelForNode(node)); 
+    }       
+}
+
+string getTitle(bool included, string dev, string state, bool not) {
+  string title = \"\";
+  if (included) 
+    title = \"Included \";
+            
+  title += dev + \" \"; 
+
+  state = strtoupper(state);
+  if (not) title+= \"not \";
+  title +=  \"in state \" + state;
+  return title;
+}
+
+
+
+
+void open_info(string msg) {
+  ChildPanelOnCentralModal(\"vision/MessageInfo1\",\"Info\", makeDynString(\"$1:\" + msg));
+}
+
+bool promptUser(string msg) {
+  dyn_string result;
+  dyn_float float_result;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageInfo\",(\"information\"),makeDynString(msg,\"Yes\",\"No\"),float_result, result);
+  return result[1]==\"true\";
+
+}
+
+string getKeyForRow(int row) {
+  for (int i=1; i<= mappinglen(rowMapping); i++) {
+     if (mappingGetValue(rowMapping,i)==row) return mappingGetKey(rowMapping,i);
+  } 
+  return \"\";
+}
+
+  void setBig(bool big) {
+    int h = h_panel;
+    
+    int xbig = 800; int xsmall = 593;
+    int space = 265;
+    if (visible_excluded) {
+        xbig += space;
+        xsmall += space;
+    }
+    if (big) {
+       setPanelSize(myModuleName(), myPanelName(), false,  xbig, h);
+    } else {
+       setPanelSize(myModuleName(), myPanelName(), false,  xsmall, h);         
+    }
+  }
+  
+  
+ bool hasPrivilege(string privilege) {
+  // DebugN(\"Checking if user has privilege \" + privilege);
+   dyn_string exceptionInfo;
+    bool hasPrivilege;
+    if (strlen(privilege)==0) return true;
+      
+    // check if current user has privilege level \"Modify\"
+    fwAccessControl_isGranted(privilege, hasPrivilege, exceptionInfo);
+      
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);
+      return false;}; 
+    
+    return (hasPrivilege) ;
+    
+   
+  }
+
+void DisableEnableAllInPanel(bool val) {
+    btnExpert.visible = val; 
+    
+}
+
+  void ApplyPanelAccessControl(string s1, string s2)
+ {
+    // at first, disable whatever was enabled to this moment
+    DisableEnableAllInPanel(false);
+
+    dyn_string exceptionInfo;
+   
+    if (hasPrivilege(majoritypanel_required_privilege) ) {
+        DisableEnableAllInPanel(true);
+    }
+
+ }
+  
+  void InitAccessControl(bool enabled) {
+    DisableEnableAllInPanel(false);
+    if (! enabled ) {
+      DebugN(\"Access control disabled\");
+      return;
+    }
+    dyn_string exceptionInfo;
+    fwAccessControl_setupPanel(\"ApplyPanelAccessControl\",exceptionInfo);
+
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}; 
+  }
+  
+  
+
+    
+  
+void checkTotals(bool included) {
+    dyn_int total = makeDynInt();
+    if (included) {
+       treeCache_initIncludedCache($1); 
+    }
+ // DebugN(majority_object[majority_DEVICES], majority_object[majority_DEVICESFSMTYPES], majority_object[majority_DEVICESWEIGHTS]);
+   for (int d=1; d<= dynlen(majority_object[majority_DEVICES]); d++) {          
+     total[d]= 0;
+     for (int j=1; j<= dynlen( majority_object[majority_DEVICESFSMTYPES][d]); j++)  {
+      //total[d] += majority_getTotalBelow($1, majority_object[majority_DEVICESFSMTYPES][d][j],majority_object[majority_DEVICESFSMTYPES][d],
+      //                                   majority_object[majority_INTERNALMODE],included) * majority_object[majority_DEVICESWEIGHTS][d];
+       total[d] += majority_getTotalNumberOfDevices($1,majority_object[majority_DEVICES][d],majority_object[majority_DEVICESFSMTYPES][d][j],
+                                                    majority_object[majority_DEVICESFSMTYPES][d], majority_object[majority_INTERNALMODE], majority_object[majority_DEVICESWEIGHTS][d], included,
+                                                    false,d);
+  
+
+    }
+  }
+ 
+ string str;
+ fwGeneral_dynStringToString(total, str,\", \");
+ dyn_int n;
+ dpGet(majority + \".\" + ((included)?\"included\":\"total\")+ \".all.n\", n);
+ if (majority_arrayEquals(n, total)) {
+   openInfo(\"Totals are ok:  \" + str, \"Info\");
+ } else {
+   string nstr;
+   fwGeneral_dynStringToString(n, nstr,\", \");
+   openInfo(\"Wrong totals: Should be \" + str + \"\\nbut computed \" + nstr, \"Warning\");
+ }
+}
+  
+  void openInfo(string msg,string title) {
+    dyn_string exc; bool ok;
+    fwGeneral_openMessagePanel(msg, ok,exc,title,true); 
+  }
+  
+  void showLegend(string id) {
+   ChildPanelOnCentral(\"majority_treeCache/colorLegend.pnl\",\"Color legend for \" + id,
+                      makeDynString(\"$majority_topNode:\" + $majority_topNode, \"$treeCache_topNode:\" + $treeCache_topNode,\"$node:\" + $1, \"$deviceXstate:\" + id)
+); 
+  }
+  
+  void rightClickTable(int row) {
+    string key = getKeyForRow(row);
+    if (key == \"\") return;
+  int a;
+  popupMenu(makeDynString(\"PUSH_BUTTON,Legend for colors in \" + key + \",1,1\"), a);
+  
+  if (a ==1) {
+     showLegend(key); 
+  } 
+ }
+  
+  void setVisibleExcludedTable(bool vis) {
+      FRAME3.visible = vis;
+      tblExcl.visible = vis;
+      int space = 265;
+      int x,y;
+      getValue(\"btnHide\", \"position\",x,y);
+      int x2,y2;
+      getValue(\"txtTitle\",\"position\",x2,y2);
+      if (vis) {
+        tableNodes.position(863,64);  
+        x += space; x2+= space;
+                 
+      } else {
+        tableNodes.position(598, 64);    
+        x -= space; x2-= space;
+      }
+      setValue(\"btnHide\", \"position\",x,y);
+      setValue(\"txtTitle\",\"position\",x2,y2);
+      visible_excluded = vis;
+      setBig(false);
+      
+  }" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+13 0
+"btnClose"
+""
+1 494 465 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  492 463 566 487
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+2 50
+"txtIgnore"
+""
+1 12 442 E E E 1 E 0 E N "_3DText" E N "FwStateAttention3" E E
+ E E
+92 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 12 442 204 485
+0 2 2 "0s" 0 0 0 64 0 0  12 442 2
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 27 These states are not taken 
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 23 into account in the FSM
+6 52
+"Border1"
+""
+1 70 20 E E E 1 E 1 E N "STD_device_indefinite" E N "_3DFace" E E
+ E E
+95 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 2 0 1 E 1 0 1 -65 -24 1 E 80 30 207 56
+10 53
+"Polyline1"
+""
+1 70 20 E E E 1 E 1 E N "STD_border_med" E N "_Transparent" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E 1 0 1 -65 -24 0 E 3 80 56
+210 56
+210 30
+ 0
+10 54
+"Polyline2"
+""
+1 70 20 E E E 1 E 1 E N "STD_border_light" E N "_Transparent" E E
+ E E
+99 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -65 -24 0 E 3 80 56
+80 30
+210 30
+ 0
+2 55
+"Text1"
+""
+1 9 -1 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ "main()
+{
+}" 0
+ "main()
+{
+}
+" 0
+
+101 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+
+  string label = treeCache_getFsmUserLabel($1);
+  setValue(\"\",\"text\",label);
+}" 0
+ "main()
+{
+	
+}" 0
+ 0 1 1 0 1 E U  1 E 21 12 137 28
+0 2 0 "0s" 0 0 0 64 0 0  21 12 1
+1
+LANG:1 26 Arial,-1,12,5,69,0,0,0,0,0
+0 1
+LANG:1 5 Text2
+4 56
+"Line1"
+""
+1 15 32 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+103 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E  145 32 15 32
+4 57
+"LINE1"
+""
+1 19 31 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+105 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E  149 31 19 31
+13 58
+"PUSH_BUTTON7"
+""
+1 147 6 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0  145 4 290 34
+
+T 
+1
+LANG:1 12 PUSH_BUTTON7
+E E E "
+  dyn_string States;
+dyn_string Colors;
+dyn_dyn_string AllActions;
+
+main()
+{
+	fwCU_connectState(\"show_state\", $1);
+}
+
+show_state(string dp, string state)
+{
+	
+	string color;
+	setValue(\"\",\"text\",state);
+	fwCU_getStateColor($1, state,color);
+	this.backCol = color;
+}
+
+
+" 0
+
+2 59
+"PRIMITIVE_TEXT20"
+""
+1 296 9 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+108 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+/*  bool included = treeCache_getIncluded($1);
+  this.text = ((included)?\"included\":\"excluded\");*/
+  treeCache_connectIncluded(\"setIncluded\",$1, true);
+}
+// 
+// void setIncluded(string node, int nodeIdx, string parent, bool included, bool oldIncl) {
+//    this.text = ((included)?\"included\":\"excluded\");
+//     
+// }
+
+void setIncluded(string dp, bool included) {
+ // DebugN(treeCache_getNodeFromIncludedDp(dp) +\" goes to \" + included);
+   this.text = ((included)?\"included\":\"excluded\");
+}" 0
+ E 0 1 1 2 1 E U  1 E 296 9 480 31
+0 2 2 "0s" 0 0 0 64 0 0  296 9 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 62
+"txtValid"
+""
+1 260 442 E E E 1 E 0 E N "_3DText" E N "FwStateAttention3" E E
+ E E
+114 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 260 442 452 485
+0 2 2 "0s" 0 0 0 64 0 0  260 442 2
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 27 NOT VALID YET - TOTALS ARE 
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 11 NOT CORRECT
+25 63
+"tableNodes"
+""
+1 598 64 E E E 1 E 1 E N "_3DText" E N "_Window" E E
+ E E
+116 0 0 0 0 0
+E E "main(bool enter)
+{
+       
+  this.toolTipText = \"Click to open the FSM panel for the \" + selected_type ;
+  
+}" 0
+
+0
+1
+LANG:1 0 
+
+1
+"draggable" ""
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  596 62 772 404
+E"main(int row, string column, string value)
+{
+  string node = selected_nodes[row+1];
+  treeCache_fsmView(node);
+  
+}" 0
+ 1 0 1 1 0 "#1" 32 1 0 "s" 1
+LANG:1 4 Node
+E
+1
+LANG:1 0 
+
+300 
+22 22 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 0 0 7
+1 0
+13 64
+"btnHide"
+""
+1 692 410 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+118 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  690 408 774 437
+
+T 
+1
+LANG:1 4 Hide
+"// SimpleCtrlScriptStart {invalid}
+main()
+{
+ 
+setBig(false);
+}
+
+
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnCentral}
+// File {vision/dp_monitor.pnl}
+// Panel {}
+// Parent {}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// PanelPara1 {$b_editable:FALSE}
+// PanelPara2 {$dp:$dpName}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ E E E
+2 65
+"txtTitle"
+""
+1 597 11 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+120 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 597 11 870 47
+0 2 2 "0s" 0 0 0 64 0 0  597 11 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+30 77
+"FRAME1"
+""
+1 10 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+144 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.18927444794953 3 39.5394321766561 0 E 10 13 281 331
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Included
+30 78
+"FRAME2"
+""
+1 10 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+146 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.18927444794953 291 39.5394321766561 0 E 10 13 281 331
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Included and Excluded
+25 79
+"tblIncl"
+""
+1 19 118 E E E 1 E 1 E N "_3DText" E N "_Window" E E
+ "main(int row, string column)
+{
+ rightClickTable(row);
+}" 0
+ E
+148 0 0 0 0 0
+E E "main(bool enter)
+{
+ 
+}" 0
+
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,-1,9,5,50,0,0,0,0,0
+0  17 116 276 397
+E"main(int row, string column, string value)
+{
+ 
+  if (column != \"counts\") return;
+    string key = getKeyForRow(row);
+  if (key == \"\") return;
+  showDevices(true, key,value);
+  
+
+}
+" 0
+ 1 0 1 3 0 "dev" 5 1 0 "s" 1
+LANG:1 3 Dev
+E
+1
+LANG:1 0 
+
+55 "state" 5 1 0 "s" 1
+LANG:1 5 State
+E
+1
+LANG:1 0 
+
+55 "counts" 13 1 0 "s" 1
+LANG:1 6 Counts
+E
+1
+LANG:1 0 
+
+130 
+22 22 10 10
+1
+LANG:1 32 MS Shell Dlg,-1,9,5,50,0,0,0,0,0
+0 0 0 0 0 7
+1 0
+14 82
+"txtStateIncluded"
+""
+1 78 87 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+154 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  76 85 200 108
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+
+}" 0
+ E
+14 83
+"txtStateTotal"
+""
+1 368 87 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+156 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  366 85 490 108
+2 "0s" 0 0 0 0 0 -1  E E E
+25 84
+"tblTotal"
+""
+1 307 118 E E E 1 E 1 E N "_3DText" E N "_Window" E E
+ "main(int row, string column)
+{
+ rightClickTable(row);
+}" 0
+ E
+158 0 0 0 0 0
+E E "main(bool enter)
+{
+ 
+}" 0
+
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,-1,9,5,50,0,0,0,0,0
+0  305 116 564 402
+E"main(int row, string column, string value)
+{
+ 
+  if (column != \"counts\") return;
+    string key = getKeyForRow(row);
+  if (key == \"\") return;
+  showDevices(false, key,value);
+  
+
+}
+" 0
+ 1 0 1 3 0 "dev" 5 1 0 "s" 1
+LANG:1 3 Dev
+E
+1
+LANG:1 0 
+
+55 "state" 5 1 0 "s" 1
+LANG:1 5 State
+E
+1
+LANG:1 0 
+
+55 "counts" 13 1 0 "s" 1
+LANG:1 6 Counts
+E
+1
+LANG:1 0 
+
+130 
+22 22 10 10
+1
+LANG:1 32 MS Shell Dlg,-1,9,5,50,0,0,0,0,0
+0 0 0 0 0 7
+1 0
+26 87
+"btnExpert"
+""
+1 462 3 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+161 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  460 1 580 29
+ 0 1
+LANG:1 15 Expert Commands
+"" 0 0 0 0 0
+ 0 "main()
+{
+  this.insertItemId(\"\",CB_ITEM,-1,\"excludedtable\",\"Show / Hide excluded table\");
+    this.insertItemId(\"\",CB_SEPARATOR,-1,\"sep0\",\"\");
+  this.insertItemId(\"\",CB_ITEM, -1, \"control\",\"Open majority control panel\");
+  this.insertItemId(\"\",CB_ITEM, -1, \"controltreecache\",\"Open treeCache control panel\");
+  this.insertItemId(\"\",CB_ITEM, -1, \"percentages\",\"Set threshold percentages for this node\");    
+  this.insertItemId(\"\",CB_SEPARATOR,-1,\"sep1\",\"\");
+  this.insertItemId(\"\",CB_ITEM, -1, \"details\",\"Open details for this node\");    
+  this.insertItemId(\"\",CB_ITEM, -1, \"excluded\",\"View Excluded Nodes below\");
+  this.insertItemId(\"\",CB_ITEM, -1, \"partially_excluded\",\"View Partially Excluded Majority Devices below\");
+  this.insertItemId(\"\",CB_SEPARATOR,-1,\"sep2\",\"\");
+  this.insertItemId(\"\",CB_POPUP,-1 , \"totals\", \"Check totals\");
+  this.insertItemId(\"totals\", CB_ITEM, -1,\"totals1\",\"Only Included\");
+  this.insertItemId(\"totals\", CB_ITEM, -1,\"totals0\",\"Included and Excluded\");
+  
+}" 0
+ "main(string id)
+{
+  
+  if (strpos(id,\"totals\") ==0) {
+     strreplace(id,\"totals\",\"\");
+     checkTotals((bool) id);
+     return;      
+  }
+  if (id == \"excludedtable\") {
+      setVisibleExcludedTable(! visible_excluded);
+      return;
+  }
+  if (id == \"details\") {
+    ChildPanelOnCentral(\"vision/dp_monitor.pnl\",
+      \"Details for dp \" + majority,
+      makeDynString(\"$b_editable:FALSE\", \"$dp:\" + majority));
+  } else if (id == \"control\") {
+        ChildPanelOnCentral(\"majority_treeCache/majorityControlPanel.pnl\",
+      \"Control Panel for \" + $majority_topNode,
+      makeDynString(\"$majority_topNode:\" + $majority_topNode, \"$treeCache_topNode:\" + $treeCache_topNode));
+  } else if (id == \"excluded\") {
+     treeCache_openPanel_viewExcludedNodes($treeCache_topNode,$1);              
+  } else if (id == \"partially_excluded\") {      
+        ChildPanelOnCentral(\"majority_treeCache/viewPartiallyExcludedMajorityDevices.pnl\",
+		       \"View  partially excluded majority devices below \" + treeCache_getFsmUserLabel($1),
+      makeDynString(\"$treeCache_topNode:\" + $treeCache_topNode, \"$majority_topNode:\" + $majority_topNode,\"$1:\" + $1));
+  } else if (id == \"controltreecache\") {
+     ChildPanelOnCentral(\"majority_treeCache/treeCacheControlPanel.pnl\",
+      \"TreeCache Control Panel\",
+      makeDynString(\"$sys:\" + treeCache_getSystem($treeCache_topNode)));
+     } else if (id == \"percentages\") {
+         ChildPanelOnCentral(\"majority_treeCache/majority_setPercentages.pnl\",
+      \"Set percentages for \" + $1,
+      makeDynString(\"$majority_topNode:\" + $majority_topNode, \"$treeCache_topNode:\" + $treeCache_topNode, \"$1:\" + $1));
+     }
+}" 0
+0 
+26 90
+"btnColorLegend"
+""
+1 463 30 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+167 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  461 28 581 56
+ 0 1
+LANG:1 17 View color legend
+"" 0 0 0 0 0
+ 0 "main()
+{
+
+}" 0
+ "main(string id)
+{
+  showLegend(id);
+  
+}" 0
+0 
+30 91
+"FRAME3"
+""
+1 10 13 E E E 1 E 0 E N "_WindowText" E N {0,0,0} E E
+ E E
+168 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.18927444794953 570 40.53943217665611 0 E 10 13 281 331
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Excluded
+25 93
+"tblExcl"
+""
+1 586 118 E E E 1 E 0 E N "_3DText" E N "_Window" E E
+ "main(int row, string column)
+{
+ rightClickTable(row);
+}" 0
+ E
+170 0 0 0 0 0
+E E "main(bool enter)
+{
+ 
+}" 0
+
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,-1,9,5,50,0,0,0,0,0
+0  584 116 843 402
+EE 1 0 1 3 0 "dev" 5 1 0 "s" 1
+LANG:1 3 Dev
+E
+1
+LANG:1 0 
+
+55 "state" 5 1 0 "s" 1
+LANG:1 5 State
+E
+1
+LANG:1 0 
+
+55 "counts" 13 1 0 "s" 1
+LANG:1 6 Counts
+E
+1
+LANG:1 0 
+
+130 
+22 22 10 10
+1
+LANG:1 32 MS Shell Dlg,-1,9,5,50,0,0,0,0,0
+0 0 0 0 0 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

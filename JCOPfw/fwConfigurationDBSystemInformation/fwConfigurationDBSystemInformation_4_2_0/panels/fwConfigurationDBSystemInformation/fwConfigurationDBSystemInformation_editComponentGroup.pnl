@@ -1,0 +1,454 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 751 494 N "_3DFace" 2
+"$computer"
+"$project"
+"main()
+{
+  if(fwInstallationDB_connect() != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Connection failed.\\nPlease check DB connection parameters\"));
+  }else updateGroupList();
+}
+
+" 0
+ E E E E 1 -1 -1 0  60 54
+""0  1
+E "#uses \"fwInstallationDB.ctl\"
+#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"    
+
+int setProjectMode(dyn_string computersProjects, string mode)
+{ 
+  dyn_string ds;
+  int centrallyManaged = 0;
+  int err = 0;
+  
+  if(mode == \"LOCAL\")
+    centrallyManaged = 0;
+  else if(mode == \"CENTRAL\")
+    centrallyManaged = 1;
+  else
+  {
+    //unknown mode
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Panel function setProjectMode().\\nUnknown mode: \" + mode)); 
+  }
+  
+  for(int i =1 ; i <= dynlen(computersProjects); i++)
+  {
+    ds = strsplit(computersProjects[i], \"@\");
+    if(fwInstallationDB_setCentrallyManaged(centrallyManaged, ds[2], ds[1]) != 0)
+    {  
+      ++err;
+      DebugN(\"ERROR: Could not set management mode to \"+ mode +\" for project: \" + ds[2] + \" in computer: \" + ds[1]);
+    }
+  }//end of loop over i 
+    
+  if(err)
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors changing the project management mode.\\nCheck log-viewer for details.\")); 
+    return -1;
+  }
+  
+  return 0;
+}
+
+        
+updateGroupList()
+{
+  
+ dyn_string groups;
+    
+ if(fwInstallationDB_getComponentGroups(groups) != 0) {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Could not connect to DB.\\nCheck connection parameters\"));
+    return;
+  }else{
+    for(int i = dynlen(groups); i >= 1; i--)
+    {
+      if(fwInstallationDB_isDefaultGroup(groups[i]))
+        dynRemove(groups, i);  
+    }
+    cbGroups.items = groups;
+  } 
+}    
+
+int registerProjectGroup()
+{
+  string group = cbGroups.text ;
+  int overwriteFiles = 0;
+  int forceRequired = 1;
+  int isSilent = 0;
+  string scheduledInstDate = \"\";
+                                                                                              
+  if(group == \"\"){
+   ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", \"$1:Please select a group to be added to the project first.\"); 
+   return -1;
+  }
+  
+  if(isDollarDefined(\"$project\") && isDollarDefined(\"$computer\"))
+    return fwInstallationDB_registerGroupInProject(group, overwriteFiles, forceRequired, isSilent, scheduledInstDate, $project, $computer);
+  else
+    return 0;
+ 
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+22 1
+"cbGroups"
+""
+1 50 44 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 48 42 214 68
+0
+
+E
+"main()
+{
+  string groupName = cbGroups.text;
+  fwConfigurationDBSystemInformation_updateComponentTable(groupName);
+  btnModify.enabled = true;
+}" 0
+
+E
+ 1 0
+13 2
+"PUSH_BUTTON1"
+""
+1 226 46 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 224 44 348 70
+
+T 
+1
+LANG:1 10 Create New
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  
+  ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_createComponentGroup.pnl\", \"Create Component Group\", makeDynString(\"\"), df, ds);
+  if(dynlen(df) && df[1] > 0){
+    updateGroupList();
+  }
+  
+}" 0
+ E E E
+2 3
+"PRIMITIVE_TEXT1"
+""
+1 12 64 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 12 50 41 64
+0 2 2 "0s" 0 0 0 192 0 0  12 50 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 5 Group
+25 4
+"tbGroupComponents"
+""
+1 20 170 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 18 168 744 412
+EE 1 0 1 3 0 "component" 26 1 0 "s" 1
+LANG:1 9 Component
+E
+1
+LANG:1 0 
+
+250 "version" 5 1 0 "s" 1
+LANG:1 7 Version
+E
+1
+LANG:1 0 
+
+60 "descFile" 42 1 0 "s" 1
+LANG:1 3 XML
+E
+1
+LANG:1 0 
+
+394 
+16 16 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+13 5
+"btnModify"
+""
+1 656 420 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 654 418 742 446
+
+T 
+1
+LANG:1 12 Modify Group
+"main()
+{
+  dyn_dyn_mixed projectsInfo;
+  dyn_float df;
+  dyn_string ds;
+  string groupName = cbGroups.text;
+  int err = 0;
+  dyn_string computersProjects;
+  
+  if(groupName == \"\"){
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Error\", makeDynString(\"You must select a component group from the list\"));
+    return;
+  
+  }
+  
+  //Check if there are projects using this group:
+  
+  if(fwConfigurationDBSystemInformation_getGroupProjectsMode(groupName,  projectsInfo, \"CENTRAL\")!=0)
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"DB Connection Error\", \"Could not connect to the System Configuration DB\");
+    btnOK.enabled = false;
+    btnApply.enabled = false;
+    return;
+  }
+
+  if(dynlen(projectsInfo))
+  {
+    //Warn user
+    for(int i = 1; i <= dynlen(projectsInfo); i++)
+      computersProjects[i] = projectsInfo[i][1] + \"@\" + projectsInfo[i][2];
+    
+    //Warn user of the impact of changes to the group  
+    ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_groupsWarning.pnl\", \"Warning\", makeDynString(\"$computersProjects:\"+computersProjects), df, ds);
+    
+    if(dynlen(df) > 0 && df[1] < 1.)
+      return;
+  
+    err = setProjectMode(computersProjects, \"LOCAL\");
+
+  }
+  
+  ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_groupProperties.pnl\", \"Modify group components\", makeDynString(\"$groupName:\" + groupName), df, ds);
+  err = setProjectMode(computersProjects, \"CENTRAL\");
+  
+  fwConfigurationDBSystemInformation_updateComponentTable(groupName);
+}" 0
+ E E E
+13 7
+"PUSH_BUTTON3"
+""
+1 656 456.428571428571 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 654 454 744 482
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOffReturn(makeDynFloat(0.), makeDynString(\"Cancel\"));
+}" 0
+ E E E
+13 8
+"btnApply"
+""
+1 560 456.428571428571 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 558 454 648 482
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  if(registerProjectGroup() != 0)
+    ChildPanelOnCentralReturn(\"vision/MessageInfo1\", \"ERROR\", \"$1:Could not add group to project\", df, ds);
+
+}" 0
+ E E E
+13 9
+"btnOK"
+""
+1 462 456.428571428571 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 460 454 550 482
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  
+  if(registerProjectGroup() != 0)
+    ChildPanelOnCentralReturn(\"vision/MessageInfo1\", \"ERROR\", \"$1:Could not add group to project\", df, ds);
+
+  PanelOffReturn(makeDynFloat(1.), makeDynString(\"OK\"));
+}" 0
+ E E E
+20 10
+"ShowSubComponents"
+""
+1 20 140 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 138 212 162
+1
+T 
+1
+LANG:1 24 Show also Sub-Components
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+  fwConfigurationDBSystemInformation_updateComponentTable(cbGroups.text);
+}" 0
+2 11
+"Text4"
+""
+1 20 145 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 122 148 139
+0 2 0 "0s" 0 0 0 192 0 0  22 122 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Group Components:
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

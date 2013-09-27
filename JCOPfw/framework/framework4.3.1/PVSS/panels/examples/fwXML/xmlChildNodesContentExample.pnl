@@ -1,0 +1,459 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 400 420 N "_3DFace" 0
+E E E E E 1 -1 -1 0  40 40
+""0  1
+E "
+#uses \"fwXML/fwXML.ctl\"
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"PUSH_BUTTON1"
+""
+1 40 40 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 38 362 102
+
+T 
+1
+LANG:1 33 Parse "xmlExampleFlatListing.xml"
+"
+ 
+string xml_file = \"examples/fwXML/xmlExampleFlatListing.xml\";
+
+void analyse_substructure ( int docum , int ident , dyn_string &exInfo )
+{
+dyn_string tags, values;
+dyn_anytype attribs;
+int rtn_code;
+  
+  rtn_code = fwXml_childNodesContent ( docum , ident , tags , attribs , values , exInfo );
+  DebugN ( \"rtn_code = \" + rtn_code );
+  
+  if ( rtn_code != 0 )
+  {
+    DebugN ( \"Return-Code is '\"+rtn_code+\"' Max-Expected '0'\" );
+    
+    return;
+  }
+  
+  for ( int idx = 1 ; idx <= dynlen(tags) ; ++idx )
+  {
+    DebugN ( \"TagName = '\" + tags[idx] 
+           + \"' - Attribs = '\" + (string)(attribs[idx])
+           + \"' - Value-of-Child = '\" + values[idx] + \"'\" );
+  }
+}
+
+main()
+{
+string xml_full_name = getPath(DATA_REL_PATH,xml_file);
+int rtn_code, docum, ident;
+string errMsg, errLin, errCol;
+dyn_string exInfo;
+string element;
+
+  docum = xmlDocumentFromFile ( xml_full_name , errMsg , errLin , errCol );
+  DebugN ( \"document = \" + docum );
+  
+  if ( docum < 0 )
+  {
+    DebugN ( \"Parsing Error-Message = '\" + errMsg + \"' Line=\" + errLin + \" Column=\" + errCol );
+  }
+  else
+  {
+    ident = xmlFirstChild ( docum );
+    DebugN ( \"1-child = \" + ident );
+    
+    while ( xmlNodeType ( docum , ident ) != XML_ELEMENT_NODE )
+    {
+      ident = xmlNextSibling ( docum , ident );
+      DebugN ( \"sibling = \" + ident );
+    }
+
+    element = xmlNodeName ( docum , ident );
+    DebugN ( \"topelem = \" + element );
+    
+    analyse_substructure ( docum , ident , exInfo );
+    
+    rtn_code = xmlCloseDocument ( docum );
+    DebugN ( \"rtn_code = \" + rtn_code );
+  }
+}
+
+" 0
+ E E E
+13 1
+"PUSH_BUTTON2"
+""
+1 40 220 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 218 362 282
+
+T 
+1
+LANG:1 34 Parse "xmlExampleHierarchical.xml"
+"
+ 
+string xml_file = \"examples/fwXML/xmlExampleHierarchical.xml\";
+
+// Note that the following constant must NOT be initialised by an expression!
+const int expected_rtn_codes = 2;  // Corresponds to ( 1 << XML_ELEMENT_NODE )
+
+void analyse_substructure ( int docum , int ident , int depth , dyn_string &exInfo )
+{
+dyn_string tags, values;
+dyn_anytype attribs;
+string space = \"\";
+int rtn_code;
+  
+  rtn_code = fwXml_childNodesContent ( docum , ident , tags , attribs , values , exInfo );
+  DebugN ( \"rtn_code = \" + rtn_code );
+  
+  if ( ( rtn_code & ~expected_rtn_codes ) != 0 )
+  {
+    DebugN ( \"Return-Code is '\"+rtn_code+\"' Max-Expected '\"+expected_rtn_codes+\"'\" );
+    
+    return;
+  }
+  
+  for ( int i = 0 ; i < depth ; ++i ) { space += \"   \"; }
+                                        
+  for ( int idx = 1 ; idx <= dynlen(tags) ; ++idx )
+  {
+    int subtreeid = -1;
+    
+    if ( mappingHasKey ( attribs[idx] , fwXml_CHILDSUBTREEID ) )
+    {
+      subtreeid = attribs[idx][fwXml_CHILDSUBTREEID];
+      mappingRemove ( attribs[idx] , fwXml_CHILDNODESTYPE );
+      mappingRemove ( attribs[idx] , fwXml_CHILDSUBTREEID );
+    }
+    
+    DebugN ( \"TagName = [\" + depth + \"]\" + space + \" '\" + tags[idx] + \"'\"
+           + ( mappinglen(attribs[idx]) > 0 ?
+             \"   Attribs '\" + (string)attribs[idx] + \"'\" : \"\" ) );
+  
+    if ( subtreeid != -1 )
+    {  
+      analyse_substructure ( docum , subtreeid , depth + 1 , exInfo );
+    }
+  }
+}
+
+main()
+{
+string xml_full_name = getPath(DATA_REL_PATH,xml_file);
+int rtn_code, docum, ident;
+string errMsg, errLin, errCol;
+dyn_string exInfo;
+string element;
+
+  docum = xmlDocumentFromFile ( xml_full_name , errMsg , errLin , errCol );
+  DebugN ( \"document = \" + docum );
+  
+  if ( docum < 0 )
+  {
+    DebugN ( \"Parsing Error-Message = '\" + errMsg + \"' Line=\" + errLin + \" Column=\" + errCol );
+  }
+  else
+  {
+    ident = xmlFirstChild ( docum );
+    DebugN ( \"1-child = \" + ident );
+    
+    while ( xmlNodeType ( docum , ident ) != XML_ELEMENT_NODE )
+    {
+      ident = xmlNextSibling ( docum , ident );
+      DebugN ( \"sibling = \" + ident );
+    }
+
+    element = xmlNodeName ( docum , ident );
+    DebugN ( \"topelem = [0] '\" + element + \"'\" );
+    
+    analyse_substructure ( docum , ident , 1 , exInfo );
+    
+    rtn_code = xmlCloseDocument ( docum );
+    DebugN ( \"rtn_code = \" + rtn_code );
+  }
+}
+
+" 0
+ E E E
+13 2
+"PUSH_BUTTON3"
+""
+1 40 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 308 362 372
+
+T 
+1
+LANG:1 33 Parse "xmlExampleMoreComplex.xml"
+"
+ 
+string xml_file = \"examples/fwXML/xmlExampleMoreComplex.xml\";
+
+// Note that the following constant must NOT be initialised by an expression!
+// Corresponds to ( ( 1 << XML_ELEMENT_NODE ) | ( 1 << XML_TEXT_NODE ) )
+
+const int expected_rtn_codes = 10;
+
+void analyse_substructure ( int docum , int ident , int depth , dyn_string &exInfo )
+{
+dyn_string tags, values;
+dyn_anytype attribs;
+string space = \"\";
+int rtn_code;
+  
+  rtn_code = fwXml_childNodesContent ( docum , ident , tags , attribs , values , exInfo );
+  DebugN ( \"rtn_code = \" + rtn_code );
+  
+  if ( ( rtn_code & ~expected_rtn_codes ) != 0 )
+  {
+    DebugN ( \"Return-Code is '\"+rtn_code+\"' Max-Expected '\"+expected_rtn_codes+\"'\" );
+    
+    return;
+  }
+  
+  for ( int i = 0 ; i < depth ; ++i ) { space += \"   \"; }
+                                        
+  for ( int idx = 1 ; idx <= dynlen(tags) ; ++idx )
+  {
+    if ( mappingHasKey ( attribs[idx] , fwXml_CHILDNODESTYPE ) )
+    {
+      if ( attribs[idx][fwXml_CHILDNODESTYPE] == XML_TEXT_NODE )
+         { DebugN ( \"Text    = [\" + depth + \"]\" + space + \" '\" + values[idx] + \"'\" ); }
+      else
+      {
+        // Note that if the fwXml_CHILDNODESTYPE does exist in the attributes and if
+        // it does not correspond to XML_TEXT_NODE, then it must be XML_ELEMENT_NODE.
+        int subtreeid = attribs[idx][fwXml_CHILDSUBTREEID];
+        mappingRemove ( attribs[idx] , fwXml_CHILDNODESTYPE );
+        mappingRemove ( attribs[idx] , fwXml_CHILDSUBTREEID );
+  
+        DebugN ( \"TagName = [\" + depth + \"]\" + space + \" '\" + tags[idx] 
+             + \"'   Attribs '\" + (string)(attribs[idx]) + \"'\" );
+        
+        analyse_substructure ( docum , subtreeid , depth + 1 , exInfo );
+      }
+    }
+    else
+    {
+      DebugN ( \"TagName = [\" + depth + \"]\" + space + \" '\" + tags[idx] 
+             + \"'   Attribs '\" + (string)(attribs[idx]) 
+             + \"'   Value-of-Child '\" + values[idx] + \"'\" );
+    }
+  }
+}
+
+main()
+{
+string xml_full_name = getPath(DATA_REL_PATH,xml_file);
+int rtn_code, docum, ident;
+string errMsg, errLin, errCol;
+string element, attribs;
+dyn_string exInfo;
+
+  docum = xmlDocumentFromFile ( xml_full_name , errMsg , errLin , errCol );
+  DebugN ( \"document = \" + docum );
+  
+  if ( docum < 0 )
+  {
+    DebugN ( \"Parsing Error-Message = '\" + errMsg + \"' Line=\" + errLin + \" Column=\" + errCol );
+  }
+  else
+  {
+    ident = xmlFirstChild ( docum );
+    DebugN ( \"1-child = \" + ident );
+    
+    while ( xmlNodeType ( docum , ident ) != XML_ELEMENT_NODE )
+    {
+      ident = xmlNextSibling ( docum , ident );
+      DebugN ( \"sibling = \" + ident );
+    }
+
+    element = xmlNodeName ( docum , ident );
+    attribs = xmlElementAttributes ( docum , ident );
+    DebugN ( \"topelem = [0] '\" + element + \"'   Attribs '\" + attribs + \"'\" );
+    
+    analyse_substructure ( docum , ident , 1 , exInfo );
+    
+    rtn_code = xmlCloseDocument ( docum );
+    DebugN ( \"rtn_code = \" + rtn_code );
+  }
+}
+
+" 0
+ E E E
+13 3
+"PUSH_BUTTON4"
+""
+1 40 130 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 128 362 192
+
+T 
+1
+LANG:1 31 Parse "xmlExampleGreatText.xml"
+"
+ 
+string xml_file = \"examples/fwXML/xmlExampleGreatText.xml\";
+
+// Note that the following constant must NOT be initialised by an expression!
+const int expected_rtn_codes = 8;  // Corresponds to ( 1 << XML_TEXT_NODE ) )
+
+void analyse_substructure ( int docum , int ident , int depth , dyn_string &exInfo )
+{
+dyn_string tags, values;
+dyn_anytype attribs;
+string space = \"\";
+int rtn_code;
+  
+  rtn_code = fwXml_childNodesContent ( docum , ident , tags , attribs , values , exInfo );
+  DebugN ( \"rtn_code = \" + rtn_code );
+  
+  if ( ( rtn_code & ~expected_rtn_codes ) != 0 )
+  {
+    DebugN ( \"Return-Code is '\"+rtn_code+\"' Max-Expected '\"+expected_rtn_codes+\"'\" );
+    
+    return;
+  }
+  
+  for ( int i = 0 ; i < depth ; ++i ) { space += \"   \"; }
+                                        
+  for ( int idx = 1 ; idx <= dynlen(tags) ; ++idx )
+  {
+    if ( mappingHasKey ( attribs[idx] , fwXml_CHILDNODESTYPE ) )
+    {
+      // Note that if fwXml_CHILDNODESTYPE exists it must be XML_TEXT_NODE.
+      strreplace ( values[idx] , \"\\n\" , \" \" );
+      DebugN ( \"Text    = [\" + depth + \"]\" + space + \" '\" + values[idx] + \"'\" );
+    }
+    else
+    {
+      DebugN ( \"TagName = [\" + depth + \"]\" + space + \" '\" + tags[idx] + \"'\"
+             + ( mappinglen(attribs[idx]) > 0 ? 
+                 \"   Attribs '\" + (string)(attribs[idx]) + \"'\" : \"\" )
+             + ( values[idx] != \"\" ? \"   Value-of-Child '\" + values[idx] + \"'\" : \"\" ) );
+    }
+  }
+}
+
+main()
+{
+string xml_full_name = getPath(DATA_REL_PATH,xml_file);
+int rtn_code, docum, ident;
+string errMsg, errLin, errCol;
+string element, attribs;
+dyn_string exInfo;
+
+  docum = xmlDocumentFromFile ( xml_full_name , errMsg , errLin , errCol );
+  DebugN ( \"document = \" + docum );
+  
+  if ( docum < 0 )
+  {
+    DebugN ( \"Parsing Error-Message = '\" + errMsg + \"' Line=\" + errLin + \" Column=\" + errCol );
+  }
+  else
+  {
+    ident = xmlFirstChild ( docum );
+    DebugN ( \"1-child = \" + ident );
+    
+    while ( xmlNodeType ( docum , ident ) != XML_ELEMENT_NODE )
+    {
+      ident = xmlNextSibling ( docum , ident );
+      DebugN ( \"sibling = \" + ident );
+    }
+
+    element = xmlNodeName ( docum , ident );
+    attribs = xmlElementAttributes ( docum , ident );
+    DebugN ( \"topelem = [0] '\" + element + \"'   Attribs '\" + attribs + \"'\" );
+    
+    analyse_substructure ( docum , ident , 1 , exInfo );
+    
+    rtn_code = xmlCloseDocument ( docum );
+    DebugN ( \"rtn_code = \" + rtn_code );
+  }
+}
+
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

@@ -1,0 +1,1479 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 786 305 N "_3DFace" 2
+"$host"
+"$projectDps"
+"main()
+{
+  
+  int monitoring;
+//  
+//  if(isDollarDefined(\"$embedded\"))
+//  {
+    showHideDetails(false);
+//  }
+//  else
+//  {
+//    setPanelSize(\"hierarchyconsole\", \"SysOverview_1\", false, x0, y0);
+//  }
+
+  while(1)
+  {
+    if(cbAutoRefresh.state(0))      
+    {
+      dpGet(fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_MONITORING, monitoring);
+      if(monitoring == 1)
+        updatePanel();
+      
+      else
+        continue;
+    }    
+    delay(sbRefresh.text());
+  }
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+int x0 = 840;
+int y0 = 415;
+
+
+showHideDetails(bool show = false)
+{
+    projSummaryTable.visible = show;
+    txManagers.visible = show;
+    txRefresh.visible = show;
+    txSec.visible = show;
+    txTableSettingsLabel.visible = show;
+    btTableDetails.visible = show;
+    btHideDetails.visible = show;
+    btProjectDetails.visible = !show;
+    rctManagers.visible = show;
+    cbAutoRefresh.visible = show;
+    sbRefresh.visible = show;
+    txMsg.visible = show;
+    
+//     if(show)
+//       frProjects.size(801, 291);
+//     else
+//       frProjects.size(801, 111);
+}
+
+updatePanel()
+{
+  dyn_string projDps, sysNames;
+  string dbSystemName, dbHostName, projName, license;
+  dyn_string hostNames;
+  dyn_string exceptionInfo;
+  string hostDpName;
+  bool active;
+  string alertActive;
+  string dbProject;
+  time timeStamp;
+  
+  
+  int projStatus = 0, numTotal = 0, numBlocked = 0, numAbStopped = 0;
+  int numSys = 0 , numProj = 0, projStopped = 0, projMismatched = 0, projNoPmon = 0;
+  int managersTotal = 0, managersAbStopped = 0, managersBlocked = 0;
+  int numHosts = 0, licenseExpires = 0;
+
+  int refreshInterval;
+  int lastUpdate;
+  
+  dpGet(fwSysOverview_PARAMETRIZATION + fwSysOverview_REFRESH_RATE, refreshInterval);
+
+  if($projectDps == \"\" && (!isDollarDefined(\"$host\") || $host == \"\")) //show all projects:
+  {
+    projDps = dpNames(getSystemName() + \"SystemOverview*\",\"FwSystemOverviewProject\");
+  }
+  else
+  {
+    projDps = strsplit($projectDps, \"|\");
+    for(int i = 1; i <= dynlen(projDps); i++)
+      strreplace(projDps[i], \" \", \"\");
+  }
+   
+  if(dynlen(projDps) != projSummaryTable.lineCount())
+    projSummaryTable.deleteAllLines();
+      
+  for (int i=1; i<=dynlen(projDps); i++)
+  {
+    dpGet(projDps[i] + fwSysOverview_PROJECT_NAME, projName,
+          projDps[i] + fwSysOverview_PROJECT_SYSTEM, dbSystemName,
+          projDps[i] + fwSysOverview_STATE, projStatus, 
+          projDps[i] + fwSystemOverview_TOTAL_MANAGERS_NUMBER, numTotal,
+          projDps[i] + fwSystemOverview_NUMBER_MANAGERS_BLOCKED, numBlocked,
+          projDps[i] + fwSystemOverview_NUMBER_MANAGERS_ERROR, numAbStopped,
+          projDps[i] + fwSysOverview_STATE + \":_alert_hdl.._active\", active,
+          projDps[i] + fwSysOverview_PROJECT_NAME, dbProject,
+          projDps[i] + fwSysOverview_PROJECT_CURRENT_PROJECT_NAME + \":_online.._stime\", timeStamp
+          );
+
+    if(active == false)
+      alertActive = \"NO\";
+    else
+      alertActive = \"YES\";
+    
+    fwSysOverview_getProjectPc(projDps[i], hostDpName, exceptionInfo);
+    if(dynlen(exceptionInfo)){continue;}
+    
+    fwSysOverview_getHostDb(hostDpName, dbHostName, exceptionInfo);
+    if(dynlen(exceptionInfo)){continue;}
+    
+    fwSysOverview_getLicenseStatus(dbSystemName, license, exceptionInfo);
+    if(dynlen(exceptionInfo)){continue;}    
+
+    managersTotal += numTotal;
+    managersBlocked += numBlocked;
+    managersAbStopped += numAbStopped;
+           
+     
+      setValue(\"projSummaryTable\", \"updateLine\",1, \"dp\", projDps[i],
+               \"system\",dbSystemName,
+               \"host\", dbHostName,
+               \"project\",projName,
+               \"projStatus\", fwSysOverview_getStrFromState(projStatus),
+               \"alerts\", alertActive,
+               \"license\", license,
+               \"totalManagers\",numTotal,
+               \"blockedManagers\",numBlocked,
+               \"errManagers\",numAbStopped,
+               \"dp\", projDps[i],
+               \"dbProject\", dbProject
+               ,\"timeStamp\", timeStamp
+//               ,\"timeStamp\", formatTime(\"%H:%M:%S\",timeStamp)
+               );
+    
+    if(dbHostName != \"\")
+      dynAppend(hostNames, dbHostName);
+    
+    if(projStatus != fwSysOverview_RUNNING)
+    {
+      if(projStatus == fwSysOverview_STOPPED_NORMAL)   // state 0
+      {
+        setValue(\"projSummaryTable\", \"cellBackColRC\",i-1, \"projStatus\", \"FwStateOKNotPhysics\");  
+        ++projStopped;
+      }
+      else if(projStatus == fwSysOverview_PROJNAME_MISMATCH)  // state 12
+      {
+        setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"projStatus\", \"FwStateAttention2\");
+        ++projMismatched; 
+      } 
+      else if (projStatus == fwSysOverview_PMON_NO_RESPONSE  )// state 13 
+      {
+        setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"projStatus\", \"FwStateAttention3\");          
+        ++projNoPmon; 
+      }
+      else if(projStatus == fwSysOverview_BLOCKED) //state 4
+      {
+        setValue(\"projSummaryTable\", \"cellBackColRC\",i-1, \"projStatus\", \"FwStateAttention1\");  
+        setValue(\"projSummaryTable\", \"cellBackColRC\", i-1, \"blockedManagers\", \"FwStateAttention1\");
+      } 
+      else if(projStatus == fwSysOverview_STOPPED_ABNORMAL) //state 10
+      {
+        setValue(\"projSummaryTable\", \"cellBackColRC\",i-1, \"projStatus\", \"FwStateAttention2\"); 
+        setValue(\"projSummaryTable\", \"cellBackColRC\", i-1, \"errManagers\", \"FwStateAttention2\");
+      }
+      else if(projStatus == fwSysOverview_MONITORING_STOPPED) //state 3
+        setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"projStatus\", \"FwEquipmentDisabled\");
+    }
+    else
+      setValue(\"projSummaryTable\", \"cellBackColRC\", i-1, \"projStatus\", \"_Window\");
+        
+     
+    dynAppend (sysNames, dbSystemName);
+   
+    if(projStatus != fwSysOverview_MONITORING_STOPPED)    
+    {          
+      if (license == \"License expires\")
+      {
+        setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"license\", \"FwStateAttention3\");
+        ++licenseExpires;
+      }
+      else if (license == \"N/A: Not Connected\")
+        setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"license\", \"FwStateAttention2\");
+      else
+        setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"license\", \"_Window\");
+    }
+    else
+      setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"license\", \"FwEquipmentDisabled\"); 
+    
+ /*   
+    if(numBlocked)
+      setValue(\"projSummaryTable\", \"cellBackColRC\", i-1, \"blockedManagers\", \"FwStateAttention1\");
+    else
+      setValue(\"projSummaryTable\", \"cellBackColRC\", i-1, \"blockedManagers\", \"_Window\");
+    
+    if(numAbStopped)
+      setValue(\"projSummaryTable\", \"cellBackColRC\", i-1, \"errManagers\", \"FwStateAttention2\");
+    else
+      setValue(\"projSummaryTable\", \"cellBackColRC\", i-1, \"errManagers\", \"_Window\");
+*/       
+    if(alertActive == \"NO\")
+      setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"alerts\", \"FwStateAttention3\");
+    else
+      setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"alerts\", \"_Window\");
+
+    lastUpdate = getCurrentTime() - timeStamp;
+
+    if(lastUpdate > 4*refreshInterval)
+    {
+      setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"timeStamp\", \"FwStateAttention3\");
+    }
+    else
+      setValue(\"projSummaryTable\",\"cellBackColRC\",i-1,\"timeStamp\", \"_Window\");
+    
+
+  }
+  
+  numSys=dynUnique(sysNames);
+ 
+ // Display summary informations: 
+  tfNumberOfSystems.text = numSys; 
+  tfNumberOfProjects.text = dynlen(projDps);  
+  tfNumberOfProjectsStopped.text = projStopped;   
+  tfNumberOfProjectsMismatched.text = projMismatched; 
+
+  dynUnique(hostNames);
+  tfNumberOfHosts.text = dynlen(hostNames);
+
+    
+  if (projStopped > 0)
+  {
+    tfNumberOfProjectsStopped.backCol(\"FwStateAttention3\");
+  }
+  else
+      tfNumberOfProjectsStopped.backCol(\"_Window\");
+  
+  if (projMismatched > 0)
+  {
+    tfNumberOfProjectsMismatched.backCol(\"FwStateAttention2\");
+  }
+  else
+    tfNumberOfProjectsMismatched.backCol(\"_Window\");
+
+    
+  tfNumberOfProjectsNoPmon.text = projNoPmon;
+  if (projNoPmon > 0)
+  {
+    tfNumberOfProjectsNoPmon.backCol(\"FwStateAttention3\");
+  }
+  else
+    tfNumberOfProjectsNoPmon.backCol(\"_Window\");
+
+  tfTotalNumberManagers.text = managersTotal;
+  tflNumberBlockedManagers.text = managersBlocked;  
+  tflNumberAbStoppedManagers.text = managersAbStopped;
+  tfLicense.text = licenseExpires;
+  
+  if (managersBlocked > 0)
+  {
+    tflNumberBlockedManagers.backCol(\"FwStateAttention1\");
+  }  
+  else
+    tflNumberBlockedManagers.backCol(\"_Window\");
+
+  if (managersAbStopped > 0)
+  {
+    tflNumberAbStoppedManagers.backCol(\"FwStateAttention2\");
+  }
+  else
+    tflNumberAbStoppedManagers.backCol = \"_Window\";
+  
+  if ( licenseExpires > 0)
+  {
+    tfLicense.backCol(\"FwStateAttention3\");
+  }
+  else
+    tfLicense.backCol = \"_Window\";
+        
+//tfNumberOfProjectsNoPmon
+  
+  projSummaryTable.removeSelectLines(0);
+} 
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+6 12
+"rctManagers"
+""
+1 190 480 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E 1 0 1 0 4 1 E 503 120 644 150
+25 1
+"projSummaryTable"
+""
+1 10.00000000000001 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+
+main(int row, string column)
+{
+  dyn_int rows;
+  string host, dbProject;
+  bool activate;
+  dyn_string exceptionInfo;
+  dyn_string menu;
+  int answer = 0;
+  string sys, projectDp;
+  dyn_int ds;
+  dyn_float df;
+  dyn_string sysNames; 
+//  dyn_int archvieActiveStates, alertActiveStates, mixedStates;
+  int type;
+  int isArchiveActive = 0, isAlertActive = 0, mixedStates = 0;
+  string archiveClass;
+  
+//  this.getSelectedLines(rows);
+  getValue (\"\", \"getSelectedLines\", rows);
+  int monitoringDisabled = 0;
+  if(dynlen(rows) == 1)
+  {
+    getValue(\"projSummaryTable\", \"cellValueRC\", rows[1],\"host\", host);
+    getValue(\"projSummaryTable\", \"cellValueRC\", rows[1],\"dbProject\", dbProject);
+    getValue(\"projSummaryTable\", \"cellValueRC\", rows[1],\"dp\", projectDp);
+
+    dpGet(projectDp + fwSysOverview_STATE + \":_archive.._type\", type);
+    if(type != 0)
+      dpGet(projectDp + fwSysOverview_STATE + \":_archive.._archive\", isArchiveActive);
+
+    dpGet(projectDp + fwSysOverview_STATE + \":_alert_hdl.._active\", isAlertActive,
+          projectDp + fwSysOverview_PROJECT_DISABLE_MONITORING, monitoringDisabled);
+
+  }
+  else
+    mixedStates = 1;
+
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+  if (expertPrivilege == \"\")
+  {
+    DebugN(\"No expert privilege defined!\");
+    return;
+  }
+ 
+  for(int i = 1; i <= dynlen(rows); i++)
+  {
+    string projectDp;
+    getValue(\"projSummaryTable\", \"cellValueRC\", rows[i],\"dp\", projectDp);
+        
+    string domain;
+    fwSysOverview_getACDomain(domain, projectDp);
+
+    if(domain == \"\") //AC not yet configured. Enable access 
+    {
+      hasExpertPrivilege = true;
+      break;
+    }
+    else
+    {
+      fwAccessControl_isGranted(domain + \":\" + expertPrivilege, hasExpertPrivilege, exceptionInfo);
+      // check and handle exceptions that might have been thrown by the function above
+      if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+      if (!hasExpertPrivilege)
+        break;
+    }
+  }
+
+  if(hasExpertPrivilege)
+  {
+    menu = makeDynString (//\"CASCADE_BUTTON, Monitoring, 14\",
+//                          \"SEPARATOR\", 
+                          \"PUSH_BUTTON, Open Console, 10, \" + (1-mixedStates),
+                          \"PUSH_BUTTON, Show Info, 11, \" + (1-mixedStates),
+                          \"PUSH_BUTTON, Show Components, 12, \" + (1-mixedStates),
+                          \"PUSH_BUTTON, Display Statistics, 3, 1\",
+//                          \"PUSH_BUTTON, Adopt Managers Configuration, 13, 1\"
+                          \"SEPARATOR\", 
+                          \"CASCADE_BUTTON, Alerts, 1\",
+//                          \"Monitoring\", 
+//                          \"PUSH_BUTTON, Enable, 14,\" + (mixedStates==1||monitoringDisabled?1:0),
+//                          \"PUSH_BUTTON, Disable, 15,\" + (mixedStates==1||!monitoringDisabled?1:1),
+                          \"Alerts\", 
+                          \"PUSH_BUTTON, Enable,1,\" + (1 - isAlertActive),
+                          \"PUSH_BUTTON, Disable,2,\" + (isAlertActive + mixedStates)
+                          );
+  }
+  else
+  {
+    menu = makeDynString (//\"CASCADE_BUTTON, Monitoring, 1\",
+//                          \"SEPARATOR\", 
+                          \"PUSH_BUTTON, Open Console, 10, 0\",
+                          \"PUSH_BUTTON, Show Info, 11, \" + (1-mixedStates),
+                          \"PUSH_BUTTON, Show Components, 12, \" + (1-mixedStates),
+                          \"PUSH_BUTTON, Display Statistics, 3, 1\",
+//                          \"PUSH_BUTTON, Adopt Managers Configuration, 13, 0\",
+                          \"SEPARATOR\", 
+                          \"CASCADE_BUTTON, Alerts, 1\",
+//                          \"Monitoring\", 
+//                          \"PUSH_BUTTON, Enable, 14, 0\",
+//                          \"PUSH_BUTTON, Disable, 15, 0\",
+                          \"Alerts\", 
+                          \"PUSH_BUTTON, Enable,1,0\",
+                          \"PUSH_BUTTON, Disable,2,0\"
+                          );
+  }
+  
+  popupMenu(menu, answer);
+
+  if(answer > 0)
+  {
+    string actionDescription = myPanelName() + \": \";
+    for(int i=1; i<=dynlen(rows); i++)
+    {
+      getValue(\"projSummaryTable\", \"cellValueRC\", rows[i],\"host\", host);
+      getValue(\"projSummaryTable\", \"cellValueRC\", rows[i],\"dbProject\", dbProject);
+      getValue(\"projSummaryTable\", \"cellValueRC\", rows[i],\"system\", sys);
+      getValue(\"projSummaryTable\", \"cellValueRC\", rows[1],\"dp\", projectDp);
+      
+      if(answer ==10) //show project console
+      {
+        string user, pwd;
+        fwInstallation_getPmonInfo(user, pwd);
+        int port = 4999;
+        dyn_mixed projectData;
+        fwSysOverview_getProjAccessData(projectDp, projectData);
+        string fmcHostDp = fwFMC_getNodeDp(host);
+        
+        actionDescription += \" Showing project console for: \"+ projectDp;
+                             
+        ChildPanelOnCentralModal(\"fwSystemOverview/fwSystemOverview_managersTable.pnl\", 
+                                 dbProject + \" : Console\", 
+                                 makeDynString(\"$host:\" + host, \"$project:\" + dbProject, \"$userName:\" + projectData[fwSysOverview_PROJECT_PMON_USER_IDX], 
+                                               \"$userPassword:\" + projectData[fwSysOverview_PROJECT_PMON_PASS_IDX], 
+                                               \"$port:\" + projectData[fwSysOverview_PROJECT_PMON_NUM_IDX], 
+                                               \"$sDpName:\" + fmcHostDp));
+      }
+      else if(answer == 11)//show project info
+      {
+        ChildPanelOnCentralModal(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_projectProperties.pnl\", dbProject + \" : Project Info\", makeDynString(\"$project:\" + dbProject, \"$computer:\" + host));
+      }
+      else if(answer == 12)//show project components
+      {
+        ChildPanelOnCentralModal(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_projectManager.pnl\", dbProject + \" : Project Info\", makeDynString(\"$project:\" + dbProject, \"$computer:\" + host));
+      }
+//       else if(answer == 13)
+//       {
+//           dyn_string ds;
+//           dyn_float df;
+//           string projDp;
+//           ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", projDp + \" : ManagerConfiguration\", makeDynString(\"You are about to adopt the project managers configuration. Do you want to proceed?\", \"Yes\", \"No\"), df, ds);    
+//           if(dynlen(df) > 0 && df[1] == 1.)
+//           {
+//             for(int i = 1; i <= dynlen(rows); i++)
+//             {
+//               getValue(\"projSummaryTable\", \"cellValueRC\", rows[1],\"dp\", projDp);
+//               fwSysOverview_saveProjectManagersStartMode(projDp);    
+//             }
+//           }
+//       }
+//       else if(answer == 14)
+//       {
+//           dyn_string ds;
+//           dyn_float df;
+//           string projDp;
+//           ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", projDp + \" : EnableMonitoring\", makeDynString(\"You are about to enable the project monitoring. Do you want to proceed?\", \"Yes\", \"No\"), df, ds);    
+//           if(dynlen(df) > 0 && df[1] == 1.)
+//           {
+//             for(int i = 1; i <= dynlen(rows); i++)
+//             {
+//               getValue(\"projSummaryTable\", \"cellValueRC\", rows[1],\"dp\", projDp);
+//               fwSysOverview_enableProjectMonitoring(projDp);    
+//             }
+//             fwSysOverview_stopMonitoring();
+//             fwSysOverview_startMonitoring();
+//           }
+//       }
+      else if(answer == 15)
+      {
+          dyn_string ds;
+          dyn_float df;
+          string projDp;
+          ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", projDp + \" : DisableMonitoring\", makeDynString(\"You are about to disable the project monitoring. Do you want to proceed?\", \"Yes\", \"No\"), df, ds);    
+          if(dynlen(df) > 0 && df[1] == 1.)
+          {
+            for(int i = 1; i <= dynlen(rows); i++)
+            {
+              getValue(\"projSummaryTable\", \"cellValueRC\", rows[1],\"dp\", projDp);
+              fwSysOverview_disableProjectMonitoring(projDp);    
+            }
+            fwSysOverview_stopMonitoring();
+            fwSysOverview_startMonitoring();
+          }
+      }
+      else if(answer == 1)//enable project alert
+      {  
+        actionDescription += \"Enabling project alert: \" + projectDp;
+        fwSysOverview_activateProjectAlert(projectDp, true, exceptionInfo);
+          if(dynlen(exceptionInfo)){continue;}    
+      }
+      else if(answer == 2) //disable project alert
+      {
+        actionDescription += \"Disabling project alert: \" + projectDp;
+        fwSysOverview_activateProjectAlert(projectDp, false, exceptionInfo);
+          if(dynlen(exceptionInfo)){continue;}    
+      }
+      else if(answer == 3)  // to open system statisctics
+      {
+         actionDescription += \"Opening system statistics. System:\" + sys;
+         dynAppend(sysNames, sys);
+      }
+/*      
+      else if(answer == 4) //enable/start project archiving
+      {        
+        fwSysOverview_getAchiveClass(archiveClass);
+
+        if(archiveClass == \"\")
+        {
+          ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: Archive Class not defined\", makeDynString(\"Default Archive Class is not defined and should be configured via Configuration panel.\"));
+          return;
+        }        
+        fwSysOverview_startArchivingProjectState(projectDp, archiveClass, exceptionInfo); // bool archiveManagers = true
+        if(dynlen(exceptionInfo)){continue;} 
+      }
+      
+      else if(answer == 5) //disable/stop project archiving
+      {        
+       fwSysOverview_stopArchivingProjectState(projectDp, exceptionInfo);
+       if(dynlen(exceptionInfo)){continue;} 
+      }
+*/
+    }
+
+    fwConfigurationDBSystemInformation_logAction(actionDescription);
+    
+    if(dynlen(sysNames) > 0)
+      ChildPanelOnCentralReturn(\"fwSystemOverview/fwSystemOverview_statistics.pnl\", \"Statistics\", makeDynString(\"$systemName:\" + sysNames), df, ds);
+
+  }
+      
+}
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ "main(int row, string column)
+{ 
+}" 0
+
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  8 138 768 258
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  dpConnect(\"setupTable\", \"fwSysOverviewParametrization.UI.projectSummaryTable.hideColumns\");
+}
+
+void setupTable(string dp, dyn_string columns)
+{
+  int totalWidth = 0;
+  if(btHideDetails.visible == true)
+  {
+    rctManagers.visible = dynlen(columns)>0?false:true;
+    txManagers.visible = dynlen(columns)>0?false:true;
+  }  
+  bool val = dynContains(columns, \"system\")>0?false:true;
+  this.namedColumnVisibility (\"system\", val);
+  if(val)
+    totalWidth += this.namedColumnWidth(\"system\");
+  
+  val = dynContains(columns, \"hostname\")>0?false:true;
+  this.namedColumnVisibility (\"host\", val);
+  if(val)
+    totalWidth += this.namedColumnWidth(\"host\");
+
+  val = dynContains(columns, \"project\")>0?false:true;
+  this.namedColumnVisibility (\"project\", val);
+  if(val)
+    totalWidth += this.namedColumnWidth(\"project\");
+
+  val = dynContains(columns, \"projectStatus\")>0?false:true;
+  this.namedColumnVisibility (\"projStatus\", val);
+  if(val)
+    totalWidth += this.namedColumnWidth(\"projStatus\");
+
+  val = dynContains(columns, \"alerts\")>0?false:true;
+  this.namedColumnVisibility (\"alerts\", val);
+  if(val)
+    totalWidth += this.namedColumnWidth(\"alerts\");
+
+  val = dynContains(columns, \"license\")>0?false:true;
+  this.namedColumnVisibility (\"license\", val);
+  if(val)
+    totalWidth += this.namedColumnWidth(\"license\");
+
+  val = dynContains(columns, \"totalManagers\")>0?false:true;
+  this.namedColumnVisibility (\"totalManagers\", val);
+  if(val)
+    totalWidth += this.namedColumnWidth(\"totalManagers\");
+
+  val = dynContains(columns, \"blockedManagers\")>0?false:true;
+  this.namedColumnVisibility (\"blockedManagers\", val);
+  if(val)
+    totalWidth += this.namedColumnWidth(\"blockedManagers\");
+
+  val = dynContains(columns, \"abnormallyStoppedManagers\")>0?false:true;
+  this.namedColumnVisibility (\"errManagers\", val);
+  if(val)
+    totalWidth += this.namedColumnWidth(\"errManagers\");
+
+  val = dynContains(columns, \"lastUpdate\")>0?false:true;
+  this.namedColumnVisibility (\"timeStamp\", val);
+  if(val)
+    totalWidth += this.namedColumnWidth(\"timeStamp\");
+  
+  //Resize the table:
+  int x= 0, y = 0;
+  getValue(\"\", \"size\", x, y);
+  this.size(totalWidth + 22, y); 
+}
+
+
+
+
+
+" 0
+E 1 0 1 12 0 "system" 6 1 0 "s" 1
+LANG:1 6 System
+E
+1
+LANG:1 26 Double click for more info
+
+72 "host" 6 1 0 "s" 1
+LANG:1 8 Hostname
+E
+1
+LANG:1 34 Double click for System Statistics
+
+75 "dbProject" 5 0 0 "s" 1
+LANG:1 9 dbProject
+E
+1
+LANG:1 34 Double click for System Statistics
+
+60 "project" 10 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 34 Double click for System Statistics
+
+110 "projStatus" 12 1 0 "s" 1
+LANG:1 14 Project Status
+E
+1
+LANG:1 34 Double click for System Statistics
+
+130 "alerts" 2 1 0 "s" 1
+LANG:1 6 Alerts
+E
+1
+LANG:1 34 Double click for System Statistics
+
+35 "license" 6 1 0 "s" 1
+LANG:1 7 License
+E
+1
+LANG:1 34 Double click for System Statistics
+
+70 "totalManagers" 2 1 0 "s" 1
+LANG:1 5 Total
+E
+1
+LANG:1 34 Double click for System Statistics
+
+35 "blockedManagers" 4 1 0 "s" 1
+LANG:1 7 Blocked
+E
+1
+LANG:1 34 Double click for System Statistics
+
+50 "errManagers" 4 1 0 "s" 1
+LANG:1 9 Abn.Stop.
+E
+1
+LANG:1 34 Double click for System Statistics
+
+55 "timeStamp" 9 1 0 "s" 1
+LANG:1 11 Last Update
+E
+1
+LANG:1 0 
+
+104 "dp" 9 0 0 "s" 1
+LANG:1 2 dp
+E
+1
+LANG:1 34 Double click for System Statistics
+
+105 
+14 14 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+30 2
+"frProjects"
+""
+1 30 373 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+5 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.115891180849866 0 0.7485439419311416 -33.47673542549598 -269.2068903403158 0 E 30 373 721 521
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 26 WinCC Projects Summary New
+2 13
+"txManagers"
+""
+1 547 125 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 547 125 596 139
+0 2 2 "0s" 0 0 0 192 0 0  547 125 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Managers
+20 16
+"cbAutoRefresh"
+""
+1 10.00000000000001 266 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  8 264 92 288
+1
+T 
+1
+LANG:1 12 Auto refresh
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  if(state)
+  {
+    txMsg.foreCol(\"black\");
+//    txMsg.text = \"(Values are refreshed every 10 seconds)\";
+    txMsg.text = \"(Values are refreshed every \" + sbRefresh.text() + \" seconds)\";
+    sbRefresh.enabled(true);
+  }
+    else
+  {
+    txMsg.foreCol(\"disturbanceCamWentUna\");
+    txMsg.text = \"(Autorefresh is disabled)\";
+    sbRefresh.enabled(false);
+  }
+}" 0
+2 20
+"PRIMITIVE_TEXT5"
+""
+1 22.00000000000019 31.99999999999858 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22.00000000000019 31.99999999999858 119 46
+0 2 2 "0s" 0 0 0 192 0 0  22.00000000000019 31.99999999999858 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Number of Systems:
+2 22
+"PRIMITIVE_TEXT6"
+""
+1 22.00000000000019 51.99999999999858 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22.00000000000019 51.99999999999858 115 66
+0 2 2 "0s" 0 0 0 192 0 0  22.00000000000019 51.99999999999858 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Number of Projects:
+2 23
+"PRIMITIVE_TEXT7"
+""
+1 222.0000000000002 53.99999999999915 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 222.0000000000002 53.99999999999915 307 68
+0 2 2 "0s" 0 0 0 192 0 0  222.0000000000002 53.99999999999915 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Projects Stopped :
+2 24
+"PRIMITIVE_TEXT8"
+""
+1 222.0000000000002 73.99999999999916 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 222.0000000000002 73.99999999999916 353 88
+0 2 2 "0s" 0 0 0 192 0 0  222.0000000000002 73.99999999999916 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 25 Project Name Mismatches :
+2 28
+"PRIMITIVE_TEXT9"
+""
+1 -107.9999999999998 155.9999999999992 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 222.0000000000002 93.99999999999915 416 108
+0 2 2 "0s" 0 0 0 192 0 0  222.0000000000002 93.99999999999915 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 39 Projects where Pmon is not responding :
+2 30
+"PRIMITIVE_TEXT10"
+""
+1 22.00000000000022 91.99999999999858 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22.00000000000022 91.99999999999858 127 106
+0 2 2 "0s" 0 0 0 192 0 0  22.00000000000022 91.99999999999858 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Number of Managers:
+2 31
+"PRIMITIVE_TEXT11"
+""
+1 522.0000000000002 53.99999999999915 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 522.0000000000002 53.99999999999915 618 68
+0 2 2 "0s" 0 0 0 192 0 0  522.0000000000002 53.99999999999915 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Managers Blocked :
+2 32
+"PRIMITIVE_TEXT12"
+""
+1 522.0000000000002 73.99999999999916 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 522.0000000000002 73.99999999999916 669 88
+0 2 2 "0s" 0 0 0 192 0 0  522.0000000000002 73.99999999999916 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 27 Managers Abnormaly Stoped :
+14 41
+"tfNumberOfProjectsStopped"
+""
+1 422.0000000000002 51.99999999999915 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  420 50 454 73
+2 "0s" 0 0 0 0 0 -1  E E E
+14 42
+"tfNumberOfProjectsMismatched"
+""
+1 422.0000000000002 71.99999999999916 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  420 70 454 93
+2 "0s" 0 0 0 0 0 -1  E E E
+14 43
+"tfNumberOfProjectsNoPmon"
+""
+1 422.0000000000002 91.99999999999916 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  420 90 454 113
+2 "0s" 0 0 0 0 0 -1  E E E
+14 45
+"tflNumberBlockedManagers"
+""
+1 672.0000000000002 50.00000000000318 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  670 48 704 71
+2 "0s" 0 0 0 0 0 -1  E E E
+14 46
+"tflNumberAbStoppedManagers"
+""
+1 672.0000000000002 70.00000000000315 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  670 68 704 91
+2 "0s" 0 0 0 0 0 -1  E E E
+14 57
+"tfNumberOfSystems"
+""
+1 130.0000000000002 29.99999999999864 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  128 28 162 51
+2 "0s" 0 0 0 0 0 -1  E E E
+14 58
+"tfNumberOfProjects"
+""
+1 130.0000000000002 50.99999999999864 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+99 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  128 49 162 72
+2 "0s" 0 0 0 0 0 -1  E E E
+14 59
+"tfTotalNumberManagers"
+""
+1 130.0000000000002 90.99999999999864 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+101 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  128 89 162 112
+2 "0s" 0 0 0 0 0 -1  E E E
+2 61
+"PRIMITIVE_TEXT13"
+""
+1 22.00000000000022 71.99999999999858 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+105 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22.00000000000022 71.99999999999858 103 86
+0 2 2 "0s" 0 0 0 192 0 0  22.00000000000022 71.99999999999858 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Number of Hosts:
+14 62
+"tfNumberOfHosts"
+""
+1 130.0000000000002 71.99999999999864 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  128 70 162 93
+2 "0s" 0 0 0 0 0 -1  E E E
+2 63
+"PRIMITIVE_TEXT14"
+""
+1 522.0000000000002 93.99999999999915 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+109 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 522.0000000000002 93.99999999999915 644 108
+0 2 2 "0s" 0 0 0 192 0 0  522.0000000000002 93.99999999999915 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 26 Licenses about to expire :
+14 64
+"tfLicense"
+""
+1 672.0000000000002 90.00000000000315 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+111 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  670 88 704 111
+2 "0s" 0 0 0 0 0 -1  E E E
+21 65
+"sbRefresh"
+""
+1 431.9487179487181 270 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+112 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  430 268 474 292
+0
+
+E
+"main()
+{
+  txMsg.text = \"(Values are refreshed every \" + sbRefresh.text() + \" seconds)\";
+}" 0
+
+E
+
+N 0 100 1 10 1 1
+2 67
+"txSec"
+""
+1 490.0000000000001 272 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+114 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 490.0000000000001 272 509 286
+0 2 2 "0s" 0 0 0 192 0 0  490.0000000000001 272 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 sec.
+2 68
+"txRefresh"
+""
+1 -6372.27694197057 -5779 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+115 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.974358974358974 0 1 -282.153846153846 -172 1 E 620 444 725 458
+0 2 2 "0s" 0 0 0 192 0 0  620 444 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 22 Table refresh interval
+13 69
+"btTableDetails"
+""
+1 630 38 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+116 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  658 266 685 293
+
+P 
+4294967295
+"pictures/attreditor.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+E E "main()
+{
+  ChildPanelOnCentralModal(\"fwSystemOverview/fwSystemOverview_projectSummaryTableSettings.pnl\", 
+                           \"Project Summary Table Settings\",
+                           makeDynString()); 
+}
+" 0
+ E
+2 70
+"txTableSettingsLabel"
+""
+1 -229.2764503804278 -5779 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+117 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.974358974358974 0 1 -44.10256410256392 -172 1 E 620 444 717 458
+0 2 2 "0s" 0 0 0 192 0 0  620 444 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Show/hide columns
+13 71
+"btProjectDetails"
+""
+1 719.8039215686274 90.00000000000006 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+118 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  718 88 752 112
+
+P 
+4294967295
+"pictures/right2x_en.gif"
+1
+LANG:1 2 >>
+"main()
+{
+  //if(isDollarDefined(\"$embedded\"))
+    showHideDetails(true);
+//  else
+//    setPanelSize(myModuleName(), myPanelName(), true);
+
+  this.visible = false;
+}
+
+
+
+
+
+
+" 0
+ E E E
+13 72
+"btHideDetails"
+""
+1 730 270 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+119 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  728 268 762 292
+
+P 
+4294967295
+"pictures/left2x_en.gif"
+1
+LANG:1 2 <<
+"main()
+{
+  //if(isDollarDefined(\"$embedded\"))
+    showHideDetails(false);
+  //else
+  //  setPanelSize(myModuleName(), myPanelName(), false, x0, y0-10);
+  
+  btProjectDetails.visible = true;
+}
+
+
+
+
+
+
+" 0
+ E E E
+2 74
+"txMsg"
+""
+1 -8335.032409940433 -5819 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+121 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.974358974358974 0 1 -502.153846153846 -176 1 E 620 444 664 458
+0 2 2 "0s" 0 0 0 192 0 0  620 444 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 (interval)
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

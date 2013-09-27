@@ -1,0 +1,882 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 1380 560 N "_3DFace" 0
+"main()
+{
+int hierarchyLen;
+dyn_string hierarchyDPs;
+dyn_string exceptionInfo;
+
+dyn_anytype configData;
+bool configExists, isActive;
+
+string analysedtext = \"\";
+
+  Analysing.visible(TRUE);
+  
+  analysedtext += \"<br>Getting DPs of type '_FwDipConfig'...\";
+  Analysing.text = \"<center><font size=\\\"14\\\">\"+analysedtext+\"</font></center>\";
+  
+  hierarchyDPs = makeDynString();
+
+  dyn_string alldipconfigs = dpNames(\"*\",\"_FwDipConfig\");
+  // DebugN(\"Dip-Configs\",alldipconfigs);
+  
+  analysedtext += \"  (\"+dynlen(alldipconfigs)+\" DPs)<br>\";
+  Analysing.text = \"<center><font size=\\\"14\\\">\"+analysedtext+\"</font></center>\";
+   
+  for ( int dpt = 1 ; dpt <= dynlen(alldipconfigs) ; ++dpt )
+  {
+    dyn_string alldipelement;
+    dpGet(alldipconfigs[dpt]+\".clientConfig\",alldipelement);
+    for ( int dps = 1 ; dps <= dynlen(alldipelement) ; ++dps )
+    {
+      if ( dpExists(alldipelement[dps]) )
+      {
+        // DebugN(\"Dip-Datapoint \"+alldipelement[dps]);
+        dynAppend ( hierarchyDPs , alldipelement[dps] );
+      }
+    }
+  }
+
+  hierarchyLen = dynlen(hierarchyDPs);   
+
+  analysedtext += \"Total Number of DPes to be Analysed: \"+hierarchyLen+\"<br>\";
+  Analysing.text = \"<center><font size=\\\"14\\\">\"+analysedtext+\"</font></center>\";
+
+  enableToggles(FALSE);
+  
+  fwOpenProgressBar ( \"Information\" , \"Getting External Application Data\" , 1 );      
+
+  Table.deleteAllLines();
+  
+  usedDpes = makeDynString();
+  usedType = makeDynString();
+  usedItem = makeDynString();
+  usedName = makeDynString();
+  usedValue = makeDynString();
+  usedQuality = makeDynString();
+  usedUnit = makeDynString();
+  
+  for ( int idx = 1 ; idx <= hierarchyLen ; ++idx )
+  {
+      string sDpe = hierarchyDPs[idx];     /* +tmp_dpes[dpe]; */
+
+      string description = dpGetDescription(sDpe,0);
+      if ( dpSubStr(sDpe,DPSUB_SYS_DP) == dpSubStr(description,DPSUB_SYS_DP) ) continue;
+
+      ++numbEntries;
+      
+      dynAppend(usedDpes,dpSubStr(sDpe,DPSUB_DP_EL));
+      
+      int tmp_type;
+      string dpe_type;
+      tmp_type = dpElementType(sDpe);
+      switch ( tmp_type )
+      {
+        case DPEL_INT:          dpe_type = \"Integer\";       break;
+        case DPEL_FLOAT:        dpe_type = \"Float\";         break;
+        case DPEL_BOOL:         dpe_type = \"Boolean\";       break;
+        case DPEL_STRING:       dpe_type = \"String\";        break;
+        case DPEL_DYN_INT:      dpe_type = \"DynInteger\";    break;
+        case DPEL_DYN_FLOAT:    dpe_type = \"DynFloat\";      break;
+        case DPEL_DYN_BOOL:     dpe_type = \"DynBoolean\";    break;
+        case DPEL_DYN_STRING:   dpe_type = \"DynString\";     break;
+        default:                dpe_type = \"Unrecognised!\";
+                           DebugN(\"Unrecognised DPE-Type = '\"+tmp_type+\"' for '\"+sDpe+\"'\");
+                           break;
+      }
+      dynAppend ( usedType , dpe_type );
+
+      fwPeriphAddress_get(sDpe, configExists, configData, isActive, exceptionInfo);
+      string tmp_item = \"<no-item>\";
+      string tmp_name = \"<no-name>\";
+      if ( ( configExists ) && ( configData[fwPeriphAddress_TYPE] == fwPeriphAddress_TYPE_DIP ) )
+      {
+      dyn_string dipAddress = strsplit(configData[fwPeriphAddress_REFERENCE],fwDIP_SEPERATOR);
+      
+        switch ( dynlen(dipAddress) )
+        {
+          default: tmp_name = dipAddress[2];
+          case 1:  tmp_item = dipAddress[1];
+          case 0:  break;
+        }
+      }
+      dynAppend(usedItem,tmp_item);
+      dynAppend(usedName,tmp_name);
+      
+      anytype value;
+      dpGet(sDpe,value);
+      string tmp_value = dpValToString(sDpe,value);
+      dynAppend(usedValue,tmp_value);
+      
+      bool tmp_invalid,tmp_userbit1,tmp_userbit2;
+      string tmp_quality;
+      dpGet(sDpe+\":_original.._invalid\",tmp_invalid,
+            sDpe+\":_original.._userbit1\",tmp_userbit1,
+            sDpe+\":_original.._userbit2\",tmp_userbit2);
+      if ( tmp_invalid )
+         { tmp_quality = \"INVALID\"; ++numbInvalid; }
+      else
+      {
+             if (  tmp_userbit1 &&  tmp_userbit2 ) { tmp_quality = \"GOOD\";      ++numbGood;      }
+        else if ( !tmp_userbit1 &&  tmp_userbit2 ) { tmp_quality = \"UNCERTAIN\"; ++numbUncertain; }
+        else if ( !tmp_userbit1 && !tmp_userbit2 ) { tmp_quality = \"BAD\";       ++numbBad;       }
+        else if (  tmp_userbit1 && !tmp_userbit2 ) { tmp_quality = \"UNDEFINED\"; ++numbUndefined; }
+      }
+      dynAppend(usedQuality,tmp_quality);
+      dynAppend(usedStates,(tmp_quality==\"GOOD\"?1:2));
+  
+      string unit = dpGetUnit(sDpe);
+      dynAppend(usedUnit,unit);
+      
+      if ( ( idx % 10 ) == 0 )
+      {
+        string progress = (string)(idx)+\" DPes Analysed [\"+floor(100*idx/+hierarchyLen)+\"%]\";
+        Analysing.text = \"<center><font size=\\\"14\\\">\"+analysedtext+progress+\"</font></center>\";
+      }
+  }
+  
+  analysedtext += \"Populating the Table with \"+hierarchyLen+\" Entries...<br>\";
+  Analysing.text = \"<center><font size=\\\"14\\\">\"+analysedtext+\"</font></center>\";
+
+  Table.appendLines(dynlen(usedDpes),\"DpeName\",usedDpes,\"DpeType\",usedType,
+                    \"DipItem\",usedItem,\"DipName\",usedName,
+                    \"DataValue\",usedValue,\"DataQuality\",usedQuality,\"DataUnit\",usedUnit);
+  
+  nbAll.text = numbEntries;;
+  nbGood.text = numbGood;
+  nbNotGood.text = numbEntries - numbGood;
+  nbInvalid.text = numbInvalid;
+  nbBad.text = numbBad;
+  nbUncertain.text = numbUncertain;
+  nbUndefined.text = numbUndefined;
+  
+  fwCloseProgressBar ( \"Done\" );
+
+  enableToggles(TRUE);
+  
+  analysedtext += numbGood+\" Good Entries  [\"+(numbEntries-numbGood)+\" Not Good]\";
+  Analysing.text = \"<center><font size=\\\"14\\\">\"+analysedtext+\"</font></center>\";
+  delay(3,0);
+  Analysing.visible(FALSE);
+}
+
+" 0
+ E E E E 1 -1 -1 0  270 340
+""0  1
+E "
+
+dyn_string usedDpes, usedType, usedItem, usedName, usedValue, usedQuality, usedStates, usedUnit;
+
+int numbEntries=0,numbGood=0,numbInvalid=0,numbBad=0,numbUncertain=0,numbUndefined=0;
+
+
+void enableToggles(bool state)
+{
+  setValue(\"Toggle0\",\"enabled\",state);
+  setValue(\"Toggle1\",\"enabled\",state);
+  setValue(\"Toggle2\",\"enabled\",state);
+  
+  setValue(\"save_csv\",\"enabled\",state);
+  setValue(\"save_txt\",\"enabled\",state);
+}
+
+    
+void refreshTable ( int toggle , int state )
+{
+  if ( state == 0 )
+  {
+    setValue(\"Toggle\"+toggle,\"state\",0,TRUE);
+  }
+  else
+  {
+    // Disable other buttons
+    if ( toggle != 0 ) setValue(\"Toggle0\",\"state\",0,FALSE);
+    if ( toggle != 1 ) setValue(\"Toggle1\",\"state\",0,FALSE);
+    if ( toggle != 2 ) setValue(\"Toggle2\",\"state\",0,FALSE);
+    
+    enableToggles(FALSE);
+        
+    Table.deleteAllLines();
+  
+    dyn_string Dpes = makeDynString();
+    dyn_string Type = makeDynString();
+    dyn_string Item = makeDynString();
+    dyn_string Name = makeDynString();
+    dyn_string Value = makeDynString();
+    dyn_string Quality = makeDynString();
+    dyn_string Unit = makeDynString();
+    
+    int Length = dynlen(usedDpes);
+  
+    for ( int idx = 1 ; idx <= Length ; ++idx )
+    {
+      if ( ( toggle == 0 ) || ( toggle == usedStates[idx] ) )
+      {
+        dynAppend(Dpes,usedDpes[idx]);
+        dynAppend(Type,usedType[idx]);
+        dynAppend(Item,usedItem[idx]);
+        dynAppend(Name,usedName[idx]);
+        dynAppend(Value,usedValue[idx]);
+        dynAppend(Quality,usedQuality[idx]);
+        dynAppend(Unit,usedUnit[idx]);
+      }
+    }
+    
+    Table.appendLines(dynlen(Dpes),\"DpeName\",Dpes,\"DpeType\",Type,
+                      \"DipItem\",Item,\"DipName\",Name,
+                      \"DataValue\",Value,\"DataQuality\",Quality,\"DataUnit\",Unit);
+      
+    enableToggles(TRUE);
+  }
+}
+
+    
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"PUSH_BUTTON1"
+""
+1 1280 517 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 1278 515 1372 549
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+25 1
+"Table"
+""
+1 10 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 88 1372 502
+EE 1 0 1 7 0 "DpeName" 37 1 0 "s" 1
+LANG:1 13 PVSS DPE Name
+E
+1
+LANG:1 0 
+
+420 "DpeType" 9 1 0 "s" 1
+LANG:1 8 DPE Type
+E
+1
+LANG:1 0 
+
+110 "DipItem" 37 1 0 "s" 1
+LANG:1 13 DIP Item Name
+E
+1
+LANG:1 0 
+
+420 "DipName" 9 1 0 "s" 1
+LANG:1 8 DIP Name
+E
+1
+LANG:1 0 
+
+110 "DataValue" 9 1 0 "s" 1
+LANG:1 10 Data Value
+E
+1
+LANG:1 0 
+
+110 "DataQuality" 7 1 0 "s" 1
+LANG:1 12 Data Quality
+E
+1
+LANG:1 0 
+
+90 "DataUnit" 6 1 0 "s" 1
+LANG:1 9 Data Unit
+E
+1
+LANG:1 0 
+
+75 
+20 20 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+2 2
+"TextHeader"
+""
+1 8 8 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 10 220 33
+0 2 0 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 External Application Data
+2 6
+"TextBad"
+""
+1 830 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 830 10 950 30
+0 2 2 "0s" 0 0 0 64 0 0  830 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Bad Entries
+2 8
+"TextUncertain"
+""
+1 590 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 590 50 710 70
+0 2 2 "0s" 0 0 0 64 0 0  590 50 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Uncertain Entries
+2 9
+"TextUndefined"
+""
+1 830 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 830 50 950 70
+0 2 2 "0s" 0 0 0 64 0 0  830 50 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Undefined Entries
+20 12
+"Toggle0"
+""
+1 270 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 268 8 422 32
+1
+T 
+1
+LANG:1 19 Total Nb of Entries
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  refreshTable ( 0 , state );
+}" 0
+20 13
+"Toggle2"
+""
+1 270 50 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 268 48 422 72
+1
+T 
+1
+LANG:1 16 Not Good Entries
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  refreshTable ( 2 , state );
+}" 0
+20 14
+"Toggle1"
+""
+1 10 50 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 48 162 72
+1
+T 
+1
+LANG:1 16 All Good Entries
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  refreshTable ( 1 , state );
+}" 0
+14 17
+"nbAll"
+""
+1 430 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 428 8 502 33
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text(\"Loading...\");
+}" 0
+ E
+14 18
+"nbNotGood"
+""
+1 430 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 428 48 502 73
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text(\"Loading...\");
+}" 0
+ E
+14 19
+"nbGood"
+""
+1 170 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 48 242 73
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text(\"Loading...\");
+}" 0
+ E
+14 20
+"nbInvalid"
+""
+1 720 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 718 8 792 33
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text(\"Loading...\");
+}" 0
+ E
+14 21
+"nbUncertain"
+""
+1 720 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+21 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 718 48 792 73
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text(\"Loading...\");
+}" 0
+ E
+14 22
+"nbBad"
+""
+1 960 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 958 8 1032 33
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text(\"Loading...\");
+}" 0
+ E
+14 23
+"nbUndefined"
+""
+1 960 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+23 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 958 48 1032 73
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text(\"Loading...\");
+}" 0
+ E
+2 24
+"TextInvalid"
+""
+1 590 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 590 10 710 30
+0 2 2 "0s" 0 0 0 64 0 0  590 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Invalid Entries
+13 26
+"save_csv"
+""
+1 10 517 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 515 182 549
+
+T 
+1
+LANG:1 16 Save to CSV File
+"main()
+{
+int rtn;
+int length;
+file filed;
+string filename;
+dyn_anytype items;
+string directory = getPath(DATA_REL_PATH);
+
+  rtn = fileSelector(filename,directory,FALSE,\"*.cvs\",FALSE);
+  if ( strpos(filename,\".csv\") < 0 ) filename += \".csv\";
+  // DebugN(\"Filename '\"+filename+\"'\");
+  
+  if ( rtn == 0 )
+  {
+    if ( ( filed = fopen(filename,\"w\") ) == 0 ) return;
+    
+    enableToggles(FALSE);
+    
+    length = Table.lineCount();
+    
+    fputs(\"PVSS DPE Name,DPE Type,DIP Item Name,DIP Name,Data Value,Data Quality,Data Unit\\n\",filed);
+    
+    for ( int idx = 0 ; idx < length ; ++idx )
+    {
+      items = Table.getLineN(idx);
+      if ( dynlen(items) != 7 ) { DebugN(\"PVSS DPE Name Table entry \"+(string)(idx+1)+\" Must have '7' Items\"); }
+    
+      for ( int itm = 1 ; itm <= dynlen(items) ; ++itm )
+      {
+        if ( itm > 1 ) fputs(\",\",filed);
+        fputs(items[itm],filed);
+      }
+      fputs(\"\\n\",filed);
+    }
+    
+    fclose(filed);
+    
+    enableToggles(TRUE);
+  }
+}" 0
+ E E E
+13 27
+"save_txt"
+""
+1 210 517 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 208 515 382 549
+
+T 
+1
+LANG:1 18 Save to Plain Text
+"main()
+{
+int rtn;
+int length;
+file filed;
+string values;
+string filename;
+dyn_anytype items;
+string directory = getPath(DATA_REL_PATH);
+
+  rtn = fileSelector(filename,directory,FALSE,\"*.txt\",FALSE);
+  if ( strpos(filename,\".txt\") < 0 ) filename += \".txt\";
+  // DebugN(\"Filename '\"+filename+\"'\");
+  
+  if ( rtn == 0 )
+  {
+    if ( ( filed = fopen(filename,\"w\") ) == 0 ) return;
+    
+    enableToggles(FALSE);
+    
+    length = Table.lineCount();
+    
+    fputs(\"DPE Type        PVSS DPE Name\\nDIP Name        DIP Item Name\\nQuality         Data Unit   Data Value\\n\\n\",filed);
+    
+    for ( int idx = 0 ; idx < length ; ++idx )
+    {
+      items = Table.getLineN(idx);
+      
+      sprintf(values,\"%-16s%s\\n%-16s%s\\n\",items[2],items[1],items[4],items[3]);
+      fputs(values,filed);
+      sprintf(values,\"%-16s%-12s%s\\n\\n\",items[6],items[7],items[5]);
+      fputs(values,filed);
+    }
+    
+    fclose(filed);
+    
+    enableToggles(TRUE);
+  }
+}" 0
+ E E E
+2 32
+"PRIMITIVE_TEXT5"
+""
+1 490 515 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 490 515 910 555
+0 2 2 "0s" 0 0 0 64 0 0  490 515 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 53 Note that the information in the table is a snapshot.
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 54 The quality and values fields above are not refreshed!
+29 33
+"Analysing"
+""
+1 170 180 E E E 1 E 0 E N "_WindowText" E N "FwStateAttention1" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+5
+"margin" "int 0"
+"alignment" "enum 132"
+"frameShadow" "enum 32"
+"frameShape" "enum 1"
+"textFormat" "enum 1"
+ 170 180 1211 381
+15 PVSS.TextEdit.1
+5
+0 "TextChanged" "()"
+""
+0 "ReturnPressed" "()"
+""
+0 "ModificationChanged" "(bool mod)"
+""
+0 "Clicked" "(int para, int pos)"
+""
+0 "CursorPositionChanged" "(int para, int pos)"
+""
+E0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

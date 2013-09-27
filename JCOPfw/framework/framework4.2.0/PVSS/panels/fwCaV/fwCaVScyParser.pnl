@@ -1,0 +1,4295 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 844 775 N "_3DFace" 0
+"main()
+{
+	fwDevice_initialize();
+	init();
+	
+	// Initialize the indexing mapping:
+	__idx[\".names\"] = 1;
+	__idx[\".dpes\"] = 2;
+	__idx[\".description\"] = 3;
+	__idx[\".defaultValues\"] = 4;
+	__idx[\".types\"] = 5;
+	__idx[\".userData\"] = 6;
+	__idx[\".address.canHave\"] = 10;
+	__idx[\".address.direction\"] = 11;
+	__idx[\".dpFunction.canHave\"] = 12;
+	__idx[\".dpFunction.function\"] = 13;
+	__idx[\".dpFunction.params\"] = 14;
+	__idx[\".alert.canHave\"] = 15;
+	__idx[\".alert.defaultClasses\"] = 16;
+	__idx[\".alert.defaultTexts\"] = 17;
+	__idx[\".archive.canHave\"] = 18;
+	__idx[\".smoothing.canHave\"] = 19;
+	__idx[\".pvRange.canHave\"] = 20;
+	__idx[\".format.canHave\"] = 21;
+	__idx[\".unit.canHave\"] = 22;
+	__idx[\".unit.unit\"] = 23;
+	__idx[\".conversion.canHave\"] = 24;
+}" 0
+ E E E E 1 0 0 0  20 50
+""0  1
+E "bool model = false;
+bool atlasEvap = false;
+bool areas = false;
+bool loopSaved = false;
+
+string scyPrefix; // obsolete
+string pollGroup=\"\"; // store the pollGroup chosen by the user
+string PLC=\"1\"; // store the PLC number chosen by the user
+bool updateDevices = false; // store whether the user wants to update/create devices
+
+/* SCY file keywords */
+string alarmKeyword    = \"_al\";
+string warningKeyword  = \"_flt\";
+string setpointKeyword = \"_setp\";
+string readbackKeyword = \"setp\";
+
+/* Constants with the max.limit for objects, warnings and alarms in a plant */
+const int maxNumberOfParams   = 32;   // the maximum number of parameters in a plant 
+const int maxNumberOfWarnings = 15;   // the maximum number of warning words in a plant 
+const int maxNumberOfAlarms   = 15;   // the maximum number of alarm words in a plant 
+
+
+/* data from the SCY */
+/* Structure:
+ *    dyn_anytype[wordNumber] [bit+2] [idx]
+ *       bit 1 - flag whether it is present in corresponding object (scy<->model)
+ *       idx : 1 - varName;
+ *             2 - description;
+ */
+dyn_anytype scyAlarms, scyWarnings;
+dyn_anytype modelAlarms, modelWarnings;
+
+dyn_dyn_string plantEntries;    // SCY file entries. Indexes defined below
+dyn_dyn_string loopEntries;     // SCY file entries. Indexes defined below
+dyn_dyn_string areaflowEntries; // SCY file entries. Indexes defined below
+dyn_dyn_string areatempEntries; // SCY file entries. Indexes defined below
+
+int SCY_INDEX_class	  = 1;
+int SCY_INDEX_varName	  = 2;
+int SCY_INDEX_description = 3;
+
+
+/* Arrays with objects that will be used in process of generating / updating model */
+/* WARNING: Run init() to initialize them!!! */
+dyn_anytype scyPlantObjects, scyLoopObjects, scyAreaflowObjects, scyAreatempObjects;
+dyn_anytype modelPlantObjects, modelLoopObjects, modelAreaflowObjects, modelAreatempObjects;
+/* Structure of an object:
+ *    dyn_anytype[INDEX_?] [position] [idx]
+ *       position - corresponds to generic parameter number
+ *       idx : 1 - varName;
+ *             2 - description;
+ *             3 - flag whether it is present in corresponding object
+ *                 (scy <-> model)
+ */
+int INDEX_M = 1;  // Actual measurement parameters
+int INDEX_S = 2;  // Setting parameters
+int INDEX_R = 3;  // Readback setting parameters
+int INDEX_A = 4;  // Actual parameters
+int INDEX_P = 5;  // PPVCycle parameters
+int INDEX_AW = 6; // Alarm word, if no alarm bits are found this is used
+int INDEX_WW = 7; // Warning word, if no warning bits are found this is used
+
+dyn_string objectPrefixes; // prefixes for the different parameters mentioned above.
+
+string plantBits, loopBits; // Control/Status allowed Bits
+
+mapping __idx; // Mapping used when manipulating Model Definition
+string modelDesc;
+
+init()
+{       
+	saveModel.visible = false;
+	addAreas.visible = false;
+	_init(scyPlantObjects); _init(scyLoopObjects); _init(scyAreaflowObjects); _init(scyAreatempObjects);
+	_init(modelPlantObjects); _init(modelLoopObjects); _init(modelAreaflowObjects); _init(modelAreatempObjects);
+	objectPrefixes[INDEX_M] = \".Actual.Measurements.param\";
+	objectPrefixes[INDEX_S] = \".Settings.Parameters.param\";
+	objectPrefixes[INDEX_R] = \".ReadBackSettings.Parameters.param\";
+	objectPrefixes[INDEX_A] = \".Actual.Parameters.param\";
+	objectPrefixes[INDEX_P] = \".Actual.PPVCycle.param\";   
+	objectPrefixes[INDEX_AW] = \".Alarms.alarmWord\"; 
+	objectPrefixes[INDEX_WW] = \".Warnings.warningWord\";                      
+	dynClear(scyAlarms); dynClear(scyWarnings);
+	dynClear(modelAlarms); dynClear(modelWarnings);
+	dynClear(plantEntries); dynClear(loopEntries); dynClear(areaflowEntries); dynClear(areatempEntries);
+	plantBits=\"\"; loopBits=\"\";
+	pollGroup = \"\"; PLC=\"1\";
+}
+
+_init(dyn_anytype &data)
+{
+	data = makeDynAnytype();
+	for(int i=1; i<=7; i++)
+		data[i] = makeDynAnytype();
+}
+
+
+_dynInsertToDyn(dyn_anytype &a, int index, dyn_anytype b)
+{
+//	int position = dynlen(a[index])+1;
+//	a[index][position] = b;
+	int insertAt = -1;
+	
+	bool varBool;
+
+	// Search for place to insert (varName alphabetical order)
+	for(int i=1; i<=dynlen(a[index]); i++)
+	{
+		varBool = b[1] < a[index][i][1];
+		if( b[1] < a[index][i][1] )
+		{
+			insertAt = i;
+			break;
+		}
+	}
+
+	if(insertAt==-1)
+	// will insert at the end
+	{
+		insertAt = dynlen(a[index])+1;
+		a[index][insertAt] = b;
+	}
+	else
+	// will insert at the given positon
+	// have to shift other entries
+	{
+//		dynInsertAt(a[index], b, insertAt); // this doesn't seem to work well
+		for(int i=dynlen(a[index])+1; i>insertAt; i--)
+		{
+			a[index][i] = a[index][i-1];
+		}
+		a[index][insertAt] = b;
+	}
+	
+	
+}
+
+_dynSwap(dyn_anytype &a, int i, int j)
+{
+	dyn_anytype tmp = a[i];
+	a[i] = a[j];
+	a[j] = tmp;
+}
+
+_updateTable(int pos)
+{
+	dataTable.deleteAllLines();
+	if(pos==1)
+        {
+          if(dynlen(scyAlarms)==0)
+            _showObjects(scyPlantObjects[INDEX_AW],modelPlantObjects[INDEX_AW]);  
+          else
+            _showAlarms(scyAlarms, makeDynString());
+        }      
+	if(pos==2)
+        {
+          if(dynlen(scyWarnings)==0)
+            _showObjects(scyPlantObjects[INDEX_WW],modelPlantObjects[INDEX_WW]);  
+          else
+            _showAlarms(scyWarnings, makeDynString());
+        }           
+        if(pos==3)
+		_showObjects(scyPlantObjects[1],modelPlantObjects[1]);
+	if(pos==4)
+		_showObjects(scyPlantObjects[2],modelPlantObjects[2]);
+	if(pos==5)
+		_showObjects(scyPlantObjects[3],modelPlantObjects[3]);
+	if(pos==6)
+		_showObjects(scyPlantObjects[4],modelPlantObjects[4]);
+	if(pos==7)
+		_showObjects(scyLoopObjects[1],modelLoopObjects[1]);
+	if(pos==8)
+		_showObjects(scyLoopObjects[2],modelLoopObjects[2]);
+	if(pos==9)
+		_showObjects(scyLoopObjects[3],modelLoopObjects[3]);
+	if(pos==10)
+		_showObjects(scyLoopObjects[4],modelLoopObjects[4]);
+	if(pos==11)
+		_showObjects(scyPlantObjects[5],modelPlantObjects[5]);  // PPV cycle      
+}
+
+_showAlarms(dyn_anytype scy, dyn_anytype model)
+{
+        bool blank;
+  	for(int i=1; i<=dynlen(model); i++)
+	{
+                blank = false;
+ 		string varNames=\"\", descriptions=\"\"; 
+                if(model[i][2][1]!=\"EMPTY\")
+                {
+		  for(int j=2; j<=dynlen(model[i]); j++)
+		  {
+                        if(dynlen(model[i][j])!=0) 
+			{
+				// This bit is being used
+				varNames += model[i][j][1];
+				descriptions += model[i][j][2];
+                        }
+                        
+			varNames +=  \" | \";
+			descriptions += \" | \";		
+		  }
+                }
+		dataTable.appendLine(\"number\",i, \"modelVar\", varNames, \"modelDesc\", descriptions);
+                if(model[i][2][1]==\"EMPTY\")
+                {
+			dataTable.cellValueRC(i-1,\"modelVar\",\"EMPTY\");
+			dataTable.cellValueRC(i-1,\"modelDesc\",\"Model history\");                   
+                        dataTable.cellBackColRC(i-1, \"modelVar\", \"yellow\");
+			dataTable.cellBackColRC(i-1, \"modelDesc\", \"yellow\");                   
+                }
+      	}
+       
+	for(int i=1; i<=dynlen(scy); i++)
+	{
+		string varNames=\"\", descriptions=\"\";
+		if(dynlen(scy[i])>1 && scy[i][2][1]!=\"EMPTY\")
+		{
+			for(int j=2; j<=dynlen(scy[i]); j++)
+			{
+                                if(scy[i][j]==\"\")
+                                  continue;
+                          	if(dynlen(scy[i][j])!=0)
+				{
+				        // This bit is being used
+					varNames += scy[i][j][1];
+					descriptions += scy[i][j][2];
+				}
+                                
+				varNames +=  \" | \";
+				descriptions += \" | \";
+			}
+		}
+		if(dataTable.lineCount<i)
+			dataTable.appendLine(\"number\",i, \"scyVar\", varNames, \"scyDesc\", descriptions);
+		else
+		{
+			dataTable.cellValueRC(i-1,\"scyVar\",varNames);
+			dataTable.cellValueRC(i-1,\"scyDesc\",descriptions);
+		}
+		if(scy[i][2][1]==\"EMPTY\")
+		{
+			dataTable.cellValueRC(i-1,\"scyVar\",\"EMPTY\");
+			dataTable.cellValueRC(i-1,\"scyDesc\",\"Model history\");                  
+			dataTable.cellBackColRC(i-1, \"scyVar\", \"yellow\");
+			dataTable.cellBackColRC(i-1, \"scyDesc\", \"yellow\");
+		}
+	}
+}
+
+_showObjects(dyn_anytype scy, dyn_anytype model)
+{
+	for(int i=1; i<=dynlen(model); i++)
+        {
+		//if(dynlen(model[i])!=0)
+			dataTable.appendLine(\"number\",i, \"modelVar\", model[i][1], \"modelDesc\", model[i][2]);
+                //else
+                if(model[i][1]==\"EMPTY\")
+                {
+                        //dataTable.appendLine(\"number\",i ,\"modelVar\", \"\", \"modelDesc\", \"\");
+			dataTable.cellBackColRC(i-1, \"modelVar\", \"yellow\");
+			dataTable.cellBackColRC(i-1, \"modelDesc\", \"yellow\");
+                }  
+        }                      
+	for(int i=1; i<=dynlen(scy); i++)
+	{
+		string varName=\"\", desc=\"\";
+		//if(scy[i])!=0)
+		//{
+			varName = scy[i][1];
+			desc = scy[i][2];
+		//}
+		if(dataTable.lineCount<i)
+			dataTable.appendLine(\"number\",i ,\"scyVar\", varName, \"scyDesc\", desc);
+		else
+		{
+			dataTable.cellValueRC(i-1,\"scyVar\",varName);
+			dataTable.cellValueRC(i-1,\"scyDesc\",desc);
+		}
+		if(scy[i][1]==\"EMPTY\")
+		{                  
+			dataTable.cellBackColRC(i-1, \"scyVar\", \"yellow\");
+			dataTable.cellBackColRC(i-1, \"scyDesc\", \"yellow\");
+		}
+	}
+}
+
+bool checkControlData()
+{
+        dyn_string exceptionInfo;
+        for(int i=1; i<=3; i++)
+        {
+        	string tmp; bool state;
+        	getValue(\"warning0\"+i, \"text\", tmp, \"enabled\", state);
+        	if(state&&tmp==\"\")
+        	{
+       			fwException_raise(exceptionInfo, \"ERROR\", \"No description for warning0\"+i, \"\");
+      			fwExceptionHandling_display(exceptionInfo);
+       			return 1;
+        	}
+        	getValue(\"alarm0\"+i, \"text\", tmp, \"enabled\", state);
+        	if(state&&tmp==\"\")
+       		{
+       			fwException_raise(exceptionInfo, \"ERROR\", \"No description for alarm0\"+i, \"\");
+      			fwExceptionHandling_display(exceptionInfo);
+       			return 1;
+        	}  	
+        }
+        plantBits = \"\";
+        loopBits = \"\";
+        for(int i=0; i<16; i++)
+        {
+        	plantBits += (int)PlantBits.state(i) + \";\";
+        	loopBits += (int)LoopBits.state(i) + \";\";
+        }
+        return 0;
+}
+
+
+/* Following two functions are used for creating specific dyn's */
+void _fillDefault(dyn_dyn_string &data, dyn_int idx, string text, int len)
+{
+	for(int i=1; i<=dynlen(idx); i++)
+	{
+		int currIdx = idx[i];
+		for(int j=1; j<=len; j++)
+		{
+			if(dynlen(data[currIdx])<j)
+			{
+				data[currIdx][j] = text;
+				continue;
+			}
+			if(data[currIdx][j]==\"\")
+				data[currIdx][j] = text;
+		}
+	}
+}
+
+void _createFilledDyn(dyn_string &data, string text, int len)
+{
+	for(int i=1; i<=len; i++)
+		data[i] = text;
+}
+
+
+
+
+
+
+
+
+
+
+
+/*******************************************************************/
+_readSCYDefinition(dyn_string &exceptionInfo)
+{
+	fwOpenProgressBar(\"Information\", \"Reading\", 1);
+
+	file input;
+	string line;
+	mapping _scyAlarms, _scyWarnings;
+	//dyn_string exceptionInfo;
+	
+	input = fopen(path.text,\"r\");
+	if(input==0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Cannot open file \" + path.text + \" for reading!\", \"\");
+		fwCloseProgressBar(\"\");
+//		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+        
+        anytype bitNotInUse = makeDynAnytype(\"\",\"\");
+        int lastBitAl = 2;
+        int lastBitWa = 2;
+        int lastRef = 0;	
+        
+	while(feof(input)==0)
+	{
+		fgets(line, 1024, input);
+		if(strpos(line, scyPrefix)!=0) // We are only interested in lines that start with our prefix
+			continue;
+			
+		/* 
+                    Typical line of the SCY file:
+                    \"Rod_disj_6a_9a_al AT %MW114:X0 : BOOL (*Defaut disjoncteurs UPS*);\";
+                */
+
+		string varName;  	// Variable name - according to the naming convention
+		string rawAddress; 	// Raw PLC address - %MWxxxx or %MWxxxx:Xx
+		int reference;		// Part of the PLC address - the MODBUS reference - xxxx
+		string bit; 		// Which bit - important only for alarms/warnings
+		string scyDataType;	// The datatype in the decription field (REAL, WORD, BOOL)
+		string dataType;	// The datatype code - (MW, MF)
+		string description;	// Description field (contained withing (*text*) )
+		string level;	        // Plant or Loop
+		
+		/* We are reading the variable name, the raw addres, and the datatype */
+		sscanf(line, \"%s AT %s : %s\",varName, rawAddress, scyDataType);
+		/* Now we take out the description string - if there is any...*/		
+		dyn_string _desc = strsplit(line,\"*\");
+		if(dynlen(_desc)>=2)
+			description = _desc[2];
+		else
+			description = \"No Description\";
+
+		/* Now we parse the raw address and extract more information
+		 *  - the datatype code
+		 *  - the Reference Number - for Modbus addressing
+		 *  - bit - either bit position or empty string
+		 */
+		sscanf(rawAddress,\"%%%2s%d:X%s\", dataType, reference, bit);
+
+                             		
+		/***** At this point we have dissected the given SCY entry *****/
+                           
+                
+
+		/* We can deal with alarms and warnings first, as they are
+		 * the only entries that have bit!=\"\"
+		 * Additionally these entries will be handled in a special way
+		 */
+		if(bit!=\"\")
+		{
+                  
+			/* If we find the alarm keyword - then we are dealing with alarm entry */
+			if(strpos(varName,alarmKeyword)>0)
+			{                         
+                                if(lastRef!=reference)
+                                  lastBitAl=2; 
+                                else
+                                  lastBitAl=lastBitAl+1;                         
+				/* If we don't have the entry for that particular reference address
+				 * (which means no entry for this particular alarmWord) then
+				 * we have to initialize it.
+				 */
+				if(!mappingHasKey(_scyAlarms, reference))
+				{
+					_scyAlarms[reference] = makeDynAnytype();				
+				}
+				/* We have to store the variable name and description of the given bit
+				 * Structure of the object stored in mapping:
+				 * mapping[reference] [bit+1] [1 - varName; 2 - description]
+				 */
+                                //DebugN(reference, bit, lastBitAl, lastRef);
+                                for(int j=lastBitAl; j<((int)bit+2); j++)
+                                  (_scyAlarms[reference])[j] = bitNotInUse;
+                                                                
+				(_scyAlarms[reference])[(int)bit+2] = makeDynString(varName,description);
+                                
+                                lastBitAl = (int)bit+2;
+                                lastRef = reference;                           
+			}			
+			/* If we find the warning keyword - then we are dealing with warning entry */
+			else if(strpos(varName, warningKeyword)>0)
+			{
+                          
+                                if(lastRef!=reference)
+                                  lastBitWa=2;
+                                else
+                                  lastBitWa=lastBitWa+1;
+				if(!mappingHasKey(_scyWarnings, reference))
+				{
+					_scyWarnings[reference] = makeDynAnytype();				
+				}
+				/* We have to store the variable name and description of the given bit
+				 * Structure of the object stored in mapping:
+				 * mapping[reference] [bit+1] [1 - varName; 2 - description]
+				 */ 
+                                for(int j=lastBitWa; j<((int)bit+2); j++)
+                                  (_scyWarnings[reference])[j] = bitNotInUse;                                
+                                
+				(_scyWarnings[reference])[(int)bit+2] = makeDynString(varName,description);
+                                
+                                lastBitWa = (int)bit+2;
+                                lastRef = reference;     
+			}
+                        
+			continue; // Alarms and warnings are special and everything about them had been done
+		}
+
+                dyn_string object = makeDynString(\"\",varName, description);                  
+		/* Determine whether entry is related to any particular loop.
+		 * - if it is not related to any loop then it is either a plant-related
+		 *   entry or an internal PLC variable
+		 * - if it is related to any of the loops - we will create model using
+		 *   entries related to loop_01 (_01 suffix will be removed)
+		 */
+		if(strpos(varName,\"_loop\")>=0)
+		{
+			level = \"Loop\";
+			// determine loop number
+			dyn_string tmp = strsplit(varName,\"_\");
+			
+			// if it is not loop01 - discard
+			if(tmp[dynlen(tmp)]!=\"01\"&&tmp[dynlen(tmp)]!=\"001\")
+			{
+				//DebugN(\"1st pass - discard loop != 01 or 001 : \" + tmp); 
+				continue;
+			}
+
+			// Alter the variable name for the model generation
+			/* WARNING: It is assumed that the loop suffix is of format _XX
+			 *          and that suffix is being stripped
+			 */
+			if(tmp[dynlen(tmp)]==\"01\")
+				object[SCY_INDEX_varName] = substr(varName,0, strlen(varName)-3);
+			if(tmp[dynlen(tmp)]==\"001\")
+				object[SCY_INDEX_varName] = substr(varName,0, strlen(varName)-4);
+		}
+		else if(strpos(varName,\"_areaflow\")>=0)
+		{
+			level = \"Areaflow\";
+			atlasEvap = true;
+			// determine area number
+			dyn_string tmp = strsplit(varName,\"_\");
+			
+			// if it is not area01 - discard
+			if(tmp[dynlen(tmp)]!=\"01\"&&tmp[dynlen(tmp)]!=\"001\")
+				continue;
+
+			// Alter the variable name for the model generation
+			/* WARNING: It is assumed that the are suffix is of format _XX
+			 *          and that suffix is being stripped
+			 */
+			if(tmp[dynlen(tmp)]==\"01\")
+				object[SCY_INDEX_varName] = substr(varName,0, strlen(varName)-3);
+			if(tmp[dynlen(tmp)]==\"001\")
+				object[SCY_INDEX_varName] = substr(varName,0, strlen(varName)-4);		
+		}
+		else if(strpos(varName,\"_areatemp\")>=0)
+		{
+			level = \"Areatemp\";
+			atlasEvap = true;
+			// determine area number
+			dyn_string tmp = strsplit(varName,\"_\");
+			
+			// if it is not area01 - discard
+			if(tmp[dynlen(tmp)]!=\"01\"&&tmp[dynlen(tmp)]!=\"001\")
+				continue;
+
+			// Alter the variable name for the model generation
+			/* WARNING: It is assumed that the are suffix is of format _XX
+			 *          and that suffix is being stripped
+			 */
+			if(tmp[dynlen(tmp)]==\"01\")
+				object[SCY_INDEX_varName] = substr(varName,0, strlen(varName)-3);
+			if(tmp[dynlen(tmp)]==\"001\")
+				object[SCY_INDEX_varName] = substr(varName,0, strlen(varName)-4);		
+		}
+		else
+			level = \"Plant\"; 
+                
+
+		/* Now it is necessary to perform the initial classification of the entries:
+		 * - Control
+		 * - Setpoints
+		 * - Readbacks
+		 * - (Actual + Measurement) - they will be separated after reading the whole file
+		 * - other - which are discarded
+		 */		
+
+                // Alarm word (if no bits are found just use the whole word)
+		if(strpos(varName, \"_alarm\")>=0)
+		{
+			DebugN(\"Read SCY\",\"Alarm word\",varName);
+                        object[SCY_INDEX_class] = \"AlarmWord\";
+		}
+                // Warning word (if no bits are found just use the whole word)
+		else if(strpos(varName, \"_warning\")>=0 || strpos(varName, \"_fault\")>=0)
+		{
+			DebugN(\"Read SCY\",\"Warning word\",varName);
+                        object[SCY_INDEX_class] = \"WarningWord\";
+		}
+                
+                
+		/* Setpoint			-- \"_setp\" */
+		else if(strpos(varName, setpointKeyword)>0)
+		{
+			object[SCY_INDEX_class] = \"Setpoint\";
+			DebugN(\"Read SCY\",\"Setpoint\",varName);
+		}
+		
+		/* Readback			-- \"setp\"  */
+		else if(strpos(varName, readbackKeyword)>0)
+		{
+			object[SCY_INDEX_class] = \"Readback\";
+			DebugN(\"Read SCY\",\"Readback\",varName);
+		}
+		
+		/* Control 			-- \"(control)(?=_loop_|_cycle)\" */
+		//else if(strpos(varName, \"control\")>0 && (strpos(varName,\"_loop\")>0||strpos(varName,\"_cycle\")>0))
+		else if(strpos(varName, \"control_cycle\")>0 || strpos(varName, \"control_loop_\")>0 )
+		{
+			object[SCY_INDEX_class] = \"Control\";
+			DebugN(\"Read SCY\",\"Control\",varName);
+		}	
+	
+		/* Status				-- \"(status)(?=_loop_|_cycle)\" */
+		//else if(strpos(varName, \"status\")>0 && (strpos(varName,\"_loop_\")>0||strpos(varName,\"_cycle\")>0))
+		else if(strpos(varName, \"status_cycle\")>0 || strpos(varName, \"status_loop_\")>0 )
+		{
+			object[SCY_INDEX_class] = \"Status\";
+			DebugN(\"Read SCY\",\"Status\",varName);
+		}
+		
+                /* ..._control_clock*/
+		else if(strpos(varName, \"control_clock\")>0)
+		{
+			object[SCY_INDEX_class] = \"ControlC\";
+			DebugN(\"Read SCY\",\"Control clock\",varName);
+		}	
+		
+		/* ..._status_clock*/
+		else if(strpos(varName, \"status_clock\")>0)
+		{
+			object[SCY_INDEX_class] = \"StatusC\";
+			DebugN(\"Read SCY\",\"Status clock\",varName);
+		}	
+                
+		/* Measurement	-- \"(status)(?!(_ppvcycle|_fault|_alarm))\" */
+		else if(strpos(varName, \"status\")>0 && (strpos(varName,\"_ppvcycle\")<0&&strpos(varName,\"_fault\")<0&&strpos(varName,\"_alarm\")<0&&strpos(varName,\"_functiontime\")<0)&&strpos(varName,\"elapsedtime\")<0)
+		{
+			object[SCY_INDEX_class] = \"Measurement\";
+			DebugN(\"Read SCY\",\"Measurement\",varName);
+		}
+
+		/* ppvcycle	-- \"(status)(?!(_fault|_alarm))\" */
+		else if(strpos(varName, \"status\")>0 && strpos(varName,\"_ppvcycle\")>0 && (strpos(varName,\"_fault\")<0&&strpos(varName,\"_alarm\")<0&&strpos(varName,\"_functiontime\")<0)&&strpos(varName,\"elapsedtime\")<0)
+		{
+			object[SCY_INDEX_class] = \"PPVCycle\";
+			DebugN(\"Read SCY\",\"PPVCycle\",varName);
+		}                
+                		
+		/* ..._status_elapsedtime - timeout counter! */
+		else if(strpos(varName, \"status_elapsedtime\")>=0)
+		{
+			object[SCY_INDEX_class] = \"Timeout\";
+			DebugN(\"Read SCY\",\"Timeout\",varName);
+		}
+		
+		/* Something else - internal variables, etc */
+		else
+		{
+			DebugN(\"Read SCY\",\"-->Discarded\", varName);
+			continue;
+		}
+			
+			
+				
+		// All possible situations should have been included in above clauses
+		// Append to the storage dyn_dyn_strings:
+		if(level==\"Plant\")
+			dynAppend(plantEntries, object);
+		else if(level==\"Loop\")
+			dynAppend(loopEntries, object);
+		else if(level==\"Areaflow\")
+			dynAppend(areaflowEntries, object);
+		else if(level==\"Areatemp\")
+			dynAppend(areatempEntries, object);
+                
+	} // End of loop reading the SCY              
+	
+               
+        /* Extract alarmWords and warningWords */      
+	transformMappings(_scyAlarms, scyAlarms);
+	transformMappings(_scyWarnings, scyWarnings);
+
+        // If alarm bits are found, remove alarm words
+        if(dynlen(scyAlarms)!=0 || dynlen(scyWarnings)!=0)
+          removeDuplicateAlarms(plantEntries);      
+                
+	/* Find the setpoint variables keywords - they will be used to separate status
+	 * information corresponding to setpoints from status information corresponding
+	 * to other measurements
+	 */
+	separateMeasurements(plantEntries);
+	separateMeasurements(loopEntries);
+	if(atlasEvap == true)
+	{
+		separateMeasurements(areaflowEntries);
+		separateMeasurements(areatempEntries);
+	}
+	
+	/* Populate the object dyn_anytypes */
+	populateObjectArrays(scyPlantObjects, plantEntries);
+	populateObjectArrays(scyLoopObjects, loopEntries);
+        
+	if(atlasEvap == true)
+	{
+		populateObjectArrays(scyAreaflowObjects, areaflowEntries);
+		populateObjectArrays(scyAreatempObjects, areatempEntries);
+	}        
+       
+	fwCloseProgressBar(\"\");
+	fclose(input);
+        
+}
+
+removeDuplicateAlarms(dyn_dyn_string &input)
+{
+        dyn_int deleteRows;
+        for(int i=1; i<=dynlen(input); i++)
+        {
+		if(input[i][SCY_INDEX_class]==\"AlarmWord\")
+                        dynAppend(deleteRows, i);
+		else if(input[i][SCY_INDEX_class]==\"WarningWord\")
+                        dynAppend(deleteRows, i);               
+        }
+                        
+        for(int i=1; i<=dynlen(deleteRows); i++)
+                dynRemove(input, deleteRows[i]);
+                  
+}
+
+separateMeasurements(dyn_dyn_string &scyFile)
+{
+	dyn_string setpointKeywords;
+	for(int i=1; i<=dynlen(scyFile); i++)
+	{
+		if(scyFile[i][SCY_INDEX_class]==\"Setpoint\")
+		{
+			string keyword = substr(scyFile[i][SCY_INDEX_varName], strpos(scyFile[i][SCY_INDEX_varName],setpointKeyword)+6);
+			//DebugN(\"test1\",keyword,scyFile[i][SCY_INDEX_varName]);
+                        dynAppend(setpointKeywords, keyword);
+		}
+	}
+	
+	// Rename the \"Measurements\" which have a setpoint and readback to \"Actual\"
+	for(int i=1; i<=dynlen(scyFile); i++)
+	{
+		if(scyFile[i][SCY_INDEX_class]==\"Measurement\")
+		{
+			// Look for the keywords
+			for(int j=1; j<=dynlen(setpointKeywords); j++)
+			{
+				if(strpos(scyFile[i][SCY_INDEX_varName],setpointKeywords[j])>=0)
+				{
+                                        //DebugN(\"test2\",setpointKeywords[j],scyFile[i][SCY_INDEX_varName]);                                  
+					// Remove the keyword from the list
+					dynRemove(setpointKeywords,j);
+					// change the entry
+					scyFile[i][SCY_INDEX_class] = \"Actual\";
+					// go to next entry
+					break;
+				}
+			}
+		}               
+	}
+}
+
+transformMappings(mapping map, dyn_anytype &target)
+{
+	dyn_anytype keys = mappingKeys(map);
+	for(int i=1; i<=dynlen(keys); i++)
+	{
+		target[i] = map[keys[i]];
+		target[i][1] = 0;
+	}
+}
+
+populateObjectArrays(dyn_anytype &array, dyn_dyn_string input)
+{
+	for(int i=1; i<=dynlen(input); i++)
+	{
+		int index;
+		dyn_anytype object = input[i];
+
+		if(object[SCY_INDEX_class]==\"Measurement\")
+			index = INDEX_M;
+		else if(object[SCY_INDEX_class]==\"PPVCycle\")
+			index = INDEX_P;                
+		else if(object[SCY_INDEX_class]==\"Setpoint\")
+			index = INDEX_S;
+		else if(object[SCY_INDEX_class]==\"Readback\")
+			index = INDEX_R;
+		else if(object[SCY_INDEX_class]==\"Actual\")
+			index = INDEX_A;
+		else if(object[SCY_INDEX_class]==\"AlarmWord\" && dynlen(scyAlarms)==0)
+			index = INDEX_AW;
+		else if(object[SCY_INDEX_class]==\"WarningWord\" && dynlen(scyWarnings)==0)
+			index = INDEX_WW;                                
+		else
+			continue;
+               // DebugN(object[SCY_INDEX_varName], object[SCY_INDEX_description], index);
+		dyn_string _object = makeDynString(object[SCY_INDEX_varName], object[SCY_INDEX_description], \"0\");
+		_dynInsertToDyn(array, index, _object);
+	}
+}
+
+
+/*******************************************************************/
+_readModelDefinition(dyn_string &exceptionInfo)
+{
+	fwOpenProgressBar(\"Information\", \"Reading\", 1);
+        //FIX: Check to see if the model exists before reading
+         if(dpExists(\"FwCaVPlantModel\"+systemPrefix.text))
+	  loadModel(\"FwCaVPlant\", systemPrefix.text);
+        
+        //FIX: Check to see if the loop exists before reading
+         if(dpExists(\"FwCaVLoopModel\"+systemPrefix.text))
+          loadModel(\"FwCaVLoop\", systemPrefix.text);
+        
+	if(atlasEvap == true)
+	{
+		loadModel(\"FwCaVAreaflow\", systemPrefix.text);
+		loadModel(\"FwCaVAreatemp\", systemPrefix.text);
+	}
+//	compare.visible	= true;
+	fwCloseProgressBar(\"\");
+}
+
+
+loadModel(string deviceDpType, string model)
+{
+	// Obtain the model data
+	dyn_dyn_string elements;
+	dyn_string exceptionInfo;
+	
+	fwDevice_getConfigElements(deviceDpType, fwDevice_ALL, elements, exceptionInfo, model);
+        //DebugN(\"Elements reads with fwfunc: \" + elements);
+        //DebugN(\"Number of elements read from fwfunc: \" + dynlen(elements) + \". deviveDpType: \" + deviceDpType);
+        
+	/*
+	// Commented out, because fwDevice_getConfigElements returns an exception when called
+	// with fwDevice_ALL parameter, even though the results are correct
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	*/
+	
+	/* Populate the modelPlantObjects and modelLoopObjects */
+	if(deviceDpType==\"FwCaVPlant\")
+	{
+		/* Populate the modelAlarms and modelWarnings
+		 */
+		//populateAlarms(modelAlarms, \".Alarms.alarmWord\", elements);
+		//populateAlarms(modelWarnings, \".Warnings.warningWord\", elements);
+		populateObjects(modelPlantObjects, elements, deviceDpType);
+                //DebugN(modelPlantObjects[INDEX_AW]);
+		/* Populate the array of checkboxes - with possible states */
+		int pos = dynContains(elements[fwDevice_ELEMENTS_INDEX],\".Settings.control\");
+		dyn_int bits = strsplit(elements[fwDevice_USER_DATA_INDEX][pos],\";\");
+		for(int i=1; i<=16; i++)
+		{
+			PlantBits.state(i-1) = bits[i];
+		}
+	}
+	else if(deviceDpType==\"FwCaVLoop\")
+	{
+		populateObjects(modelLoopObjects, elements, deviceDpType);
+		/* Populate the array of checkboxes - with possible states */
+		int pos = dynContains(elements[fwDevice_ELEMENTS_INDEX],\".Settings.control\");
+		dyn_int bits = strsplit(elements[fwDevice_USER_DATA_INDEX][pos],\";\");
+		for(int i=1; i<=16; i++)
+		{
+			LoopBits.state(i-1) = bits[i];
+		}
+		/* Populate the loop alarms / warnings descriptions */
+		for(int i=1; i<=3; i++)
+		{
+			int pos;
+			if(pos=dynContains(elements[fwDevice_ELEMENTS_INDEX],\".Actual.alarm0\"+i))
+			{
+				setValue(\"alarm0\"+i, \"text\", elements[fwDevice_DESCRIPTION_INDEX][pos]);
+				setValue(\"alarm0\"+i, \"enabled\", 1);
+			}
+			if(pos=dynContains(elements[fwDevice_ELEMENTS_INDEX],\".Actual.fault0\"+i))
+			{
+				setValue(\"warning0\"+i, \"text\", elements[fwDevice_DESCRIPTION_INDEX][pos]);
+				setValue(\"warning0\"+i, \"enabled\", 1);
+			}
+		}
+	}
+	else if(deviceDpType==\"FwCaVAreaflow\")
+	{
+		populateObjects(modelAreaflowObjects, elements, deviceDpType);
+	}
+	else if(deviceDpType==\"FwCaVAreatemp\")
+	{
+		populateObjects(modelAreatempObjects, elements, deviceDpType);
+	}
+}
+
+populateAlarms(dyn_anytype &dyn, string prefix, dyn_dyn_string input)
+{
+        dyn_anytype history;
+        history[1] = 0;
+        history[2] = makeDynString(\"EMPTY\",\"Model history\");
+	//int number = 1;
+        int oldParNum = 1;                      
+	/* Loop through all the elements */ 
+	for(int i=1; i<=dynlen(input[fwDevice_ELEMENTS_INDEX]); i++)
+	{
+		/* Look for entries matching the prefix */
+		if(strpos(input[fwDevice_ELEMENTS_INDEX][i], prefix)>=0 )
+		{
+                  
+                        int parNum = substr(input[fwDevice_ELEMENTS_INDEX][i],strlen(input[fwDevice_ELEMENTS_INDEX][i])-2);
+
+                        for(int j=oldParNum; j<=(parNum-1); j++)
+                         dyn[j]=history; 
+                        
+                        /* Extract the variable names and descriptions from the model */
+                        dyn_string varNames = strsplit(input[fwDevice_USER_DATA_INDEX][i],\";\");
+			dyn_string descriptions = strsplit(input[fwDevice_DESCRIPTION_INDEX][i],\";\");                       			
+                        
+			/* Create the dyn_anytype array of objects that will be stored in the mapping */
+			dyn_anytype entry = makeDynAnytype();
+
+			for(int j=1; j<=dynlen(varNames); j++)
+                        {
+                          entry[j+1] = makeDynString(varNames[j], descriptions[j]);   
+                        }                                       			
+                        entry[1] = 0;             
+			/* Store the entry in the mapping */
+			dyn[parNum++] = entry;
+                        oldParNum = parNum;
+		}
+	}
+        // add the blank spaces
+        dyn_string blankparams;  
+        dyn_int blanks;
+        string deviceDpType;
+        
+        if(prefix==\".Warnings.warningWord\")
+            deviceDpType = \"Warning\";
+        else
+            deviceDpType = \"Alarm\";
+        
+        dpGet(\"CaV/\"+systemPrefix.text+\"Plant.ModelHistory.prevouslyUsedItems\", blankparams);
+        // loop through the used params and find params related to the params in this function call (prefix and deviceDpType)
+        for(int i=1; i<=dynlen(blankparams); i++)
+        {
+            // format of blankparams:  FwCaVPlant;.Actual.Parameters.param;1 
+            //                         deviceDpType;prefix;number of used param
+            if(patternMatch(deviceDpType+\";\"+prefix+\"*\",blankparams[i]))
+            {
+              dyn_string tempBlanks = strsplit(blankparams[i],\";\");
+              dynAppend(blanks,(int)tempBlanks[3]);
+            }
+        }        
+        dynSortAsc(blanks);
+        for(int i=1; i<=dynlen(blanks); i++)
+        {
+            if(dynlen(dyn)>=blanks[i])
+            {
+              if(dyn[blanks[i]][2][1]!=\"EMPTY\")
+              {
+                dyn[dynlen(dyn)+1] = dyn[blanks[i]];
+                dynRemove(dyn,blanks[i]);
+                dynInsertAt(dyn,history,blanks[i]);
+                //_dynSwap(dyn,dynlen(dyn),blanks[i]);
+              }
+            }
+            else
+            {
+              dyn[i] = history;
+            }
+        }
+}
+
+populateObjects(dyn_anytype &array, dyn_dyn_string input, string deviceDpType)
+{
+	_populateObjects(array[INDEX_M], \".Actual.Measurements.param\", input, deviceDpType);
+        _populateObjects(array[INDEX_P], objectPrefixes[INDEX_P], input, deviceDpType); // PPVCycle
+        _populateObjects(array[INDEX_AW], objectPrefixes[INDEX_AW], input, deviceDpType); // Alarm word
+        _populateObjects(array[INDEX_WW], objectPrefixes[INDEX_WW], input, deviceDpType); // Warning word                
+	_populateObjects(array[INDEX_S], \".Settings.Parameters.param\", input, deviceDpType);
+	_populateObjects(array[INDEX_R], \".ReadBackSettings.Parameters.param\", input, deviceDpType);
+	_populateObjects(array[INDEX_A], \".Actual.Parameters.param\", input, deviceDpType);
+}
+_populateObjects(dyn_anytype &array, string prefix, dyn_dyn_string input, string deviceDpType)
+{
+	/* Loop through all the elements */
+        int oldParNum = 1;
+        dyn_anytype blank = makeDynString(\"EMPTY\",\"Model history\",1); 
+	for(int i=1; i<=dynlen(input[fwDevice_ELEMENTS_INDEX]); i++)
+	{
+		/* Look for entries matching the prefix */
+		if(strpos(input[fwDevice_ELEMENTS_INDEX][i], prefix)>=0 )
+		{
+			/* Extract the parameter number */
+
+      int parNum;
+      char preprelast = substr(input[fwDevice_ELEMENTS_INDEX][i],strlen(input[fwDevice_ELEMENTS_INDEX][i])-3,1);
+      if( preprelast == '0' || preprelast == '1' || preprelast == '2' || preprelast == '3' || preprelast == '4'
+          || preprelast == '5' || preprelast == '6' || preprelast == '7' || preprelast == '8' || preprelast == '9' )
+			    parNum = substr(input[fwDevice_ELEMENTS_INDEX][i],strlen(input[fwDevice_ELEMENTS_INDEX][i])-3);
+        
+      else 
+			    parNum = substr(input[fwDevice_ELEMENTS_INDEX][i],strlen(input[fwDevice_ELEMENTS_INDEX][i])-2);
+        
+                        // If there are blanks fill them in with empty dynstring
+                        for(int j=oldParNum; j<=(parNum-1); j++)
+                          array[j]=blank; 
+
+			/* Create the object to be stored in the dyn_anytype array */
+			dyn_anytype object;
+  		        object = makeDynString(input[fwDevice_USER_DATA_INDEX][i],input[fwDevice_DESCRIPTION_INDEX][i],0);
+			
+			/* Store the object in the array */
+			array[parNum++] = object;
+                        oldParNum = parNum;
+		}
+       	}
+        
+        // If there are params that allready exist in the ModelHistory we add blanks to the model
+       dyn_string blankparams;
+       dyn_int blanks;
+        dpGet(\"CaV/\"+systemPrefix.text+\"Plant.ModelHistory.prevouslyUsedItems\", blankparams);
+        
+        // loop through the used params and find params related to the params in this function call (prefix and deviceDpType)
+        for(int i=1; i<=dynlen(blankparams); i++)
+        {
+            // format of blankparams:  FwCaVPlant;.Actual.Parameters.param;1 
+            //                         deviceDpType;prefix;number of used param
+            if(patternMatch(deviceDpType+\";\"+prefix+\"*\",blankparams[i]))
+            {
+              dyn_string tempBlanks = strsplit(blankparams[i],\";\");
+              dynAppend(blanks,(int)tempBlanks[3]);
+            }
+        }
+        dynSortAsc(blanks);
+        for(int i=1; i<=dynlen(blanks); i++)
+        {
+            if(dynlen(array)>=blanks[i])
+            {
+              if(array[blanks[i]][1]!=\"EMPTY\")
+              {
+                array[dynlen(array)+1] = blank;
+                _dynSwap(array,dynlen(array),blanks[i]);
+              }
+            }
+            else
+            {
+              array[i] = blank;
+            }            
+        }
+}
+
+
+
+
+/*******************************************************************/
+_compareScyAndModel()
+{
+	fwOpenProgressBar(\"Information\", \"Comparing\", 1);
+	
+	/* Compare the scy and model alarm/warningWords */
+        
+        //DebugN(\"Warnings scy \",scyWarnings);
+        //DebugN(\"Warnings model \",modelWarnings);
+        //DebugN(\"modelAlarms \",modelAlarms);
+        //DebugN(\"scyAlarms \",scyAlarms);
+        
+	//DebugN(\"Read SCY\",\"-->Compare AlarmWords:\",_compareAlarms(scyAlarms,modelAlarms, alarmKeyword));
+	//DebugN(\"Read SCY\",\"-->Compare WarningWords:\",_compareAlarms(scyWarnings,modelWarnings, warningKeyword));
+	//DebugN(\"Read SCY\",\"-->Compare AlarmWords:\",_compareObjects(scyPlantObjects, modelPlantObjects, INDEX_AW, INDEX_AW));
+	//DebugN(\"Read SCY\",\"-->Compare WarningWords:\",_compareObjects(scyPlantObjects, modelPlantObjects, INDEX_WW, INDEX_WW));
+
+	/* Compare Plant Measurements */
+	DebugN(\"Read SCY\",\"-->Compare Plant Measurements:\",_compareObjects(scyPlantObjects, modelPlantObjects, 1, 1));
+	
+        /* Compare Plant SRA */
+        DebugN(\"Read SCY\",\"-->Compare Plant SRA:\",_compareObjects(scyPlantObjects, modelPlantObjects, 2, 4));
+	
+        /* Compare Loop Measurements */     
+        if(dynlen(modelLoopObjects)!=0)
+             DebugN(\"Read SCY\",\"-->Compare Loop Measurements:\",_compareObjects(scyLoopObjects, modelLoopObjects, 1, 1));
+	
+        /* Compare Loop SRA */
+        if(dynlen(modelLoopObjects)!=0)
+             DebugN(\"Read SCY\",\"-->Compare Loop SRA:\",_compareObjects(scyLoopObjects, modelLoopObjects, 2, 4));
+
+	if(atlasEvap == true)
+	{
+		/* Compare Areaflow Measurements */
+		DebugN(\"Read SCY\",\"-->Compare Areaflow Measurements:\",_compareObjects(scyAreaflowObjects, modelAreaflowObjects, 1, 1));
+		/* Compare Areaflow SRA */
+		DebugN(\"Read SCY\",\"-->Compare Areaflow SRA:\",_compareObjects(scyAreaflowObjects, modelAreaflowObjects, 2, 4));
+		
+		//* Compare Areatemp Measurements */
+		DebugN(\"Read SCY\",\"-->Compare Areatemp Measurements:\",_compareObjects(scyAreatempObjects, modelAreatempObjects, 1, 1));
+		/* Compare Areatemp SRA */
+		DebugN(\"Read SCY\",\"-->Compare Areatemp SRA:\",_compareObjects(scyAreatempObjects, modelAreatempObjects, 2, 4));
+	}
+	
+	fwCloseProgressBar(\"\");
+}
+
+bool _compareObjects(dyn_anytype &scy, dyn_anytype &model, int startIdx, int stopIdx)
+{
+       /* Variable to indicate whether mappings are identical */
+       bool identical = true;
+       bool del = false;
+
+       for(int column=startIdx; column<=stopIdx; column++)
+       {                     
+                
+                // add blanks in scy as long as model > scy
+                for(int i=dynlen(scy[column]); i<dynlen(model[column]); i++)
+                {
+                          scy[column][dynlen(scy[column])+1] = makeDynString(\"EMPTY\", \"Model history\", 0);
+                }
+                /* Iterate through the model */
+		for(int i=1; i<=dynlen(model[column]); i++)
+		{	
+                        // if there is a blank field in the model jump to the next iteration
+                        if(model[column][i][1]==\"EMPTY\")
+                         continue;
+                                   
+			int idx = 0; // Will store the number of entry in the other dyn
+			for(int j=1; j<=dynlen(scy[column]); j++)
+			{  
+                                if(model[column][i][1]==scy[column][j][1])
+				{
+					idx = j;
+					break;
+                                }
+
+                        }         // End loop through scy
+			if(idx!=0) // There is a match
+			{
+				if(idx!=i) // swap
+				{
+                                      _dynSwap(scy[column],i,idx);
+				}
+				// Mark
+				scy[column][i][3] = 1;
+				model[column][i][3] = 1;
+			}
+			else
+			{
+                                identical = false;
+				model[column][i][3] = 0;                          
+			}
+		} // End loop through model
+		if(dynlen(model[column])!=dynlen(scy[column]))
+			identical = false;
+		/*	Rearrange the entries in the scy - so that entries having no
+	 	 *  corresponding entry in model are pushed to the end
+		 */
+                if(dynlen(model[column])!=0)          
+                  _rearrangeObjects(scy,model,column);
+	} // End loop through columns
+	return identical;
+}
+
+bool _compareAlarms(dyn_dyn_anytype &scy, dyn_dyn_anytype model, string keyword)
+{	
+	/* Variable to indicate whether mappings are identical */
+	bool identical = true;
+
+        // add blanks in scy as long as model > scy
+        dyn_dyn_anytype history;
+        history[1] = 0;
+        history[2] = makeDynString(\"EMPTY\",\"Model history\");
+
+        // add blank alarm/warning words as long as model > scy
+        for(int i=dynlen(scy); i<dynlen(model); i++)
+        {
+             scy[dynlen(scy)+1] = history;
+        }
+
+        /* Iterate through the model */
+	for(int i=1; i<=dynlen(model); i++)
+	{     
+		int idx; // Will store the number of entry in the other dyn
+		dyn_dyn_anytype aData = model[i];
+                if(dynlen(aData)==1)
+                  continue;
+		
+		bool match = false;
+                
+                if(aData[2][1]==\"EMPTY\")	
+                      continue;
+                             
+		for(int j=1; j<=dynlen(scy); j++)
+		{
+			dyn_dyn_anytype bData = scy[j];
+
+			// Compare the number of bits in given words
+                        if(dynlen(bData)!=dynlen(aData) || bData[2][1]==\"EMPTY\")
+                        {
+                          continue;
+                        }
+
+			idx = j;
+			for(int bit=2;bit<=dynlen(aData); bit++)
+			{
+				// Compare the varName of given bits in given word
+				if(aData[bit][1]!=bData[bit][1])
+				{
+					idx = 0;
+					break;
+				}
+			}
+			if(idx==j) // They are really the same
+			{                                                          
+				if(i!=j) // swap
+				{                                   
+                                    dyn_dyn_anytype tmp;
+                                    dyn_dyn_anytype tmp2;
+                                    tmp[1] = scy[i];
+                                    tmp2[1] = scy[j];
+                                    dynRemove(scy,i);                                  
+                                    dynInsertAt(scy,tmp2,i);
+                                    dynRemove(scy,j);
+                                    dynInsertAt(scy,tmp,j);
+				}
+				match = true;
+				// mark the alarm/warning word with true (there is a match)
+				scy[i][1] = 1;
+				model[i][1] = 1;                                
+				break;
+			}
+		}
+		if(match==false)
+			identical = false;
+        }
+	if(dynlen(scy)!=dynlen(model))
+		identical = false;
+        
+	/*	Rearrange the entries in the scy - so that entries having no
+	 *  corresponding entry in model are pushed to the end
+	 */
+	_rearrangeAlarms(scy, model, keyword);
+	return identical; 
+}
+
+    
+int _rearrangeAlarms(dyn_dyn_anytype &scy, dyn_dyn_anytype model, string keyword)
+{
+        dyn_dyn_anytype history;
+        history[1] = 0;
+        history[2] = makeDynString(\"EMPTY\",\"Model history\");
+          
+        if(dynlen(scy)==0)
+          return 0;      
+  
+	int len = dynlen(scy);
+	for(int i=1; i<=len; i++)
+	{
+                if(scy[i][2][1]==\"EMPTY\") 
+                  continue;
+                
+		if(scy[i][1]==\"0\") // No matching entry in model
+		{
+			int position = dynlen(scy)+1; // new position at the end
+                        
+                        // if the SCY file have more elements than the model change the end posistion
+                        if(i>dynlen(model) && dynlen(model)>0)
+                           position=i;
+                        
+                        if(position>dynlen(scy))                                                 
+			   scy[position] = history;
+                        
+			_dynSwap(scy,i,position);
+		}
+	}
+        
+        // check if alarms or warnings have reached the max. number for params
+        // if they have start using blank spaces from the model definition
+        int maxLimit; 
+        string alOrWa=\"\";
+        for(int i=1;i<=dynlen(scy);i++)
+        {
+            if(keyword==alarmKeyword)
+            {
+                maxLimit = maxNumberOfAlarms;
+                alOrWa = \"alarms\";
+                break;
+            }
+            else if(keyword==warningKeyword)
+            {
+                maxLimit = maxNumberOfWarnings; 
+                alOrWa = \"warnings\";      
+                break;    
+            }            
+        }
+        
+        if(alOrWa==\"\")
+          return;
+        
+        dyn_int delAll;
+        if(dynlen(scy)>maxLimit)
+        {
+           //DebugN(\"The maximum number (\"+maxLimit+\") of params for \"+alOrWa+\" are created! Reduce the number of params in SCY file before parsing\");          
+           
+           for(int i=maxLimit+1; i<=dynlen(scy); i++) 
+           {           
+              for(int j=1; j<=dynlen(scy); j++)
+              {               
+                  if(scy[j][2][1]==\"EMPTY\")
+                  {
+                      _dynSwap(scy,i,j);  
+                      dynAppend(delAll, i); 
+                  }    
+              }
+           } 
+           for(int i=1; i<=dynlen(delAll); i++)
+           {
+                dynRemoveItem(scy,delAll[i]); 
+           }
+        }
+}
+
+_rearrangeObjects(dyn_anytype &scy, dyn_anytype model, int idx)
+{    
+    	int len = dynlen(scy[idx]);          
+        
+        for(int i=1; i<=len; i++)
+	{ 
+
+             if(scy[idx][i][1]==\"EMPTY\") // do not rearrange the blank entries.
+               continue;
+             if(scy[idx][i][3] == \"0\") // No matching entry in model
+             {
+                        int position = dynlen(scy[idx])+1;
+                        
+                        // if the SCY has more fields than the model don't move the fields in the SCY
+                        if(i>dynlen(model[idx]) && dynlen(model[idx])>0)
+                           position=i;
+                                                
+                        if(i<=dynlen(model[idx]))                    
+                           scy[idx][position] = makeDynString(\"EMPTY\",\"Model history\", 0);
+                        
+                        _dynSwap(scy[idx],i,position); // swap place between old and new field
+                        scy[idx][position][3] = 1;  // mark the field with the new position
+              }
+         
+	}
+        
+        // if there are more params than the max. limit start using blank spaces from the modelhistory
+        dyn_int delAll;
+        if(dynlen(scy[idx])>maxNumberOfParams)
+        {
+           for(int i=maxNumberOfParams+1; i<=dynlen(scy[idx]); i++) 
+           {
+              for(int j=1; j<=dynlen(scy[idx]); j++)
+              {
+                  if(scy[idx][j][1]==\"EMPTY\")
+                  {
+                      _dynSwap(scy[idx],i,j);   
+                      dynAppend(delAll,i); 
+                  }    
+              }
+           } 
+           for(int i=1; i<=dynlen(delAll); i++)
+           {
+                dynRemoveItem(scy[idx],delAll[i]); 
+           }
+                      
+           //DebugN(\"The maximum number (\"+maxNumberOfParams+\") of params are created! Reduce the number of params in SCY file before parsing\");
+        }    
+}
+        
+dynRemoveItem(dyn_anytype &scy, int removeItem)
+{
+     dynRemove(scy, removeItem);
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text2"
+""
+1 20 44 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 46 78 62
+0 2 0 "0s" 0 0 0 64 0 0  22 46 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Path:
+2 1
+"Text3"
+""
+1 460 36 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 462 38 558 74
+0 2 0 "0s" 0 0 0 64 0 0  462 38 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 System Prefix 
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 (eg. Tile)
+2 2
+"Text4"
+""
+1 20 130 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 112 78 128
+0 2 0 "0s" 0 0 0 64 0 0  22 112 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Display:
+30 3
+"Frame2"
+""
+1 14 710 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.27090301003344 0 -141.070234113712 0 E 14 410 214 710
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Plant
+30 4
+"Frame3"
+""
+1 214 710 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.980993255671367 0 1.27090301003344 10.0674432863275 -141.07023411371 0 E 214 410 704 710
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 Loop
+2 5
+"Text5"
+""
+1 416.000000000001 625 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 418.000000000001 597 484.000000000001 613
+0 2 0 "0s" 0 0 0 64 0 0  418.000000000001 597 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Warning01:
+2 6
+"Text6"
+""
+1 416.000000000001 648 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 418.000000000001 620 484.000000000001 636
+0 2 0 "0s" 0 0 0 64 0 0  418.000000000001 620 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Warning02:
+2 7
+"Text7"
+""
+1 416.000000000001 670 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 418.000000000001 642 484.000000000001 658
+0 2 0 "0s" 0 0 0 64 0 0  418.000000000001 642 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Warning03:
+2 8
+"Text8"
+""
+1 416.000000000001 700 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 418.000000000001 672 484.000000000001 688
+0 2 0 "0s" 0 0 0 64 0 0  418.000000000001 672 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Alarm01:
+2 9
+"Text9"
+""
+1 416.000000000001 723 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 418.000000000001 695 484.000000000001 711
+0 2 0 "0s" 0 0 0 64 0 0  418.000000000001 695 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Alarm02:
+2 10
+"Text10"
+""
+1 416.000000000001 745 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 418.000000000001 717 484.000000000001 733
+0 2 0 "0s" 0 0 0 64 0 0  418.000000000001 717 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Alarm03:
+30 11
+"Frame4"
+""
+1 414 690 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.00358422939068 0 0.691119691119691 -5.48387096774154 273.818532818533 0 E 414 430 694 690
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 33 Warning and Alarm bit description
+2 12
+"Text13"
+""
+1 0 0 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 2 2 198 28
+0 2 0 "0s" 0 0 0 64 0 0  2 2 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 SCY File Processing
+30 13
+"Frame5"
+""
+1 10 97 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+41 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.001221001221 0 0.75 -0.0122100122100122 5.75 0 E 10 23 830 100
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 Read SCY file
+30 14
+"Frame6"
+""
+1 10 330 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+41 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.13085621970921 0 1 -1.30856219709208 -20 0 E 10 110 630 330
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 Model Definition Overview
+30 15
+"Frame7"
+""
+1 10 719 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+43 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.00425951520736 0 1.21951219512195 -0.0425951520735991 -106.829268292683 0 E 10 350 708 720
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 37 Allowed Control and Status bits Setup
+2 16
+"Text1"
+""
+1 20 370 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 342 678 378
+0 2 0 "0s" 0 0 0 64 0 0  22 342 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 103 NOTE: Information below has to be provided manually from the System Technical documentation provided by
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 54            TS/CV. It is not contained in the SCY file.
+14 18
+"path"
+""
+1 100 43 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"textChangedCB" "/*
+    if there is a change in the text field for the file path then this script tries to get the system prefix
+    - created by Erik Morset (2007)
+*/
+main(string path)
+{
+  	file inputFile;
+
+        if(path!=\"\")
+            inputFile = fopen(path,\"r\"); // open the file, read only
+        else
+            return;
+        
+        // end this function if the path to the file is incorrect 
+	if(inputFile==0)
+	{
+                DebugN(\"Get prefix failed, cannot open file: \",path);
+		return;
+	}
+        
+        string getPrefix; 
+        while(feof(inputFile)==0) // loop through the file
+	{
+                string line;
+		fgets(line, 1024, inputFile); // read the file line by line
+                
+                // if not the line in the file have the same pattern as the string below go to next line
+                // Lar_setp_outlettemp AT %MF17000 : REAL (*Communication avec ECR, consigne de temperature de sortie (Lar)*);
+		if(!patternMatch(\"*_*AT*:*\",line))
+		    continue;
+                
+                string varName;
+                sscanf(line, \"%s AT :\",varName); // get the variabel name from the string (Lar_setp_outlettemp)  
+
+                dyn_string splitVarName;
+                splitVarName = strsplit(varName,\"_\"); // split the varname
+                
+                getPrefix = splitVarName[1]; // save the prefix
+                
+                break; // mission is completed, end the loop     
+        }
+        
+        if(getPrefix!=\"\")
+            systemPrefix.text = getPrefix;
+        
+        fclose(inputFile); // close the file
+}"
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 98 41 402 68
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+//	this.text = \"C:/work/CV/tile_lar_rod.SCY\";
+}" 0
+ E
+13 19
+"selectDir"
+""
+1 410 43 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 408 41 452 75
+
+P 
+14215660
+"pictures/fileselektor.xpm"
+1
+LANG:1 0 
+"main()
+{
+	string path;
+	//getValue(\"path\",\"text\",path);
+	fileSelector(path,\"/\",false);
+  setValue(\"path\",\"text\",path);
+}" 0
+ E E E
+14 20
+"systemPrefix"
+""
+1 560 42 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 558 40 702 67
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+//	this.text=\"Tile\";
+}" 0
+ E
+13 21
+"readScy"
+""
+1 730 43 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 728 41 802 72
+
+T 
+1
+LANG:1 8 Read SCY
+"main()
+{
+//	this.enabled = false;
+	dyn_string exceptionInfo;	
+	
+	if(systemPrefix.text==\"\")
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"No scy/system prefix provided\", \"\");
+	}
+        
+        if(!dpIsLegalName(\"FwCaVPlantModel\"+systemPrefix.text))
+	// Check for validity of the prefix
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Invalid System prefix\", \"\");
+	}
+	else if(dpExists(\"FwCaVPlantModel\"+systemPrefix.text)||dpExists(\"FwCaVLoopModel\"+systemPrefix.text))
+	// Update mode
+	{
+		fwException_raise(exceptionInfo, \"WARNING\", \"Model definitions for that system prefix already exists. Will proceed with update mode!\", \"\");
+		model	= true;
+	}
+	else
+		model = false;
+	
+	scyPrefix = systemPrefix.text; // strtolower(systemPrefix.text);	
+        
+	if(dynlen(exceptionInfo)!=0)
+		fwExceptionHandling_display(exceptionInfo);
+	
+	
+	init(); // Clear the global variables, prepare for new data
+	
+	_readSCYDefinition(exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	if(model)
+	{
+		_readModelDefinition(exceptionInfo);
+		if(dynlen(exceptionInfo)!=0)
+		{
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+		_compareScyAndModel();
+		dataTable.namedColumnVisibility(\"modelVar\",1);
+		dataTable.namedColumnVisibility(\"modelDesc\",1);
+		dataTable.namedColumnVisibility(\"filler\",1);
+	}
+	else
+	{
+		dataTable.namedColumnVisibility(\"modelVar\",0);
+		dataTable.namedColumnVisibility(\"modelDesc\",0);
+		dataTable.namedColumnVisibility(\"filler\",0);
+	}
+	
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	saveModel.visible	= true;
+	addAreas.visible = atlasEvap;
+	modeSelector.selectedPos = 1;
+	_updateTable(1);
+
+        
+        /* 
+          Disable all fields for loop alarms and warnings. The user have to set these values themselves.
+        */
+        setValue(\"alarm01\",\"enabled\",false, \"text\", \"\");
+        setValue(\"alarm02\",\"enabled\",false, \"text\", \"\");     
+        setValue(\"alarm03\",\"enabled\",false, \"text\", \"\");  
+        setValue(\"warning01\",\"enabled\",false, \"text\", \"\");
+        setValue(\"warning02\",\"enabled\",false, \"text\", \"\");
+        setValue(\"warning03\",\"enabled\",false, \"text\", \"\");         
+        for(int i=9; i<=14; i++)         
+            setValue(\"LoopBits\",\"state\",i,false);
+                     
+}" 0
+ E E E
+25 22
+"dataTable"
+""
+1 20 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main()
+{/*
+	int column, row;
+	string tmp;
+	getValue(\"\", \"currentCell\", row, column);
+	
+	if(row<0 || row>=this.lineCount)
+		return;
+	
+	row++;
+	
+	tmp  = this.cellValueRC(row,\"scyName\");
+	
+	dyn_string ds;
+	dyn_float df;
+	ChildPanelOnCentralModalReturn(\"fwCaV/fwCaVParserSwapMonit.pnl\",
+      \"Swapping rows\",
+      makeDynString(\"$iMaximum:\" + dataTable.lineCount, \"$iOldRow:\" + row, \"$sOldName:\" + tmp),
+      df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+		
+	int newRow = df[2];
+	int mode = modeSelector.selectedPos;
+
+	if(mode==1)
+		_dynSwap(scyAlarms,row, newRow);
+	if(mode==2)
+		_dynSwap(scyWarnings,row, newRow);
+	if(mode==3)
+		_dynSwap(scyPlantObjects[1],row, newRow);
+	if(mode==4)
+		_dynSwap(scyPlantObjects[2],row, newRow);
+	if(mode==5)
+		_dynSwap(scyPlantObjects[3],row, newRow);
+	if(mode==6)
+		_dynSwap(scyPlantObjects[3],row, newRow);
+	if(mode==7)
+		_dynSwap(scyLoopObjects[1],row, newRow);
+	if(mode==8)
+		_dynSwap(scyLoopObjects[2],row, newRow);
+	if(mode==9)
+		_dynSwap(scyLoopObjects[3],row, newRow);
+	if(mode==10)
+		_dynSwap(scyLoopObjects[4],row, newRow);
+		
+	_updateTable(mode);
+        */
+}" 0
+
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 138 702 304
+"main()
+{
+	this.tableMode(TABLE_SELECT_BROWSE);
+	this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 6 1 "number" 3 1 0 "s" 1
+LANG:1 1 #
+E
+1
+LANG:1 0 
+
+32 "scyVar" 15 1 0 "s" 1
+LANG:1 6 scyVar
+E
+1
+LANG:1 0 
+
+128 "scyDesc" 15 1 0 "s" 1
+LANG:1 7 scyDesc
+E
+1
+LANG:1 0 
+
+128 "filler" 2 1 0 "s" 1
+LANG:1 3 ###
+E
+1
+LANG:1 0 
+
+30 "modelVar" 15 1 0 "s" 1
+LANG:1 8 modelVar
+E
+1
+LANG:1 0 
+
+128 "modelDesc" 15 1 0 "s" 1
+LANG:1 9 modelDesc
+E
+1
+LANG:1 0 
+
+128 
+16 16 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+22 23
+"modeSelector"
+""
+1 80 110 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 78 108 702 135
+0
+
+"main()
+{
+	this.appendItem(\"Alarms\");
+	this.appendItem(\"Warnings\");
+	this.appendItem(\"Plant Measurements\");
+	this.appendItem(\"Plant Setpoints\");
+	this.appendItem(\"Plant Readbacks\");
+	this.appendItem(\"Plant Actual\");       
+	this.appendItem(\"Loop Measurements\");
+	this.appendItem(\"Loop Setpoints\");
+	this.appendItem(\"Loop Readbacks\");
+	this.appendItem(\"Loop Actual\");
+	this.appendItem(\"Plant PPVCycle\");      
+	//this.appendItem(\"Loop PPVCycle\");            
+//	this.selectedPos = 1;
+//	_updateTable(this.selectedPos);
+}" 0
+
+"main()
+{
+	_updateTable(this.selectedPos);
+}" 0
+
+E
+ 0 0
+20 24
+"PlantBits"
+""
+1 20 400 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 398 192 752
+16
+T 
+1
+LANG:1 14 0 - System OFF
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 1 - Stand-by-mode
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 2 - Run mode
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 14 3 - Recovering
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 26 4 - Leak flow rate control
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 15 5 - Leak search
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 6 - Safety Heater
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 3 7 -
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 23 8 - Maintenance allowed
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 23 9 - TCR control allowed
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 10 -
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 11 -
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 12 -
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 13 - Warning
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 14 - Alarm
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 15 - Reset
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+16
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+"main()
+{
+	PlantBits.state(0) = 1;
+	PlantBits.state(1) = 1;
+	PlantBits.state(2) = 1;
+	PlantBits.state(8) = 1;
+	PlantBits.state(13) = 1;
+	PlantBits.state(14) = 1;
+	PlantBits.state(15) = 1;
+}" 0
+E20 25
+"LoopBits"
+""
+1 230 400 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 228 398 402 752
+16
+T 
+1
+LANG:1 12 0 - Loop OFF
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 1 - Stand-by-mode
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 2 - Run mode
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 3 - Locked
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 4 - 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 5 - 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 6 - 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 3 7 -
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 23 8 - Maintenance allowed
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 13 9 - Warning01
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 14 10 - Warning02
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 14 11 - Warning03
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 12 - Alarm01
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 13 - Alarm02
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 14 - Alarm03
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 15 - Reset
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+16
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+"main()
+{
+	LoopBits.state(0) = 1;
+	LoopBits.state(1) = 1;
+	LoopBits.state(2) = 1;
+	LoopBits.state(3) = 1;
+	LoopBits.state(8) = 1;
+	//LoopBits.state(9) = 1;
+	//LoopBits.state(12) = 1;
+	LoopBits.state(15) = 1;
+}" 0
+"main(int button, bool state)
+{
+	switch(button) 
+	{
+		case 9:	warning01.enabled=state; break;
+		case 10:warning02.enabled=state; break;
+		case 11:warning03.enabled=state; break;
+		case 12:alarm01.enabled=state; break;
+		case 13:alarm02.enabled=state; break;
+		case 14:alarm03.enabled=state; break;
+	}
+}" 0
+13 26
+"CheckControlButton"
+""
+1 599 530 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 597 528 691 562
+
+T 
+1
+LANG:1 5 Check
+"main()
+{
+	checkControlData();
+}" 0
+ E E E
+14 27
+"warning01"
+""
+1 496.000000000001 595 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 494 593 682 620
+3 "0s" 0 0 0 0 0 -1  E E E
+14 28
+"warning02"
+""
+1 496.000000000001 618 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 494 616 682 643
+3 "0s" 0 0 0 0 0 -1  E E E
+14 29
+"warning03"
+""
+1 496.000000000001 640 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 494 638 682 665
+3 "0s" 0 0 0 0 0 -1  E E E
+14 30
+"alarm01"
+""
+1 496.000000000001 670 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 494 668 682 695
+3 "0s" 0 0 0 0 0 -1  E E E
+14 31
+"alarm02"
+""
+1 496.000000000001 693 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 494 691 682 718
+3 "0s" 0 0 0 0 0 -1  E E E
+14 32
+"alarm03"
+""
+1 496.000000000001 715 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 494 713 682 740
+3 "0s" 0 0 0 0 0 -1  E E E
+13 33
+"saveModel"
+""
+1 720 660 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 718 658 842 702
+
+T 
+1
+LANG:1 14 Commit Changes
+"main()
+{
+        dyn_string ds;
+	dyn_float df;
+
+	createNewPollGroup(\"PollCaV\");
+	updateDevices = true;
+	pollGroup = \"_PollCaV\";
+	PLC = 1;
+
+	ChildPanelOnCentralModalReturn(\"fwCaV/fwCaVInputDialog.pnl\",\"Modbus IP Address\",
+	                                makeDynString(\"$sText:Modbus IP Address\",\"$sText2:\\n Insert the IP Address for the PLC: (optional)\"),
+                                        df,ds);
+	      
+	if((df[1]==0) || (ds[2] == \"\"))
+	{
+		configureDriver(\"\");
+	}
+	else
+		configureDriver(ds[2]);
+	
+        // check to see if the warning/alarm text fields have any text in them (if warnings/alarms are enabled)
+	if(checkControlData())     
+		return;
+
+	fwOpenProgressBar(\"Information\", \"Saving\", 1);	
+        
+	dyn_string exceptionInfo;
+	
+	savePlant(exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwCloseProgressBar(\"\");
+		if(dpExists(\"FwCaVPlantModel\"+systemPrefix.text+\"_dummy\"))
+			dpDelete(\"FwCaVPlantModel\"+systemPrefix.text+\"_dummy\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	saveLoop(exceptionInfo);
+
+	if (loopSaved == true)
+	{
+		if(dynlen(exceptionInfo)!=0)
+		{
+			fwCloseProgressBar(\"\");
+			if(dpExists(\"FwCaVLoopModel\"+systemPrefix.text+\"_dummy\"))
+				dpDelete(\"FwCaVLoopModel\"+systemPrefix.text+\"_dummy\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	if(areas == true)
+	{
+		saveAreaflow(exceptionInfo);
+		if(dynlen(exceptionInfo)!=0)
+		{
+			fwCloseProgressBar(\"\");
+			if(dpExists(\"FwCaVAreaflowModel\"+systemPrefix.text+\"_dummy\"))
+				dpDelete(\"FwCaVAreaflowModel\"+systemPrefix.text+\"_dummy\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+		saveAreatemp(exceptionInfo);
+		if(dynlen(exceptionInfo)!=0)
+		{
+			fwCloseProgressBar(\"\");
+			if(dpExists(\"FwCaVAreatempModel\"+systemPrefix.text+\"_dummy\"))
+				dpDelete(\"FwCaVAreatempModel\"+systemPrefix.text+\"_dummy\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	
+	fwCloseProgressBar(\"\");
+
+	{
+		fwOpenProgressBar(\"Information\", \"Overwriting\", 1);
+
+		string newDp;
+		int err;
+	
+		newDp = \"FwCaVPlantModel\"+systemPrefix.text+\"_dummy\";
+		dpCreate(\"FwCaVPlantModel\"+systemPrefix.text, \"_FwDeviceModel\");
+		dpCopyOriginal(newDp, \"FwCaVPlantModel\"+systemPrefix.text, err);
+		dpDelete(newDp); // Note - deleting DUMMY datapoint
+                if(err!=0)
+		  DebugN(\"Create/update plant\",\"--> Plant dpCopyOriginal err:\"+err);
+	
+		if (loopSaved == true)
+		{
+			newDp = \"FwCaVLoopModel\"+systemPrefix.text+\"_dummy\";
+			dpCreate(\"FwCaVLoopModel\"+systemPrefix.text, \"_FwDeviceModel\");
+			dpCopyOriginal(newDp, \"FwCaVLoopModel\"+systemPrefix.text, err);
+			dpDelete(newDp); // Note - deleting DUMMY datapoint
+                        if(err!=0)
+			  DebugN(\"Create/update plant\",\"--> Loop dpCopyOriginal err:\"+err);
+		}
+
+		if(areas == true)
+		{
+			newDp = \"FwCaVAreaflowModel\"+systemPrefix.text+\"_dummy\";
+			dpCreate(\"FwCaVAreaflowModel\"+systemPrefix.text, \"_FwDeviceModel\");
+			dpCopyOriginal(newDp, \"FwCaVAreaflowModel\"+systemPrefix.text, err);
+			dpDelete(newDp); // Note - deleting DUMMY datapoint
+                        if(err!=0)
+			  DebugN(\"Create/update plant\",\"--> Areaflow dpCopyOriginal err:\"+err);	
+			
+			newDp = \"FwCaVAreatempModel\"+systemPrefix.text+\"_dummy\";
+			dpCreate(\"FwCaVAreatempModel\"+systemPrefix.text, \"_FwDeviceModel\");
+			dpCopyOriginal(newDp, \"FwCaVAreatempModel\"+systemPrefix.text, err);
+			dpDelete(newDp); // Note - deleting DUMMY datapoint
+                        if(err!=0)
+			  DebugN(\"Create/update plant\",\"--> Areatemp dpCopyOriginal err:\"+err);			
+		}
+	
+		fwCloseProgressBar(\"\");
+	}
+        
+        //	updateDevices.visible = true;
+	if(updateDevices==true)
+        {
+                //DebugN(\"actualizar dispositivos\");
+		updateDevices(exceptionInfo);
+        }
+        
+        // create DPE functions for CaV/***Plant.Connection
+        int errmsg;
+        errmsg = fwCaV_ConnectionState(\"CaV/\"+systemPrefix.text+\"Plant\");       
+      
+        
+        /*
+            Set the dp function for CaV/prefixPlant.Alarms.summary and CaV/prefixPlant.Warnings.summary. 
+        */
+        _setDpFuncForSumAlarmsAndWarnings(systemPrefix.text);
+        
+        // Some feedback to the user when the plant is created.
+        string feedback = \"Plant successfully created.\";
+        bool ok;
+        if(dynlen(exceptionInfo)==0)
+          fwGeneral_openMessagePanel(feedback, ok, exceptionInfo, \"Parsing complete\", true);
+        
+}
+
+createNewPollGroup(string dp)
+{
+        dp = \"_\" + dp;
+  
+        if (!dpExists(dp))
+        	dpCreate(dp, \"_PollGroup\");
+
+        dpSet(dp + \".SyncTime:_original.._value\",0,
+              dp + \".SyncMode:_original.._value\",0,
+              dp + \".PollInterval:_original.._value\", 10000,
+              dp + \".Active:_original.._value\", 1);
+}
+
+configureDriver(string ip)
+{
+        if (dpExists (\"_Mod_Plc_1\"))
+        {
+            dpSet(\"_Mod_Plc_1.Coding:_original.._value\",1,
+            	  \"_Mod_Plc_1.UnitAddress:_original.._value\",255,
+            	  \"_Mod_Plc_1.Endianity:_original.._value\",2,
+            	  \"_Mod_Plc_1.SetInvalidBit:_original.._value\",\"TRUE\",
+            	  \"_Mod_Plc_1.TransactionTimeout:_original.._value\",1000);
+            if (ip != \"\")
+                 dpSet(\"_Mod_Plc_1.HostsAndPorts:_original.._value\",ip+\":502\");
+         }
+}
+
+updateDevices(dyn_string &exceptionInfo)
+{
+	fwOpenProgressBar(\"Information\", \"Updating\", 1);
+
+	file input;
+	string line;
+	mapping _scyAlarms;
+//	dyn_string exceptionInfo;
+
+	dyn_dyn_string data;
+	mapping items;
+	
+	if(pollGroup==\"\")
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Select the poll group\" , \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	string plantName = systemPrefix.text + \"Plant\";
+	
+	input = fopen(path.text,\"r\");
+	if(input==0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Cannot open file \" + path.text + \" for reading!\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+        anytype bitNotInUse = makeDynAnytype(\"\",\"\");
+        int lastBitAl = 0;
+        int lastBitWa = 0;
+        int lastRef = 0;        
+	while(feof(input)==0)
+	{
+		fgets(line, 1024, input);
+		if(strpos(line, scyPrefix)!=0) // We are only interested in lines that start with our prefix
+			continue;
+			
+		/* 
+                  Typical line of the SCY file:
+                 \"Rod_disj_6a_9a_al AT %MW114:X0 : BOOL (*Defaut disjoncteurs UPS*);\";
+                */
+
+		string varName;  		// Variable name - according to the naming convention
+		string rawAddress; 	// Raw PLC address - %MWxxxx or %MWxxxx:Xx
+		int reference;			// Part of the PLC address - the MODBUS reference - xxxx
+		string bit; 				// Which bit - important only for alarms/warnings
+		string scyDataType;	// The datatype in the decription field (REAL, WORD, BOOL)
+		string dataType;		// The datatype code - (MW, MF)
+		string description;	// Description field (contained withing (*text*) )
+		string level;			  // Plant or Loop
+		
+		/* We are reading the variable name, the raw addres, and the datatype */
+		sscanf(line, \"%s AT %s : %s\",varName, rawAddress, scyDataType);
+		/* Now we take out the 
+  string*/		
+		dyn_string _desc;
+		if(dynlen(_desc)>=2)
+			description = _desc[2];
+		else
+			description = \"No Description\";
+
+		/* Now we parse the raw address and extract more information
+		 *  - the datatype code
+		 *  - the Reference Number - for Modbus addressing
+		 *  - bit - either bit position or empty string
+		 */
+		sscanf(rawAddress,\"%%%2s%d:X%s\", dataType, reference, bit);
+		
+		/***** At this point we have dissected the given SCY entry *****/
+
+		/* We can deal with alarms and warnings first, as they are
+		 * the only entries that have bit!=\"\"
+		 * Additionally these entries will be handled in a special way
+		 */
+		if(bit!=\"\")
+		{
+			/* If we find the alarm keyword - then we are dealing with alarm entry */
+			if(strpos(varName,alarmKeyword)>0)
+			{
+                                if(lastRef!=reference)
+                                  lastBitAl=0;     
+                                else
+                                  lastBitAl=lastBitAl+1;                        
+				/* If we don't have the entry for that particular reference address
+				 * (which means no entry for this particular alarmWord) then
+				 * we have to initialize it.
+				 */
+				if(!mappingHasKey(_scyAlarms, reference))
+				{
+					_scyAlarms[reference] = \"\";				
+				}
+                                //DebugN(\"Alarm\",reference,lastRef,(int)bit,lastBitAl,varName);
+                                for(int j=lastBitAl; j<(int)bit; j++)
+                                  (_scyAlarms[reference]) += \";\";
+                                                                
+				(_scyAlarms[reference]) += varName+\";\";
+        
+                                lastBitAl = (int)bit;
+                                lastRef = reference;                                  
+			}			
+			/* If we find the warning keyword - then we are dealing with warning entry */
+			else if(strpos(varName, warningKeyword)>0)
+			{
+                                if(lastRef!=reference)
+                                  lastBitWa=0;       
+                                else
+                                  lastBitWa=lastBitWa+1;
+                                                      
+				if(!mappingHasKey(_scyAlarms, reference))
+				{
+					_scyAlarms[reference] = \"\";				
+				}
+                                for(int j=lastBitWa; j<(int)bit; j++)
+                                {
+                                  (_scyAlarms[reference]) += \";\";    
+                                  //DebugN(\"Blank\",j);
+                                }
+                                //DebugN(\"Warning\",reference,lastRef,(int)bit,lastBitWa);                                                           
+				(_scyAlarms[reference]) += varName+\";\";
+                                
+                                lastBitWa = (int)bit;
+                                lastRef = reference;                                  
+			}
+			continue; // Alarms and warnings are special and everything about them had been done
+		}
+		
+		dyn_string object = makeDynString(\"\", \"\", varName, reference, dataType);		
+	
+		/* Determine whether entry is related to any particular loop.
+		 */
+		if(strpos(varName,\"_loop\")>=0)
+		{
+			level = \"Loop\";
+			// determine loop number
+			dyn_string tmp = strsplit(varName,\"_\");
+			
+			object[2] = tmp[dynlen(tmp)];
+			if(strlen(tmp[dynlen(tmp)])==2)
+				object[3] = substr(varName,0, strlen(varName)-3);
+			if(strlen(tmp[dynlen(tmp)])==3)
+				object[3] = substr(varName,0, strlen(varName)-4);
+			items[level+object[2]] = \"CaV/\"+plantName+\"/\"+level+object[2];
+		}
+		else if (strpos(varName,\"_areaflow\")>=0)
+		{
+			if (areas == true)
+			{
+				level = \"Areaflow\";
+				// determine area number
+				dyn_string tmp = strsplit(varName,\"_\");
+				object[2] = tmp[dynlen(tmp)];
+				if(strlen(tmp[dynlen(tmp)])==2)
+					object[3] = substr(varName,0, strlen(varName)-3);
+				if(strlen(tmp[dynlen(tmp)])==3)
+					object[3] = substr(varName,0, strlen(varName)-4);					
+				items[level+object[2]] = \"CaV/\"+plantName+\"/\"+level+object[2];
+			}
+			else continue;
+		}
+		else if (strpos(varName,\"_areatemp\")>=0)
+		{
+			if (areas == true)
+			{
+				level = \"Areatemp\";
+				// determine area number
+				dyn_string tmp = strsplit(varName,\"_\");
+				object[2] = tmp[dynlen(tmp)];
+				if(strlen(tmp[dynlen(tmp)])==2)
+					object[3] = substr(varName,0, strlen(varName)-3);
+				if(strlen(tmp[dynlen(tmp)])==3)
+					object[3] = substr(varName,0, strlen(varName)-4);					
+				items[level+object[2]] = \"CaV/\"+plantName+\"/\"+level+object[2];
+			}
+			else continue;
+		}
+		else
+		{
+			level = \"Plant\";
+			items[level] = \"CaV/\"+plantName;
+		}
+		object[1] = level;
+                
+		dynAppend(data,object);
+	}
+	// All data in memory
+
+		/***********************************************************
+		 * WARNING - this should be rewritten - when the rack are  *
+		 * introduced, and also because it's not nicely coded      *
+		 ***********************************************************/
+
+	// Create the devices - if they don't exist:
+	if(dpExists(\"CaV/\"+plantName))
+	{
+		DebugN(\"Create/update plant\",\"Device CaV/\"+plantName+\" exists - not creating\");
+	}
+	else
+	{
+		_simpleCreate(\"CaV/\"+plantName, systemPrefix.text, \"FwCaVPlant\", exceptionInfo);
+	}
+        
+	fwDevice_setAlert(\"CaV/\"+plantName, fwDevice_ALERT_SET, exceptionInfo);
+        //DebugN(exceptionInfo);
+
+	dyn_string keys = mappingKeys(items);	
+	for(int i=1; i<=dynlen(keys); i++)
+	{
+		if(keys[i]==\"Plant\")
+			continue;
+		if(dpExists(items[keys[i]]))
+		{
+			DebugN(\"Create/update plant\",\"Device \"+items[keys[i]]+\" exists - not creating\");
+		}
+		else
+		{
+			if(strpos(keys[i],\"Areaflow\")>=0)
+			{
+				_simpleCreate(items[keys[i]], systemPrefix.text, \"FwCaVAreaflow\", exceptionInfo);
+			}
+			else if(strpos(keys[i],\"Areatemp\")>=0)
+			{
+				_simpleCreate(items[keys[i]], systemPrefix.text, \"FwCaVAreatemp\", exceptionInfo);
+			}
+			else if(strpos(keys[i],\"Loop\")>=0)
+			{
+				_simpleCreate(items[keys[i]], systemPrefix.text, \"FwCaVLoop\", exceptionInfo);
+			}
+			else
+			{
+				continue;
+			}
+		}
+		fwDevice_setAlert(items[keys[i]], fwDevice_ALERT_SET, exceptionInfo);
+	}
+
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}	
+
+	fwExceptionHandling_display(exceptionInfo);
+
+	/****************************************************************/
+	// Strip already existing address configs
+	fwDevice_setAddressRecursively(\"CaV/\"+plantName,makeDynString(fwDevice_ADDRESS_NONE), exceptionInfo);
+	
+	dyn_dyn_string pElements, lElements, afElements, atElements;
+	fwDevice_getConfigElements(\"FwCaVPlant\", fwDevice_ALL, pElements, exceptionInfo, systemPrefix.text);
+	fwDevice_getConfigElements(\"FwCaVLoop\", fwDevice_ALL, lElements, exceptionInfo, systemPrefix.text);	
+	if(areas == true)
+	{
+		fwDevice_getConfigElements(\"FwCaVAreaflow\", fwDevice_ALL, afElements, exceptionInfo, systemPrefix.text);
+		fwDevice_getConfigElements(\"FwCaVAreatemp\", fwDevice_ALL, atElements, exceptionInfo, systemPrefix.text);
+	}	
+	dynClear(exceptionInfo); // Because fwDevice_getConfigElements with fwDevice_ALL raises exception but give good data
+	
+	string sufix;
+	for(int i=1; i<=dynlen(data); i++)
+	{
+		string id;
+		dyn_dyn_string local;
+		
+		sufix = \"\";
+
+		if(data[i][1] == \"Plant\")
+		{
+			local = pElements;
+			id = data[i][1];
+		}
+		else if(data[i][1] == \"Loop\")
+		{
+			local = lElements;
+			id = data[i][1] + data[i][2];
+			sufix = data[i][2];
+		}
+		else if(data[i][1] == \"Areaflow\")
+		{
+			local = afElements;
+			id = data[i][1] + data[i][2];
+			sufix = data[i][2];
+		}
+		else if(data[i][1] == \"Areatemp\")
+		{
+			local = atElements;
+			id = data[i][1] + data[i][2];
+			sufix = data[i][2];
+		}
+		else
+		{
+			continue;
+		}
+
+		int index = dynContains(local[fwDevice_PROPERTY_NAMES_INDEX], data[i][3]);
+		if(index<=0)
+		{
+			Debug(\"Variable \" + data[i][3] + \" not present in the model - usually this happens when variable is an internal PLC variable\");
+			continue;
+		}
+
+		string dpe = local[fwDevice_ELEMENTS_INDEX][index];
+		string comment = local[fwDevice_PROPERTY_NAMES_INDEX/*fwDevice_DESCRIPTION_INDEX*/][index]+sufix;
+	
+		// When we have setting for control - also set the Readback
+		if(dpe==\".ReadBackSettings.control\")
+		{
+			dpSetComment(items[id]+\".Settings.control\", comment);
+                        //DebugN(\"1. dpAlias \",\"dp with alias\"+ dpAliases(comment+\"_Settings\"),\"DP NAME \"+dpAliasToName(comment+\"_Settings\"),\"ALIAS \"+comment+\"_Settings\");
+			if(dpAliasToName(comment+\"_Settings\")!=\"\")
+                          dpSetAlias(dpAliasToName(comment+\"_Settings\"),\"\");
+                        dpSetAlias(items[id]+\".Settings.control\",comment+\"_Settings\");
+			/* Generate MODBUS addressing */
+			_createAddress(data[i], items[id], \".Settings.control\", exceptionInfo);
+		}
+	        if(dpAliasToName(comment)!=\"\")
+                  dpSetAlias(dpAliasToName(comment),\"\");		
+		dpSetComment(items[id]+dpe, comment);
+                //DebugN(\"2. dpAlias \",\"dp with alias \"+dpAliases(comment),\"dp name \"+dpAliasToName(comment),\"ALIAS \"+comment);                
+		dpSetAlias(items[id]+dpe,comment);
+		/* Generate MODBUS addressing */
+		_createAddress(data[i], items[id], dpe, exceptionInfo);
+
+	}	
+	/* Finally - addresses for alarms and warnings */
+	// (_scyAlarms[reference]) += varName+\";\"
+	dyn_int references = mappingKeys(_scyAlarms);
+        //DebugN(\"test\",_scyAlarms);
+	for(int i=1; i<=dynlen(references); i++)
+	{
+		int index = dynContains(pElements[fwDevice_USER_DATA_INDEX], _scyAlarms[references[i]]);
+		if(index<=0)
+		{
+			DebugN(\"Create/update plant\",\"Alarm/Warning not present - userdata=\"+_scyAlarms[references[i]]);
+			continue;
+		}
+		string dpe = pElements[fwDevice_ELEMENTS_INDEX][index];
+		dyn_string tmp; tmp[5]=\"MW\"; tmp[4]=references[i];
+		_createAddress(tmp, items[\"Plant\"], dpe, exceptionInfo);
+	}
+	for(int i=1; i<=dynlen(keys); i++)
+	{
+		/* And add set the dpFunctions */
+		fwDevice_setDpFunction(	items[keys[i]], fwDevice_DPFUNCTION_SET, exceptionInfo);
+	}
+	
+	fwExceptionHandling_display(exceptionInfo);	
+	
+	
+	fwCloseProgressBar(\"\");
+	fclose(input);
+}
+
+
+_createAddress(dyn_string entry, string dp, string dpe, dyn_string &exceptionInfo)
+{
+	/* MODBUS address parameters - these are not changing from entry to entry */
+	dyn_string parameters;
+	parameters[fwPeriphAddress_TYPE] = fwPeriphAddress_TYPE_MODBUS;
+	parameters[fwPeriphAddress_DRIVER_NUMBER] = 15; // TODO: Number
+	parameters[fwPeriphAddress_ACTIVE] = 1;
+	parameters[fwPeriphAddress_MODBUS_LOWLEVEL] = 1;
+	parameters[fwPeriphAddress_MODBUS_SUBINDEX] = 0;
+	parameters[fwPeriphAddress_MODBUS_START] = 86400;
+	parameters[fwPeriphAddress_MODBUS_INTERVAL] = 0;
+	parameters[fwPeriphAddress_MODBUS_POLL_GROUP] = pollGroup;
+	
+	string fun, dir, type;
+	/* Determine the type code */
+	if(entry[5]==\"MW\")
+		type = PVSS_MODBUS_INT16;
+	else if (entry[5]==\"MF\")
+		type = PVSS_MODBUS_FLOAT;
+	else
+	{
+		DebugN(\"TODO: \" + entry[5]);
+	}
+	/* Set the direction and function number */
+	if(type!=\"\")
+	{
+		if(strpos(dpe,\"Actual.status\")>=0)
+		{
+			dir = 4;
+			fun = 4;
+		}
+		else if(strpos(dpe,\".Setting\")<0)
+		{
+			dir = 4;
+			fun = 3; // 3 or 4
+		}
+		else
+		{
+			dir = 1;
+			fun = 16;
+		}
+		parameters[fwPeriphAddress_REFERENCE] = \"M.\"+PLC+\".\" + fun + \".\"+entry[4];
+		parameters[fwPeriphAddress_DIRECTION] = dir;
+		parameters[fwPeriphAddress_DATATYPE] = type;	
+		fwPeriphAddress_set(dp+dpe, parameters, exceptionInfo);
+		if(dynlen(exceptionInfo)!=0)
+			DebugN(\"Create/update plant\",exceptionInfo,dp+dpe, entry[4], \"Error with fwPeriphAddress_set()\"); 
+         }
+}
+
+/* This function is a simple wrapper around fwDevice_create function. */
+_simpleCreate(string plantDp, string model, string type, dyn_string &exceptionInfo)
+{
+	dyn_string splitted = strsplit(plantDp,\"/\");
+
+	dyn_string device;
+	dyn_string parentDevice;
+	
+	device[fwDevice_DP_NAME] = splitted[dynlen(splitted)];
+	device[fwDevice_DP_TYPE] = type;
+	device[fwDevice_MODEL] = model;
+	parentDevice[fwDevice_DP_NAME] = splitted[1];
+	for(int i=2; i<=dynlen(splitted)-1; i++)
+		parentDevice[fwDevice_DP_NAME] += \"/\"+splitted[i];	
+	fwDevice_create(device, parentDevice, exceptionInfo);
+//	if(dynlen(exceptionInfo)==0)
+//		fwDevice_setAlert(plantDp, fwDevice_ALERT_SET, exceptionInfo);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+savePlant(dyn_string &exceptionInfo)
+{
+	dyn_dyn_string data;
+	string templateDp;
+	templateDp = \"FwCaVPlantModelGeneric\";
+
+	// .model - model name
+	modelDesc = systemPrefix.text;
+	_getModelData(templateDp, data);
+
+	// Process Alarms       
+	_modelGeneration_processPlantAlarms(scyAlarms, modelAlarms, \".Alarms.alarmWord0\", data);
+	// Process Warnings
+        //DebugN(\"saveplant Warnings\",scyWarnings);
+	_modelGeneration_processPlantAlarms(scyWarnings, modelWarnings, \".Warnings.warningWord0\", data);
+	
+	// Process Measurements, Setpoints, Readbacks and Actual
+	for(int column=1; column<=7; column++)
+	{
+		_modelGeneration_processSRAM(scyPlantObjects[column], modelPlantObjects[column], objectPrefixes[column], data, \"FwCaVPlant\");
+	}
+
+	// Set Control / status bits / timeout
+	_setControlBits(plantBits, plantEntries, data, exceptionInfo, true);
+
+	if(dynlen(exceptionInfo)!=0)
+		return;
+
+
+	/* First will not overwrite the existing model definition. We will
+	 * create another temporary one, and if everything goes ok, then
+	 * the old model will be overwritten
+	 */
+	string newDp;
+	templateDp = \"FwCaVPlantModelGeneric\";
+	newDp = \"FwCaVPlantModel\"+systemPrefix.text+\"_dummy\";
+	
+	int err;
+	if(dpExists(newDp))
+		dpDelete(newDp); // Note - deleting DUMMY datapoint
+	
+	/* Create a new model DP and copy the contents from the Generic template
+	 */
+	dpCreate(newDp, \"_FwDeviceModel\");
+	dpCopyOriginal(templateDp, newDp, err);
+	if (err!=0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"DpCopyOriginal, err=\"+err, \"\");
+//		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	// Save
+	_setModelData(newDp, data);
+}
+
+saveLoop(dyn_string &exceptionInfo)
+{
+	dyn_dyn_string data;
+	string templateDp;
+	templateDp = \"FwCaVLoopModelGeneric\";
+	
+	loopSaved = false;
+	
+	// .model - model name
+	modelDesc = systemPrefix.text;
+	_getModelData(templateDp, data);
+	
+	// Loop level alarms and warnings
+	_modelGeneration_processLoopAlarms(scyLoopObjects, data, true);
+	_modelGeneration_processLoopAlarms(scyLoopObjects, data, false);
+	
+	
+	// Process Measurements, Setpoints, Readbacks and Actual
+	for(int column=1; column<=7; column++)
+	{
+                //DebugN(scyLoopObjects[column]);
+		_modelGeneration_processSRAM(scyLoopObjects[column], scyLoopObjects[column], objectPrefixes[column], data, \"FwCaVLoop\");
+	}
+	
+	// Set Control / status bits
+	if (dynlen(loopEntries) == 0)
+		return;
+	_setControlBits(loopBits, loopEntries, data, exceptionInfo, false);
+	
+	if(dynlen(exceptionInfo)!=0)
+		return;
+	
+	
+	
+	/* First will not overwrite the existing model definition. We will
+	 * create another temporary one, and if everything goes ok, then
+	 * the old model will be overwritten
+	 */
+	string newDp;
+	newDp = \"FwCaVLoopModel\"+systemPrefix.text+\"_dummy\";
+	
+
+
+	int err;
+	if(dpExists(newDp))
+		dpDelete(newDp); // Note - deleting DUMMY datapoint
+	
+	/* Create a new model DP and copy the contents from the Generic template
+	 */
+	dpCreate(newDp, \"_FwDeviceModel\");
+	dpCopyOriginal(templateDp, newDp, err);
+	if (err!=0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"DpCopyOriginal, err=\"+err, \"\");
+//		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}	
+	
+	loopSaved = true;
+	_setModelData(newDp, data);
+	
+}
+
+saveAreaflow(dyn_string &exceptionInfo)
+{
+	dyn_dyn_string data;
+	string templateDp;
+	templateDp = \"FwCaVAreaflowModelGeneric\";
+	
+	// .model - model name
+	modelDesc = systemPrefix.text;
+	_getModelData(templateDp, data);
+	
+	// Process Measurements, Setpoints, Readbacks, Actual
+	for(int column=1; column<=7; column++)
+	{
+		_modelGeneration_processSRAM(scyAreaflowObjects[column], scyAreaflowObjects[column], objectPrefixes[column], data, \"FwCaVAreaflow\");
+	}
+	
+	if(dynlen(exceptionInfo)!=0)
+		return;
+	
+	/* First will not overwrite the existing model definition. We will
+	 * create another temporary one, and if everything goes ok, then
+	 * the old model will be overwritten
+	 */
+	string newDp;
+	newDp = \"FwCaVAreaflowModel\"+systemPrefix.text+\"_dummy\";
+	
+	int err;
+	if(dpExists(newDp))
+		dpDelete(newDp); // Note - deleting DUMMY datapoint
+	
+	/* Create a new model DP and copy the contents from the Generic template
+	 */
+	dpCreate(newDp, \"_FwDeviceModel\");
+	dpCopyOriginal(templateDp, newDp, err);
+	if (err!=0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"DpCopyOriginal, err=\"+err, \"\");
+//		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}	
+	
+	_setModelData(newDp, data);
+	
+}
+
+saveAreatemp(dyn_string &exceptionInfo)
+{
+	dyn_dyn_string data;
+	string templateDp;
+	templateDp = \"FwCaVAreatempModelGeneric\";
+	
+	// .model - model name
+	modelDesc = systemPrefix.text;
+	_getModelData(templateDp, data);
+	
+	// Process Measurements, Setpoints, Readbacks and Actual
+	for(int column=1; column<=7; column++)
+	{
+		_modelGeneration_processSRAM(scyAreatempObjects[column], scyAreatempObjects[column], objectPrefixes[column], data, \"FwCaVAreatemp\");
+	}
+	
+	if(dynlen(exceptionInfo)!=0)
+		return;
+	
+	/* First will not overwrite the existing model definition. We will
+	 * create another temporary one, and if everything goes ok, then
+	 * the old model will be overwritten
+	 */
+	string newDp;
+	newDp = \"FwCaVAreatempModel\"+systemPrefix.text+\"_dummy\";
+	
+	int err;
+	if(dpExists(newDp))
+		dpDelete(newDp); // Note - deleting DUMMY datapoint
+	
+	/* Create a new model DP and copy the contents from the Generic template
+	 */
+	dpCreate(newDp, \"_FwDeviceModel\");
+	dpCopyOriginal(templateDp, newDp, err);
+	if (err!=0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"DpCopyOriginal, err=\"+err, \"\");
+//		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}	
+	
+	_setModelData(newDp, data);
+	
+}
+
+_modelGeneration_processLoopAlarms(dyn_anytype scy, dyn_dyn_string &data, bool alarm=true)
+{
+	string gPrefix, prefix, class, text;
+	int offset;
+	if(!alarm)
+	{
+		gPrefix = \"warning0\";
+		prefix = \".Actual.fault0\";
+		offset = 8;
+		class = \"|_fwWarningNack.\";
+		text = \"Normal|Loop Warning\";
+	}
+	else
+	{
+		gPrefix = \"alarm0\";
+		prefix = \".Actual.alarm0\";
+		offset = 11;
+		class = \"|_fwErrorNack.\";
+		text = \"Normal|Loop Alarm\";		
+	}
+	for(int i=1; i<=3; i++)
+	{
+		string desc;
+		bool state;
+		getValue(gPrefix+i, \"text\", desc, \"enabled\", state);
+		if(state==false && desc==\"\")
+			continue;
+		int last = dynlen(data[1]) + 1;
+		data[__idx[\".names\"]][last] = prefix+i;
+		data[__idx[\".dpes\"]][last] = prefix+i; // dpe
+		data[__idx[\".description\"]][last] = desc;	
+		data[__idx[\".archive.canHave\"]][last] = 1; // archive - canhave
+		if(state)
+		{
+			data[__idx[\".dpFunction.canHave\"]][last] = 1; // dpfunction - canhave
+			data[__idx[\".dpFunction.function\"]][last] = \"getBit(p1,\" + (offset+i) + \")\"; // dpfunction - function
+			data[__idx[\".dpFunction.params\"]][last] = \".Actual.status:_online.._value\"; // dpfunction - params
+			data[__idx[\".alert.canHave\"]][last] = 1; // alert - canHave
+			data[__idx[\".alert.defaultClasses\"]][last] = class; // alert - defaultClasses
+			data[__idx[\".alert.defaultTexts\"]][last] = text; // alert - defaultTexts
+		}
+	}
+}
+
+
+
+_modelGeneration_processPlantAlarms(dyn_anytype scy, dyn_anytype model, string prefix, dyn_dyn_string &data)
+{
+        string deviceDpType;
+        string dpPath = \"CaV/\"+systemPrefix.text+\"Plant.ModelHistory.prevouslyUsedItems\";
+        dyn_string blanks;
+        if(dynlen(model)!=0)
+         dpGet(dpPath, blanks);
+        if(prefix == \".Warnings.warningWord0\")
+            deviceDpType = \"Warning\";
+        else
+            deviceDpType = \"Alarm\";  
+	int i;
+
+	for(i=1; i<=dynlen(scy); i++)
+	{
+                string prefixManip = strrtrim(prefix,\"0\");
+                string blank = deviceDpType+\";\"+prefixManip+\";\"+i;    
+                
+                // Remove elements from model history if the elements now are in use. This can happen if the number of elements
+                // in the SCY file + the elements in the model history is greater than the max. limit value for params.      
+                if(dynContains(blanks,blank)!=0 && scy[i][2][1]!=\"EMPTY\")
+                {    
+                  dynRemove(blanks,dynContains(blanks,blank));  
+                  dpSet(dpPath, blanks); 
+                }
+          
+		/* Check whether given scy entry has any data - or is it empty
+		 * because it had been removed from SCY, but still exists in the
+		 * Model for purpose of data consistency
+		 */
+		if(scy[i][2][1]==\"EMPTY\")
+		{
+			// save param in model history
+                        if(dynContains(blanks,blank)==0)
+                          dynAppend(blanks,blank);  
+                        dpSet(dpPath, blanks);   
+                        
+                        // remove peripheral address and alias/description if there is one
+                        dyn_string exceptionInfo;
+                        string dpe;
+	                sprintf(dpe,prefix+\"%02d\", i);
+                        dpe = prefix+i;
+                        fwPeriphAddress_delete(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe, exceptionInfo); 
+                        dpSetAlias(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe,\"\");
+                        dpSetDescription(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe,\"\");
+                        DebugN(\"Create/update plant\",\"Added to model history\",\"Peripheral address and alias/description is removed from CaV/\"+systemPrefix.text+\"Plant\"+dpe);
+		}
+		else
+			__modelGeneration_processPlantAlarms(scy, prefix, i, data);	
+        }
+
+	/* It might happen (theoretically) that some alarmWords had been removed
+	 * from the model - check it
+	 */          
+	for(i; i<=dynlen(model); i++)
+        {
+                // remove peripheral address and alias/description if there is one
+                dyn_string exceptionInfo;
+                string dpe;
+	        sprintf(dpe,prefix+\"%02d\", i);
+                dpe = prefix+i;
+                fwPeriphAddress_delete(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe, exceptionInfo); 
+                dpSetAlias(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe,\"\");
+                dpSetDescription(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe,\"\");          
+		//__modelGeneration_processPlantAlarms(model, prefix, i, data, false);
+        }
+}
+
+__modelGeneration_processPlantAlarms(dyn_anytype input, string prefix, int number, dyn_dyn_string &data, bool dpFunction=true)
+{
+	int last = dynlen(data[__idx[\".names\"]]) + 1;
+        
+        data[__idx[\".names\"]][last] = prefix+number;
+	data[__idx[\".dpes\"]][last] = prefix+number;
+	data[__idx[\".userData\"]][last] = \"\";			
+	data[__idx[\".description\"]][last] = \"\";
+	
+	for(int j=2; j<=dynlen(input[number]); j++)
+	{
+		if(getType(input[number][j])==ANYTYPE_VAR)
+                        dpFunction = false;                   
+		else
+                {
+                        if(input[number][j][1]==\"\")
+                         dpFunction = false;
+                        else
+                          dpFunction = true;
+                }
+                
+              if(getType(input[number][j])!=ANYTYPE_VAR)
+              {
+                data[__idx[\".userData\"]][last] += input[number][j][1] + \";\";
+		data[__idx[\".description\"]][last] += input[number][j][2] + \";\";
+              }
+
+	}
+        
+	data[__idx[\".address.canHave\"]][last] = 1;
+	data[__idx[\".address.direction\"]][last] = 2;
+	data[__idx[\".archive.canHave\"]][last] = 1;
+	
+	if(dpFunction)
+	{
+                //DebugN(\"test\",prefix,number);
+		// Set dpFunction for Alarms
+		int offset=11;
+		if(prefix == \".Warnings.warningWord0\")
+			offset = 12;
+		if(number==1)
+		{
+			data[__idx[\".dpFunction.canHave\"]][offset] = 1;
+			data[__idx[\".dpFunction.function\"]][offset] = \"p1\";
+			data[__idx[\".dpFunction.params\"]][offset] = prefix+\"1:_online.._value\";
+		}
+		else
+		{
+			if(data[__idx[\".dpFunction.function\"]][offset] == \"EMPTY\")
+			{
+				data[__idx[\".dpFunction.canHave\"]][offset] = 1;
+				data[__idx[\".dpFunction.function\"]][offset] = \"p\"+number;
+				data[__idx[\".dpFunction.params\"]][offset] = prefix+number+\":_online.._value\";
+			}
+			else
+			{
+				data[__idx[\".dpFunction.canHave\"]][offset] = 1;
+				data[__idx[\".dpFunction.function\"]][offset] += \"+p\"+number;
+				data[__idx[\".dpFunction.params\"]][offset] += \" | \"+prefix+number+\":_online.._value\";
+			}
+		}
+	}
+}
+
+
+_modelGeneration_processSRAM(dyn_anytype &scy, dyn_anytype &model, string prefix, dyn_dyn_string &data, string deviceDpType)
+{
+        dyn_string blanks;  
+        string dpPath = \"CaV/\"+systemPrefix.text+\"Plant.ModelHistory.prevouslyUsedItems\";
+        if(dpExists(dpPath))
+            dpGet(dpPath, blanks); 
+        
+        int i;
+	for(i=1; i<=dynlen(scy); i++)
+	{
+                string blank = deviceDpType+\";\"+prefix+\";\"+i;       
+                
+                // Remove elements from model history if the elements now are in use. This can happen if the number of elements
+                // in the SCY file + the elements in the model history is greater than the max. limit value for params.      
+                if(dynContains(blanks,blank)!=0 && scy[i][1]!=\"EMPTY\")
+                {    
+                  dynRemove(blanks,dynContains(blanks,blank));  
+                  dpSet(dpPath, blanks); 
+                }
+                
+		if(scy[i][1]==\"EMPTY\")
+		{
+			// save model history                       
+                        if(dynContains(blanks,blank)==0)
+                          dynAppend(blanks,blank);  
+                        dpSet(dpPath, blanks); 
+                        
+                        // remove peripheral address and alias/description from the dpe
+                        dyn_string exceptionInfo;
+                        string dpe;
+	                sprintf(dpe,prefix+\"%02d\", i);
+                        fwPeriphAddress_delete(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe, exceptionInfo); 
+                        dpSetDescription(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe,\"\");
+                        dpSetAlias(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe,\"\");
+                        DebugN(\"Create/update plant\",\"Added to model history\",\"Peripheral address and alias/description is removed from CaV/\"+systemPrefix.text+\"Plant\"+dpe);
+		}
+		else
+			__modelGeneration_processSRAM(scy, prefix, i, data);
+	}
+	/* It might happen (theoretically) that some entries had been removed
+	 * from the model - check it
+	 */
+	for(i; i<=dynlen(model); i++)
+        {
+          	//__modelGeneration_processSRAM(model, prefix, i, data);
+          
+                // remove peripheral address and alias/description if there is one
+                dyn_string exceptionInfo;
+                string dpe;
+                /*if(i<10)
+	          sprintf(dpe,prefix+\"%02d\", i);
+                else
+                  sprintf(dpe,prefix+\"%03d\", i);*/
+                //DebugN(prefix,i);
+                dpe = prefix+\"0\"+i;
+                fwPeriphAddress_delete(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe, exceptionInfo); 
+                dpSetAlias(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe,\"\");
+                dpSetDescription(\"CaV/\"+systemPrefix.text+\"Plant\"+dpe,\"\");    
+                        
+                // if one of the params that was kept in the modelhistory now are used the param have to be removed
+                // from the modelhistory (just cleaning up)
+                if(model[i][1]==\"EMPTY\" && dynlen(scy)>=i)
+                {
+                   if(scy[i][1]!=\"EMPTY\") 
+                   {
+                        string removeBlank = deviceDpType+\";\"+prefix+\";\"+i;
+                        dyn_string blanks;
+                        dpGet(\"CaV/\"+systemPrefix.text+\"Plant.ModelHistory.prevouslyUsedItems\", blanks);  
+                        if(dynContains(blanks,removeBlank))
+                           dynRemove(blanks,dynContains(blanks,removeBlank));
+                        dpSet(\"CaV/\"+systemPrefix.text+\"Plant.ModelHistory.prevouslyUsedItems\", blanks); 
+                                             
+                   }
+                }       
+        }
+        
+}
+
+__modelGeneration_processSRAM(dyn_anytype input, string prefix, int number, dyn_dyn_string &data)
+{
+	int last = dynlen(data[__idx[\".names\"]]) + 1;
+	data[__idx[\".names\"]][last] = input[number][1];
+	
+        string dpe;
+        if((prefix==\".Warnings.warningWord\" || prefix==\".Alarms.alarmWord\") && number>9)
+          sprintf(dpe,prefix+\"%03d\", number);
+        else
+	  sprintf(dpe,prefix+\"%02d\", number);
+        
+	data[__idx[\".dpes\"]][last] = dpe;
+       /* string x = \"\";
+        if(strpos(dpe,\"param\")>=0 && (strlen(dpe)>=(strpos(dpe,\"param\")+6)) && (strpos(prefix,\"Loop\")>=0 || strpos(prefix,\"Area\")>=0))
+          x = substr(dpe,strpos(dpe,\"param\")+6);*/
+	data[__idx[\".userData\"]][last] = input[number][1]/*+x*/;			
+	data[__idx[\".description\"]][last] = input[number][2]/*+x*/;
+	
+	// #### SCY UNITS COMMENTED OUT - till the format is specified!!!
+	// Extract units from description, if they are present - set them
+/*	
+	int _start = strpos(input[number][2],\"{\")+1;
+	int _stop = strpos(input[number][2],\"}\");
+	if( (_start<_stop) && (_start>=0) )
+	{
+			string unit = substr(input[number][2], _start, _stop-_start);
+			data[__idx[\".unit.canHave\"]][last] = 1;
+			data[__idx[\".unit.unit\"]][last] = unit;
+	}
+*/
+	// #### END OF SCY UNITS      
+        
+	data[__idx[\".address.canHave\"]][last] = 1;
+	if(strpos(dpe,\".Setting\")>=0)
+		data[__idx[\".address.direction\"]][last] = 5;
+	else
+		data[__idx[\".address.direction\"]][last] = 2;
+	data[__idx[\".alert.canHave\"]][last] = 1;
+	data[__idx[\".archive.canHave\"]][last] = 1;
+                
+}
+
+_setControlBits(string bits, dyn_dyn_string scyFile, dyn_dyn_string &data, dyn_string &exceptionInfo, bool plant)
+{
+	string status=\"\", control=\"\", timeout=\"\", controlC = \"\", statusC1 = \"\", statusC2 = \"\", statusC3 = \"\";
+	for(int i=1; i<=dynlen(scyFile); i++)
+	{
+		if(scyFile[i][SCY_INDEX_class] == \"Control\")
+			control = scyFile[i][SCY_INDEX_varName];
+		if(scyFile[i][SCY_INDEX_class] == \"Status\")
+			status = scyFile[i][SCY_INDEX_varName];
+		if(scyFile[i][SCY_INDEX_class] == \"Timeout\")
+			timeout = scyFile[i][SCY_INDEX_varName];
+                if(scyFile[i][SCY_INDEX_class] == \"ControlC\")
+			controlC = scyFile[i][SCY_INDEX_varName];
+		if((scyFile[i][SCY_INDEX_class] == \"StatusC\") && (strpos(scyFile[i][SCY_INDEX_varName], \"02\") < 0) && (strpos(scyFile[i][SCY_INDEX_varName], \"03\") < 0))
+			statusC1 = scyFile[i][SCY_INDEX_varName];
+                 if((scyFile[i][SCY_INDEX_class] == \"StatusC\") && (strpos(scyFile[i][SCY_INDEX_varName], \"02\") >= 0))
+			statusC2 = scyFile[i][SCY_INDEX_varName];
+                 if((scyFile[i][SCY_INDEX_class] == \"StatusC\") && (strpos(scyFile[i][SCY_INDEX_varName], \"03\") >= 0))
+			statusC3 = scyFile[i][SCY_INDEX_varName];
+	}	
+	if(status==\"\")
+		fwException_raise(exceptionInfo, \"ERROR\", \"No variable responsible for plant/loop status found in the SCY\", \"\");
+	//if(control==\"\")
+	//	fwException_raise(exceptionInfo, \"ERROR\", \"No variable responsible for plant/loop control found in the SCY\", \"\");
+	//if(timeout==\"\"&&plant)
+	//	fwException_raise(exceptionInfo, \"ERROR\", \"No variable responsible for plant timeout (_status_elapsedtime) found in the SCY\", \"\");		
+	data[__idx[\".userData\"]][1] = bits;	
+	data[__idx[\".userData\"]][2] = bits;
+	data[__idx[\".userData\"]][3] = bits;
+	
+	data[__idx[\".names\"]][1] = control;
+	data[__idx[\".names\"]][2] = control;
+	data[__idx[\".names\"]][3] = status;
+	
+	if(plant)
+	{
+		data[__idx[\".names\"]][4] = timeout;
+                data[__idx[\".names\"]][5] = controlC;
+                if (statusC1 != \"\")
+                  data[__idx[\".names\"]][6] = statusC1;
+                if (statusC2 != \"\")
+                  data[__idx[\".names\"]][7] = statusC2;
+                if (statusC3 != \"\")
+                  data[__idx[\".names\"]][8] = statusC3;
+	}
+}
+
+/*
+    This function simply add dp function to Alarms.summary and Warnings.summary. 
+    
+    It reads the warnings words and the alarm words from the model definition. This can be a 
+    problem when updating a SCY file if the model is not updated correctly. 
+    
+    Needed: system prefix (It, Evap, Tile, Rod..)
+    Erik Morset - 03/10 2007
+*/
+_setDpFuncForSumAlarmsAndWarnings(string plantPrefix)
+{
+        dyn_dyn_string pElements;
+        dyn_string exceptionInfo;
+        string alFunctionDefinition, warFunctionDefinition; // the definition for the dp function (p1+...+pN)!=0
+        dyn_string alFunctionParams, warFunctionParams; // the dps used in the dp function (alarm and warning words)
+                
+        string deviceDpName = \"CaV/\"+plantPrefix+\"Plant\";
+        
+        // get all elements from model
+	fwDevice_getConfigElements(\"FwCaVPlant\", fwDevice_ALL, pElements, exceptionInfo, plantPrefix);  
+            
+        // filter out alarm words and warning words
+        for(int i=1; i<=dynlen(pElements[fwDevice_ELEMENTS_INDEX]); i++)
+        {  
+           if(strpos(pElements[fwDevice_ELEMENTS_INDEX][i],\"Alarms.alarmWord\")>=0)
+              dynAppend(alFunctionParams, deviceDpName+pElements[fwDevice_ELEMENTS_INDEX][i]+\":_original.._value\");  
+           else if(strpos(pElements[fwDevice_ELEMENTS_INDEX][i],\"Warnings.warningWord\")>=0) 
+              dynAppend(warFunctionParams, deviceDpName+pElements[fwDevice_ELEMENTS_INDEX][i]+\":_original.._value\");             
+        }     
+            
+        // create the function definition for alarms
+        for(int i=1; i<=dynlen(alFunctionParams); i++)
+        {
+             if(i==1 && i==dynlen(alFunctionParams))  
+                alFunctionDefinition = \"p1!=0\";                    
+             else if(i==1)  
+               alFunctionDefinition = \"(p1+\";          
+             else if(i==dynlen(alFunctionParams))
+               alFunctionDefinition += \"p\"+i+\")!=0\";
+             else
+               alFunctionDefinition += \"p\" + i + \"+\"; 
+        }
+
+        // create the function definition for warnings 
+        for(int i=1; i<=dynlen(warFunctionParams); i++)
+        {
+             if(i==1 && i==dynlen(warFunctionParams))
+               warFunctionDefinition = \"p1!=0\";           
+             else if(i==1)  
+               warFunctionDefinition = \"(p1+\";          
+             else if(i==dynlen(warFunctionParams))
+               warFunctionDefinition += \"p\"+i+\")!=0\";
+             else
+               warFunctionDefinition += \"p\" + i + \"+\"; 
+        }                
+        
+        // create the dpfunction for .Alarms.summary.
+        if(dynlen(alFunctionParams)>0 && strlen(alFunctionDefinition)>0)
+        {
+          dynAppend(alFunctionParams,deviceDpName+\".Actual.alarm:_original.._value\");
+          alFunctionDefinition += \" || p\"+dynlen(alFunctionParams);           
+          fwDpFunction_setDpeConnection(deviceDpName+\".Alarms.summary\", alFunctionParams, makeDynString(), alFunctionDefinition, exceptionInfo);
+        }
+        else
+          DebugN(\"ERROR: No dpFunction created for .Alarms.summary.\");
+                
+        // create the dpfunction for .Warnings.summary.
+        if(dynlen(warFunctionParams)>0 && strlen(warFunctionDefinition)>0)     
+        { 
+          dynAppend(warFunctionParams,deviceDpName+\".Actual.fault:_original.._value\");
+          warFunctionDefinition += \" || p\"+dynlen(warFunctionParams); 
+          fwDpFunction_setDpeConnection(deviceDpName+\".Warnings.summary\", warFunctionParams, makeDynString(), warFunctionDefinition, exceptionInfo);
+        }
+        else
+          DebugN(\"ERROR: No dpFunction created for .Warnings.summary.\");
+}
+
+_setModelData(string newDp, dyn_dyn_string &data)
+{
+	_fillDefault(data, makeDynInt(__idx[\".defaultValues\"],
+															 __idx[\".userData\"],
+															 __idx[\".dpFunction.function\"],
+															 __idx[\".dpFunction.params\"],
+															 __idx[\".alert.defaultClasses\"],
+															 __idx[\".alert.defaultTexts\"],
+															 __idx[\".unit.unit\"]),
+															 \"EMPTY\",
+															 dynlen(data[__idx[\".names\"]]));
+	_fillDefault(data, makeDynInt(__idx[\".dpFunction.canHave\"],
+															 __idx[\".alert.canHave\"], 
+															 __idx[\".archive.canHave\"], 
+															 __idx[\".smoothing.canHave\"], 
+															 __idx[\".pvRange.canHave\"], 
+															 __idx[\".format.canHave\"], 
+															 __idx[\".unit.canHave\"], 
+															 __idx[\".conversion.canHave\"]),
+															 \"0\", 
+															 dynlen(data[__idx[\".names\"]]));
+	
+	dyn_string empty;
+	dyn_int zeroes;
+	_createFilledDyn(empty, \"EMPTY\", dynlen(data[__idx[\".names\"]]));
+	_createFilledDyn(zeroes, 0, dynlen(data[__idx[\".names\"]]));
+
+	dpSet(
+			// .modelDefinition.definition.properties
+			newDp+\".modelDefinition.definition.properties.names\", data[__idx[\".names\"]],
+			newDp+\".modelDefinition.definition.properties.dpes\", data[__idx[\".dpes\"]],
+			newDp+\".modelDefinition.definition.properties.description\", data[__idx[\".description\"]],
+			newDp+\".modelDefinition.definition.properties.defaultValues\", data[__idx[\".defaultValues\"]], // EMPTY
+			newDp+\".modelDefinition.definition.properties.types\", data[__idx[\".types\"]], // NULL
+			newDp+\".modelDefinition.definition.properties.userData\", data[__idx[\".userData\"]], // EMPTY
+						
+			newDp+\".modelDefinition.definition.configuration.address.canHave\", data[__idx[\".address.canHave\"]], // 0,1
+			newDp+\".modelDefinition.definition.configuration.address.direction\", data[__idx[\".address.direction\"]], // 2,5				
+			newDp+\".modelDefinition.definition.configuration.address.OPC.items\", empty, // EMPTY
+			newDp+\".modelDefinition.definition.configuration.address.OPC.groups\", empty, // EMPTY
+			newDp+\".modelDefinition.definition.configuration.address.OPC.types\", empty, // EMPTY
+			newDp+\".modelDefinition.definition.configuration.address.OPC.userDefined\", empty, // EMPTY
+			newDp+\".modelDefinition.definition.configuration.address.OPC.direction\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.address.DIM.items\", empty, // EMPTY
+			newDp+\".modelDefinition.definition.configuration.address.DIM.direction\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.address.MODBUS.direction\", data[__idx[\".address.direction\"]], // same as general address direction
+			newDp+\".modelDefinition.definition.configuration.address.DIP.direction\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.address.DIP.items\", zeroes, // EMPTY
+			newDp+\".modelDefinition.definition.configuration.dpFunction.canHave\", data[__idx[\".dpFunction.canHave\"]], // 0,1
+			newDp+\".modelDefinition.definition.configuration.dpFunction.function\", data[__idx[\".dpFunction.function\"]], 
+			newDp+\".modelDefinition.definition.configuration.dpFunction.params\", data[__idx[\".dpFunction.params\"]],
+			newDp+\".modelDefinition.definition.configuration.alert.canHave\", data[__idx[\".alert.canHave\"]], // 0,1
+			newDp+\".modelDefinition.definition.configuration.alert.defaultClasses\", data[__idx[\".alert.defaultClasses\"]],
+			newDp+\".modelDefinition.definition.configuration.alert.defaultTexts\", data[__idx[\".alert.defaultTexts\"]],
+			newDp+\".modelDefinition.definition.configuration.alert.defaultLimits\", empty, // EMPTY
+			newDp+\".modelDefinition.definition.configuration.archive.canHave\", data[__idx[\".archive.canHave\"]], // 0,1
+			newDp+\".modelDefinition.definition.configuration.archive.defaultClass\", empty, // EMPTY
+			newDp+\".modelDefinition.definition.configuration.archive.smoothType\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.archive.smoothProcedure\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.archive.deadband\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.archive.timeInterval\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.smoothing.canHave\", data[__idx[\".smoothing.canHave\"]], // 0,1
+			newDp+\".modelDefinition.definition.configuration.smoothing.smoothProcedure\", zeroes,
+			newDp+\".modelDefinition.definition.configuration.smoothing.deadband\", zeroes,
+			newDp+\".modelDefinition.definition.configuration.smoothing.timeInterval\", zeroes,
+			newDp+\".modelDefinition.definition.configuration.pvRange.canHave\", data[__idx[\".pvRange.canHave\"]], // 0,1
+			newDp+\".modelDefinition.definition.configuration.pvRange.minValue\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.pvRange.maxValue\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.pvRange.negateRange\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.pvRange.ignoreOutside\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.pvRange.inclusiveMin\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.pvRange.inclusiveMax\", zeroes, // 0
+			newDp+\".modelDefinition.definition.configuration.format.canHave\", data[__idx[\".format.canHave\"]], // 0,1
+			newDp+\".modelDefinition.definition.configuration.format.format\", empty, // EMPTY
+			newDp+\".modelDefinition.definition.configuration.unit.canHave\", data[__idx[\".unit.canHave\"]], // 0,1
+			newDp+\".modelDefinition.definition.configuration.unit.unit\", data[__idx[\".unit.unit\"]], // EMPTY 
+			newDp+\".modelDefinition.definition.configuration.conversion.canHave\", data[__idx[\".conversion.canHave\"]], // 0,1
+			newDp+\".modelDefinition.definition.configuration.conversion.type\", empty, // EMPTY
+			newDp+\".modelDefinition.definition.configuration.conversion.conversionType\", zeroes,
+			newDp+\".modelDefinition.definition.configuration.conversion.order\", zeroes,  // 0
+			newDp+\".modelDefinition.definition.configuration.conversion.arguments\", zeroes, // 0
+			newDp+\".model\", modelDesc
+				);	
+}
+
+_getModelData(string datapoint, dyn_dyn_string &data)
+{
+	dpGet(
+				// .modelDefinition.definition.properties
+				datapoint+\".modelDefinition.definition.properties.names\", data[__idx[\".names\"]],
+				datapoint+\".modelDefinition.definition.properties.dpes\", data[__idx[\".dpes\"]],
+				datapoint+\".modelDefinition.definition.properties.description\", data[__idx[\".description\"]],
+				datapoint+\".modelDefinition.definition.properties.defaultValues\", data[__idx[\".defaultValues\"]], // EMPTY
+				datapoint+\".modelDefinition.definition.properties.types\", data[__idx[\".types\"]], // NULL
+				datapoint+\".modelDefinition.definition.properties.userData\", data[__idx[\".userData\"]], // EMPTY
+							
+				datapoint+\".modelDefinition.definition.configuration.address.canHave\", data[__idx[\".address.canHave\"]], // 0,1
+				datapoint+\".modelDefinition.definition.configuration.address.direction\", data[__idx[\".address.direction\"]], // 2,5				
+//				datapoint+\".modelDefinition.definition.configuration.address.OPC.items\", data[], // EMPTY
+//				datapoint+\".modelDefinition.definition.configuration.address.OPC.groups\", data[], // EMPTY
+//				datapoint+\".modelDefinition.definition.configuration.address.OPC.types\", data[], // EMPTY
+//				datapoint+\".modelDefinition.definition.configuration.address.OPC.userDefined\", data[], // EMPTY
+//				datapoint+\".modelDefinition.definition.configuration.address.OPC.direction\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.address.DIM.items\", data[], // EMPTY
+//				datapoint+\".modelDefinition.definition.configuration.address.DIM.direction\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.address.MODBUS.direction\", data[], // same as general address direction
+//				datapoint+\".modelDefinition.definition.configuration.address.DIP.direction\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.address.DIP.items\", data[], // EMPTY
+				datapoint+\".modelDefinition.definition.configuration.dpFunction.canHave\", data[__idx[\".dpFunction.canHave\"]], // 0,1
+				datapoint+\".modelDefinition.definition.configuration.dpFunction.function\", data[__idx[\".dpFunction.function\"]], 
+				datapoint+\".modelDefinition.definition.configuration.dpFunction.params\", data[__idx[\".dpFunction.params\"]],
+				datapoint+\".modelDefinition.definition.configuration.alert.canHave\", data[__idx[\".alert.canHave\"]], // 0,1
+				datapoint+\".modelDefinition.definition.configuration.alert.defaultClasses\", data[__idx[\".alert.defaultClasses\"]],
+				datapoint+\".modelDefinition.definition.configuration.alert.defaultTexts\", data[__idx[\".alert.defaultTexts\"]],
+//				datapoint+\".modelDefinition.definition.configuration.alert.defaultLimits\", data[], // EMPTY
+				datapoint+\".modelDefinition.definition.configuration.archive.canHave\", data[__idx[\".archive.canHave\"]], // 0,1
+//				datapoint+\".modelDefinition.definition.configuration.archive.defaultClass\", data[], // EMPTY
+//				datapoint+\".modelDefinition.definition.configuration.archive.smoothType\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.archive.smoothProcedure\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.archive.deadband\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.archive.timeInterval\", data[], // 0
+				datapoint+\".modelDefinition.definition.configuration.smoothing.canHave\", data[__idx[\".smoothing.canHave\"]], // 0,1
+//				datapoint+\".modelDefinition.definition.configuration.smoothing.smoothProcedure\", data[],
+//				datapoint+\".modelDefinition.definition.configuration.smoothing.deadband\", data[],
+//				datapoint+\".modelDefinition.definition.configuration.smoothing.timeInterval\", data[],
+				datapoint+\".modelDefinition.definition.configuration.pvRange.canHave\", data[__idx[\".pvRange.canHave\"]], // 0,1
+//				datapoint+\".modelDefinition.definition.configuration.pvRange.minValue\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.pvRange.maxValue\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.pvRange.negateRange\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.pvRange.ignoreOutside\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.pvRange.inclusiveMin\", data[], // 0
+//				datapoint+\".modelDefinition.definition.configuration.pvRange.inclusiveMax\", data[], // 0
+				datapoint+\".modelDefinition.definition.configuration.format.canHave\", data[__idx[\".format.canHave\"]], // 0,1
+//				datapoint+\".modelDefinition.definition.configuration.format.format\", data[], // EMPTY
+				datapoint+\".modelDefinition.definition.configuration.unit.canHave\", data[__idx[\".unit.canHave\"]], // 0,1
+//				datapoint+\".modelDefinition.definition.configuration.unit.unit\", data[], // EMPTY
+				datapoint+\".modelDefinition.definition.configuration.conversion.canHave\", data[__idx[\".conversion.canHave\"]] // 0,1
+//				datapoint+\".modelDefinition.definition.configuration.conversion.type\", data[], // EMPTY
+//				datapoint+\".modelDefinition.definition.configuration.conversion.conversionType\", data[],
+//				datapoint+\".modelDefinition.definition.configuration.conversion.order\", data[],  // 0
+//				datapoint+\".modelDefinition.definition.configuration.conversion.arguments\", data[], // 0
+				);
+}" 0
+ E E E
+13 34
+"Close"
+""
+1 760 746 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 758 744 842 772
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}
+" 0
+ E E "main()
+{
+	/*if($bHierarchyBrowser) 
+	{
+		this.visible = FALSE;
+	}
+	else 
+	{
+		this.visible = TRUE;
+	}*/
+}" 0
+
+1 39 0 "" 0
+1 "message" 1 1 "main()
+{
+	time rootPanelPathTime, childPanelPathTime;
+	unsigned managerNumber = myManNum();
+	string rootPanelPath, childPanelPath, rootPanelName, childPanelName, panelName;
+	
+	
+	if(isDollarDefined(\"$sPanelRelativePath\"))
+	{
+		panelPath = $sPanelRelativePath;
+	}
+	
+	if(panelPath == \"\")
+	{
+		dpGet(	\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName\", rootPanelPath,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName:_original.._stime\", rootPanelPathTime,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.PanelName\", rootPanelName,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName\", childPanelPath,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName:_original.._stime\", childPanelPathTime,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.PanelName\", childPanelName);
+	
+
+		//	DebugN(rootPanelPath, rootPanelPathTime, childPanelPath, childPanelPathTime);
+	
+		if(rootPanelPathTime > childPanelPathTime)
+		{
+			panelPath = rootPanelPath;
+			panelName = rootPanelName;
+		}
+		else
+		{
+			panelPath = childPanelPath;
+			panelName = childPanelName;
+		}
+	
+		if(myPanelName() == panelName)
+		{
+			goodPanelName = TRUE;
+//			DebugN(\"Correct panel name\");
+		}
+		else
+		{
+			goodPanelName = FALSE;
+//			DebugN(\"Wrong panel name\");
+		}	
+	}
+//	DebugN(\"The good path is \" + panelPath);
+}" 0
+ 
+1 "leftClick" 1 1 "main()
+{
+	int replaced;
+	string 	componentName, path, tempPanelPath, helpFile, browserCommand;
+	dyn_string aux, exceptionInfo;
+	
+//	DebugN(\"The good path is \" + panelPath);
+	
+	if(!goodPanelName)
+	{
+		fwException_raise(	exceptionInfo,
+							\"ERROR\",
+							\"Open panel name doesn't match with PVSS database. Try opening the panel again.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Get component name. We assume panels are inside a directory
+	// named after the component name
+	strreplace(panelPath, \"\\\\\", \"/\");
+	aux = strsplit(panelPath, \"/\");
+	componentName = aux[1];
+//	DebugN(panelPath, componentName);
+	
+	// Remove extension if given
+	if(strpos(panelPath, \".pnl\") >= 0)
+	{
+		tempPanelPath = substr(panelPath, 0, strpos(panelPath, \".pnl\"));
+	}
+	else
+	{
+		tempPanelPath = panelPath;
+	}
+	
+	// try to find the help file associated with the panel
+	helpFile = tempPanelPath + \".html\";
+//	DebugN(\"helpFile \" + helpFile + \" tempPanelPath \" + tempPanelPath + \" componentName \" + componentName);
+	path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+	if(path == \"\")
+	{		
+		helpFile = tempPanelPath + \".htm\";
+//		DebugN(\"helpFile \" + helpFile);
+		path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+//	DebugN(componentName + \"/panels/\" + helpFile);
+		if(path == \"\")
+		{
+			fwException_raise(	exceptionInfo,
+								\"ERROR\",
+								\"Could not find the help file associated with the current panel\",
+								\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	
+//	DebugN(\"Final help path \" + path);
+	
+	fwOpenProgressBar(\"Help\", \"Opening help file...\", 1);
+	// If there were no exceptions, then display the help
+	if(_WIN32)
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandWindows\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+//		system(\"start iexplore \" + path + \" &\");
+		system(browserCommand);
+	}
+	else
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandLinux\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+		system(browserCommand);
+//		system(\"start iexplore \" + path + \" &\");
+	}
+	fwCloseProgressBar();
+}	" 0
+ 
+0
+20 38
+"addAreas"
+""
+1 740 630 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 738 628 832 652
+1
+T 
+1
+LANG:1 9 Add areas
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+  this.state(0,TRUE);
+}" 0
+"main(int button, int state)
+{
+  if(state)
+    areas = true;
+  else
+    areas = false;
+}" 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2" 
+"objects\\fwGeneral\\fwHelpButton.pnl" 584 7 T 44 1 0 1 219 -4
+1
+"$sPanelRelativePath""fwCaV/fwCaVScyParser"
+0

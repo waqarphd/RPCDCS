@@ -1,0 +1,67 @@
+# ascii dump of database
+
+# Datapoint/DpId
+DpName	TypeName	ID
+fwOT_CMSfwFSMConfigurator	_FwFsmObjectType	375008
+
+# DpValue
+ElementName	TypeName	_original.._value	_original.._status64	_original.._stime
+fwOT_CMSfwFSMConfigurator.panel	_FwFsmObjectType	"CMSfwFSMConfigurator.pnl"	0x101	23.03.2011 16:28:01.276
+fwOT_CMSfwFSMConfigurator.components	_FwFsmObjectType	"string state
+", "string mode
+string state
+", "CMSfwFSMConfigurator_initialize(string domain, string device)
+{
+}
+", "CMSfwFSMConfigurator_valueChanged( string domain, string device,
+      string state, string &fwState )
+{
+  switch(state)
+  {
+    case \"LOADED\":
+    case \"CONFIGURING\":
+    case \"VERIFYING\":
+    case \"CHANGED\":
+      fwState = state;    
+      break;
+    default:
+      fwState = \"NOT_READY\";
+      break;
+  }
+}
+
+", "CMSfwFSMConfigurator_doCommand(string domain, string device, string command)
+{
+  bool showIntermediateStates;
+  int verifyDelay, verifyRetries;  
+  
+  dpGet(device + \".configuration.verifyDelay\", verifyDelay,
+        device + \".configuration.verifyRetries\", verifyRetries,
+        device + \".configuration.showIntermediateStates\", showIntermediateStates);
+  
+  //calculate a suitable timeout for the DU
+  if(showIntermediateStates)
+    fwDU_startTimeout(10, domain, device, \"NOT_READY\");
+  else
+    fwDU_startTimeout((verifyDelay*verifyRetries) + 10, domain, device, \"NOT_READY\");
+  
+	if (command == \"LOAD\")
+	{
+		anytype valueOf_mode;
+		fwDU_getCommandParameter(domain, device, \"mode\", valueOf_mode);
+                dpSet(device + \".sendCommand.command\", \"LOAD\", 
+                      device + \".sendCommand.parameter\", valueOf_mode); 	
+	}
+	else
+	{
+                dpSet(device + \".sendCommand.command\", command, 
+                      device + \".sendCommand.parameter\", \"\");	
+  }
+}
+
+"	0x101	23.03.2011 16:29:22.292
+fwOT_CMSfwFSMConfigurator.states	_FwFsmObjectType	"NOT_READY", "FwStateAttention3", "", "", "", "VERIFYING", "FwStateOKNotPhysics", "", "", "", "CONFIGURING", "FwStateAttention1", "", "", "", "LOADED", "FwStateOKPhysics", "", "", "", "CHANGED", "FwStateAttention2", "", "", ""	0x101	23.03.2011 16:29:22.292
+fwOT_CMSfwFSMConfigurator.actions	_FwFsmObjectType	"NOT_READY/LOAD", "string mode = \"default\"
+", "1", "", "0", "VERIFYING/ABORT", "", "1", "", "0", "CONFIGURING/ABORT", "", "1", "", "0", "LOADED/LOAD", "string mode = \"default\"
+", "1", "", "0", "LOADED/RELOAD", "", "1", "", "0", "LOADED/VERIFY", "", "1", "", "0", "CHANGED/LOAD", "string mode = \"default\"
+", "1", "", "0"	0x101	23.03.2011 16:29:22.292

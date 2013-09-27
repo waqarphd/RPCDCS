@@ -1,0 +1,1213 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 640 556 N "_3DFace" 3
+"$Command"
+"$dsShowButtons"
+"$sDpName"
+E "main()
+{
+	int i;
+}" 0
+ E E E 1 -1 -1 0  0 0
+""0  1
+E "int MAX_COLS;
+int MAX_ROWS;
+int START_X = 20;
+int START_Y = 120;
+int MID_X = 320;
+int MID_Y = 270;
+const int REF_WIDTH = 180;
+const int REF_HEIGHT = 80;
+const int canvasWidth = 620;
+const int canvasHeight = 320;
+
+string g_AccessRightsRequired = \"\";
+
+int nCols = 0, nRows = 0;
+//global dyn_string plots;
+
+string pageName, Command, originalPageTitle = \"\";
+
+dyn_string plots, exceptionInfo;
+
+// Order: X ~ i Y ~ j
+
+checkHasSaveRights(string dp, string user)
+{
+  bool isAllowed=TRUE;
+  dyn_string exceptionInfo;
+
+  if (Command != \"onlineedit\")
+    isAllowed = true;
+  else if(g_AccessRightsRequired!=\"\")
+    fwAccessControl_isGranted(g_AccessRightsRequired, isAllowed, exceptionInfo);
+
+  ButtonOK.enabled = (isAllowed || (Command == \"onlineedit\"));
+  ButtonApply.enabled = isAllowed;
+  saveAsButton.enabled = isAllowed;
+}
+
+fwShowAcOptions(bool shouldShow)
+{
+  saveRights.visible = shouldShow;
+  saveRightsText.visible = shouldShow;
+  saveRightsSelect.visible = shouldShow;
+  accessControlOn.visible = shouldShow;
+  accessControlOnText.visible = shouldShow; 
+}
+
+fwEnableAcOptions(bool shouldEnable)
+{
+  saveRights.enabled = shouldEnable;
+  saveRightsSelect.enabled = shouldEnable;
+}
+
+void addRef(int _x, int _y, dyn_string &exceptionInfo) 
+{
+	addSymbol(myModuleName(), myPanelName(), \"fwTrending/fwTrendingSinglePlot.pnl\", \"Plot_\" + _x + \"_\" + _y,
+		makeDynString(\"$AnchorName:\" + pageName + \"_\" + _x + \"_\" + _y, \"$PageName:\" + pageName,
+		\"$Col:\" + _x, \"$Row:\" + _y, \"$plot:\" + fwTrending_getColRow(plots, _x, _y)), 
+		START_X + (_x - 1) * REF_WIDTH, START_Y + (_y - 1) * REF_HEIGHT, 0, 1, 1);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+void remRef(int _x, int _y, dyn_string &exceptionInfo) 
+{
+	removeSymbol(myModuleName(), myPanelName(), \"Plot_\" + _x + \"_\" + _y);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);}
+
+void repositionRefs() {
+	int i, j;
+	int x,y;
+	getValue(\"PagesCanvas\",\"position\",x,y);
+	MID_X = x + canvasWidth /2;
+	MID_Y = y - canvasHeight /2;
+//	DebugN(x,y);
+	for(i = 1; i <= nCols; i++)
+		for(j = 1; j <= nRows; j++) {
+			setValue(\"Plot_\" + i + \"_\" + j, \"position\", 
+				MID_X + (i - 1) * REF_WIDTH - nCols * REF_WIDTH / 2, 
+				MID_Y + (j - 1) * REF_HEIGHT - nRows * REF_HEIGHT / 2);
+		}
+}
+
+void colsChanged() 
+{
+	int _nCols = ColsSpinButton.text;
+	int i, j;
+//	DebugN(_colsDP + \" is \" + _nCols + \", \" + _rowsDP + \" is \" + _nRows);
+	if(nCols < _nCols)
+		for(i = nCols + 1; i <= _nCols; i++) 
+			for(j = 1; j <= nRows; j++) {
+//				fwTrendingWorkCopies_CreateNewPlotAnchor(workPageName, i, j);
+				addRef(i, j, exceptionInfo);
+			}
+	else if(nCols > _nCols)
+		for(i = _nCols + 1; i <= nCols; i++)
+			for(j = 1; j <= nRows; j++)
+				remRef(i, j, exceptionInfo);
+	nCols = _nCols;
+	repositionRefs();
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+void rowsChanged() 
+{
+	int _nRows = RowsSpinButton.text;
+	int i, j;
+//	DebugN(_colsDP + \" is \" + _nCols + \", \" + _rowsDP + \" is \" + _nRows);
+	if(nRows < _nRows)
+		for(j = nRows + 1; j <= _nRows; j++)
+			for(i = 1; i <= nCols; i++) {
+				addRef(i, j, exceptionInfo);
+			}
+	else if(nRows > _nRows)
+		for(j = _nRows + 1; j <= nRows; j++)
+			for(i = 1; i <= nCols; i++)
+				remRef(i, j, exceptionInfo);
+	nRows = _nRows;
+	repositionRefs();
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+string CheckInput(dyn_string &exceptionInfo)
+{
+	string tempString;
+	string okStr = \"OK\";
+	bool tempBool;
+
+	if(!((nCols > 0) && (nRows > 0))) 
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"There must be rows and columns\", \"\");
+		okStr = \"NoReturn\";
+	}						
+	
+//check for impossible combinations
+	if((nCols==2)&&(nRows==1)) 
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"This combination of rows and columns is not valid\", \"\");
+		okStr = \"NoReturn\";
+	}		
+
+//check page title
+	tempString = TextFieldPageTitle.text;
+	strreplace(tempString, fwTrending_TEMPLATE_OPEN, \"\");
+	strreplace(tempString, fwTrending_TEMPLATE_CLOSE, \"\");
+
+	if(!_fwTrending_isUnicosEnvironment(exceptionInfo))
+		strreplace(tempString, \" \", \"\");
+
+	tempBool = dpIsLegalName(tempString);
+//	tempBool = TRUE;
+
+ 	if(!tempBool || (tempString == \"\"))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The entered page title is not legal\", \"\");
+		okStr = \"NoReturn\";
+	}
+		
+	return okStr;
+}
+
+ReadInput(dyn_dyn_string &pageData, dyn_string &exceptionInfo)
+{
+	int i,j;
+
+	pageData[fwTrending_PAGE_OBJECT_MODEL][1] = fwTrending_YT_PAGE_MODEL;
+	pageData[fwTrending_PAGE_OBJECT_TITLE][1] = TextFieldPageTitle.text;
+
+	pageData[fwTrending_PAGE_OBJECT_NCOLS][1] = ColsSpinButton.text;
+	pageData[fwTrending_PAGE_OBJECT_NROWS][1] = RowsSpinButton.text;
+	pageData[fwTrending_PAGE_OBJECT_CONTROLS][1] = ControlsCheckButton.state(0);
+        pageData[fwTrending_PAGE_OBJECT_ACCESS_CONTROL_SAVE][1] = accessControlOn.state(0)?saveRights.text:\"\";
+
+//first clear plot names
+	dynClear(pageData[fwTrending_PAGE_OBJECT_PLOTS]);
+	for(i=1; i<=MAX_COLS; i++)
+		for(j=1; j<=MAX_ROWS; j++)
+			dynAppend(pageData[fwTrending_PAGE_OBJECT_PLOTS], \"\");
+//get plots names back
+	for(i=1; i<=nCols; i++)
+		for(j=1; j<=nRows; j++)
+          	{
+          		getValue(\"Plot_\" + i + \"_\" + j + \".Text3\", \"text\", pageData[fwTrending_PAGE_OBJECT_PLOTS][6 * (j - 1) + i]);
+          		getValue(\"Plot_\" + i + \"_\" + j + \".localParameterValues\", \"text\", pageData[fwTrending_PAGE_OBJECT_PLOT_TEMPLATE_PARAMETERS][6 * (j - 1) + i]);
+                }
+}
+
+ApplyCancelOKButtonClick(string button)
+{
+	dyn_dyn_string pageData;
+	string tempString;
+	dyn_string tempPageData;
+	string okStr = \"OK\";
+	bool tempBool, isConnected;
+	int i;
+	
+//DebugN(button);
+//DebugN(nCols, nRows);
+	if(button != \"Cancel\")
+	{
+		okStr = CheckInput(exceptionInfo);
+	
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+	}
+
+	if((button != \"Cancel\") && (okStr != \"NoReturn\"))
+	{
+		switch(Command) 
+		{						
+		case \"new\": 
+		{
+			pageName = TextFieldPageName.text;
+			if(pageName == \"\") 
+			{
+				fwException_raise(exceptionInfo, \"ERROR\", \"You did not enter a page name\", \"\");
+				fwExceptionHandling_display(exceptionInfo);
+				okStr = \"NoReturn\";
+			} 
+			else 
+			{
+				tempBool = dpIsLegalName(pageName);
+			  	if(tempBool)
+			  		if(!dpExists(pageName))
+         {
+						 fwTrending_newPage(pageName);
+          if(!dpExists(pageName))
+          {
+							  fwException_raise(exceptionInfo, \"ERROR\", \"The page could not be created\", \"\");
+							  fwExceptionHandling_display(exceptionInfo);
+							  okStr = \"NoReturn\";
+          }
+         }
+					else
+					{
+						fwException_raise(exceptionInfo, \"ERROR\", \"The entered page name is already in use\", \"\");
+						fwExceptionHandling_display(exceptionInfo);
+						okStr = \"NoReturn\";
+//							break;
+					}						
+				else 
+				{
+					fwException_raise(exceptionInfo, \"ERROR\", \"The entered page name is not legal\", \"\");
+					fwExceptionHandling_display(exceptionInfo);
+					okStr = \"NoReturn\";
+				}
+			}
+		}
+	
+		case \"edit\":
+		case \"onlineedit\":
+			if(okStr != \"NoReturn\")
+			{
+				TextFieldPageName.editable = FALSE;
+				TextFieldPageName.enabled = FALSE;
+				//change mode to edit once to config has been saved once
+				if(Command == \"new\")
+					Command = \"edit\";
+
+				if(Command == \"onlineedit\")
+				{
+					pageData = strsplit(getDollarValue(\"$dsPageData\"), \"|\");
+					for(i=1; i<=fwTrending_SIZE_PAGE_OBJECT; i++)
+					{
+						pageData[i][1] = strltrim(pageData[i][1], \" \");
+						pageData[i][1] = strrtrim(pageData[i][1], \" \");
+						pageData[i] = strsplit(pageData[i][1], fwTrending_CONTENT_DIVIDER);
+					}
+				}
+				else
+					fwTrending_getPage(pageName, pageData, exceptionInfo);
+				
+				ReadInput(pageData, exceptionInfo);
+				
+				if(Command != \"onlineedit\")
+				{
+					_fwTrending_isSystemForDpeConnected(pageName, isConnected, exceptionInfo);
+					if(isConnected)
+{
+//                                           bool isAllowed;
+// 					  if(g_AccessRightsRequired != \"\")
+//                                           {
+//                                              fwAccessControl_isGranted(g_AccessRightsRequired, isAllowed, exceptionInfo);
+//                                              if(!isAllowed)
+//                                              {
+//                                                fwException_raise(exceptionInfo, \"ERROR\", \"The current access right for saving this page configuration is: \" + g_AccessRightsRequired
+//                                                                   + \". You do not have sufficient rights to continue.  Your changes have not been saved\", \"\");
+//                                              }
+//                                           }
+//                                           
+// 					  if(pageData[fwTrending_PAGE_OBJECT_ACCESS_CONTROL_SAVE] != \"\")
+//                                           {
+//                                             fwAccessControl_isGranted(pageData[fwTrending_PAGE_OBJECT_ACCESS_CONTROL_SAVE], isAllowed, exceptionInfo);
+//                                             if(!isAllowed)
+//                                             {
+//                                                fwException_raise(exceptionInfo, \"ERROR\", \"The proposed access control settings would mean you could no longer modify this page configuration. \" 
+//                                                                   + \"You do not have the \\\"\" + saveRights.text + \"\\\" access right. \"
+//                                                                   + \"Please modify your configuration.\", \"\");
+//                                              }
+//                                           }
+//                                           
+                                          if(dynlen(exceptionInfo) == 0)
+                                          {
+                                            g_AccessRightsRequired = pageData[fwTrending_PAGE_OBJECT_ACCESS_CONTROL_SAVE];
+                                            fwTrending_setPage(pageName, pageData, exceptionInfo);
+                                          }
+}
+                                        else
+						fwException_raise(exceptionInfo, \"ERROR\", \"The configuration can not be saved because \\\"\" + pageName +
+															\"\\\" is from a remote system which is currently unavailable\", \"\");
+				}
+				else
+				{
+					for(i=1; i<=fwTrending_SIZE_PAGE_OBJECT; i++)
+					{
+						fwTrending_convertDynToString(pageData[i], tempPageData[i], exceptionInfo);
+						pageData[i] = makeDynString(tempPageData[i]);
+					}
+				}
+			}
+			break;
+		}
+
+	/* added by Herve */
+		if(button == \"Apply\") {
+			if(isFunctionDefined(\"unTrendTree_deviceConfiguration_postExecution\")) {
+				execScript(\"main()\"+
+										\"{\"+
+										\"		unTrendTree_deviceConfiguration_postExecution();\"+
+										\"}\", makeDynString());
+			}
+		}
+	/* end added by Herve */
+
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+		else
+			if((button == \"OK\") && (okStr != \"NoReturn\"))
+				PanelOffReturn(makeDynFloat(0.0), makeDynString(okStr, TextFieldPageName.text, pageData));
+	} else
+		if(okStr != \"NoReturn\") 
+		{
+			PanelOffReturn(makeDynFloat(0.0), makeDynString(\"Cancel\", TextFieldPageName.text));
+		} else 
+			if(dynlen(exceptionInfo) > 0)
+				fwExceptionHandling_display(exceptionInfo);
+}" 0
+ 2
+"CBRef" "0"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+20 46
+"accessControlOn"
+""
+1 20 427 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 425 42 459
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  fwEnableAcOptions(state);
+}" 0
+2 14
+"TextPageName"
+""
+1 20 50 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 52 108 78
+0 2 0 "0s" 0 0 0 64 0 0  22 52 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 Page Name
+2 17
+"TextPageTitle"
+""
+1 20 80 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 82 108 108
+0 2 0 "0s" 0 0 0 64 0 0  22 82 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Page Title
+2 27
+"Text2"
+""
+1 440 50 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 442 52 497 69
+0 2 0 "0s" 0 0 0 192 0 0  442 52 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Columns:
+2 28
+"Text3"
+""
+1 622 198 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 532 52 568 69
+0 2 0 "0s" 0 0 0 192 0 0  532 52 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Rows:
+2 31
+"Text5"
+""
+1 40 400 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 42 402 398 418
+0 2 0 "0s" 0 0 0 64 0 0  42 402 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 43 Show individual PVSS controls for all plots
+30 32
+"Frame1"
+""
+1 10 110 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 40 630 110
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+30 33
+"PagesCanvas"
+""
+1 10 430 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 0.971786833855799 0 3.10344827586208 0 E 10 110 630 430
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 23
+"Text1"
+""
+1 8 8 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main() 
+{
+	string tempString, originalData, sShowButtons;
+	int i, j, tempInt;
+	bool tempBool, showAcOptions = FALSE, isConnected = TRUE;
+	dyn_dyn_string pageData;
+	dyn_string buttons, exceptionInfo;
+	int iRes;
+
+	while(!isFunctionDefined(\"ApplyCancelOKButtonClick\"))
+		delay(0,50);
+		
+	dpGet(\"TrendingConfiguration.PageSettings.maxColumns:_original.._value\", MAX_COLS);
+	dpGet(\"TrendingConfiguration.PageSettings.maxRows:_original.._value\", MAX_ROWS);
+	
+	ColsSpinButton.sbMaximum = MAX_COLS;
+	RowsSpinButton.sbMaximum = MAX_ROWS;
+
+//	DebugN($Command);
+
+	if(isDollarDefined(\"$Command\"))
+	{
+		Command = $Command;
+	} else {
+		Command = \"edit\";			
+	}
+	if(Command == \"\") Command = \"edit\";
+
+	if(isDollarDefined(\"$sDpName\"))
+		if(Command != \"new\")
+			pageName = $sDpName;
+	else
+		pageName = \"\";
+
+	if(pageName == \"\")
+		Command = \"new\";
+
+	Command = strtolower(Command);
+
+	if(isDollarDefined(\"$dsShowButtons\"))
+	{
+		sShowButtons = $dsShowButtons;
+		strreplace(sShowButtons, \" \", \"\");
+		sShowButtons = strtolower(sShowButtons);
+		buttons = strsplit(sShowButtons, \"|\");
+		
+		if(dynContains(buttons, \"all\") > 0)
+		{
+			ButtonOK.visible = TRUE;
+			ButtonApply.visible = TRUE;
+			ButtonCancel.visible = TRUE;
+		}
+		else
+		{
+			if(dynContains(buttons, \"ok\") > 0)
+				ButtonOK.visible = TRUE;
+	
+			if(dynContains(buttons, \"apply\") > 0)
+				ButtonApply.visible = TRUE;
+	
+			if(dynContains(buttons, \"cancel\") > 0)
+				ButtonCancel.visible = TRUE;		
+		}
+	}
+	else
+	{
+		ButtonOK.visible = TRUE;
+		ButtonApply.visible = TRUE;
+		ButtonCancel.visible = TRUE;
+	}
+				
+	if((Command == \"edit\") || (Command == \"onlineedit\"))	
+	{	
+		TextFieldPageName.editable = FALSE;
+		TextFieldPageName.enabled = FALSE;
+		TextFieldPageTitle.editable = TRUE;
+		TextFieldPageTitle.enabled = TRUE;
+	}
+	else
+	{
+		TextFieldPageName.editable = TRUE;
+		TextFieldPageName.enabled = TRUE;
+		TextFieldPageTitle.editable = TRUE;
+		TextFieldPageTitle.enabled = TRUE;
+	}
+
+	if(Command == \"new\") 
+	{
+                showAcOptions = TRUE;
+		dynClear(pageData[fwTrending_PAGE_OBJECT_PLOTS]);
+		for(i=1; i<=MAX_COLS; i++)
+			for(j=1; j<=MAX_ROWS; j++)
+				dynAppend(pageData[fwTrending_PAGE_OBJECT_PLOTS], \"\");
+		pageData[fwTrending_PAGE_OBJECT_PLOT_TEMPLATE_PARAMETERS] = pageData[fwTrending_PAGE_OBJECT_PLOTS];
+		pageData[fwTrending_PAGE_OBJECT_TITLE][1] = \"\";
+		pageData[fwTrending_PAGE_OBJECT_CONTROLS][1] = \"FALSE\";
+		pageData[fwTrending_PAGE_OBJECT_NCOLS][1] = 1;
+		pageData[fwTrending_PAGE_OBJECT_NROWS][1] = 1;
+		pageData[fwTrending_PAGE_OBJECT_ACCESS_CONTROL_SAVE][1] = \"\";
+		repositionRefs();
+	}
+	else if(Command == \"onlineedit\")
+	{
+		originalData = getDollarValue(\"$dsPageData\");
+		strreplace(originalData, \" | \", \"|\");
+		pageData = strsplit(originalData, \"|\");
+		
+		for(i=1; i<=fwTrending_SIZE_PAGE_OBJECT; i++)
+		{
+			fwTrending_convertStringToDyn(pageData[i][1], pageData[i], exceptionInfo);
+		}
+	}
+	else if(Command == \"edit\") 
+	{
+                showAcOptions = TRUE;
+		_fwTrending_isSystemForDpeConnected(pageName, isConnected, exceptionInfo);
+		fwTrending_getPage(pageName, pageData, exceptionInfo);
+	}
+	
+	tempString = pageData[fwTrending_PAGE_OBJECT_TITLE][1];
+	nCols = pageData[fwTrending_PAGE_OBJECT_NCOLS][1];
+	nRows = pageData[fwTrending_PAGE_OBJECT_NROWS][1];
+	tempBool = pageData[fwTrending_PAGE_OBJECT_CONTROLS][1];
+	plots = pageData[fwTrending_PAGE_OBJECT_PLOTS];
+//DebugN(pageData, fwTrending_PAGE_OBJECT_ACCESS_CONTROL_SAVE);        
+
+        g_AccessRightsRequired = pageData[fwTrending_PAGE_OBJECT_ACCESS_CONTROL_SAVE][1];
+        setValue(\"saveRights\", \"text\", g_AccessRightsRequired);
+        setValue(\"accessControlOn\", \"state\", 0, (g_AccessRightsRequired==\"\")?FALSE:TRUE);
+        fwEnableAcOptions(g_AccessRightsRequired!=\"\");
+        	
+	if(_fwTrending_isUnicosEnvironment(exceptionInfo))
+		strreplace(tempString, \" \", \"\");
+	
+	if(nCols < 1)
+		nCols = 1;
+	if(nRows < 1)
+		nRows = 1;
+	
+	TextFieldPageName.text = pageName;
+	TextFieldPageName.toolTipText = pageName;
+	TextFieldPageTitle.text = tempString;
+	TextFieldPageTitle.toolTipText = tempString;
+	originalPageTitle = tempString;
+	ColsSpinButton.text = nCols;
+	RowsSpinButton.text = nRows;
+	setValue(\"ControlsCheckButton\", \"state\", 0, tempBool);
+	for(i=1; i<=nCols; i++)
+		for(j=1; j<=nRows; j++)
+			addRef(i,j, exceptionInfo);
+	repositionRefs();
+
+        if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+          fwShowAcOptions(showAcOptions);
+        
+	if(isConnected)
+	{
+		// Access Control
+		if(isFunctionDefined(\"unGenericDpFunctionsHMI_setCallBack_user\")) 
+		{
+			unGenericDpFunctionsHMI_setCallBack_user(\"unGenericButtonFunctionsHMI_plotsPageselectCB\", iRes, exceptionInfo);
+                        TextFieldPageTitle.enabled(ButtonApply.visible());
+		}
+                else if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+                {
+                  fwAccessControl_setupPanel(\"checkHasSaveRights\", exceptionInfo);
+                }                 
+	}
+	else
+	{
+		ButtonOK.enabled = FALSE;
+		ButtonApply.enabled = FALSE;
+		saveAsButton.enabled = FALSE;
+
+		fwException_raise(exceptionInfo, \"ERROR\", \"The data point \\\"\" + pageName +
+											\"\\\" can not be edited because it is from a remote system which is currently unavailable\", \"\");
+	}
+
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+" 0
+ E 0 1 1 0 1 E U  0 E 10 10 258 33
+0 2 0 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 Page Layout Configuration
+2 44
+"InstructionsText"
+""
+1 3554 722 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 472 526 506
+0 2 0 "0s" 0 0 0 192 0 0  12 472 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 90 Template parameters can be defined in the page title using {} brackets - e.g. {device}Page
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 74 The template parameter values are passed to the page when it is displayed.
+14 15
+"TextFieldPageName"
+""
+1 110 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 108 48 412 75
+3 "0s" 0 0 0 0 0 -1  E E E
+14 16
+"TextFieldPageTitle"
+""
+1 110 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 108 78 412 105
+3 "0s" 0 0 0 0 0 -1  E E E
+13 21
+"ButtonOK"
+""
+1 340 513 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 338 511 432 545
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	ApplyCancelOKButtonClick(\"OK\");
+}" 0
+ E E E
+13 22
+"ButtonCancel"
+""
+1 540 513 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 538 511 632 545
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	ApplyCancelOKButtonClick(\"Cancel\");
+}" 0
+ E E E
+20 29
+"ControlsCheckButton"
+""
+1 20 400 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 96 -*-Courier New-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,404,0,0,0,0,0,0,0,0,Courier New
+0 ""
+ 18 398 32 422
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE21 34
+"ColsSpinButton"
+""
+1 450 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 448 68 492 95
+0
+
+E
+"main()
+{
+	colsChanged();
+}" 0
+
+E
+
+N 1 100 1 1 1 1
+21 35
+"RowsSpinButton"
+""
+1 530 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 528 68 572 95
+0
+
+E
+"main()
+{
+	rowsChanged();
+}" 0
+
+E
+
+N 1 100 1 1 1 1
+13 36
+"ButtonApply"
+""
+1 440 513 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 438 511 532 545
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	ApplyCancelOKButtonClick(\"Apply\");
+}" 0
+ E E E
+13 38
+"saveAsButton"
+""
+1 10 513 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 511 102 545
+
+T 
+1
+LANG:1 10 Save as...
+"main()
+{
+	bool newDp = FALSE, isFromDp;
+	string proposedName, sDpName;
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	dyn_dyn_string pageData;
+
+	CheckInput(exceptionInfo);
+	if(dynlen(exceptionInfo)>0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	sDpName = TextFieldPageName.text;
+	proposedName = dpGetAlias(sDpName + \".\");
+	if(proposedName == \"\")
+		proposedName = dpSubStr(sDpName, DPSUB_DP);
+	ChildPanelOnCentralReturn(\"fwTrending/fwTrendingSaveAsSelector.pnl\", \"Save page settings as...\",
+															makeDynString(\"$sDpType:\" + fwTrending_PAGE, \"$sProposedName:\" + proposedName), df, ds);
+	if(ds[1] == \"ok\")
+	{
+		ReadInput(pageData, exceptionInfo);
+		if(!dpExists(ds[2]))
+		{
+			fwTrending_createPage(ds[2], exceptionInfo);
+			newDp = TRUE;
+		}
+		fwTrending_setPage(ds[2], pageData, exceptionInfo);
+
+		isFromDp = !((TextFieldPageName.enabled) || (TextFieldPageName.text == \"\"));
+//DebugN(\"Call UNICOS\", newDp, isFromDp);
+
+		if(isFunctionDefined(\"unTrendTree_savePageAs\"))
+		{
+			unTrendTree_savePageAs(ds[2], newDp, isFromDp, exceptionInfo);
+		}
+	}
+
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E E
+1 53 0 "" 0
+0
+2 47
+"accessControlOnText"
+""
+1 43 427 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 43 427 173 462
+0 2 2 "0s" 0 0 0 64 0 0  43 427 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 21 Protect configuration
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 with access control
+14 48
+"saveRights"
+""
+1 280 433 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 431 462 458
+2 "0s" 0 0 0 0 0 -1  E E E
+13 49
+"saveRightsSelect"
+""
+1 470 429 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+47 0 0 0 27 0
+E E E
+0
+1
+LANG:1 22 Leave filter unchanged
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 468 427 542 461
+
+T 
+1
+LANG:1 6 Choose
+"main()
+{
+  dyn_string privileges, exceptionInfo;
+		
+  privileges[1] = saveRights.text;
+  if(isFunctionDefined(\"fwAccessControl_selectPrivileges\"))
+  {
+    fwAccessControl_selectPrivileges(privileges, \"Please choose access right\");
+    if(dynlen(privileges))
+      saveRights.text = privileges[1];    
+  }
+  else
+  {
+    fwException_raise(exceptionInfo, \"ERROR\", \"The access control component is not installed.\", \"\");
+    fwExceptionHandling_display(exceptionInfo); 
+  }
+}" 0
+ E E E
+2 50
+"saveRightsText"
+""
+1 181 437 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 181 437 271 457
+0 2 2 "0s" 0 0 0 64 0 0  181 437 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Required Right:
+30 51
+"FRAME1"
+""
+1 10 113 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+38 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 0 -3 0 E 10 113 631 471
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 0 
+14 52
+"acNotAvailable"
+""
+1 387 12 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 385 10 577 36
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  int x, y;
+  
+  getValue(\"\", \"position\", x, y);
+  
+  if(getPath(PANELS_REL_PATH, \"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl\") != \"\")
+    addSymbol(myModuleName(), myPanelName(), \"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl\", \"currentUser\", makeDynString(), x, y-16, 0, 1, 1);
+  else
+  {
+    this.visible = TRUE;
+    this.text = \"Access Control not available\";
+  }
+}" 0
+ E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2" 
+"objects\\fwGeneral\\fwHelpButton.pnl" 364 10 T 53 1 0 1 239 0
+1
+"$sPanelRelativePath""fwTrending/fwTrendingPlotsPage"
+0

@@ -1,0 +1,930 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 1470 560 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  refresh_tbl();
+}
+
+" 0
+ E E E E 1 -1 -1 0  270 340
+""0  1
+E "
+
+dyn_string usedDpes, usedType, usedItem, usedName, usedValue, usedQuality, usedStates, usedUnit, usedOldness;
+
+int numbEntries, numbGood, numbInvalid, numbBad, numbUncertain, numbUndefined, numbOldestOne;
+
+
+void enableToggles(bool state)
+{
+  setValue(\"Toggle0\",\"enabled\",state);
+  setValue(\"Toggle1\",\"enabled\",state);
+  setValue(\"Toggle2\",\"enabled\",state);
+  
+  setValue(\"save_csv\",\"enabled\",state);
+  setValue(\"save_txt\",\"enabled\",state);
+  
+  setValue(\"refresh_tbl\",\"enabled\",state);
+}
+
+    
+void refreshTable ( int toggle , int state )
+{
+  if ( state == 0 )
+  {
+    setValue(\"Toggle\"+toggle,\"state\",0,TRUE);
+  }
+  else
+  {
+    // Disable other buttons
+    if ( toggle != 0 ) setValue(\"Toggle0\",\"state\",0,FALSE);
+    if ( toggle != 1 ) setValue(\"Toggle1\",\"state\",0,FALSE);
+    if ( toggle != 2 ) setValue(\"Toggle2\",\"state\",0,FALSE);
+    
+    enableToggles(FALSE);
+        
+    Table.deleteAllLines();
+  
+    dyn_string Dpes = makeDynString();
+    dyn_string Type = makeDynString();
+    dyn_string Item = makeDynString();
+    dyn_string Name = makeDynString();
+    dyn_string Value = makeDynString();
+    dyn_string Quality = makeDynString();
+    dyn_string Oldness = makeDynString();
+    dyn_string Unit = makeDynString();
+    
+    int Length = dynlen(usedDpes);
+  
+    for ( int idx = 1 ; idx <= Length ; ++idx )
+    {
+      if ( ( toggle == 0 ) || ( toggle == usedStates[idx] ) )
+      {
+        dynAppend(Dpes,usedDpes[idx]);
+        dynAppend(Type,usedType[idx]);
+        dynAppend(Item,usedItem[idx]);
+        dynAppend(Name,usedName[idx]);
+        dynAppend(Value,usedValue[idx]);
+        dynAppend(Quality,usedQuality[idx]);
+        dynAppend(Oldness,usedOldness[idx]);
+        dynAppend(Unit,usedUnit[idx]);
+      }
+    }
+    
+    Table.appendLines(dynlen(Dpes),\"DpeName\",Dpes,\"DpeType\",Type,
+                      \"DipItem\",Item,\"DipName\",Name,
+                      \"DataValue\",Value,
+                      \"DataQuality\",Quality,\"DataOldness\",usedOldness,
+                      \"DataUnit\",Unit);
+      
+    enableToggles(TRUE);
+  }
+}
+
+
+void refresh_tbl()
+{
+int hierarchyLen;
+dyn_int tmp_mode;
+dyn_string tmp_dpes;
+dyn_string hierarchyDPs;
+dyn_string exceptionInfo;
+
+string oldestone;
+dyn_anytype configData;
+bool configExists, isActive;
+
+  hierarchyDPs = makeDynString();
+
+  // DebugN(\"The DP-Name is '\"+$sDpName+\"'\");
+  
+  hierarchyDPs = dpNames($sDpName+\"/*\");
+  hierarchyLen = dynlen(hierarchyDPs);
+ 
+  enableToggles(FALSE);
+  
+  fwOpenProgressBar ( \"Information\" , \"Getting External Application Data\" , 1 );      
+
+  numbEntries=0;
+  numbGood=0;
+  numbInvalid=0;
+  numbBad=0;
+  numbUncertain=0;
+  numbUndefined=0;
+  numbOldestOne=0;
+
+  setValue(\"Toggle0\",\"state\",0,true);
+  setValue(\"Toggle1\",\"state\",0,false);
+  setValue(\"Toggle2\",\"state\",0,false);
+
+  nbAll.text = \"Loading...\";
+  nbGood.text = \"Loading...\";
+  nbNotGood.text = \"Loading...\";
+  nbInvalid.text = \"Loading...\";
+  nbBad.text = \"Loading...\";
+  nbUncertain.text = \"Loading...\";
+  nbUndefined.text = \"Loading...\";
+  strOldestOne.text = \"Loading...\";
+
+  Table.deleteAllLines();
+  
+  usedDpes = makeDynString();
+  usedType = makeDynString();
+  usedItem = makeDynString();
+  usedName = makeDynString();
+  usedValue = makeDynString();
+  usedQuality = makeDynString();
+  usedUnit = makeDynString();
+  usedOldness = makeDynString();
+  
+  for ( int idx = 1 ; idx <= hierarchyLen ; ++idx )
+  {
+    tmp_dpes = makeDynString();
+    tmp_mode = makeDynInt();
+  
+    fwDevice_getElements(dpTypeName(hierarchyDPs[idx]),tmp_dpes,tmp_mode,exceptionInfo);
+
+    // DebugN(\"For \"+hierarchyDPs[idx]);
+    // DebugN(tmp_dpes,tmp_mode);
+    
+    for ( int dpe = 1 ; dpe <= dynlen(tmp_dpes) ; ++dpe )
+    {
+      string sDpe = hierarchyDPs[idx]+tmp_dpes[dpe];
+
+      string description = dpGetDescription(sDpe,0);
+      if ( dpSubStr(sDpe,DPSUB_SYS_DP) == dpSubStr(description,DPSUB_SYS_DP) ) continue;
+
+      ++numbEntries;
+      
+      string abbrev = dpSubStr(sDpe,DPSUB_DP_EL);
+      dynAppend(usedDpes,abbrev);
+
+      int tmp_type;
+      string dpe_type;
+      tmp_type = dpElementType(sDpe);
+      switch ( tmp_type )
+      {
+        case DPEL_INT:          dpe_type = \"Integer\";       break;
+        case DPEL_FLOAT:        dpe_type = \"Float\";         break;
+        case DPEL_BOOL:         dpe_type = \"Boolean\";       break;
+        case DPEL_STRING:       dpe_type = \"String\";        break;
+        case DPEL_DYN_INT:      dpe_type = \"DynInteger\";    break;
+        case DPEL_DYN_FLOAT:    dpe_type = \"DynFloat\";      break;
+        case DPEL_DYN_BOOL:     dpe_type = \"DynBoolean\";    break;
+        case DPEL_DYN_STRING:   dpe_type = \"DynString\";     break;
+        default:                dpe_type = \"Unrecognised!\";
+                           DebugN(\"Unrecognised DPE-Type = '\"+tmp_type+\"' for '\"+sDpe+\"'\");
+                           break;
+      }
+      dynAppend ( usedType , dpe_type );
+
+      fwPeriphAddress_get(sDpe, configExists, configData, isActive, exceptionInfo);
+      string tmp_item = \"<no-item>\";
+      string tmp_name = \"<no-name>\";
+      if ( ( configExists ) && ( configData[fwPeriphAddress_TYPE] == fwPeriphAddress_TYPE_DIP ) )
+      {
+      dyn_string dipAddress = strsplit(configData[fwPeriphAddress_REFERENCE],fwDIP_SEPERATOR);
+      
+        switch ( dynlen(dipAddress) )
+        {
+          default: tmp_name = dipAddress[2];
+          case 1:  tmp_item = dipAddress[1];
+          case 0:  break;
+        }
+      }
+      dynAppend(usedItem,tmp_item);
+      dynAppend(usedName,tmp_name);
+      
+      mixed value;
+      string tmp_value;
+      int gotit = dpGet(sDpe,value);
+      if ( gotit != 0 )
+         { tmp_value = \"<unable-to-retrieve>\"; }
+      else
+         { tmp_value = dpValToString(sDpe,value); }
+      strreplace(tmp_value,\"\\r\",\"<CR>\");
+      strreplace(tmp_value,\"\\n\",\"<LF>\");
+      if ( strlen(tmp_value) > 132 ) { tmp_value = substr(tmp_value,0,117)+\"... {truncated}\"; }
+      dynAppend(usedValue,tmp_value);
+  
+      bool tmp_invalid,tmp_userbit1,tmp_userbit2;
+      string tmp_quality;
+      time tmp_oldness;
+      dpGet(sDpe+\":_original.._invalid\",tmp_invalid,
+            sDpe+\":_original.._userbit1\",tmp_userbit1,
+            sDpe+\":_original.._userbit2\",tmp_userbit2,
+            sDpe+\":_original.._stime\",tmp_oldness);
+      if ( tmp_invalid )
+         { tmp_quality = \"INVALID\"; ++numbInvalid; }
+      else
+      {
+             if (  tmp_userbit1 &&  tmp_userbit2 ) { tmp_quality = \"GOOD\";      ++numbGood;      }
+        else if ( !tmp_userbit1 &&  tmp_userbit2 ) { tmp_quality = \"UNCERTAIN\"; ++numbUncertain; }
+        else if ( !tmp_userbit1 && !tmp_userbit2 ) { tmp_quality = \"BAD\";       ++numbBad;       }
+        else if (  tmp_userbit1 && !tmp_userbit2 ) { tmp_quality = \"UNDEFINED\"; ++numbUndefined; }
+      }
+      dynAppend(usedQuality,tmp_quality);
+      dynAppend(usedStates,(tmp_quality==\"GOOD\"?1:2));
+  
+      time timenow = getCurrentTime();
+      int timediff = (int)timenow - (int)tmp_oldness + 1;
+      string oldness = \"Unknown\";
+      if ( timediff < 1000000000 )
+      {
+        bool older = false;
+        if ( timediff > numbOldestOne ) { numbOldestOne = timediff; older = true; }
+        sprintf(oldness,\"%ds\",timediff%60); timediff /= 60;
+        if ( timediff != 0 ) { sprintf(oldness,\"%dm%s\",timediff%60,oldness); timediff /= 60; }
+        if ( timediff != 0 ) { sprintf(oldness,\"%dh%s\",timediff%24,oldness); timediff /= 24; }
+        if ( timediff != 0 ) { sprintf(oldness,\"%dd %s\",timediff,oldness); }
+        if ( older ) { oldestone = oldness; }
+      }
+      dynAppend(usedOldness,oldness);
+      
+      string unit = dpGetUnit(sDpe);
+      dynAppend(usedUnit,unit);
+    }
+  }
+  
+  Table.appendLines(dynlen(usedDpes),\"DpeName\",usedDpes,\"DpeType\",usedType,
+                    \"DipItem\",usedItem,\"DipName\",usedName,
+                    \"DataValue\",usedValue,
+                    \"DataQuality\",usedQuality,\"DataOldness\",usedOldness,
+                    \"DataUnit\",usedUnit);
+  
+  nbAll.text = numbEntries;
+  nbGood.text = numbGood;
+  nbNotGood.text = numbEntries - numbGood;
+  nbInvalid.text = numbInvalid;
+  nbBad.text = numbBad;
+  nbUncertain.text = numbUncertain;
+  nbUndefined.text = numbUndefined;
+  strOldestOne.text = oldestone;
+  
+  fwCloseProgressBar ( \"Done\" );
+
+  enableToggles(TRUE);
+}
+  
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"PUSH_BUTTON1"
+""
+1 1370 517 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 1368 515 1462 549
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+25 1
+"Table"
+""
+1 10 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 88 1462 502
+EE 1 0 1 8 0 "DpeName" 37 1 0 "s" 1
+LANG:1 13 PVSS DPE Name
+E
+1
+LANG:1 0 
+
+420 "DpeType" 9 1 0 "s" 1
+LANG:1 8 DPE Type
+E
+1
+LANG:1 0 
+
+110 "DipItem" 37 1 0 "s" 1
+LANG:1 13 DIP Item Name
+E
+1
+LANG:1 0 
+
+420 "DipName" 9 1 0 "s" 1
+LANG:1 8 DIP Name
+E
+1
+LANG:1 0 
+
+110 "DataValue" 9 1 0 "s" 1
+LANG:1 10 Data Value
+E
+1
+LANG:1 0 
+
+110 "DataQuality" 7 1 0 "s" 1
+LANG:1 12 Data Quality
+E
+1
+LANG:1 0 
+
+90 "DataOldness" 8 1 0 "s" 1
+LANG:1 12 Data Oldness
+E
+1
+LANG:1 0 
+
+100 "DataUnit" 5 1 0 "s" 1
+LANG:1 9 Data Unit
+E
+1
+LANG:1 0 
+
+70 
+20 20 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+2 2
+"TextHeader"
+""
+1 8 8 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 10 220 33
+0 2 0 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 External Application Data
+2 6
+"TextBad"
+""
+1 890 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 890 10 1010 30
+0 2 2 "0s" 0 0 0 64 0 0  890 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Bad Entries
+2 8
+"TextUncertain"
+""
+1 620 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 620 50 740 70
+0 2 2 "0s" 0 0 0 64 0 0  620 50 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Uncertain Entries
+2 9
+"TextUndefined"
+""
+1 890 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 890 50 1010 70
+0 2 2 "0s" 0 0 0 64 0 0  890 50 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Undefined Entries
+20 12
+"Toggle0"
+""
+1 290 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 288 8 442 32
+1
+T 
+1
+LANG:1 19 Total Nb of Entries
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  refreshTable ( 0 , state );
+}" 0
+20 13
+"Toggle2"
+""
+1 290 50 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 288 48 442 72
+1
+T 
+1
+LANG:1 16 Not Good Entries
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  refreshTable ( 2 , state );
+}" 0
+20 14
+"Toggle1"
+""
+1 10 50 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 48 162 72
+1
+T 
+1
+LANG:1 16 All Good Entries
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  refreshTable ( 1 , state );
+}" 0
+14 17
+"nbAll"
+""
+1 460 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 8 532 33
+2 "0s" 0 0 0 0 0 -1  E E E
+14 18
+"nbNotGood"
+""
+1 460 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 48 532 73
+2 "0s" 0 0 0 0 0 -1  E E E
+14 19
+"nbGood"
+""
+1 180 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 178 48 252 73
+2 "0s" 0 0 0 0 0 -1  E E E
+14 20
+"nbInvalid"
+""
+1 760 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 758 8 832 33
+2 "0s" 0 0 0 0 0 -1  E E E
+14 21
+"nbUncertain"
+""
+1 760 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+21 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 758 48 832 73
+2 "0s" 0 0 0 0 0 -1  E E E
+14 22
+"nbBad"
+""
+1 1030 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 1028 8 1102 33
+2 "0s" 0 0 0 0 0 -1  E E E
+14 23
+"nbUndefined"
+""
+1 1030 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+23 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 1028 48 1102 73
+2 "0s" 0 0 0 0 0 -1  E E E
+2 24
+"TextInvalid"
+""
+1 620 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 620 10 740 30
+0 2 2 "0s" 0 0 0 64 0 0  620 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Invalid Entries
+13 26
+"save_csv"
+""
+1 10 517 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 515 182 549
+
+T 
+1
+LANG:1 16 Save to CSV File
+"main()
+{
+int rtn;
+int length;
+file filed;
+string filename;
+dyn_string items;
+string directory = getPath(DATA_REL_PATH);
+
+  rtn = fileSelector(filename,directory,FALSE,\"*.csv\",FALSE);
+  if ( strpos(filename,\".csv\") < 0 ) filename += \".csv\";
+  // DebugN(\"Filename '\"+filename+\"'\");
+  
+  if ( rtn == 0 )
+  {
+    if ( ( filed = fopen(filename,\"w\") ) == 0 ) return;
+    
+    enableToggles(FALSE);
+    
+    length = Table.lineCount();
+    
+    fputs(\"PVSS DPE Name,DPE Type,DIP Item Name,DIP Name,Data Value,Data Quality,DatOldness,Data Unit\\n\",filed);
+    
+    for ( int idx = 0 ; idx < length ; ++idx )
+    {
+      items = Table.getLineN(idx);
+      if ( dynlen(items) != 8 ) { DebugN(\"PVSS DPE Name Table entry \"+(string)(idx+1)+\" Must have '8' Items\"); }
+    
+      for ( int itm = 1 ; itm <= dynlen(items) ; ++itm )
+      {
+        if ( itm > 1 ) fputs(\",\",filed);
+        if ( itm == 5 ) { strreplace(items[itm],\",\",\"<comma>\"); }
+        
+        fputs(items[itm],filed);
+      }
+      fputs(\"\\n\",filed);
+    }
+    
+    fclose(filed);
+    
+    enableToggles(TRUE);
+  }
+}" 0
+ E E E
+13 27
+"save_txt"
+""
+1 210 517 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 208 515 382 549
+
+T 
+1
+LANG:1 18 Save to Plain Text
+"main()
+{
+int rtn;
+int length;
+file filed;
+string values;
+string filename;
+dyn_string items;
+string directory = getPath(DATA_REL_PATH);
+
+  rtn = fileSelector(filename,directory,FALSE,\"*.txt\",FALSE);
+  if ( strpos(filename,\".txt\") < 0 ) filename += \".txt\";
+  // DebugN(\"Filename '\"+filename+\"'\");
+  
+  if ( rtn == 0 )
+  {
+    if ( ( filed = fopen(filename,\"w\") ) == 0 ) return;
+    
+    enableToggles(FALSE);
+    
+    length = Table.lineCount();
+    
+    fputs(\"DPE Type        PVSS DPE Name\\nDIP Name        DIP Item Name\\nQuality         Data Unit   Data Value\\n\\n\",filed);
+    
+    for ( int idx = 0 ; idx < length ; ++idx )
+    {
+      items = Table.getLineN(idx);
+      
+      sprintf(values,\"%-16s%s\\n%-16s%s\\n\",items[2],items[1],items[4],items[3]);
+      fputs(values,filed);
+      sprintf(values,\"%-16s%-12s%s\\n\\n\",items[6],items[8],items[5]);
+      fputs(values,filed);
+    }
+    
+    fclose(filed);
+    
+    enableToggles(TRUE);
+  }
+}" 0
+ E E E
+2 32
+"PRIMITIVE_TEXT5"
+""
+1 430 515 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 430 515 850 555
+0 2 2 "0s" 0 0 0 64 0 0  430 515 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 59 Note that the information in the above table is a snapshot.
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 64 The quality, oldness and values fields are not refreshed online!
+2 33
+"TextOldestOne"
+""
+1 1270 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 1270 10 1390 30
+0 2 2 "0s" 0 0 0 64 0 0  1270 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Oldest One
+14 34
+"strOldestOne"
+""
+1 1270 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+36 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 1268 48 1392 73
+2 "0s" 0 0 0 0 0 -1  E E E
+13 35
+"refresh_tbl"
+""
+1 1140 517 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 1138 515 1312 549
+
+T 
+1
+LANG:1 17 Refresh the Table
+"main()
+{
+  refresh_tbl();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

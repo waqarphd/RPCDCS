@@ -1,0 +1,1912 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 603 504 N "_3DFace" 4
+"$iPosition"
+"$sDeviceName"
+"$sDeviceTypes"
+"$sDpName"
+"main()
+{
+	int i;
+	dyn_string deviceTypes, exceptionInfo, parentDevice = makeDynString($sDpName, \"\", \"\", \"\");
+
+	allControlsEnabled(FALSE);
+	
+//	delay(1);
+	
+	// initalize panel variable with dollar parameter
+	parentName = $sDpName;
+	
+	// obtain list of devices that can be created either because the list was passed
+	// or because the parent was given
+	if(isDollarDefined(\"$sDeviceTypes\")) //list passed
+		g_deviceTypes = $sDeviceTypes;
+	
+	if(g_deviceTypes != \"\")
+	{
+	//	DebugN(\"Initializing device create panel. $sDeviceTypes \" + $sDeviceTypes);
+		fwGeneral_stringToDynString($sDeviceTypes, dpTypesList);
+	}
+	else	// parent passed
+	{	
+		//fwDevice_getChildrenDpTypes(parentDevice, dpTypesList, exceptionInfo);
+		fwDevice_getPossibleChildren(parentDevice, childrenDpTypesAndModels, exceptionInfo);
+//		DebugN(\"Initializing device create panel.\", childrenDpTypesAndModels);
+		dpTypesList = getDynString(childrenDpTypesAndModels, 1);
+	}
+	
+   	for(i = 1; i <= dynlen(dpTypesList); i++)
+   	{
+   		fwDevice_getType(dpTypesList[i], deviceTypes[i], exceptionInfo);
+   	}
+	// set up the combobox list with the device types
+	deviceTypeText.editable(FALSE); 
+	deviceTypeText.items = deviceTypes;  
+	deviceTypeText.selectedPos(1);
+	
+	initPosition();
+	selectedTypeChange();
+	
+	allControlsEnabled(TRUE);
+}" 0
+ "main()
+{
+	int i;
+}" 0
+ E E E 1 -1 -1 0  0 0
+""0  1
+E "const int MESSAGE_MAX_WIDTH = 100;
+
+const int SELECTION_ADDRESS	= 1;
+const int SELECTION_ALERT	= 2;
+const int SELECTION_ARCHIVE = 3;
+
+const string SINGLE_CREATION_MODE	= \"Create single\";
+const string MULTIPLE_CREATION_MODE	= \"Create many\";
+
+const string DEVICE_NAME_MESSAGE	= \"Enter a name for the device...\";
+const string DEVICE_COMMENT_MESSAGE	= \"Enter a comment for the device...\";
+
+int width, startingNumber;
+
+string creationMode;
+string parentName;
+string defaultName;
+string g_deviceTypes;
+dyn_string dpTypesList;
+dyn_dyn_string childrenDpTypesAndModels, newDeviceChildrenDpTypesAndModels;
+
+apply(dyn_string deviceNames, dyn_string &exceptionInfo)
+{
+	int i, j, slots, startingNumber, childWidth;
+	dyn_bool defaults;
+	dyn_string device, childDevice, parentDevice, children;
+	dyn_dyn_string modelProperties, childModelProperties;
+
+	allControlsEnabled(FALSE);
+	fwOpenProgressBar(\"Adding devices\", \"Starting...\", 1);
+	
+	parentDevice = makeDynString($sDpName, \"\", \"\", \"\");
+	
+	// common values for all devices to be created
+	fwDevice_getDpType(deviceTypeText.text, device[fwDevice_DP_TYPE], exceptionInfo);	
+	
+	if(deviceCommentText.text == DEVICE_COMMENT_MESSAGE)
+		device[fwDevice_COMMENT] = \"\";
+	else
+		device[fwDevice_COMMENT] = deviceCommentText.text;
+		
+	device[fwDevice_MODEL] = deviceModelText.text;
+	
+	// if children have to be created, get necessary info
+	if(alsoChildrenCheckButton.state(0))
+	{
+		// get information for device being created
+		fwDevice_getModelProperties(device,	modelProperties, exceptionInfo);
+		slots = modelProperties[fwDevice_MODEL_SLOTS][1];
+		startingNumber = modelProperties[fwDevice_MODEL_STARTING_NUMBER][1];
+		
+		// get children information
+		fwDevice_getDpType(childrenTypeText.text, childDevice[fwDevice_DP_TYPE], exceptionInfo);
+		childDevice[fwDevice_MODEL] = childrenModelText.text;
+	}
+	
+	// check if defaults are required
+	defaults[SELECTION_ADDRESS] = defaultsCheckButton.state(SELECTION_ADDRESS - 1);
+	defaults[SELECTION_ALERT] = defaultsCheckButton.state(SELECTION_ALERT - 1);
+	
+	
+	// first: create the devices
+	for(i = 1; i <= dynlen(deviceNames); i++)
+	{
+		device[fwDevice_DP_NAME] = deviceNames[i];
+//		DebugN(\"Creating \", device, parentDevice, defaults);
+		createDevice(device, parentDevice, defaults, exceptionInfo);
+		
+		// after creation the device name has been updated with the dp name
+		deviceNames[i] = device[fwDevice_DP_NAME];
+		
+		// if there were any exceptions don't try to create the children
+		if(dynlen(exceptionInfo) > 0)
+			break;
+		
+		// create the children if user asked for it
+		if(alsoChildrenCheckButton.state(0))
+		{
+			fwDevice_getModelProperties(childDevice,	childModelProperties, exceptionInfo);
+			childWidth = childModelProperties[fwDevice_MODEL_WIDTH][1];
+			
+			for(j = startingNumber; j < startingNumber + slots; j += childWidth)
+			{
+				fwDevice_getDefaultName(childDevice, j, childDevice[fwDevice_DP_NAME], exceptionInfo);
+//				DebugN(\"Creating \", childDevice, device, defaults);
+				createDevice(childDevice, device, defaults, exceptionInfo);
+				
+				// if there were any exceptions don't continue creating the children
+				if(dynlen(exceptionInfo) > 0)
+				break;
+			}
+		}
+	}	
+	
+	// control if there were any errors in the creation, and if so don't try to configure
+	if(dynlen(exceptionInfo) > 0) 
+	{
+		fwCloseProgressBar(\"There were errors while creating the devices.\");
+		allControlsEnabled(TRUE);
+		return;
+	}
+	else 
+	{
+		fwShowProgressBar(\"Devices created successfully...\");
+	}
+	
+	// second: configure the devices
+	for(i = 1; i <= dynlen(deviceNames); i++)
+	{
+		device[fwDevice_DP_NAME] = deviceNames[i];
+//		DebugN(\"Configuring \", device, defaults, dpExists(deviceNames[i]));
+		configureDevice(device, defaults, exceptionInfo);
+		
+		// configure the children if user asked for it
+		if(alsoChildrenCheckButton.state(0))
+		{
+			fwDevice_getChildren(device[fwDevice_DP_NAME], fwDevice_HARDWARE, children, exceptionInfo);
+			for(j = 1; j <= dynlen(children); j++)
+			{
+				childDevice[fwDevice_DP_NAME] = children[j];
+				configureDevice(childDevice, defaults, exceptionInfo);
+			}
+		}
+	}
+	
+	// control if there were any errors in the configuration
+	if(dynlen(exceptionInfo) > 0) 
+	{
+		fwCloseProgressBar(\"There were errors while configuring the devices.\");
+		allControlsEnabled(TRUE);
+		return;
+	}
+	else 
+	{
+		fwCloseProgressBar(\"Devices created and configured successfully.\");
+	}
+	
+	allControlsEnabled(TRUE);
+}
+
+
+applyMultiple(bool &isCancelled, dyn_string &exceptionInfo)
+{	
+	bool thereAreFreeSlots, checkSlots = FALSE;
+	int i, j, normalizedPosition, index, position, slots;
+	string prefix, name;
+	dyn_int freeSlots, tempFreeSlots;
+	dyn_float df;
+	dyn_string list, list2, devicesToBeCreated, notPossibleToCreateDevices, ds;
+
+
+	// check that the numeric fields are positive integers
+	if(changingNameText1.text != \"\" || changingNameText2.text != \"\")
+	{
+		checkPositiveIntegerField(\"changingNameText1\", exceptionInfo);
+		checkPositiveIntegerField(\"changingNameText2\", exceptionInfo);
+	}
+	
+	if(changingNameText3.text != \"\" || changingNameText4.text != \"\")
+	{
+		checkPositiveIntegerField(\"changingNameText3\", exceptionInfo);
+		checkPositiveIntegerField(\"changingNameText4\", exceptionInfo);
+	}
+	
+	if(dynlen(exceptionInfo))
+		return;
+	 	
+	 	
+	processFields(	changingNameText1.text, 
+					changingNameText2.text,
+					fixedNameText1.text,
+					makeDynString(\"\"),
+					list,
+					changingDigits1.text,
+					exceptionInfo);
+	
+	processFields(	changingNameText3.text, 
+					changingNameText4.text,
+					fixedNameText3.text,
+					list,
+					list2,
+					changingDigits2.text,
+					exceptionInfo);
+
+//	DebugN(\"devicesToBeCreatedList \" + devicesToBeCreatedList);
+
+	// devices which exist or go into no empty slots cannot be created
+	// check if position can be used (first normalize it to range [1..numberOfSlots])
+	fwDevice_getModelSlots(makeDynString(parentName), slots, exceptionInfo);
+//	DebugN(\"slots \" + slots);
+	if(slots > 0)
+	{
+		fwDevice_getFreeSlots(makeDynString(parentName), freeSlots, exceptionInfo);
+		checkSlots = TRUE;
+//		DebugN(\"freeSlots \" + freeSlots);
+	}
+	for(i = 1; i <= dynlen(list2); i++)
+	{
+		// check if device exists
+		if(dpExists($sDpName + fwDevice_HIERARCHY_SEPARATOR + list2[i]))
+		{
+			prefix = \"EXISTS\";
+		}
+		else
+		{
+			// see if all slots required by the model are free
+			if(checkSlots)
+			{
+				thereAreFreeSlots = TRUE;
+				tempFreeSlots = freeSlots;
+				fwDevice_getPosition(list2[i], name, position, exceptionInfo);
+				normalizedPosition = position - startingNumber + 1;
+				
+//				DebugN(list2[i], name, position, width, normalizedPosition);
+				
+				for(j = 0; j < width; j++)
+				{
+					index = dynContains(tempFreeSlots, normalizedPosition + j);
+					if(index < 1)
+					{
+						thereAreFreeSlots = FALSE;
+						break;
+					}
+					dynRemove(tempFreeSlots, index);
+				}				
+				if(thereAreFreeSlots)
+				{
+					freeSlots = tempFreeSlots;
+				}
+				else
+				{
+					prefix = \"NO_FREE_SLOTS\";
+				}
+			}
+		}
+		
+		// if there is any prefix, the device cannot be created
+		if(prefix != \"\")
+		{
+			dynAppend(notPossibleToCreateDevices, list2[i] + \";\" + prefix);
+		}
+		else
+		{
+			dynAppend(devicesToBeCreated, list2[i]);
+		}
+		
+		prefix = \"\";
+	}
+	
+	ChildPanelOnCentralModalReturn(	\"fwDevice/fwDeviceCreateMultipleSelectList.pnl\",
+									\"Select from list\",
+									makeDynString(	\"$sPanelTitle:Select Devices to be Created\",
+													\"$ddsList1:\" + notPossibleToCreateDevices,	
+													\"$ddsList2:\" + devicesToBeCreated),
+									df, ds);
+//	DebugN(\"ds \" + ds);
+	if(dynlen(ds) > 0)
+	{
+		isCancelled = FALSE;
+		fwGeneral_stringToDynString(ds[1], list);
+		apply(list, exceptionInfo);
+	}
+	else
+	{
+		isCancelled = TRUE;
+	}
+}
+
+	
+processFields(	string field1, string field2, string prefix, 
+				dyn_string list1, dyn_string &list2, string digits, 
+				dyn_string &exceptionInfo)
+{	
+	int index1, index2;
+	string name, aux;
+	
+	// initialize output list
+	list2 = makeDynString();
+	
+	// check that either both values or none were entered
+	if( ((field1 == \"\") && (field2 != \"\")) ||
+		((field1 != \"\") && (field2 == \"\")))
+	{
+		fwException_raise(	exceptionInfo, 
+							\"ERROR\", 
+							\"Please enter a value for both changing fields or leave both of them empty\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// if the changing fields are empty built simple list from list1
+	if(field1 == \"\")
+	{
+		for(int i = 1; i <= dynlen(list1); i++)
+			list2[i] = list1[i] + prefix;
+	}
+	else
+	{	
+		// put into integers and order if necessary
+		index1 	= field1;
+		index2 	= field2;	
+		if(index1 > index2)
+			swap(index1, index2);
+	
+		// create list with possible combinations
+		for(int i = 1; i <= dynlen(list1); i++)
+		{
+			for(int j = index1; j <= index2; j++)
+			{
+				aux = list1[i] + prefix;
+				sprintf(name, \"%s%0\" + digits + \"d\", aux, j);
+				//DebugN(name, list1[i], prefix, j, digits);
+				dynAppend(list2, name);
+			}
+		}
+	}
+	//DebugN(field1, field2, index1, index2);
+}	
+
+
+createDevice(dyn_string &device, dyn_string parentDevice, dyn_bool defaults, dyn_string &exceptionInfo)
+{
+	bool isOk;
+	string deviceName, deviceNameChecked, message;
+	dyn_string addressParameters;
+	
+//		DebugN(\"Creating device \" + devices[i]);
+		
+	// Check for valid dp name (only device name is checked because of /'s)
+	fwDevice_getName(device[fwDevice_DP_NAME], deviceName, exceptionInfo);
+	deviceNameChecked = deviceName;
+	
+	if(nameCheck(deviceNameChecked, NAMETYPE_DP))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", deviceName + \" is not a valid device name.\", \"\");
+		return;
+	}
+
+	// Check if address can be set
+	if(defaults[SELECTION_ADDRESS])
+	{
+		fwShowProgressBar(\"Checking address...\");
+
+		fwDevice_checkAddress(device, makeDynString(fwDevice_ADDRESS_DEFAULT), isOk, exceptionInfo);
+		if(!isOk) 
+		{
+			fwDevice_getAddressDefaultParams(device[fwDevice_DP_TYPE], addressParameters, exceptionInfo, device[fwDevice_MODEL]);
+//			DebugN(\"addressParameters \" + addressParameters);
+			fwException_raise(exceptionInfo, 
+									\"ERROR\", 
+									\"Cannot create device because the proper driver is not running (number \" + addressParameters[fwDevice_ADDRESS_DRIVER_NUMBER] + \")\", 
+									\"\");
+			fwCloseProgressBar(\"Device creation cancelled. Cannot set address.\");
+			return;
+		}
+	}
+
+	// Create device
+	fwShowProgressBar(\"Creating device \" + parentDevice[fwDevice_DP_NAME] + fwDevice_HIERARCHY_SEPARATOR + device[fwDevice_DP_NAME]);
+	fwDevice_create(device, parentDevice, exceptionInfo);
+					
+	if(dynlen(exceptionInfo) > 0) 
+	{
+		fwCloseProgressBar(\"There were errors while creating the device.\");
+		return;
+	}
+	else 
+	{
+		fwShowProgressBar(\"Device created successfully.\");
+	}
+		
+	device[fwDevice_DP_NAME] = parentDevice[fwDevice_DP_NAME] + fwDevice_HIERARCHY_SEPARATOR + device[fwDevice_DP_NAME];
+}
+
+configureDevice(dyn_string device, dyn_bool defaults, dyn_string &exceptionInfo)
+{
+	// Set the addresses for the device	
+	if(defaults[SELECTION_ADDRESS])
+	{
+//		DebugN(\"Setting addresses for \" + dpName);
+		fwShowProgressBar(\"Setting hardware connection...\");	
+		fwDevice_setAddress(device[fwDevice_DP_NAME], 
+							makeDynString(fwDevice_ADDRESS_DEFAULT), 
+							exceptionInfo);
+	}
+
+	// Set the alerts for the device
+	if(defaults[SELECTION_ALERT])
+	{
+		//DebugN(\"Setting alarms for \" + dpName);
+		fwShowProgressBar(\"Setting alarms for...\");
+		fwDevice_setAlert(device[fwDevice_DP_NAME], fwDevice_ALERT_SET, exceptionInfo);
+	}
+	
+/*		Default archiving disabled for now
+		// Set the archiving for the device
+		if(defaults[SELECTION_ARCHIVE])
+		{
+//			DebugN(\"Setting archiving for \" + dpName);
+			fwShowProgressBar(\"Setting archiving for...\", 75);
+			fwDevice_setArchive(device[fwDevice_DP_NAME], \"\", fwDevice_ARCHIVE_SET, exceptionInfo);
+		}
+*/
+}
+
+selectedTypeChange()
+{
+	int index;
+	string deviceDpType = dpTypesList[deviceTypeText.selectedPos];
+	dyn_string device, models, deviceDpTypes, exceptionInfo;
+		
+	// if list of dp types to be created passed, keep old behaviour
+	if(g_deviceTypes != \"\")
+	{
+		// try to get models specifying parent
+		fwDevice_getTypeModels(deviceDpType, $sDpName, models, exceptionInfo);
+	
+		// if there were no models with a specific parent, try the general query
+		if(dynlen(models) == 0)
+			fwDevice_getTypeModels(deviceDpType, \"\", models, exceptionInfo);		
+	}
+	else
+	{
+		deviceDpTypes = getDynString(childrenDpTypesAndModels, 1);
+		index = dynContains(deviceDpTypes, deviceDpType);
+		models = childrenDpTypesAndModels[index];
+		
+		//DebugN(models);
+		// remove dp type
+		dynRemove(models, 1);
+	}
+	
+	// Put the models in the combobox 
+	deviceModelText.items = models;
+	if(models == \"\")
+	{
+		deviceModelText.items = makeDynString(\"\");
+		deviceModelText.visible = FALSE;
+		deviceModelLabel.visible = FALSE;
+	}
+	deviceModelText.selectedPos(1);
+	updateDefaultName();
+}
+
+initPosition()
+{
+	int startingNumber, numberOfSlots;
+	dyn_string 	exceptionInfo;
+	
+	// if there is a parent check to see if it has slots
+	if(parentName != \"\")
+	{
+		fwDevice_getModelSlots(makeDynString(parentName), numberOfSlots, exceptionInfo);
+		fwDevice_getModelStartingNumber(makeDynString(parentName), startingNumber, exceptionInfo);
+
+//		fwDevice_getStartingNumber(makeDynString(parentName), startingNumber, exceptionInfo);
+
+		if(numberOfSlots == 0)
+			numberOfSlots = fwDevice_DEFAULT_SLOTS_NUMBER;
+		
+//		DebugN(\"initPosition: \" + parentName + \" \" + startingNumber + \" \" + numberOfSlots + \" \");
+		positionSpinButton.sbMaximum = startingNumber + numberOfSlots - 1;
+		positionSpinButton.sbMinimum = startingNumber;
+	
+		// initialize position spin button if requested
+		if(isDollarDefined(\"$iPosition\"))
+                {
+			positionSpinButton.text = $iPosition;		
+		}
+		else
+		{
+			positionSpinButton.text = startingNumber;
+		}
+	}
+}
+
+updateDefaultName()
+{
+	bool isPossibleToCreate = TRUE;
+	int position = positionSpinButton.text,	normalizedPosition;
+	dyn_bool canHaveDefaults;
+	dyn_int freeSlots;
+	dyn_string	device = makeDynString(\"\", dpTypesList[deviceTypeText.selectedPos], \"\", deviceModelText.text), 
+				exceptionInfo;
+	dyn_dyn_string modelProperties;
+
+	fwDevice_canHaveDefaults(device, canHaveDefaults, exceptionInfo);
+	// enable default configs only if device type supports it
+	if(canHaveDefaults[fwDEVICE_DEFAULT_CONFIGS])
+	{
+		defaultsCheckButton.enabled(TRUE);
+	}
+	else
+	{
+		defaultsCheckButton.enabled(FALSE);
+		defaultsCheckButton.state(SELECTION_ADDRESS - 1) = FALSE;
+		defaultsCheckButton.state(SELECTION_ALERT - 1) = FALSE;
+		//defaultsCheckButton.state(SELECTION_ARCHIVE) = FALSE;
+	}
+	
+	// enable automatic children generation only if device type supports it
+	if(canHaveDefaults[fwDEVICE_DEFAULT_CHILDREN])
+	{
+		alsoChildrenCheckButton.enabled = TRUE;
+		childrenTypeText.enabled = TRUE;
+		childrenModelText.enabled = TRUE;
+		updateChildrenTypes(exceptionInfo);
+	}
+	else
+	{
+//		DebugN(\"No automatic children creatiation\");
+		alsoChildrenCheckButton.state(0) = FALSE;
+		alsoChildrenCheckButton.enabled = FALSE;
+		childrenTypeText.deleteAllItems();
+		childrenTypeText.items = makeDynString(\"\");
+		childrenTypeText.selectedPos(1);
+		childrenTypeText.enabled = FALSE;
+		childrenModelText.deleteAllItems();
+		childrenModelText.items = makeDynString(\"\");
+		childrenModelText.selectedPos(1);
+		childrenModelText.enabled = FALSE;
+	}
+	
+	// update width for the corresponding model	
+	fwDevice_getModelProperties(device, modelProperties, exceptionInfo);
+//	DebugN(\"model properties \" + modelProperties);
+	if(dynlen(modelProperties) >= 5)
+	{
+		widthText.text = modelProperties[fwDevice_MODEL_WIDTH][1];
+		width = modelProperties[fwDevice_MODEL_WIDTH][1];
+	}
+	else
+	{
+		widthText.text = 0;
+		width = 0;
+	}
+
+	// if width is 0, it doesn't make sense to display it
+	if(width == 0)
+	{
+		widthText.visible = FALSE;
+		widthLabel.visible = FALSE;
+	}
+	else
+	{
+		widthText.visible = TRUE;
+		widthLabel.visible = TRUE;
+	}
+	
+	// we assume the parent has slots when it is possible to have a default name
+	fwDevice_getDefaultName(device, positionSpinButton.text, defaultName, exceptionInfo);	
+	if(defaultName != \"\")
+	{
+		// update multiple creation values
+		changingDigits1.text = modelProperties[fwDevice_MODEL_NAME_DIGITS][1];
+		changingDigits1.editable = FALSE;
+		fixedNameText1.text = modelProperties[fwDevice_MODEL_NAME_ROOT][1];
+		
+		if(creationMode == SINGLE_CREATION_MODE)
+		{
+			deviceNameText.text = defaultName;
+
+			// check if position can be used (first normalize it to range [1..numberOfSlots])
+			fwDevice_getFreeSlots(makeDynString(parentName), freeSlots, exceptionInfo);
+//			DebugN(\"updateDefaultName(): free slots \" + freeSlots);
+			fwDevice_getModelStartingNumber(makeDynString(parentName), startingNumber, exceptionInfo);
+			normalizedPosition = position - startingNumber + 1;
+		
+			// see if all slots required by the model are free
+			for(int i = 0; i < width; i++)
+			{
+				if(!dynContains(freeSlots, normalizedPosition + i))
+				{
+					isPossibleToCreate = FALSE;
+					break;
+				}
+			}		
+		// 	DebugN(freeSlots, normalizedPosition, position, startingNumber);
+			
+			// if slot is not free disable user choice 
+			if(!dynContains(freeSlots, normalizedPosition))
+			{
+				// slot is occupied
+				enableBasicControls(FALSE);
+			}
+			else 			
+			{
+				// slot is free so enable user choice and see allow creation if possible
+				enableBasicControls(TRUE);
+				if(!isPossibleToCreate)
+				{
+					// slot is not occupied but width is bigger than available slots
+					okButton.enabled(FALSE);
+					applyButton.enabled(FALSE);
+				}
+			}
+		
+			// default names can be used so display position spinbutton	
+			positionSpinButton.visible = TRUE;
+			positionLabel.visible = TRUE;		
+		}
+		else // multiple creation mode
+		{
+			enableBasicControls(TRUE);
+		}
+	}
+	else
+	{
+		// default names cannot be used so don't display position spinbutton	
+		positionSpinButton.visible = FALSE;
+		positionLabel.visible = FALSE;		
+	}
+}
+
+updateChildrenTypes(dyn_string &exceptionInfo)
+{
+	dyn_string 	childrenDpTypes, 
+				device = makeDynString(\"\", dpTypesList[deviceTypeText.selectedPos], \"\", deviceModelText.text);
+	
+//	DebugN(\"updateChildrenTypes()\");
+//	fwDevice_getChildrenDpTypes(device,	childrenDpTypes, exceptionInfo);
+	
+	fwDevice_getPossibleChildren(device, newDeviceChildrenDpTypesAndModels, exceptionInfo);
+	childrenDpTypes = getDynString(newDeviceChildrenDpTypesAndModels, 1);
+	
+//	DebugN(\"updateChildrenTypes(): device \" + device);
+//	DebugN(\"updateChildrenTypes(): newDeviceChildrenDpTypesAndModels \" + newDeviceChildrenDpTypesAndModels);
+	// convert device dp types to device types
+	for(int i = 1; i <= dynlen(childrenDpTypes); i++)
+	{
+		fwDevice_getType(childrenDpTypes[i], childrenDpTypes[i], exceptionInfo);
+	}
+	
+	childrenTypeText.items = childrenDpTypes;
+	if(dynlen(childrenDpTypes) > 0)
+		childrenTypeText.selectedPos(1);
+	updateChildrenModels(exceptionInfo);
+}
+
+updateChildrenModels(dyn_string &exceptionInfo)
+{
+	int index;
+	string deviceDpType;
+	dyn_string models, deviceDpTypes;
+	
+/*	fwDevice_getTypeModels(deviceDpType, \"\", models, exceptionInfo, deviceModelText.text);
+	// if no models defined for specified parent model, broaden 
+	// the search taking into account only the parent type
+	if(dynlen(models) == 0)
+	{
+		fwDevice_getTypeModels(deviceDpType, \"\", models, exceptionInfo, \"\");
+	}
+	
+*/	
+	fwDevice_getDpType(childrenTypeText.text, deviceDpType, exceptionInfo);
+	deviceDpTypes = getDynString(newDeviceChildrenDpTypesAndModels, 1);
+	index = dynContains(deviceDpTypes, deviceDpType);
+//	DebugN(\"updateChildrenModels \", deviceDpTypes, deviceDpType, index);
+	models = newDeviceChildrenDpTypesAndModels[index];
+		
+	// remove dp type
+	dynRemove(models, 1);
+
+	childrenModelText.items = models;
+	if(dynlen(models) > 0)
+		childrenModelText.selectedPos(1);
+}
+
+enableBasicControls(bool enabled)
+{
+	okButton.enabled(enabled);
+	applyButton.enabled(enabled);
+	
+	defaultsCheckButton.enabled(enabled);
+
+	deviceTypeText.enabled(enabled);
+	deviceModelText.enabled(enabled);
+	deviceNameText.enabled(enabled);
+	deviceCommentText.enabled(enabled);
+}
+
+allControlsEnabled(bool enabled)
+{
+	closeButton.enabled(enabled);
+	createManyButton.enabled(enabled);
+	positionSpinButton.enabled(enabled);
+}
+
+showMultipleControls(bool show)
+{
+	// multiple mode controls
+	fixedLabel1.visible(show);
+	fixedNameText1.visible(show);
+	//arrow1.visible(show);
+	//fixedNameText2.visible(show);
+	
+	changingLabel1.visible(show);
+	changingNameText1.visible(show);
+	//arrow3.visible(show);
+	changingNameText2.visible(show);
+	//arrow4.visible(show);
+	changingDigits1.visible(show);
+	changingDigitsLabel1.visible(show);
+	
+	deviceNamingLabel.visible(show);
+	fromLabel.visible(show);
+	toLabel.visible(show);
+	
+	// single mode controls
+	deviceNameText.visible(!show);
+	deviceNameLabel.visible(!show);	
+	//deviceCommentLabel.visible(!show);
+	//deviceCommentText.visible(!show);
+
+	// position controls only updated when there is a default name
+	// if there isn't it is hidden by default
+	if(defaultName != \"\")
+	{
+		positionSpinButton.visible(!show);
+		positionLabel.visible(!show);
+		show = FALSE;				
+	}
+	
+	// second part of name for multiple creation only visible
+	// if no default naming
+	fixedLabel2.visible(show);
+	fixedNameText3.visible(show);
+//	arrow5.visible(show);
+//	fixedNameText4.visible(show);
+
+	changingLabel2.visible(show);	
+	changingNameText3.visible(show);
+//	arrow7.visible(show);
+	changingNameText4.visible(show);
+//	arrow8.visible(show);
+	changingDigits2.visible(show);
+	changingDigitsLabel2.visible(show);
+}
+
+checkPositiveIntegerField(string fieldName, dyn_string &exceptionInfo)
+{
+	bool isPositiveInteger;
+	shape fieldObject = getShape(fieldName);
+	string strValue = fieldObject.text;
+	
+	checkStringIsPositiveInteger(strValue, isPositiveInteger, exceptionInfo);
+	if(!isPositiveInteger)
+	{
+		fwException_raise(	exceptionInfo,
+							\"ERROR\",
+							\"Please introduce a positive integer value\",
+							\"\");
+		return;
+	}
+}
+
+checkStringIsPositiveInteger(string integer, bool &isPositiveInteger, dyn_string &exceptionInfo)
+{
+	string aux;
+	
+	if(integer == \"\")
+	{
+		isPositiveInteger = FALSE;
+		return;
+	}
+	
+	sscanf(integer, \"%[0-9]\", aux);
+	if(strlen(integer) == strlen(aux))
+		isPositiveInteger = TRUE;
+	else
+		isPositiveInteger = FALSE;
+}
+
+swap(int &a, int &b)
+{
+	int c;
+	c = a;
+	a = b;
+	b = c;
+}" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 27
+"deviceCommentLabel"
+""
+1 27 173 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 29 174 125 191
+0 2 2 "0s" 0 0 0 192 0 0  29 174 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Device comment
+2 21
+"deviceNameLabel"
+""
+1 27 133 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 29 134 103 151
+0 2 2 "0s" 0 0 0 192 0 0  29 134 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Device name
+2 40
+"deviceTypeLabel"
+""
+1 27 51 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 29 52 96 69
+0 2 2 "0s" 0 0 0 192 0 0  29 52 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Device type
+2 52
+"positionLabel"
+""
+1 483 133 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 485 134 532 151
+0 2 2 "0s" 0 0 0 192 0 0  485 134 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Position
+2 55
+"fixedLabel1"
+""
+1 138 228 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 140 230 171 247
+0 2 0 "0s" 0 0 0 192 0 0  140 230 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 fixed 
+2 56
+"fixedLabel2"
+""
+1 400 228 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 402 230 433 247
+0 2 0 "0s" 0 0 0 192 0 0  402 230 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 fixed 
+2 2
+"Text1"
+""
+1 10 11 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 12 111 35
+0 2 2 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Add Device
+2 49
+"deviceModelLabel"
+""
+1 27 91 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 29 92 106 109
+0 2 2 "0s" 0 0 0 192 0 0  29 92 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Device model
+2 57
+"changingLabel2"
+""
+1 512 228 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 514 230 566 247
+0 2 0 "0s" 0 0 0 192 0 0  514 230 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 changing
+2 58
+"changingLabel1"
+""
+1 252 228 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 254 230 306 247
+0 2 0 "0s" 0 0 0 192 0 0  254 230 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 changing
+2 59
+"toLabel"
+""
+1 40 330 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 42 282 60 299
+0 2 0 "0s" 0 0 0 192 0 0  42 282 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 To:
+2 60
+"fromLabel"
+""
+1 28 297 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 30 249 64 266
+0 2 0 "0s" 0 0 0 192 0 0  30 249 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 From:
+2 61
+"deviceNamingLabel"
+""
+1 28 209 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 30 211 187 228
+0 2 0 "0s" 0 0 0 192 0 0  30 211 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 Device Naming Convention:
+2 79
+"changingDigitsLabel1"
+""
+1 234 309 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 236 311 290 345
+0 2 0 "0s" 0 0 0 192 0 0  236 311 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Min num 
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 of digits:
+2 80
+"changingDigitsLabel2"
+""
+1 498 309 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 500 311 554 345
+0 2 0 "0s" 0 0 0 192 0 0  500 311 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Min num 
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 of digits:
+2 82
+"widthLabel"
+""
+1 495 93 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 497 94 531 111
+0 2 2 "0s" 0 0 0 192 0 0  497 94 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Width
+30 84
+"Frame1"
+""
+1 181 460 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+47 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+
+}" 0
+ E 0 1 1 0 1 E U  0 E 181 360 590 460
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 88
+"Text2"
+""
+1 228 392 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 230 393 306 410
+0 2 2 "0s" 0 0 0 192 0 0  230 393 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 Children type
+2 89
+"Text3"
+""
+1 228 420 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 230 421 316 438
+0 2 2 "0s" 0 0 0 192 0 0  230 421 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Children model
+30 90
+"Frame2"
+""
+1 20 460 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+50 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 360 170 460
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Defaults
+22 41
+"deviceTypeText"
+""
+1 107 50 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 107 48 472 75
+0
+
+E
+"main()
+{
+	selectedTypeChange();
+}" 0
+
+E
+ 1 0
+22 50
+"deviceModelText"
+""
+1 116 90 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 115 88 472 115
+0
+
+E
+"main()
+{
+	dyn_string exceptionInfo;
+
+	updateChildrenTypes(exceptionInfo);
+	updateDefaultName();
+}" 0
+
+E
+ 0 0
+14 20
+"deviceNameText"
+""
+1 119 130 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+"main()
+{
+	if(this.text == DEVICE_NAME_MESSAGE)
+		this.text = \"\";
+}" 0
+ "main()
+{
+	if(this.text == \"\")
+		this.text = DEVICE_NAME_MESSAGE;
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 118 128 472 155
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	string sDeviceName;
+	
+	if(isDollarDefined(\"$sDeviceName\"))
+		sDeviceName = $sDeviceName;
+	
+	if(sDeviceName != \"\")	
+	{
+		this.text = $sDeviceName;
+	}
+	else
+	{
+		this.text = DEVICE_NAME_MESSAGE;
+	}
+}" 0
+ E
+21 51
+"positionSpinButton"
+""
+1 542 130 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 540 128 594 155
+0
+
+E
+"main()
+{
+	updateDefaultName();
+}" 0
+
+E
+
+N 0 100 1 0 1 1
+14 28
+"deviceCommentText"
+""
+1 138 170 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+"main()
+{
+	if(this.text == DEVICE_COMMENT_MESSAGE)
+		this.text = \"\";
+}" 0
+ "main()
+{
+	if(this.text == \"\")
+		this.text = DEVICE_COMMENT_MESSAGE;
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 136 168 592 195
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = DEVICE_COMMENT_MESSAGE;
+}" 0
+ E
+13 53
+"applyButton"
+""
+1 459 466 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 457 465 521 495
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	bool isCancelled;
+	string deviceName;
+	dyn_string exceptionInfo;
+	
+	if(creationMode == MULTIPLE_CREATION_MODE)
+	{
+		applyMultiple(isCancelled, exceptionInfo);
+	}
+	else
+	{
+		if(deviceNameText.text == DEVICE_NAME_MESSAGE)
+			deviceName = \"\";
+		else 
+			deviceName = deviceNameText.text;
+			
+		apply(makeDynString(deviceName), exceptionInfo);
+	}
+	
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+	}
+}" 0
+ E E E
+13 45
+"closeButton"
+""
+1 532 467 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 530 465 594 495
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+13 25
+"okButton"
+""
+1 386 466 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 384 465 448 495
+
+T 
+1
+LANG:1 2 Ok
+"main()
+{
+	bool isCancelled = FALSE;
+	string deviceName;
+	dyn_string exceptionInfo;
+	
+	if(creationMode == MULTIPLE_CREATION_MODE)
+	{
+		applyMultiple(isCancelled, exceptionInfo);
+	}
+	else
+	{
+		if(deviceNameText.text == DEVICE_NAME_MESSAGE)
+			deviceName = \"\";
+		else 
+			deviceName = deviceNameText.text;
+			
+		apply(makeDynString(deviceName), exceptionInfo);
+	}
+	
+	if(!isCancelled)
+	{
+		if(dynlen(exceptionInfo) > 0)
+		{
+			fwExceptionHandling_display(exceptionInfo);
+		}
+		else
+		{
+			PanelOff();
+		}
+	}
+}" 0
+ E E E
+13 42
+"createManyButton"
+""
+1 20 467 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 465 112 495
+
+T 
+1
+LANG:1 11 Create many
+"main()
+{
+	switch(creationMode)
+	{
+		case MULTIPLE_CREATION_MODE:
+			creationMode = SINGLE_CREATION_MODE;
+			this.text = MULTIPLE_CREATION_MODE;
+			showMultipleControls(FALSE);
+			break;
+		case SINGLE_CREATION_MODE:
+			creationMode = MULTIPLE_CREATION_MODE;
+			this.text = SINGLE_CREATION_MODE;
+			showMultipleControls(TRUE);
+			break;				
+		default:
+			break;
+	}
+	// in case the model was changed
+	updateDefaultName();
+}" 0
+ E E "main()
+{
+	creationMode = SINGLE_CREATION_MODE;
+	this.text = MULTIPLE_CREATION_MODE;
+	showMultipleControls(FALSE);
+}" 0
+
+22 87
+"childrenModelText"
+""
+1 327 419 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 325 417 589 444
+0
+
+E
+E
+E
+ 0 0
+22 86
+"childrenTypeText"
+""
+1 327 389 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 325 387 589 414
+0
+
+E
+"main()
+{
+	dyn_string exceptionInfo;
+	updateChildrenModels(exceptionInfo);
+}" 0
+
+E
+ 0 0
+20 85
+"alsoChildrenCheckButton"
+""
+1 195 358 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 193 356 337 380
+1
+T 
+1
+LANG:1 20 Also create children
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	childrenTypeText.enabled(state);
+	childrenModelText.enabled(state);
+}" 0
+20 47
+"defaultsCheckButton"
+""
+1 50 391 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 48 389 152 443
+2
+T 
+1
+LANG:1 10 Addressing
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 6 Alarms
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+2
+E E
+E E
+EE21 81
+"changingDigits2"
+""
+1 553 315 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 551 313 595 340
+0
+
+E
+E
+E
+
+N 0 9 1 0 1 1
+14 67
+"changingNameText4"
+""
+1 510 278 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 508 276 572 303
+3 "0s" 0 0 0 0 0 -1  E E E
+14 63
+"changingNameText3"
+""
+1 510 247 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 508 245 572 272
+3 "0s" 0 0 0 0 0 -1  E E E
+14 65
+"fixedNameText3"
+""
+1 320 261 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 318 259 502 286
+3 "0s" 0 0 0 0 0 -1  E E E
+21 78
+"changingDigits1"
+""
+1 289 315 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 287 313 331 340
+0
+
+E
+E
+E
+
+N 0 9 1 0 1 1
+14 68
+"changingNameText2"
+""
+1 250 280 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 248 278 312 305
+3 "6d" 6 1 0 0 0 -1  E E E
+14 64
+"changingNameText1"
+""
+1 250 248 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 248 246 312 273
+3 "0s" 0 0 0 0 0 -1  E E E
+14 62
+"fixedNameText1"
+""
+1 69 261 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 67 259 242 286
+3 "0s" 0 0 0 0 0 -1  E E E
+14 83
+"widthText"
+""
+1 544 90 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 542 88 594 115
+3 "0s" 0 0 0 0 0 -1  E E E
+1 91 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 230 480 T 50 1 0 1 336 -470
+1
+"$sPanelRelativePath""fwDevice/fwDeviceCreate"
+0

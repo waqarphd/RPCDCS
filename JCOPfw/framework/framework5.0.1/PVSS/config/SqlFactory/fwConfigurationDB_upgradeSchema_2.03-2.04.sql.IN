@@ -1,0 +1,16 @@
+-- bring DPTYPE identifiers up to date for the ITEMS table:
+
+begin
+-- select the names of dptypes that have some history
+for dpt in (select dptype from
+(select dptype, count(dptype) cnt from device_types  group by dptype)
+ where cnt>1)
+loop
+  update items set dpt_id=(select dpt_id from device_types where dptype=dpt.dptype and valid_to is null)
+  where dpt_id in (select dpt_id from device_types where dptype=dpt.dptype and valid_to is not null);
+end loop;
+end;
+/
+
+#include "fwConfigurationDB_PLSQLAPI.SQL"
+#include "fwConfigurationDB_SCHEMAVERSION.SQL"

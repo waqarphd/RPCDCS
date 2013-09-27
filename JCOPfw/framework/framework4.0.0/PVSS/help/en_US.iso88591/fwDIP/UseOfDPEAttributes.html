@@ -1,0 +1,96 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>Usage Of DPE attributes by API manager</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+</head>
+
+<body>
+<h1>Usage Of DPE attributes by API manager</h1>
+<h2>When API manager is configured as a DIP client</h2>
+<h3>User bits</h3>
+<p>The first 2 user bits are used to hold the quality of the data being written
+  into the DPE. OPC quality mappings used as basis for this policy.</p>
+<table width="100%" border="1">
+  <tr>
+    <td>DIP Quality</td>
+    <td>PVSS users bits</td>
+  </tr>
+  <tr>
+    <td>DIP_QUALITY_UNINITIALIZED (-1)</td>
+    <td>0 decimal (00 binary) = bad</td>
+  </tr>
+  <tr>
+    <td>DIP_QUALITY_BAD (0)</td>
+    <td>0 decimal (00 binary) = bad</td>
+  </tr>
+  <tr>
+    <td>DIP_QUALITY_GOOD (1)</td>
+    <td>3 decimal (11 binary) = good</td>
+  </tr>
+  <tr>
+    <td>DIP_QUALITY_UNCERTAIN (2)</td>
+    <td>1 decimal (01 binary) = uncertain</td>
+  </tr>
+</table>
+<p><em><strong>Note</strong> the reasonForQuality string (which provides supplementary information
+  on the quality when it is not good) is not used by the API manager</em>.</p>
+<h3>Use of invalid flag</h3>
+  The DPE invalid flag is used to indicate either either a problem in the API 
+manager or the DIP publication does not exist.<ol>
+  <li> The API manager can not find a converter to convert from the DIP to PVSS
+  type.
+  <li> The publication the DPE is associated with is not available.
+  <li> If a type conversion has failed (i.e. The data type of the publication has
+  changed).
+  </ol>
+<p>If the invalid flag is set then the value and user bits are NOT to be 
+trusted.</p>
+<h3>Timestamp</h3>
+  The timestamp supplied with the received DIP data is used as the timestamp
+  for the DPE value.</p>
+<p>&nbsp;</p>
+<h3>Client Scenarios</h3>
+<p>Below are a list of scenarios that you may expect to encounter in a running 
+system and an indication of how the API manager will behave in that scenario.</p>
+<ol>
+	<li>API manager subscribes to publication that does not exist. <b>What to 
+	expect:-</b> Invalid bit will be set to true (time stamp will be 0), value &amp; 
+	user bits will be left unchanged.</li>
+	<li>Publication is created (but not published data) AFTER the API manager 
+	subscribes.&nbsp; <b>What to expect:-</b> Invalid bit will be set to false, 
+	user bits will be set to bad (time stamp will be 0) &amp; value will be left 
+	unchanged.</li>
+	<li>Publication publishes data AFTER API manager subscribes. <b>What to 
+	expect:-</b> Invalid bit will be set to false, value &amp; timestamp set from 
+	DIP&nbsp; value/timestamp. User bits will be&nbsp; set from the DIP quality 
+	according to the mapping described above.</li>
+	<li>API manager subscribes to publication that exists but has not sent data.
+	<b>What to expect:-</b> Scenario 1) followed be 2)</li>
+	<li>API manager subscribes to publication that exists and has sent data. <b>
+	What to expect:-</b> Scenario 1) followed be 2), then 3)</li>
+	<li>API manager subscribes to publication that disappears. <b>What to 
+	expect:-</b> Invalid bit will be set to true (time stamp set to current 
+	time), value &amp; user bits will be left unchanged.</li>
+	<li>API manager subscribes to publication that changes its data type.&nbsp;
+	<b>What to expect:-</b> As scenario 6).</li>
+</ol>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+    <p></p>
+<h2>When API manager is configured as a DIP Publisher</h2>
+<h3>Use of invalid flag</h3>
+  If the invalid flag is set for any DPE used to make up the DIP publication
+    then the quality of that publication is set to bad. The reason for quality
+    string indicates how many DPE's for that publication have their invalid
+    bit set.</p>
+  <h3>Timestamp</h3>
+  Of all DPE's that make of the publication, the one with the most recent
+  timestamp is the one which provides the time stamp for the data sent via the
+  DIP publication.<br>
+</p>
+<h1>&nbsp; </h1>
+</body>
+</html>

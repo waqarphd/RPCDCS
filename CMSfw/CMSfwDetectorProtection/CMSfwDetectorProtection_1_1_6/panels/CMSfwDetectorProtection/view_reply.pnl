@@ -1,0 +1,758 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 500 570 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+
+  refresh();
+  dpConnect(\"do_refresh\",false,$sDpName + \".updated\");
+  dyn_string exc;
+  string sys;
+  fwGeneral_getSystemName($sDpName, sys, exc);  
+  time t;
+  
+  dpConnect(\"update_ok\", $sDpName + \".ok\",
+            CMSfwDetectorProtection_convertToInputDp($sDpName) + \".status\");
+  
+  if (dpExists(sys + CMSfwDetectorProtection_managerDpReplies)) {
+    dpGet(sys + CMSfwDetectorProtection_managerDpReplies + \".aliveTime\", t);
+    if ((period(getCurrentTime()) - period(t)) <= 120) {
+      txtOk.visible = true; lblOk.visible = true;
+    }
+  }
+  
+  if (dpExists($sDpName + \".consistency.n_problems\")) {
+      dpConnect(\"set_visible_problems\", $sDpName + \".consistency.n_problems\");
+  }
+   
+}
+
+void do_refresh(string dp, time t) {
+  //DebugN(\"Refreshing \", t);
+   refresh(); 
+}
+
+void update_ok(string dp, bool ok, string inputdp, bool fired) {
+  
+  if (fired) {
+     txtStatus.text = \"FIRED\";
+     txtStatus.backCol = \"FwStateAttention3\"; 
+     
+     if (ok) {
+         txtOk.text = \"OK\";
+         txtOk.backCol = \"FwStateOKPhysics\";
+      } else {
+         txtOk.text = \"WAITING\";
+         txtOk.backCol = \"FwStateAttention1\";          
+      }
+  } else {
+   txtStatus.text = \"OK\";
+   txtStatus.backCol = \"FwStateOKPhysics\";        
+   txtOk.text = \" - \";
+   txtOk.backCol = \"FwEquipmentDisabled\";
+  }
+}
+
+void set_visible_problems(string dp, int n) {
+    btnViewProblems.visible = (n>0);
+}
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"CMSfwDetectorProtection/CMSfwDetectorProtection.ctl\"
+
+refresh() {
+  dyn_string els = dpNames($sDpName + \".sys*\",dpTypeName($sDpName));
+  dynSortAsc(els);
+  dyn_string el_invalid, el_timestamp;
+  for (int i=1; i<= dynlen(els); i++) {
+     el_invalid[i] = els[i] + \":_original.._invalid\" ;
+     el_timestamp[i] = els[i] + \":_original.._stime\" ;
+  }
+  
+
+  dyn_bool invalid, value; dyn_time timest;
+  dpGet(els, value,
+        el_invalid, invalid,
+        el_timestamp, timest);
+  tbl.sortOnClick = false;
+  tbl.deleteAllLines();
+  
+  string number;
+  dyn_string systems; dyn_string numbers; dyn_bool bool_values; dyn_string times;
+  
+  for (int i=1; i<= dynlen(els); i++) {
+    if (invalid[i]) continue;
+    number = dpSubStr(els[i], DPSUB_DP_EL);
+    number = substr(number,strlen(dpSubStr(els[i], DPSUB_DP)));
+    strreplace(number,\".sys\",\"\");
+    dynAppend(systems,getSystemName((int) number));
+    dynAppend(numbers, number);
+    dynAppend(bool_values, value[i]);
+    dynAppend(times, timest[i]);
+    
+//     tbl.appendLine( \"sys\",number,\"sysname\", getSystemName((int) number),\"result\",(value[i]?\"OK\":\"WAITING\"), \"time\", timest[i]);
+//     tbl.cellBackColRC(tbl.lineCount -1, \"result\",(value[i]?\"FwStateOKPhysics\":\"FwStateAttention1\"));
+  }
+  
+  dyn_string systemsSorted = systems;
+  bool displaySorted = false;
+  if (dynContains(systems,\"\") == 0) { // if we are connected to all systems, we can sort by system name
+    dynSortAsc(systemsSorted);
+    displaySorted = true;
+  }
+  
+  int i; bool alive;           time aliveTime ; string status; string color;
+  for (int k=1; k<= dynlen(systemsSorted); k++) {
+    if (displaySorted) 
+      i = dynContains(systems, systemsSorted[k]);
+    else
+      i = k;
+        
+    alive = true;
+    if (strlen(systems[i])>0) {
+      if (dpExists(systems[i] + CMSfwDetectorProtection_managerDp)) {
+          dpGet(systems[i] + CMSfwDetectorProtection_managerDp + \".aliveTime\", aliveTime);
+          if ((period(getCurrentTime()) - period(aliveTime)) > 120) {
+              alive = false;
+          }
+      }
+    }   
+    
+    if (! alive) {
+        status = \"NOT_RUNNING\";
+        color = \"FwStateAttention3\";
+      } else {
+        status = (bool_values[i]?\"OK\":\"WAITING\");
+        color = (bool_values[i]?\"FwStateOKPhysics\":\"FwStateAttention1\");
+      }
+     tbl.appendLine( \"sys\",numbers[i],\"sysname\", systems[i],\"result\",status, \"time\", times[i]);
+     tbl.cellBackColRC(tbl.lineCount -1, \"result\",color);
+
+  }
+    
+}
+
+bool promptUser(string msg) {
+  dyn_string result;
+  dyn_float float_result;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageInfo\",(\"information\"),makeDynString(msg,\"Yes\",\"No\"),float_result, result);
+  return result[1]==\"true\";
+
+}
+
+void showMsg(string msg) {
+    bool ok; dyn_string exc;
+     fwGeneral_openMessagePanel(msg,ok, exc,\"\",true); 
+     return; 
+}
+
+void viewLog() {
+    dyn_string logSelected; 
+    dpGet($sDpName + \".log\", logSelected);
+    string msg; 
+    fwGeneral_dynStringToString(logSelected, msg);
+    ChildPanelOnCentral(\"vision/MessageInfoList\",\"View Log\", makeDynString(\"$1:Log for \" + txtDescription.text,\"$2:\" + msg));    
+
+}
+
+
+void viewProblems() {
+    dyn_string problems; 
+    dpGet($sDpName + \".consistency.problems\", problems);
+    string msg; 
+    fwGeneral_dynStringToString(problems, msg);
+    ChildPanelOnCentral(\"vision/MessageInfoList\",\"View Problems\", makeDynString(\"$1:Problems for \" + txtDescription.text,\"$2:\" + msg));    
+
+}
+
+void  getAllSystemsAndInputs(string mySys, dyn_string& inputs, dyn_string& systems) {
+  inputs = dpNames(mySys + \"*\", CMSfwDetectorProtection_replyType);
+  for (int i=1; i<= dynlen(inputs); i++) {
+      inputs[i] = CMSfwDetectorProtection_convertToInputDp(inputs[i]);
+  }
+  
+  dyn_string els = dpNames(mySys + \"CMSfwDetectorProtection/*\" + \".sys*\",CMSfwDetectorProtection_replyType);
+
+  dyn_string el_invalid;
+  for (int i=1; i<= dynlen(els); i++) {
+     el_invalid[i] = els[i] + \":_original.._invalid\" ;
+  }
+  
+
+  dyn_bool invalid;
+
+  dpGet(el_invalid, invalid);
+
+  
+  string number;
+  dynClear(systems) ;
+  string sysName;
+  for (int i=1; i<= dynlen(els); i++) {
+    if (invalid[i]) continue;
+    number = dpSubStr(els[i], DPSUB_DP_EL);
+    number = substr(number,strlen(dpSubStr(els[i], DPSUB_DP)));
+    strreplace(number,\".sys\",\"\");
+    sysName = getSystemName((int) number);
+    if (! dynContains(systems, sysName)) {
+      dynAppend(systems,sysName);
+    }
+  }
+  int index = dynContains(systems, \"\");
+  if (index>0) dynRemove(systems, index);  
+}
+
+void removeAllFromCb(string shapeName) {
+  string child;
+  string next; int type;  
+  getValue(shapeName,\"firstChild\",\"\",child,type);
+  shape cb = getShape(shapeName);
+  
+  while (strlen(child) ) {
+    getValue( shapeName,\"nextSibling\",child,next,type);
+    cb.removeItemId(child);
+    child = next;   
+  } 
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 30 4 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 4 474 59
+0 2 2 "0s" 0 0 0 64 0 0  30 4 1
+1
+LANG:1 33 MS Shell Dlg,-1,19,5,75,0,0,0,0,0
+0 1
+LANG:1 25 Detector Protection Reply
+25 2
+"tbl"
+""
+1 29 186 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  
+  
+  dyn_anytype cols;
+  getValue(\"tbl\" ,\"getLineN\",row,cols);
+  int number = cols[1];
+
+
+  dyn_string menu; 
+ 
+  string systemName = cols[2];
+  bool hasPrivileges = false;
+  if (strlen(systemName) > 0) {
+    menu = makeDynString(\"PUSH_BUTTON,Verify condition for \" + systemName + \",2,1\",
+                         \"PUSH_BUTTON,Analyze locked dpes in \" + systemName + \",3,1\");
+    hasPrivileges = CMSfwDetectorProtection_hasRequiredPrivileges(systemName);
+    
+  }
+
+  if ((getUserName() == \"root\") || (hasPrivileges)) {
+    if (strlen(systemName)>0)  {
+      dynAppend(menu, makeDynString(\"PUSH_BUTTON,View values for affected dpes in \" + systemName + \",4,1\",
+                                    \"PUSH_BUTTON,View values for affected dpes in \" + systemName + \" (strip masked),5,1\")
+                );
+    }
+    dynAppend(menu,\"PUSH_BUTTON,Set back to invalid,1,1\")  ;
+  }
+  
+  if (dynlen(menu) == 0) return;
+        
+  
+  int a ;
+  popupMenu(menu, a);
+  if (a == 1) {
+    if (promptUser(\"Are you sure to set to invalid system \" + number + \"?\\nThe waiting procedure will not use the system anymore\")) {
+      /*if (strlen(systemName)>0) {
+         dyn_string exc;
+        if (CMSfwDetectorProtection_isSubscribedFromSystem(systemName,$sDpName,exc)) {
+          if (! promptUser(\"Condition is still subscribed from system \" + systemName + \". Do you really want to remove the system from the list?\")) {
+              return;
+          }
+        }
+      } */
+      
+      CMSfwDetectorProtection_setToInvalid($sDpName, number); 
+    }
+  } else if (a == 2) {
+    dyn_string exceptionInfo, problems; bool verifResult;
+    fwOpenProgressBar(\"Verifying condition\",\"Verifying condition\",1,0);
+   verifResult = CMSfwDetectorProtection_verifyRemote($sDpName, systemName, problems, exceptionInfo);
+  // DebugN(verifResult);
+   fwCloseProgressBar(\"Done\");
+   if (dynlen(exceptionInfo)>0) {
+       fwExceptionHandling_display(exceptionInfo); return;
+   } else {
+     if (verifResult) {
+       string msg = \"Condition is verified\";
+       if (cols[3] == \"WAITING\") msg += \". Reply from the manager should come soon\";
+           
+        if (cols[3] == \"NOT_RUNNING\") {
+          msg += \"\\nBut Manager is not running on \" + systemName + \".\\nThe system can exit the safe condition at any time.\";
+
+        }
+       showMsg(msg);
+     }   else {
+      showProblems(problems, systemName, (cols[3] == \"NOT_RUNNING\"), \"Verification problems on \" + systemName);       
+     }    
+   }
+        
+     
+   } else if (a==3) {
+       ChildPanelOnCentral(\"CMSfwDetectorProtection/analyze.pnl\",\"Analyze condition \" + txtDescription.text + \" for \" + systemName,
+                           makeDynString(\"$conditionsToCheck:\" + CMSfwDetectorProtection_convertToInputDp($sDpName),
+                                         \"$sysnames:\" + systemName));
+       } else if ((a==4) || (a==5)) {
+         dyn_string exceptionInfo, problems;
+         fwOpenProgressBar(\"Getting list of dpes\",\"Getting list of dpes\",1,0);
+         CMSfwDetectorProtection_getListAffectedDpes($sDpName, systemName, problems, exceptionInfo, (a==5));
+         fwCloseProgressBar(\"Done\");
+         if (dynlen(exceptionInfo)>0) {
+           fwExceptionHandling_display(exceptionInfo); return;
+         } else {
+             showProblems(problems, systemName, false, \"Affected dpes on \" + systemName);       
+         }
+         
+       }
+}
+
+
+showProblems(dyn_string& problems, string systemName, bool not_running = false, string title = \"\") { 
+  
+  string msg;
+    fwGeneral_dynStringToString(problems, msg);
+    ChildPanelOnCentral(\"CMSfwDetectorProtection/verificationProblems.pnl\",\"Results for \" + systemName, makeDynString(\"$title:\" + txtDescription.text,\"$problems:\" + msg,\"$mainTitle:\" + title,
+                                                                                                                              \"$not_running:\" + ((not_running)?1:0)));
+    
+}" 0
+ E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  27 184 494 506
+EE 1 0 1 4 0 "sys" 8 1 0 "s" 1
+LANG:1 10 Sys Number
+E
+1
+LANG:1 0 
+
+80 "sysname" 12 1 0 "s" 1
+LANG:1 11 System Name
+E
+1
+LANG:1 0 
+
+120 "result" 10 1 0 "s" 1
+LANG:1 6 Result
+E
+1
+LANG:1 0 
+
+100 "time" 15 1 0 "s" 1
+LANG:1 9 Timestamp
+E
+1
+LANG:1 0 
+
+150 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 3
+"btnTcRef"
+""
+1 33 155 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  31 153 89 182
+
+P 
+4294967295
+"pictures/refresh_e.gif"
+1
+LANG:1 7 Refresh
+"main()
+{
+  
+  refresh();
+  
+  
+}" 0
+ E E E
+13 4
+"PUSH_BUTTON7"
+""
+1 398 524 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  396 522 493 557
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+
+  PanelOff();
+}" 0
+ E E E
+14 5
+"txtDp"
+""
+1 38.39425587467364 68 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  36 66 480 89
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = $sDpName;
+}" 0
+ E
+14 6
+"txtDescription"
+""
+1 38.89425587467366 112 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  37 110 481 133
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = CMSfwDetectorProtection_getInputDescription(CMSfwDetectorProtection_convertToInputDp($sDpName));
+}" 0
+ E
+2 7
+"lblCondName"
+""
+1 40.39425587467364 47 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 40.39425587467364 47 121 61
+0 2 2 "0s" 0 0 0 192 0 0  40.39425587467364 47 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Data Point Name
+2 8
+"PRIMITIVE_TEXT8"
+""
+1 40.39425587467364 94 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 40.39425587467364 94 93 108
+0 2 2 "0s" 0 0 0 192 0 0  40.39425587467364 94 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Description
+30 9
+"FRAME1"
+""
+1 3 26 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.156971279373368 0 1.03883495145631 25.5290861618799 7.990291262135941 0 E 3 26 404 130
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+14 10
+"txtOk"
+""
+1 262.9999999999999 161 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E "main(bool enter)
+{
+  if (this.text == \" - \") this.toolTipText = \"The condition is not fired\";
+  else if (this.text == \"OK\") this.toolTipText = \"All systems replied OK\";
+  else this.toolTipText = \"Waiting for the reply from some systems\";
+}" 0
+
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  261 159 385 182
+2 "0s" 0 0 0 0 0 -1  E E E
+14 12
+"txtStatus"
+""
+1 97 161 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  95 159 257 182
+2 "0s" 0 0 0 0 0 -1  "main()
+{
+  string inputdp = CMSfwDetectorProtection_convertToInputDp($sDpName);
+  ChildPanelOnCentral(\"CMSfwDetectorProtection/view_input.pnl\",inputdp,makeDynString(\"$sDpName:\" + inputdp) );
+}" 0
+ E E
+2 13
+"PRIMITIVE_TEXT9"
+""
+1 97 144 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 97 144 174 158
+0 2 2 "0s" 0 0 0 192 0 0  97 144 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Condition Status
+2 14
+"lblOk"
+""
+1 264 144 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 264 144 291 158
+0 2 2 "0s" 0 0 0 192 0 0  264 144 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Reply
+13 16
+"PUSH_BUTTON9"
+""
+1 161 523 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  159 521 261 548
+
+T 
+1
+LANG:1 8 View Log
+"main()
+{
+  
+  viewLog();
+         
+}" 0
+ E E E
+26 19
+"CASCADE_BUTTON1"
+""
+1 29 524 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  27 522 151 549
+ 0 1
+LANG:1 7 Analyze
+"" 0 0 0 0 0
+ 0 "main()
+{
+    removeAllFromCb(this.name);
+   string mySys; dyn_string exc;
+  fwGeneral_getSystemName($sDpName, mySys, exc);
+  
+  this.insertItemId(\"\",CB_ITEM, -1, \"this\", \"This condition\");
+  this.insertItemId(\"\",CB_ITEM, -1, \"all\", \"All conditions on system \" + mySys);
+}" 0
+ "main(string id)
+{
+
+  dyn_string sys; dyn_string inputs;
+  string title;
+  
+  if (id == \"all\") {
+    string mySys; dyn_string exc;
+    fwGeneral_getSystemName($sDpName, mySys, exc);
+    getAllSystemsAndInputs(mySys,inputs, sys);
+    title = \"Analyze conditions on system \" + mySys ;
+  } else {
+    getValue(\"tbl\",\"getColumnN\",1,sys);
+    for (int i=dynlen(sys); i>0; i--) {
+        if (strlen(sys[i]) == 0) dynRemove(sys, i);
+    }
+    inputs = makeDynString(CMSfwDetectorProtection_convertToInputDp($sDpName));
+    title = \"Analyze condition \" + txtDescription.text ;
+  }
+  string systems; string inputs_str;
+  
+  fwGeneral_dynStringToString(sys,systems,\",\");
+  fwGeneral_dynStringToString(inputs,inputs_str,\",\");
+    
+  ChildPanelOnCentral(\"CMSfwDetectorProtection/analyze.pnl\",title,
+                           makeDynString(\"$conditionsToCheck:\" + inputs_str,
+                                         \"$sysnames:\" + systems));
+}" 0
+0 
+13 20
+"btnViewProblems"
+""
+1 267 523 E E E 1 E 0 E N "FwStateAttention3" E N "_Button" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 34 MS Shell Dlg 2,8,-1,5,75,0,0,0,0,0
+0  265 521 367 548
+
+T 
+1
+LANG:1 8 Problems
+"main()
+{
+  
+  viewProblems();
+         
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

@@ -1,0 +1,1005 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 1193 610 N "_3DFace" 4
+"$hostname"
+"$item"
+"$project"
+"$type"
+"main()
+{
+  dyn_string projectNames;
+  dyn_string groupNames;
+  dyn_string hostnames; 
+  dyn_string ips;
+  dyn_string macs;
+  dyn_string ips2;
+  dyn_string macs2;
+  dyn_string bmc_ips;
+  dyn_string bmc_ips2;
+  dyn_string ds;  
+  
+  dynClear(projectNames);
+  dynClear(hostnames);
+  dynClear(groupNames);
+  
+  //Access Control:
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyComponentManagementAcCB\", ex);
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+
+  
+  tbProjectsGroups.deleteAllLines();
+  if(fwInstallationDB_connect() != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Connection failed.\\nPlease check DB connection parameters\"));
+  }
+  
+  if(fwInstallationDB_getComponentGroups(groupNames) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not read list of FW Component Groups from DB\"));
+    return;
+  }
+  
+//  DebugN(\"Groups: \", groupNames); 
+  
+  for(int i = 1; i <= dynlen(groupNames); i++){
+    
+   //DebugN(\"Inserting column for group: \" + groupNames[i]);  
+    
+   tbProjectsGroups.insertColumn(i-1);
+   tbProjectsGroups.columnName(i-1, \"#\" + i);
+   tbProjectsGroups.columnWidth(i-1, 128);
+    
+   tbProjectsGroups.columnHeader(i-1, groupNames[i]);    
+   tbProjectsGroups.columnVisibility(i-1, true);
+  } 
+  
+  //Build the computer-project matrix for filtering:
+  if(isDollarDefined(\"$fsm\"))
+  {
+    hostnames = strsplit($hostname, \"|\");
+    projectNames = strsplit($project, \"|\");
+    for(int i = 1; i <= dynlen(hostnames); i++)
+    {
+      strreplace(hostnames[i], \" \", \"\");
+      strreplace(projectNames[i], \" \", \"\");
+      computerProjects[i][1] = hostnames[i];
+      computerProjects[i][2] = projectNames[i];
+      tfComputerPattern.text = dynlen(hostnames)>1?\"Multiple selection\":hostnames[1];
+      tfComputerPattern.enabled = false;
+      tfProjectPattern.text = dynlen(projectNames)>1?\"Multiple selection\":projectNames[1];
+      tfProjectPattern.enabled = false;
+    }
+  }
+  else
+  {  
+    switch($type)
+    {
+      case FW_INST_SYSTEM_TYPE: 
+        if(fwInstallationDB_getHosts(hostnames, ips, macs, ips2, macs2, bmc_ips, bmc_ips2) != 0){
+          ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not read list of computers from DB\"));
+          return;
+        }  
+      break; //end of system
+    
+      case FW_INST_COMPUTER_TYPE: dynAppend(hostnames, $item);
+        tfComputerPattern.text = $item;
+        tfComputerPattern.enabled = false;
+        break; //end of computer
+    
+      case FW_INST_PROJECT_TYPE: ds = strsplit($item, FW_SYS_STAT_SEPARATOR);
+        dynAppend(hostnames, ds[1]);
+        dynAppend(projectNames, ds[2]);
+        tfComputerPattern.text = ds[1];
+        tfComputerPattern.enabled = false;
+        tfProjectPattern.text = ds[2];
+        tfProjectPattern.enabled = false;
+      
+        computerProjects[1][1] = ds[1];
+        computerProjects[1][2] = ds[2];
+      
+
+        break; //end of project
+    
+      default: return;
+             
+    }//end of switch
+
+  
+    for(int i = 1 ; i <= dynlen(hostnames); i++)
+    {
+      computerProjects[i][1] = hostnames[i];    
+
+      dynClear(projectNames);
+    
+      if($type != FW_INST_PROJECT_TYPE)
+      {
+        if(fwInstallationDB_getPvssProjects(projectNames, computerProjects[i][1]) != 0){
+          ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not read list of project from DB\"));
+          return;
+        }
+      }    
+      for(int j = 2; j <= (dynlen(projectNames) + 1); j++)
+      {
+        computerProjects[i][j] = projectNames[j-1];
+      }//end of loop over j    
+    }
+  }
+  //DebugN(\"computerProjects: \", computerProjects);
+  search();
+  
+}
+
+
+
+" 0
+ E E E E 1 -1 -1 0  78 56
+""0  1
+E "#uses \"fwInstallationDB.ctl\"
+#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+
+dyn_dyn_string computerProjects;    
+
+void search()
+{
+  string computerPattern = tfComputerPattern.text;
+  string projectPattern = tfProjectPattern.text;
+  int row = 0;
+  string group;
+  dyn_string groupNames;
+  dyn_int groupIds;
+  string header;
+  
+  for(int i = 1; i <= tbProjectsGroups.columnCount(); i++)
+  {
+    getValue(\"tbProjectsGroups\", \"columnHeader\", i-1, header);
+    if(header == \"\")
+      break;
+    else
+    {
+      tbProjectsGroups.deleteAllLines();
+      
+    }
+  }
+  
+  for(int i = 1; i <= dynlen(computerProjects); i++ )
+  {
+    for(int j = 2; j <= dynlen(computerProjects[i]); j++)
+    {
+      if((computerPattern == \"Multiple selection\" && 
+         projectPattern == \"Multiple selection\") || 
+         (patternMatch(\"*\" + computerPattern + \"*\", computerProjects[i][1]) &&
+         patternMatch(\"*\" + projectPattern + \"*\", computerProjects[i][j])))  
+        {
+        tbProjectsGroups.appendLines(1);
+        tbProjectsGroups.rowHeader(row, computerProjects[i][j] + \"@\" + computerProjects[i][1]);
+        ++row;
+      
+      
+          //DebugN(\"row is now: \", row);
+      
+        //Check if registered groups for each project:
+        dynClear(groupNames);
+        fwInstallationDB_getProjectGroups(groupNames, groupIds, true, computerProjects[i][j], computerProjects[i][1]);
+        //DebugN(\"****** computer, project\", computerProjects[i][j], computerProjects[i][1], groupNames);
+        for(int z = 0; z < tbProjectsGroups.columnCount(); z++)
+        {
+          getValue(\"tbProjectsGroups\", \"columnHeader\", z, group);
+          if(dynContains(groupNames, group) > 0)
+          {
+            //DebugN(\"Found: \", row, group, \" in \", groupNames);
+            tbProjectsGroups.cellValueRC(row-1, \"#\" + (z + 1), \"Registered\");
+          }
+        }
+      }
+    } 
+  }
+}
+
+void applyComponentManagementAcCB(string s1, string s2)
+{
+   // at first, disable whatever was enabled to this moment
+  disableAllInComponentManagementPanel();
+
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string domain; 
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  { 
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+    if (expertPrivilege == \"\")
+    {
+      fwSysOverview_getACDomain(domain);  
+      if(domain == \"\") //AC not yet defined
+      {
+        hasExpertPrivilege = true;
+      }
+      else //AC defined but no Expert privilege defined
+      {
+        DebugN(\"No expert privilege defined!\");
+        return;
+      }
+    }
+    else
+    {
+  
+      dyn_string hostnames;
+      dyn_string  projectNames;
+      if (isDollarDefined(\"$hostname\") && isDollarDefined(\"$project\"))
+      {
+        fwGeneral_stringToDynString($hostname, hostnames);
+        fwGeneral_stringToDynString($project, projectNames);
+      }
+      else if (isDollarDefined(\"$item\"))
+      {
+        string hostname = $item;
+        dyn_string projects;
+        fwInstallationDB_getPvssProjects(projects, hostname);
+        for(int i=1; i<=dynlen(projects); i++)
+        {
+         dynAppend(hostnames, hostname);
+         dynAppend(projectNames, projects[i]);
+        }
+    
+      }
+    
+      for(int i = 1; i <= dynlen(hostnames); i++)
+      {
+        string projectDp;
+        fwSysOverview_getProjectDp(hostnames[i], projectNames[i], projectDp, exceptionInfo);
+       
+        if (projectDp == \"\" || dynlen(exceptionInfo) >0 || !dpExists(projectDp))
+        {
+           fwSysOverview_getACDomain(domain);     
+        }
+        else
+        {
+          fwSysOverview_getACDomain(domain, projectDp);
+        }
+    
+        if(domain == \"\") //AC not yet configured. Enable access 
+        {
+          hasExpertPrivilege = true;
+          break;
+        }
+        else
+        {
+          fwAccessControl_isGranted(domain + \":\" + expertPrivilege, hasExpertPrivilege, exceptionInfo);
+          // check and handle exceptions that might have been thrown by the function above
+          if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+          if (!hasExpertPrivilege)
+            break;
+        }
+      }
+    }
+  }
+  else
+  {
+    hasExpertPrivilege = true;//SO not installed
+  }
+  
+  // enable UI elements, depending on the access rights:
+  if (hasExpertPrivilege)
+  {
+    btApply.enabled = true;  
+    btOk.enabled = true;
+    cbForce.enabled = true;
+    cbOverwrite.enabled = true;
+    cbRestartProject.enabled = true;
+    //tbProjectsGroups.enabled = true;
+  }
+}
+
+void disableAllInComponentManagementPanel()
+{
+  btApply.enabled = false;
+  btOk.enabled = false;
+  cbForce.enabled = false;
+  cbOverwrite.enabled = false;
+  cbRestartProject.enabled = false;
+  cbSilent.enabled = false;
+}    
+
+
+registerGroupsInProjects(bool updatePanel = true)
+{
+  string project;
+  string group;
+  string tag;
+  string computer;
+  int error = 0;
+  //int col;
+  bool silent, force, overwrite;
+  string computerProject;
+  dyn_dyn_mixed componentsInfo;
+  dyn_dyn_mixed groupComponentsInfo;
+  string conflictingComponentsNames;
+  string conflictingComponentsVersions;
+  string conflictingComponentsFiles;
+  string conflictingExistingComponentsVersions;
+  string conflictingExistingComponentsFiles;
+  dyn_string ds;
+  dyn_float df;
+  bool visible = true;
+  int restartProject = 0;
+  
+  silent = cbSilent.state(0);
+  force = cbForce.state(0);
+  overwrite = cbOverwrite.state(0);
+  
+  if(cbRestartProject.state(0))
+  {
+    //DebugN(\"Project restart flag selected by the user\");
+    restartProject = 1;
+  }
+  //DebugN(\"Total number of columns: \", tbProjectsGroups.columnCount());
+  
+  string description = myPanelName() + \": Changing the asignment of groups of FW components to projects. \";
+  for(int i = 1; i <= tbProjectsGroups.lineCount(); i++) //scan full table looking for actions to be performed.
+  {
+    project = \"\";
+    computer = \"\";
+    
+    getValue(\"tbProjectsGroups\", \"rowHeader\", i-1, computerProject);
+    if(computerProject == \"\")
+      return;
+    
+    ds = strsplit(computerProject, \"@\");
+    
+    if(dynlen(ds) < 2)
+    {
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Invalid project/computer names\"));
+      return;
+    }
+    project = ds[1];
+    computer = ds[2];
+    
+    if(project == \"\" || computer == \"\")
+      continue;
+
+//    fwInstallationDB_getProjectComponents(componentsInfo, project, computer);
+
+        
+    for(int j = 1; j <= tbProjectsGroups.columnCount(); j++){
+      
+      //col = j - 1;
+      tag = \"\";
+      
+      getMultiValue(\"tbProjectsGroups\", \"cellValueRC\", i-1, \"#\"+j, tag,
+                    \"tbProjectsGroups\", \"columnHeader\", j-1, group,
+                    \"tbProjectsGroups\", \"columnVisibility\", j-1, visible);
+      
+      if(!visible)
+        break;  //do not iterate over columns that are not shown
+      
+//      DebugN(\"project, computer, group, tag\", project, computer, group, tag);
+      
+      if(tag == \"Register\"){
+         dynClear(componentsInfo);
+         fwInstallationDB_getProjectComponents(componentsInfo, project, computer); //Get list of components already assigned to this project
+
+        //DebugN(\"Adding new group \" + group + \" to project \" + project + \" computer \" + computer);
+        //Check if there are conflicts at the component level for each of the projects:
+        fwInstallationDB_getGroupComponents(group, groupComponentsInfo);  
+        conflictingComponentsNames = \"\";  
+        conflictingComponentsVersions = \"\";
+        conflictingComponentsFiles = \"\";
+        conflictingExistingComponentsVersions = \"\";  
+        conflictingExistingComponentsFiles = \"\";  
+        
+        for(int k = 1 ; k <= dynlen(groupComponentsInfo); k++)
+        {
+          for(int l = 1; l <= dynlen(componentsInfo); l++)
+          {
+//             if(groupComponentsInfo[k][FW_INSTALLATION_DB_COMPONENT_NAME_IDX ] == componentsInfo[l][FW_INSTALLATION_DB_COMPONENT_NAME_IDX ] &&
+//                groupComponentsInfo[k][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX ] != componentsInfo[l][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX ])
+             if(groupComponentsInfo[k][FW_INSTALLATION_DB_COMPONENT_NAME_IDX ] == componentsInfo[l][FW_INSTALLATION_DB_COMPONENT_NAME_IDX ])
+             {
+//               //if we are dealing with the same component name, we impose that version and xml file are the same.
+//               if(groupComponentsInfo[k][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX ] != componentsInfo[l][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX ] ||
+//                  groupComponentsInfo[k][FW_INSTALLATION_DB_COMPONENT_DESC_FILE_IDX ] != componentsInfo[l][FW_INSTALLATION_DB_COMPONENT_DESC_FILE_IDX]) 
+//              {
+                conflictingComponentsNames += groupComponentsInfo[k][FW_INSTALLATION_DB_COMPONENT_NAME_IDX ] + \"|\";
+                conflictingComponentsVersions += groupComponentsInfo[k][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX ] + \"|\"; 
+                conflictingComponentsFiles += groupComponentsInfo[k][FW_INSTALLATION_DB_COMPONENT_DESC_FILE_IDX ] + \"|\"; 
+                conflictingExistingComponentsVersions += componentsInfo[l][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX ] + \"|\"; 
+                conflictingExistingComponentsFiles += componentsInfo[l][FW_INSTALLATION_DB_COMPONENT_DESC_FILE_IDX ] + \"|\"; 
+//              }
+             }
+          }
+        }
+        
+        //DebugN(\"This are so far the conflicts: \", conflictingComponentsNames);
+        
+        if(conflictingComponentsNames != \"\")
+        {
+          DebugN(\"WARNING: Group: \"+ group +\" conflict for project: \" + project + \". There are conflicts at the component level: \" + conflictingComponentsNames);
+          ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_showConflicts.pnl\", \"Group conflicts\", makeDynString(\"$project:\"+ project,\"$group:\" + group, \"$components:\" + conflictingComponentsNames, \"$versions:\" + conflictingComponentsVersions, \"$existingVersions:\" + conflictingExistingComponentsVersions, \"$files:\" + conflictingComponentsFiles, \"$existingFiles:\" + + conflictingExistingComponentsFiles), df, ds);
+          if(dynlen(df) && df[1] < 1.)
+            return;
+          else if(dynlen(df) && df[1] < 2.) //Skip
+            continue;
+          
+        }
+          
+        //DebugN(\"registering \",group, overwrite, force, silent, \"\", project, computer, restartProject);
+        description += \"Register group: \" + group +\" project: \" + project + \" computer: \" + computer;
+        if(fwInstallationDB_registerGroupInProject(group, overwrite, force, silent, restartProject, \"\", project, computer) == 0)
+        {
+          setValue(\"tbProjectsGroups\", \"cellValueRC\", i-1, \"#\"+j, \"Registered\");      
+        }else{
+          ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"DB registration error\", makeDynString(\"$1: Could not register group of FW Components\\n\" + group + \" in project: \" + project + \"\\ncomputer: \" + computer));
+        }
+      }
+      else if(tag == \"Unregister\"){
+        description += \"Unregister group: \" + group +\" project: \" + project + \" computer: \" + computer;
+        if(fwInstallationDB_unregisterProjectGroup(group, project, computer) == 0)
+        {
+          setValue(\"tbProjectsGroups\", \"cellValueRC\", i-1, \"#\"+j, \"\");      
+        }
+        else
+        {
+          ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"DB unregistration error\", makeDynString(\"$1: Could not unregister group of FW Components\\n\" + group + \" from project: \" + project + \" computer: \" + computer));
+        }
+      }
+    }//end of loop over j => groups  
+    
+  }//Loop over all projects
+  
+  fwConfigurationDBSystemInformation_logAction(description);
+}//end of function
+
+
+clearTableValues()
+{
+   for(int i = 1; i <= this.lineCount(); i++)
+    for(int j = 1; j <= this.columnCount(); j++)
+      this.cellValueRC(i-1, \"#\" + j, \"\");
+ }
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 5
+"tbProjectsGroups"
+""
+1 20 120 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  string computerProject = \"\";
+  dyn_string ds = strsplit(column, \"#\");  
+  string project, computer;
+  int col = ds[2];
+  string tag, newTag;
+  string group;
+  
+  getValue(\"tbProjectsGroups\", \"columnHeader\", col-1, group);
+  
+  for(int i = 1; i <= tbProjectsGroups.lineCount(); i++)
+  {
+    getValue(\"tbProjectsGroups\", \"rowHeader\", i-1, computerProject);
+
+//DebugN(computerProject);
+    
+    if(computerProject == \"\")
+      return;
+    
+    ds = strsplit(computerProject, \"@\");
+    
+    if(dynlen(ds) < 2)
+    {
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Invalid project/computer names\"));
+      return;
+    }
+    project = ds[1];
+    computer = ds[2];
+    
+    if(project == \"\" || computer == \"\")
+      continue;
+
+//DebugN(computer,project);
+      
+    getValue(\"tbProjectsGroups\", \"cellValueRC\", i-1, column, tag);
+//DebugN(tag);
+
+    if(tag == \"\")
+      newTag = \"Register\";
+    else if(tag == \"Register\")
+      newTag = \"\";
+    else if(tag == \"Registered\")
+      newTag = \"Unregister\";
+    
+    setValue(\"tbProjectsGroups\", \"cellValueRC\", i-1, column, newTag);
+      
+  }//end of for
+  
+  
+}" 0
+ E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 118 1180 564
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE_COLUMN);
+
+}" 0
+"main(int row, string column, string value)
+{
+  string project;
+  string host;
+  string hostProject;
+  getValue(\"\", \"rowHeader\", row, hostProject);
+
+  dyn_string ds = strsplit(hostProject, \"@\");
+  if(dynlen(ds) < 2)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Invalid project/computer names\"));
+    return; 
+  }
+  project = ds[1];
+  host = ds[2];
+  
+  if (project == \"\" || host == \"\")
+     return;
+  
+  //Check access control:
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  {
+    string domain;
+    string projectDp;
+    fwSysOverview_getProjectDp(host, project, projectDp, exceptionInfo);
+
+    if (dynlen(exceptionInfo) > 0 || projectDp == \"\" || !dpExists(projectDp))
+    {
+      fwSysOverview_getACDomain(domain);
+    }
+    else
+      fwSysOverview_getACDomain(domain, projectDp);    
+  
+    if(domain == \"\") //AC not yet configured. Enable access 
+    {
+      hasExpertPrivilege = true;
+    }
+    else
+    {
+      string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+      // check the current  privilege level 
+      if (expertPrivilege == \"\")
+      {
+        DebugN(\"No expert privilege defined!\");
+        return;
+      }
+      fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+      // check and handle exceptions that might have been thrown by the function above
+      if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+    }
+  }
+  else
+    hasExpertPrivilege = true;
+  
+  // enable UI elements, depending on the access rights:
+  if (!hasExpertPrivilege)
+    return;
+
+  if(value == \"\")
+    this.cellValueRC(row, column, \"Register\");
+  else if(value == \"Register\")
+    this.cellValueRC(row, column, \"\");
+  else if(value == \"Registered\")
+    this.cellValueRC(row, column, \"Unregister\");
+  else if(value == \"Unregister\")
+    this.cellValueRC(row, column, \"Registered\");
+
+}
+
+
+
+
+" 0
+ 1 1 1 0 1 
+20 20 "" 1 1
+LANG:1 2 #1
+10 128
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 6
+"btApply"
+""
+1 1004 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  1002 568 1088 598
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  registerGroupsInProjects();
+}" 0
+ E E E
+13 7
+"btCancel"
+""
+1 1096 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  1094 568 1180 598
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOffReturn(makeDynFloat(0.), makeDynString(\"\"));
+}" 0
+ E E E
+13 8
+"btOk"
+""
+1 910 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  908 568 994 598
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  registerGroupsInProjects(false);
+  PanelOffReturn(makeDynFloat(1.), makeDynString(\"OK\"));
+}" 0
+ E E E
+2 9
+"PRIMITIVE_TEXT1"
+""
+1 20 30 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 10 274 25
+0 2 2 "0s" 0 0 0 192 0 0  20 10 1
+1
+LANG:1 25 Arial,8,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 42 Assign Groups of FW Components to Projects
+20 10
+"cbSilent"
+""
+1 810 27 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  808 25 992 49
+1
+T 
+1
+LANG:1 19 Silent Installation
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 11
+"cbOverwrite"
+""
+1 810 47 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  808 45 992 69
+1
+T 
+1
+LANG:1 15 Overwrite Files
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 12
+"cbForce"
+""
+1 810 67 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  808 65 1132 89
+1
+T 
+1
+LANG:1 41 Force installation of required components
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE30 13
+"FRAME1"
+""
+1 10 33 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+19 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.8547008547008572 780 -18.20512820512829 0 E 10 33 401 151
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Installations Options
+2 14
+"PRIMITIVE_TEXT2"
+""
+1 30 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 50 153 65
+0 2 2 "0s" 0 0 0 192 0 0  30 50 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Computer search pattern:
+2 15
+"PRIMITIVE_TEXT3"
+""
+1 30 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 80 140 95
+0 2 2 "0s" 0 0 0 192 0 0  30 80 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 23 Project search pattern:
+14 16
+"tfComputerPattern"
+""
+1 170 49 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,75,0,0,0,0,0
+0  168 47 292 70
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = \"\";
+}" 0
+ E
+14 17
+"tfProjectPattern"
+""
+1 170 79 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,75,0,0,0,0,0
+0  168 77 292 100
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = \"\";
+}" 0
+ E
+13 18
+"PUSH_BUTTON4"
+""
+1 310 73 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  308 71 402 105
+
+T 
+1
+LANG:1 6 Search
+"main()
+{
+  search();
+}
+" 0
+ E E E
+2 19
+"PRIMITIVE_TEXT4"
+""
+1 310 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 310 50 458 65
+0 2 2 "0s" 0 0 0 192 0 0  310 50 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 30 Do NOT use wildcards, e.g. "*"
+20 20
+"cbRestartProject"
+""
+1 810 87 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  808 85 1132 109
+1
+T 
+1
+LANG:1 45 Restart projects after component installation
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

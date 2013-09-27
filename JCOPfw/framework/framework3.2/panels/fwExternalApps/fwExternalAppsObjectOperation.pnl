@@ -1,0 +1,290 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 757 570 N "_3DFace" 1
+"$sDpName"
+E E E E E 1 -1 -1 0  210 70
+""0  1
+E "dyn_string g_dpes;
+
+updateCellValue(string dpa, anytype value)
+{
+  int pos;
+  string valueAsString, dpe = dpSubStr(dpa, DPSUB_SYS_DP_EL);
+  
+  pos = dynContains(g_dpes, dpe);
+  if(dpe > 0)
+  {
+    valueAsString = dpValToString(dpe, value);
+    TABLE1.cellValueRC(pos - 1, \"value\", valueAsString);
+  }
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 3
+"TABLE1"
+""
+1 10 100 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  string dpElement;
+  
+  dpElement = this.cellValueRC(row, \"dpName\");
+  ChildPanelOnCentralModal(	\"fwConfigs/fwAlarmOperationPopupPanel.pnl\",
+								\"Alert Details Panel\",
+								makeDynString(\"$sDpe:\" + dpElement));
+
+  
+}" 0
+
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 98 742 512
+"main()
+{
+  dyn_int addressMode;
+  dyn_string dpes, usedDpes, units, descriptions, exceptionInfo;
+  
+  this.deleteAllLines();
+  dpes = makeDynString();
+  units = makeDynString();
+  descriptions = makeDynString();
+  
+//  getElements($sDpName, dpTypeName($sDpName), dpes);
+//  getElements(\"dist_26:ExternalApps/Cooling/SF5/SH5/EP\", dpTypeName(\"dist_26:ExternalApps/Cooling/SF5/SH5/EP\"), dpes);
+  fwDevice_getElements(dpTypeName($sDpName), dpes, addressMode, exceptionInfo);
+  
+  for(int i=1; i<=dynlen(dpes); i++)
+  {
+    string unit, description;
+    
+    description = dpGetDescription($sDpName + dpes[i], 0);
+    if(dpSubStr($sDpName + dpes[i], DPSUB_SYS_DP) == dpSubStr(description, DPSUB_SYS_DP))
+      continue;
+    
+    unit = dpGetUnit($sDpName + dpes[i], 0);
+
+    dynAppend(usedDpes, $sDpName + dpes[i]);
+    dynAppend(units, unit);
+    dynAppend(descriptions, description);
+  }
+
+  g_dpes = usedDpes;
+  this.appendLines(dynlen(usedDpes), \"dpName\", usedDpes, \"description\", descriptions, \"unit\", units);
+  
+  for(int i=1; i<=dynlen(usedDpes); i++)
+    dpConnect(\"updateCellValue\", TRUE, usedDpes[i]);
+}
+  
+  
+getElements(string dpName, string dpType, dyn_string &dpes)
+{  
+  int level = -1;
+  string path = dpName + \".\";
+  dyn_dyn_int types;
+  dyn_dyn_string elements;
+  
+  dpTypeGet(dpType, elements, types);
+  for(int i=2; i<=dynlen(elements); i++)
+  {
+    for(int j=1; j<=dynlen(elements[i]); j++)
+    {
+      if(elements[i][j] != \"\")
+      {
+        if(types[i][j] == DPEL_STRUCT)
+        {
+          if(level < j)
+          {
+            path += elements[i][j] + \".\";
+            level = j;
+          }
+          else if(level == j)
+          {
+            path = substr(path, 0, strpos(path, \".\") + 1) + elements[i][j] + \".\";
+          }
+        }
+        else
+          dynAppend(dpes, path + elements[i][j]);
+
+        break;
+      }
+    }
+  }
+}" 0
+E 1 0 1 4 0 "dpName" 22 0 0 "s" 1
+LANG:1 18 Data Point Element
+E
+1
+LANG:1 0 
+
+250 "description" 46 1 0 "s" 1
+LANG:1 11 Description
+E
+1
+LANG:1 0 
+
+520 "value" 9 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+110 "unit" 6 1 0 "s" 1
+LANG:1 4 Unit
+E
+1
+LANG:1 0 
+
+75 
+20 20 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+2 4
+"Text1"
+""
+1 8 8 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 10 220 33
+0 2 0 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 External Application Data
+2 5
+"Text6"
+""
+1 55 156 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 53 50 70
+0 2 0 "0s" 0 0 0 192 0 0  12 53 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Name:
+14 6
+"sChannelName"
+""
+1 462 182 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 58.0000000000001 48 742 75
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = $sDpName;
+}" 0
+ E
+13 7
+"Button8"
+""
+1 660 530 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 658 528 742 562
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+1 8 0 "" 0
+0
+1 9 0 "" 1
+0
+1 10 1 "" 19
+0
+1 11 1 "" 18
+0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "PANEL_REF3"
+"objects\\fwConfigs\\fwAlarmSummaryButton.pnl" 230 40 T 14 1 0 1 616 -20
+1
+"$sDpName""$sDpName"
+3 1 "PANEL_REF2"
+"fwDeviceEditorNavigator/fwActionButton.pnl" 360 -2 T 15 1 0 1 180 0
+1
+"$sDpName""$sDpName"
+0

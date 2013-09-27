@@ -1,0 +1,68 @@
+main()
+{
+    InstallEWOs();
+}
+
+
+/** Copies the appropriate version of the EWOs to project's bin/ folder
+*/
+void InstallEWOs()
+{
+
+    if (!isFunctionDefined("fwInstallation_copyFile")) {
+	DebugN("ERROR: fwInstallation_copyFile() not available");
+	return;
+    }
+
+
+    // find out where do we get installed...
+    string installPath;
+    dyn_dyn_string componentsInfo;
+    int rc=fwInstallation_getInstalledComponents(componentsInfo);
+    if (rc==-1) {
+	DebugN("ERROR in fw3DViewer.init ->  cannot get installed components");
+	return;
+    }
+    
+    for (int i=1;i<=dynlen(componentsInfo);i++) {
+	if (componentsInfo[i][1]=="fw3DViewer") {
+	    installPath=componentsInfo[i][3];
+	    break;
+	};
+    }
+    
+    if (installPath=="") {
+	// last resort - try the fwInstallationInfo...
+	dpGet("fwInstallationInfo.installationDirectoryPath",installPath);
+	if (installPath=="") {
+	    DebugN("ERROR in fw3DViewer.init -> cannot get installation path");
+	    return;
+	}
+    }
+    
+
+    // do it for both platforms
+    dyn_string platforms=makeDynString("linux","windows");
+    for (int i=1;i<=dynlen(platforms);i++) {
+    
+	string srcFileName=installPath+"/bin/fw3DViewer/"+platforms[i]+"/"+"fw3DViewer.ewo-"+VERSION;
+	string dstFileName=installPath+"/bin/widgets/"+platforms[i]+"/"+"fw3DViewer.ewo";
+	strreplace(srcFileName,"//","/");
+	strreplace(dstFileName,"//","/");
+
+    
+	rc=access(srcFileName,F_OK);
+	if (rc!=0) {
+	    DebugN("ERROR in fw3DViewer.init -> file does not exist:"+srcFileName);
+	    return;    
+	}
+    
+	rc=fwInstallation_copyFile(srcFileName, dstFileName);
+    
+	if (rc!=0) {
+	    DebugN("The installation of fw3DViewer EWO in the bin/ directory of your project has failed");
+	    DebugN("You need to copy the version corresponding to your PVSS installation into bin/widgets/linux and bin/widgets/windows of your components directory");
+	}
+    }
+
+}

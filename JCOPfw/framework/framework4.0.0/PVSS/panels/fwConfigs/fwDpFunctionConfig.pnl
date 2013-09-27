@@ -1,0 +1,1701 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 641 391 N "_3DFace" 3
+"$bHierarchyBrowser"
+"$sDpe"
+"$sDpeConfigObjectVarName"
+"main()
+{
+	bool doesExist;
+	int length, i;
+	string dpe, name, sDpFunction, errorString;
+	dyn_string exceptionInfo, systems, dsGlobals, dsParams;
+			
+	if(isDollarDefined(\"$sDpe\"))
+	{
+		dpe = $sDpe;
+		strreplace(dpe, \" \", \"\");
+	    DPE_LIST = strsplit(dpe, \"|\");
+	}
+    
+	elementNameField.editable(FALSE);
+
+	length = dynlen(DPE_LIST);
+
+	// check whether a dpe, a list of dpes or an object was passed to the panel
+	switch(length)
+	{
+			case 0:
+				if(isDollarDefined(\"$sDpeConfigObjectVarName\"))	// object passed to the panel
+				{
+					if(getGlobalType($sDpeConfigObjectVarName) != DYN_DYN_ANYTYPE_VAR)
+					{
+						elementNameField.text(\"Wrong object name\");
+						dpFunctionOnOff.enabled = FALSE;
+						applyButton.enabled = FALSE;
+						okButton.enabled = FALSE;
+						fwException_raise(	exceptionInfo,
+											\"WARNING\", \"The object \" + $sDpeConfigObjectVarName + 
+											\" doesn't exists or hasn't got the proper format.\", 
+											\"\");
+						fwExceptionHandling_display(exceptionInfo);					
+						return;
+					}					
+					
+					panelMode = OBJECT;					
+					fwGeneral_getGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//					DebugN(\"Config Panel: \", dpeConfigObject);
+						 					
+					DPE_LIST[1] = dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_NAME][1];						
+					DPE_TYPE	= dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_TYPE][1];					
+//					smoothType	= dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1];
+					doesExist	= dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1];
+					
+					sDpFunction	= dpeConfigObject[fwDpFunction_DPE_OBJECT_FUNCTION][1];
+					dsParams	= dpeConfigObject[fwDpFunction_DPE_OBJECT_PARAMETERS];
+					// Globals not used for the moment until device definition is updated
+//					dsGlobals	= dpeConfigObject[fwDpFunction_DPE_OBJECT_GLOBALS];		
+					dsGlobals	= makeDynString();
+
+					elementNameField.text(DPE_LIST[1]);					
+					DPES_OK = TRUE;
+					
+					MULTIPLE_SYSTEMS = FALSE;
+					DPE_FILTER = DPSUB_DP_EL;
+					DPA_FILTER = DPSUB_DP_EL_CONF_DET_ATT;
+					
+					dyn_list_global.enabled = FALSE;
+					dyn_list_global.backCol = \"_3DFace\";
+					dyn_input_global.enabled = FALSE;
+					dyn_input_global.text = \"Not available\";
+					pb_editor_global.enabled = FALSE;
+					pb_after_global.enabled = FALSE;
+					pb_before_global.enabled = FALSE;
+					pb_modify_global.enabled = FALSE;
+					pb_delete_global.enabled = FALSE;
+					pb_select_global.enabled = FALSE;
+				}
+				else // neither dpes nor object passed, nothing to do in the panel
+				{
+					name = \"No Data Point Elements\";
+					elementNameField.text(name);
+					dpFunctionOnOff.enabled = FALSE;
+					okButton.enabled = FALSE;
+					applyButton.enabled = FALSE;
+					fwException_raise(exceptionInfo, \"WARNING\", getCatStr(\"fwConfigs\", \"PANEL_NODATAPOINTSTOCONFIG\"), \"\");
+					fwExceptionHandling_display(exceptionInfo);
+					return;
+				}
+				break;
+			case 1:		// single dpe
+				panelMode = SINGLE_DPE;
+				dpe = DPE_LIST[1];
+				name = dpe;
+				elementNameField.text(name);
+				
+				DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_DP_FUNCT, DPE_TYPE, exceptionInfo, errorString);
+				if(!DPES_OK)
+					fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+				
+				if(dynlen(exceptionInfo)<=0)
+				{
+					MULTIPLE_SYSTEMS = FALSE;
+					DPE_FILTER = DPSUB_SYS_DP_EL;
+					DPA_FILTER = DPSUB_SYS_DP_EL_CONF_DET_ATT;
+					fwDpFunction_getDpeConnection(DPE_LIST[1], doesExist, dsParams, dsGlobals, sDpFunction, exceptionInfo);
+				}
+				else
+					doesExist = FALSE;
+				break;
+			default:	// multiple dpes
+				panelMode = MULTIPLE_DPES;
+				dpe = DPE_LIST[1];
+
+				_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+				if(dynlen(systems) == 1)
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+
+				dpeDetails.visible = TRUE;
+				
+				DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_DP_FUNCT, DPE_TYPE, exceptionInfo, errorString);
+				if(!DPES_OK)
+					fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+					
+				if(dynlen(exceptionInfo)<=0)
+					checkSystemsOfDpes(DPE_LIST, MULTIPLE_SYSTEMS);
+
+				doesExist = FALSE;
+				break;
+	}
+
+	okButton.enabled = DPES_OK;
+	applyButton.enabled = DPES_OK;
+
+	if(dynlen(exceptionInfo)>0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+		
+	if(doesExist)
+	{
+		_fwToggleDpFunctionItems(TRUE);
+		dpFunctionOnOff.state(0,true);
+		
+		while(dynContains(dsParams, \"\") > 0)
+			dynRemove(dsParams, dynContains(dsParams, \"\"));
+		_fwSetListsFromDpes(\"dyn_list_param\", dsParams, exceptionInfo);
+		
+		while(dynContains(dsGlobals, \"\") > 0)
+			dynRemove(dsGlobals, dynContains(dsGlobals, \"\"));
+		_fwSetListsFromDpes(\"dyn_list_global\", dsGlobals, exceptionInfo);
+		
+		text_function.text = sDpFunction;	
+	}
+	else
+	{
+		_fwToggleDpFunctionItems(FALSE);
+		dpFunctionOnOff.state(0,FALSE);
+		dyn_list_param.items = makeDynString();
+		dyn_list_global.items = makeDynString();
+		text_function.text = \"\";	
+	}
+
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);	
+}" 0
+ E E E E 1 -1 -1 0  -1 40
+""0  1
+E "#uses \"para.ctl\"
+
+dyn_string DPE_LIST;
+int DPE_TYPE, DPE_FILTER, DPA_FILTER;
+bool DPES_OK, MULTIPLE_SYSTEMS;
+
+// mode in which the panel is used
+int panelMode;
+const int OBJECT	= 1;
+const int SINGLE_DPE		= 2;
+const int MULTIPLE_DPES	= 3;
+
+dyn_dyn_anytype dpeConfigObject;
+
+_fwCheckInputDpe(string graphicalObjectList, string &s, dyn_string &exceptionInfo)
+{
+	string original = s;
+	dyn_string dpes;
+
+	if(panelMode != OBJECT)
+	{
+		s = dpSubStr(s,DPA_FILTER);
+	  if(s==\"\")
+	  {
+			fwException_raise(exceptionInfo, \"ERROR\", \"The data point does not exist: \" + original, \"\");
+	    return;	
+	  }
+		if(strpos(dpSubStr(s, DPSUB_DP_EL_CONF_DET_ATT), \":\") < 0)
+			s += \":_online.._value\";
+	}
+	else
+	{
+		if((strpos(s, \":_online.._value\") < 0) && (strpos(s, \":_original.._value\") < 0))
+			s += \":_online.._value\";
+	}
+
+	if(graphicalObjectList != \"\")
+	{
+		_fwGetDpesFromLists(graphicalObjectList, dpes, exceptionInfo);
+	}
+	else
+		dpes = makeDynString();
+
+  if(dynContains(dpes,dpSubStr(s,DPA_FILTER)))
+  {
+		fwException_raise(exceptionInfo, \"ERROR\", \"The data point has already been specified in the list.\", \"\");
+    return;
+  }
+}
+
+_fwToggleDpFunctionItems(bool shouldShow)
+{
+	box_global.visible = shouldShow;
+	box_param.visible = shouldShow;
+	cue_function.visible = shouldShow;
+	cue_global.visible = shouldShow;
+	cue_param.visible = shouldShow;
+	dyn_input_global.visible = shouldShow;
+	dyn_input_param.visible = shouldShow;
+	dyn_list_global.visible = shouldShow;
+	dyn_list_param.visible = shouldShow;
+	help_function.visible = shouldShow;
+	pb_after_global.visible = shouldShow;
+	pb_after_param.visible = shouldShow;
+	pb_before_global.visible = shouldShow;
+	pb_before_param.visible = shouldShow;
+	pb_delete_global.visible = shouldShow;
+	pb_delete_param.visible = shouldShow;
+	pb_editor_global.visible = shouldShow;
+	pb_editor_param.visible = shouldShow;
+	pb_modify_global.visible = shouldShow;
+	pb_modify_param.visible = shouldShow;
+	pb_select_global.visible = shouldShow;
+	pb_select_param.visible = shouldShow;
+	text_function.visible = shouldShow;
+	multipleSystemWarning.visible = (shouldShow && MULTIPLE_SYSTEMS);
+}
+
+_fwGetDpesFromLists(string list, dyn_string &dpes, dyn_string &exceptionInfo)
+{
+	int i, length, position;
+	shape selectionList;
+	dyn_string listContents;
+	
+	dpes = makeDynString();
+	
+	selectionList = getShape(list);
+	listContents = selectionList.items;
+
+	length = dynlen(listContents);
+	for(i=1; i<=length; i++)
+	{
+		position = strpos(listContents[i], \"=\");
+		dpes[i] = substr(listContents[i], position + 1);
+//DebugN(dpes[i], dpSubStr(dpes[i], DPSUB_DP_EL_CONF_DET_ATT));		
+
+		if(panelMode != OBJECT)
+		{
+			if(strpos(dpSubStr(dpes[i], DPSUB_DP_EL_CONF_DET_ATT), \":\") < 0)
+				dpes[i] += \":_online.._value\";	
+		}
+		else
+		{
+			if((strpos(dpes[i], \":_online.._value\") < 0) && (strpos(dpes[i], \":_original.._value\") < 0))
+				dpes[i] += \":_online.._value\";
+		}
+//DebugN(dpes[i]);		
+	}
+}
+
+_fwSetListsFromDpes(string list, dyn_string dpes, dyn_string &exceptionInfo)
+{
+	int i, length;
+	string prefix;
+	shape selectionList;
+	dyn_string listContents;
+	
+	selectionList = getShape(list);
+	if(strpos(list, \"_global\") >= 0)
+		prefix = \"g\";
+	else
+		prefix = \"p\";
+	
+	length = dynlen(dpes);
+	for(i=1; i<=length; i++)
+	{
+		if(panelMode == OBJECT)
+			listContents[i] = prefix + i + \"=\" + dpes[i];		
+		else
+			listContents[i] = prefix + i + \"=\" + dpSubStr(dpes[i], DPA_FILTER);//DPSUB_SYS_DP_EL);
+	}	
+	
+	selectionList.items = listContents;
+}
+
+saveSettings(dyn_string &exceptionInfo)
+{
+	bool status, isGood;
+	string sDpFunction;
+	bool doesExist;
+	dyn_string dsParams, dsGlobals;
+	
+ 	if(!DPES_OK)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", getCatStr(\"fwConfigs\", \"PANEL_MIXEDORBADDPETYPES\"), \"\");
+		return;		
+	}
+
+	status = dpFunctionOnOff.state(0);
+	okButton.enabled = FALSE;
+	applyButton.enabled = FALSE;
+	closeButton.enabled = FALSE;
+	if(panelMode == MULTIPLE_DPES)
+		fwOpenProgressBar(\"Configuration panel\", \"Saving configuration...\", 1);
+	
+	if(status==TRUE)
+	{
+		sDpFunction = text_function.text;
+		_fwGetDpesFromLists(\"dyn_list_param\", dsParams, exceptionInfo);
+		_fwGetDpesFromLists(\"dyn_list_global\", dsGlobals, exceptionInfo);
+	
+		if(panelMode != OBJECT)
+		{
+			fwDpFunction_setDpeConnectionMultiple(DPE_LIST, dsParams, dsGlobals, sDpFunction, exceptionInfo, TRUE);
+		}
+		else
+		{
+			dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1] = TRUE;
+					
+			dpeConfigObject[fwDpFunction_DPE_OBJECT_FUNCTION][1] 	= sDpFunction;
+			dpeConfigObject[fwDpFunction_DPE_OBJECT_PARAMETERS] 	= dsParams;
+//			Globals not used until device definition updated
+//			dpeConfigObject[fwDpFunction_DPE_OBJECT_GLOBALS]		= dsGlobals;
+			dpeConfigObject[fwDpFunction_DPE_OBJECT_GLOBALS]		= makeDynString();
+			
+//DebugN(DPE_LIST, dsParams, sDpFunction);
+			fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+			//DebugN(\"Modified \", dpeConfigObject);
+		}
+	}
+	else
+	{	
+		if(panelMode != OBJECT)
+		{
+			text_function.text = \"\";
+			dyn_list_param.items = makeDynString();
+			dyn_list_global.items = makeDynString();
+			fwDpFunction_deleteMultiple(DPE_LIST, exceptionInfo);
+		}
+		else
+		{
+			dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1] = TRUE;
+					
+			dpeConfigObject[fwDpFunction_DPE_OBJECT_FUNCTION][1] 	= \"\";
+			dpeConfigObject[fwDpFunction_DPE_OBJECT_PARAMETERS] 	= makeDynString();
+			dpeConfigObject[fwDpFunction_DPE_OBJECT_GLOBALS]		= makeDynString();
+			
+			fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//			DebugN(\"Modified \", dpeConfigObject);
+		}
+	}
+
+	okButton.enabled = TRUE;
+	applyButton.enabled = TRUE;
+	closeButton.enabled = TRUE;
+	if(panelMode == MULTIPLE_DPES)
+		fwCloseProgressBar(\"Configuration complete\");
+}
+
+checkSystemsOfDpes(dyn_string dpes, bool &onMultipleSystems)
+{
+	int i, length;
+	dyn_bool hasSystemName;
+	string systemName;
+
+	if(dynlen(dynPatternMatch(\"*:*\", dpes)) <= 0)
+	{
+		//all dpes are local (no system name specified) so show local dpes system name
+		DPE_FILTER = DPSUB_SYS_DP_EL;
+		DPA_FILTER = DPSUB_SYS_DP_EL_CONF_DET_ATT;
+		onMultipleSystems = FALSE;
+	}
+	else 
+	{
+		hasSystemName = patternMatch(\"*:*\", dpes);
+		length = dynlen(dpes);
+		for(i=1; i<=length; i++)
+		{
+			if(!hasSystemName[i])
+				dpes[i] = getSystemName() + dpes[i];
+		}		
+	
+		systemName = dpSubStr(dpes[1], DPSUB_SYS);
+		if(dynlen(dynPatternMatch(systemName + \"*\", dpes)) == dynlen(dpes))
+		{
+			//all dpes are from the same system so show dpes system name
+			DPE_FILTER = DPSUB_SYS_DP_EL;
+			DPA_FILTER = DPSUB_SYS_DP_EL_CONF_DET_ATT;
+			onMultipleSystems = FALSE;
+		}
+		else
+		{
+			//dpes are from different systems so hide dpes system name
+			DPE_FILTER = DPSUB_DP_EL;
+			DPA_FILTER = DPSUB_DP_EL_CONF_DET_ATT;
+			onMultipleSystems = TRUE;
+		}
+	}
+}" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 11
+"Text3"
+""
+1 10 10 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 233 35
+0 2 2 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 DP Function Configuration
+2 22
+"Text4"
+""
+1 255 131 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 55 128 77
+0 2 0 "0s" 0 0 0 64 0 0  12 55 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 DP Element:
+30 37
+"box_param"
+""
+1 14 299 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 14 129 318 299
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 31 Function Parameters (p1, p2...)
+30 38
+"box_global"
+""
+1 324 299 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 324 129 628 299
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 50 Global Values (g1, g2... set when config is saved)
+2 40
+"cue_function"
+""
+1 255 390 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 314 128 336
+0 2 0 "0s" 0 0 0 64 0 0  12 314 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 DP Function:
+2 43
+"help_function"
+""
+1 889 415 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 382 303 628 337
+0 2 0 "0s" 0 0 0 64 0 0  382 303 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 42 (Give function in terms of p and g values)
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 e.g. p1*p2+g1
+2 50
+"cue_param"
+""
+1 84 345 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 25 269 51 291
+0 2 0 "0s" 0 0 0 64 0 0  25 269 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 p = 
+2 51
+"cue_global"
+""
+1 394 345 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 335 269 361 291
+0 2 0 "0s" 0 0 0 64 0 0  335 269 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 g = 
+2 60
+"multipleSystemWarning"
+""
+1 175 80 E E E 1 E 0 E N {255,0,0} E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 179 84 626 118
+1 4 0 "0s" 0 0 0 192 0 0  179 84 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 71 The data point elements to configure are from multiple systems. You may
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 77 proceed, but all parameter and global dpes must exists on all of the systems.
+13 21
+"applyButton"
+""
+1 0 0 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 348 542 382
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E "main()
+{
+	int x, y;
+
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			closeButton.visible = TRUE;
+		else
+		{
+			getValue(\"\", \"position\", x, y);
+			this.position(x + 90,y);	
+		}
+	}
+	else
+		closeButton.visible = TRUE;
+		
+	this.visible = TRUE;	
+}" 0
+
+13 28
+"closeButton"
+""
+1 1492 929 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 548 348 632 382
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+14 23
+"elementNameField"
+""
+1 347 103 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 88 48 632 75
+3 "0s" 0 0 0 0 0 -1  E E E
+13 25
+"dpeDetails"
+""
+1 460 10 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 8 582 42
+
+T 
+1
+LANG:1 15 Select Elements
+"main()
+{
+	int i;
+	string errorString;
+	dyn_string listItems, systems, returnedDpeList, exceptionInfo;
+	dyn_float cancelOrOk;
+
+	ChildPanelOnCentralModalReturn(\"fwConfigs/fwDpeSelector.pnl\", \"Choose Data Point Elements\",
+									makeDynString(\"$dsAllDpes:\"+$sDpe, \"$dsIncludedDpes:\"+DPE_LIST, \"$sConfigType:\"+fwConfigs_PVSS_DP_FUNCT),
+									cancelOrOk, returnedDpeList);
+	if(cancelOrOk[1] > 0.5)
+	{
+		if(DPE_LIST != returnedDpeList)
+		{
+			DPE_LIST = returnedDpeList;
+			DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_DP_FUNCT, DPE_TYPE, exceptionInfo, errorString);
+			if(!DPES_OK)
+				fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+
+			_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+			if(dynlen(DPE_LIST)== 1)
+				elementNameField.text(DPE_LIST[1]);
+			else
+			{
+				if(dynlen(systems) == 1)
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+			}
+
+			checkSystemsOfDpes(DPE_LIST, MULTIPLE_SYSTEMS);
+			dyn_list_param.items = makeDynString();
+			dyn_list_global.items = makeDynString();
+
+			okButton.enabled = DPES_OK;
+			applyButton.enabled = DPES_OK;
+
+			dpFunctionOnOff.state(0) = FALSE;
+			_fwToggleDpFunctionItems(FALSE);
+		}
+	}	
+}" 0
+ E E E
+20 20
+"dpFunctionOnOff"
+""
+1 10 90 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 88 167 117
+1
+T 
+1
+LANG:1 18 DP Function ON/OFF
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main()
+{
+	bool status;
+	dyn_string exceptionInfo;
+	
+  status = this.state(0);
+	
+	if(!DPES_OK)
+	{
+		this.state(0) = FALSE;
+		
+		fwException_raise(exceptionInfo, \"ERROR\", getCatStr(\"fwConfigs\", \"PANEL_MIXEDORBADDPETYPES\"), \"\");
+		if(dynlen(exceptionInfo)>0)
+			fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	if(status==TRUE)
+	{
+		_fwToggleDpFunctionItems(TRUE);
+	}
+	else
+	{	
+		_fwToggleDpFunctionItems(FALSE);
+	}
+}" 0
+13 29
+"okButton"
+""
+1 0 0 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 368 348 452 382
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		PanelOff();
+}" 0
+ E E "main()
+{
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			this.visible = TRUE;
+	}
+	else
+		this.visible = TRUE;	
+}
+" 0
+
+1 61 0 "" 0
+0
+17 33
+"dyn_list_param"
+""
+1 20 153 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 151 232 255
+0
+
+E
+"main()
+{
+  int        pos;
+  string     s;
+  dyn_string ds;
+
+  getMultiValue(\"dyn_list_param\",\"selectedPos\",pos);
+  if(pos!=-1)
+  {
+    getValue(\"dyn_list_param\",\"selectedText\",s);
+    ds=strsplit(s,\"=\");
+    setValue(\"dyn_input_param\",\"text\",ds[2]);
+  }
+}" 0
+
+E
+
+0 0
+14 34
+"dyn_input_param"
+""
+1 50 263 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 48 261 232 288
+3 "0s" 0 0 0 0 0 -1  E E E
+14 41
+"text_function"
+""
+1 222 362 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 88 307 372 334
+3 "0s" 0 0 0 0 0 -1  E E E
+13 44
+"pb_before_param"
+""
+1 274 200 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 274 200 314 228
+
+P 
+13421721
+"pictures/insertB_en.gif"
+1
+LANG:1 0 
+"main()
+{
+  int        i,pos;
+  bool       ok;
+  string     s,ss,dpe;
+  dyn_string list,list2,ds,dss,dpes,exceptionInfo;
+
+  getMultiValue(\"dyn_input_param\",\"text\",s,
+                \"dyn_list_param\",\"items\",list,
+                \"dyn_list_param\",\"selectedPos\",pos);
+
+	_fwCheckInputDpe(\"dyn_list_param\", s, exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+    return;	
+	}
+
+	if(panelMode == OBJECT)
+		s=\"px=\"+s;
+	else
+	  s=\"px=\"+dpSubStr(s,DPA_FILTER);
+
+  if(pos<1) pos=1;
+  dynInsertAt(list,s,pos);
+  for (i=1;i<=dynlen(list);i++)
+  {
+    ds=strsplit(list[i],\"=\");
+    list[i]=\"p\"+i+\"=\"+ds[2];
+    if (strpos(list[i],\".\")<0) list[i]+=\".\";
+  }
+  setValue(\"dyn_list_param\",\"items\",list);
+  setValue(\"dyn_list_param\",\"selectedPos\",pos);
+}" 0
+ E E E
+13 45
+"pb_delete_param"
+""
+1 274 230 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 274 230 314 258
+
+P 
+13421721
+"pictures/del_en.gif"
+1
+LANG:1 0 
+"main()
+{
+  int        i,pos;
+  string     s;
+  dyn_string list,ds;
+
+  getMultiValue(\"dyn_list_param\",\"items\",list,
+                \"dyn_list_param\",\"selectedPos\",pos);
+  if(pos>0)
+    dynRemove(list,pos);
+  if (pos>dynlen(list))
+    pos--;
+  for (i=1;i<=dynlen(list);i++)
+  {
+    ds=strsplit(list[i],\"=\");
+    list[i]=\"p\"+i+\"=\"+ds[2];
+  }
+  if (pos>0)
+  {
+    setValue(\"dyn_list_param\",\"items\",list);
+    setValue(\"dyn_list_param\",\"selectedPos\",pos);
+    setValue(\"dyn_input_param\",\"text\",strsplit(list[pos],\"=\")[2]);
+  }
+  else
+    setMultiValue(\"dyn_list_param\",\"items\",list,
+                  \"dyn_input_param\",\"text\",\"\");
+}" 0
+ E E E
+13 46
+"pb_after_param"
+""
+1 234 200 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 234 200 274 228
+
+P 
+13421721
+"pictures/insertA_en.gif"
+1
+LANG:1 0 
+"main()
+{
+  int        i,pos;
+  bool       ok;
+  string     s,ss,dpe;
+  dyn_string list,list2,ds,dss,dpes,exceptionInfo;
+
+  getMultiValue(\"dyn_input_param\",\"text\",s,
+                \"dyn_list_param\",\"items\",list,
+                \"dyn_list_param\",\"selectedPos\",pos);
+
+	_fwCheckInputDpe(\"dyn_list_param\", s, exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+    return;	
+	}
+  
+	if(panelMode == OBJECT)
+		s=\"px=\"+s;
+	else
+	  s=\"px=\"+dpSubStr(s,DPA_FILTER);
+ 
+  if(pos<1) pos=dynlen(list);
+  dynInsertAt(list,s,pos+1);
+  for (i=1;i<=dynlen(list);i++)
+  {
+    ds=strsplit(list[i],\"=\");
+    list[i]=\"p\"+i+\"=\"+ds[2];
+    if (strpos(list[i],\".\")<0) list[i]+=\".\";
+  }
+  setValue(\"dyn_list_param\",\"items\",list);
+  setValue(\"dyn_list_param\",\"selectedPos\",pos+1);
+}" 0
+ E E E
+13 47
+"pb_modify_param"
+""
+1 234 230 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 234 230 274 258
+
+P 
+12632256
+"pictures/apply_en.gif"
+1
+LANG:1 0 
+"main()
+{
+  int        i,pos;
+  bool       ok;
+  string     s,dpe;
+  dyn_string list,tempList,ds,dpes,exceptionInfo;
+
+  getMultiValue(\"dyn_input_param\",\"text\",s,
+                \"dyn_list_param\",\"items\",list,
+                \"dyn_list_param\",\"selectedPos\",pos);
+
+  if(pos <= 0)
+     return;
+    
+	tempList = list;
+	tempList[pos] = \"\";
+	dyn_list_param.items = tempList;
+	_fwCheckInputDpe(\"dyn_list_param\", s, exceptionInfo);
+	dyn_list_param.items = list;
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+    return;	
+	}
+
+	if(panelMode == OBJECT)
+		s=\"px=\"+s;
+	else
+	  s=\"px=\"+dpSubStr(s,DPA_FILTER);
+
+    list[pos]=s;
+
+  for (i=1;i<=dynlen(list);i++)
+  {
+    ds=strsplit(list[i],\"=\");
+    list[i]=\"p\"+i+\"=\"+ds[2];
+    if (strpos(list[i],\".\")<0) list[i]+=\".\";
+  }
+  setValue(\"dyn_list_param\",\"items\",list);
+  setValue(\"dyn_list_param\",\"selectedPos\",pos);
+}" 0
+ E E E
+13 48
+"pb_select_param"
+""
+1 234 260 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 234 260 274 288
+
+P 
+14215660
+"pictures/dpsel.xpm"
+1
+LANG:1 0 
+"main()
+{
+  int pos;
+  string s;
+
+  dpSelector(s,false,\"ALL_SYSTEM_NAME_SYS\");
+  if( s != \"\" )
+  {
+  	s = dpSubStr(s, DPE_FILTER);//DPSUB_SYS_DP_EL);
+    setValue( \"dyn_input_param\", \"text\", s );
+  }
+}" 0
+ E E E
+13 49
+"pb_editor_param"
+""
+1 234 170 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 234 170 274 198
+
+P 
+14215660
+"pictures/editor.xpm"
+1
+LANG:1 0 
+"main()
+{
+  int        i, pos;
+  dyn_float  df;
+  dyn_string list,sPara,ds,exceptionInfo;
+
+  getMultiValue(\"dyn_list_param\",\"items\",list);
+  for (i=1;i<=dynlen(list);i++)
+  {
+    ds=strsplit(list[i],\"=\");
+    list[i]=ds[2];
+  }
+
+  sPara[1]=paJoinString(list,\"\\n\"); 
+  ChildPanelOnCentralReturn(\"para/nvTextEditor.pnl\",
+							                 \"DP Function Parameters\",
+							                 sPara, df, ds);
+  if (df[1] >= 1)
+  {
+  	while(dynContains(ds, \"\"))
+  	{
+  		pos = dynContains(ds, \"\");
+  		dynRemove(ds, pos);
+    }
+    
+    for (i=1;i<=dynlen(ds);i++)
+    {
+	 	_fwCheckInputDpe(\"\", ds[i], exceptionInfo);
+     ds[i]=\"p\"+i+\"=\"+ds[i];
+    }
+		if(dynlen(exceptionInfo) > 0)
+		{
+			fwExceptionHandling_display(exceptionInfo);
+	    return;	
+		}
+    setValue(\"dyn_list_param\",\"items\",ds);
+    setValue(\"dyn_list_param\",\"selectedPos\",0);
+  }
+}" 0
+ E E E
+17 52
+"dyn_list_global"
+""
+1 330 153 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 328 151 542 255
+0
+
+E
+"main()
+{
+  int        pos;
+  string     s;
+  dyn_string ds;
+
+  getMultiValue(\"dyn_list_global\",\"selectedPos\",pos);
+  if(pos!=-1)
+  {
+    getValue(\"dyn_list_global\",\"selectedText\",s);
+    ds=strsplit(s,\"=\");
+    setValue(\"dyn_input_global\",\"text\",ds[2]);
+  }
+}" 0
+
+E
+
+0 0
+14 53
+"dyn_input_global"
+""
+1 360 263 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 358 261 542 288
+3 "0s" 0 0 0 0 0 -1  E E E
+13 54
+"pb_before_global"
+""
+1 584 200 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 584 200 624 228
+
+P 
+13421721
+"pictures/insertB_en.gif"
+1
+LANG:1 0 
+"main()
+{
+  int        i,pos;
+  bool       ok;
+  string     s,ss,dpe;
+  dyn_string list,list2,ds,dss,dpes,exceptionInfo;
+
+  getMultiValue(\"dyn_input_global\",\"text\",s,
+                \"dyn_list_global\",\"items\",list,
+                \"dyn_list_global\",\"selectedPos\",pos);
+
+	_fwCheckInputDpe(\"dyn_list_global\", s, exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+    return;	
+	}
+
+	if(panelMode == OBJECT)
+		s=\"gx=\"+s;
+	else
+	  s=\"gx=\"+dpSubStr(s,DPA_FILTER);
+
+  if(pos<1) pos=1;
+  dynInsertAt(list,s,pos);
+  for (i=1;i<=dynlen(list);i++)
+  {
+    ds=strsplit(list[i],\"=\");
+    list[i]=\"g\"+i+\"=\"+ds[2];
+    if (strpos(list[i],\".\")<0) list[i]+=\".\";
+  }
+  setValue(\"dyn_list_global\",\"items\",list);
+  setValue(\"dyn_list_global\",\"selectedPos\",pos);
+}" 0
+ E E E
+13 55
+"pb_delete_global"
+""
+1 584 230 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 584 230 624 258
+
+P 
+13421721
+"pictures/del_en.gif"
+1
+LANG:1 0 
+"main()
+{
+  int        i,pos;
+  string     s;
+  dyn_string list,ds;
+
+  getMultiValue(\"dyn_list_global\",\"items\",list,
+                \"dyn_list_global\",\"selectedPos\",pos);
+  if(pos>0)
+    dynRemove(list,pos);
+  if (pos>dynlen(list))
+    pos--;
+  for (i=1;i<=dynlen(list);i++)
+  {
+    ds=strsplit(list[i],\"=\");
+    list[i]=\"g\"+i+\"=\"+ds[2];
+  }
+  if (pos>0)
+  {
+    setValue(\"dyn_list_global\",\"items\",list);
+    setValue(\"dyn_list_global\",\"selectedPos\",pos);
+    setValue(\"dyn_input_global\",\"text\",strsplit(list[pos],\"=\")[2]);
+  }
+  else
+    setMultiValue(\"dyn_list_global\",\"items\",list,
+                  \"dyn_input_global\",\"text\",\"\");
+}" 0
+ E E E
+13 56
+"pb_after_global"
+""
+1 544 200 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 544 200 584 228
+
+P 
+13421721
+"pictures/insertA_en.gif"
+1
+LANG:1 0 
+"main()
+{
+  int        i,pos;
+  bool       ok;
+  string     s,ss,dpe;
+  dyn_string list,list2,ds,dss,dpes,exceptionInfo;
+
+  getMultiValue(\"dyn_input_global\",\"text\",s,
+                \"dyn_list_global\",\"items\",list,
+                \"dyn_list_global\",\"selectedPos\",pos);
+
+	_fwCheckInputDpe(\"dyn_list_global\", s, exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+    return;	
+	}
+  
+	if(panelMode == OBJECT)
+		s=\"gx=\"+s;
+	else
+	  s=\"gx=\"+dpSubStr(s,DPA_FILTER);
+
+  if(pos<1) pos=dynlen(list);
+  dynInsertAt(list,s,pos+1);
+  for (i=1;i<=dynlen(list);i++)
+  {
+    ds=strsplit(list[i],\"=\");
+    list[i]=\"g\"+i+\"=\"+ds[2];
+    if (strpos(list[i],\".\")<0) list[i]+=\".\";
+  }
+  setValue(\"dyn_list_global\",\"items\",list);
+  setValue(\"dyn_list_global\",\"selectedPos\",pos+1);
+}" 0
+ E E E
+13 57
+"pb_modify_global"
+""
+1 544 230 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 544 230 584 258
+
+P 
+12632256
+"pictures/apply_en.gif"
+1
+LANG:1 0 
+"main()
+{
+  int        i,pos;
+  bool       ok;
+  string     s,dpe;
+  dyn_string list,tempList,ds,dpes,exceptionInfo;
+
+  getMultiValue(\"dyn_input_global\",\"text\",s,
+                \"dyn_list_global\",\"items\",list,
+                \"dyn_list_global\",\"selectedPos\",pos);
+
+  if(pos <= 0)
+     return;
+
+  	tempList = list;
+	tempList[pos] = \"\";
+	dyn_list_global.items = tempList;
+	_fwCheckInputDpe(\"dyn_list_global\", s, exceptionInfo);
+	dyn_list_global.items = list;
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+    return;	
+	}
+
+	if(panelMode == OBJECT)
+		s=\"gx=\"+s;
+	else
+	  s=\"gx=\"+dpSubStr(s,DPA_FILTER);
+
+    list[pos]=s;
+  for (i=1;i<=dynlen(list);i++)
+  {
+    ds=strsplit(list[i],\"=\");
+    list[i]=\"g\"+i+\"=\"+ds[2];
+    if (strpos(list[i],\".\")<0) list[i]+=\".\";
+  }
+  setValue(\"dyn_list_global\",\"items\",list);
+  setValue(\"dyn_list_global\",\"selectedPos\",pos);
+}" 0
+ E E E
+13 58
+"pb_select_global"
+""
+1 544 260 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 544 260 584 288
+
+P 
+14215660
+"pictures/dpsel.xpm"
+1
+LANG:1 0 
+"main()
+{
+  int pos;
+  string s;
+
+  dpSelector(s,false,\"ALL_SYSTEM_NAME_SYS\");
+  if( s != \"\" )
+  {
+  	s = dpSubStr(s, DPE_FILTER);//DPSUB_SYS_DP_EL);
+    setValue( \"dyn_input_global\", \"text\", s );
+  }
+}" 0
+ E E E
+13 59
+"pb_editor_global"
+""
+1 544 170 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 544 170 584 198
+
+P 
+14215660
+"pictures/editor.xpm"
+1
+LANG:1 0 
+"main()
+{
+  int        i, pos;
+  dyn_float  df;
+  dyn_string list,sPara,ds,exceptionInfo;
+
+  getMultiValue(\"dyn_list_global\",\"items\",list);
+  for (i=1;i<=dynlen(list);i++)
+  {
+    ds=strsplit(list[i],\"=\");
+    list[i]=ds[2];
+  }
+
+  sPara[1]=paJoinString(list,\"\\n\"); 
+  ChildPanelOnCentralReturn(\"para/nvTextEditor.pnl\",
+							                 \"DP Function Globals\",
+							                 sPara, df, ds);
+  if (df[1] >= 1)
+  {
+  	while(dynContains(ds, \"\"))
+  	{
+  		pos = dynContains(ds, \"\");
+  		dynRemove(ds, pos);
+    }
+    
+    for (i=1;i<=dynlen(ds);i++)
+    {
+	 	_fwCheckInputDpe(\"\", ds[i], exceptionInfo);
+     ds[i]=\"g\"+i+\"=\"+ds[i];
+    }
+		if(dynlen(exceptionInfo) > 0)
+		{
+			fwExceptionHandling_display(exceptionInfo);
+	    return;	
+		}
+
+    setValue(\"dyn_list_global\",\"items\",ds);
+    setValue(\"dyn_list_global\",\"selectedPos\",0);
+  }
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 604 10 T 15 U 
+1
+"$sPanelRelativePath""fwConfigs/fwDpFunctionConfig"
+0

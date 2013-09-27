@@ -1,0 +1,146 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 599 614 N "_3DFace" 2
+"$1"
+"$2"
+"string panelRef;
+
+main()
+{
+
+  string dpName = $1 + \"|\"+$2;
+
+  dpGet(dpName + \".tnode\", siDP);
+
+  dpConnect(\"systemConnectionCB\", siDP + \".connected\");
+
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyAcCB\", ex);
+  
+}
+
+void applyAcCB(string s1, string s2)
+{
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string domain;
+  fwSysOverview_getACDomain(domain, siDP);
+
+
+  if(domain == \"\") //AC not yet configured. Enable access 
+  {
+    hasExpertPrivilege = true;
+  }
+  else
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+    }
+    else
+      fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+  
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+  }
+
+  btnMask.enabled = hasExpertPrivilege;
+}
+
+void systemConnectionCB(string connectedDp, bool connected)
+{
+  string unApplicationDp;
+  string siDP = dpSubStr(connectedDp, DPSUB_DP);
+  dpGet(siDP + \".systemIntegrityDP\", unApplicationDp);
+  panelRef = \"System Integrity for \"+$2;
+  if (connected)
+  {
+    if (!shapeExists(panelRef))
+    {
+       addSymbol(myModuleName(), myPanelName(), 
+            \"vision/graphicalFrame/applicationOperationDetail.pnl\", 
+            panelRef, 
+            makeDynString(\"$sApplicationDpName:\" + unApplicationDp, \"$embedded:true\"), 0, 0, 0, 1, 1);
+    }
+  }
+  else
+  {
+    if (shapeExists(panelRef))
+    {
+      removeSymbol(myModuleName(), myPanelName(), panelRef);
+    }
+  }
+}" 0
+ E E E E 1 -1 -1 0  10 10
+""0  1
+E "string siDP;" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"btnMask"
+""
+1 450 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  448 568 572 595
+
+T 
+1
+LANG:1 11 Mask Alarms
+"main()
+{
+  string systemName;
+  if (dpExists(siDP + \".systemName\"))
+  {
+    dpGet(siDP + \".systemName\", systemName);
+    ChildPanelOnCentralModal(\"MOON/moon_maskSystemIntegrityAlarms.pnl\", \"Mask System Integrity Alarms\", makeDynString(\"$systemName:\" + systemName));
+  }
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

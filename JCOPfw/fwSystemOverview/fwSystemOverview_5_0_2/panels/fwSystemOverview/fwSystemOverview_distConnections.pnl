@@ -1,0 +1,202 @@
+V 11
+1
+LANG:1 23 Distributed Connections
+PANEL,-1 -1 919 646 N "unSynopticBackground" 0
+"main()
+{
+  dyn_string dps = dpNames(\"icemonSystemIntegrity_*.connected:_alert_hdl.._act_state\", \"IcemonSystemIntegrity\");
+  dpConnect(\"updateTableDistCB\", dps);
+}
+
+void updateTableDistCB(dyn_string dps, dyn_int alarms)
+{
+  string status = \"Disconnected\";
+  string color = \"FwAlarmFatalAck\";
+  int connected = 0;
+
+  for(int i = 1; i <= dynlen(alarms); i++)
+  {
+    int active; 
+    dpGet(dpSubStr(dps[i], DPSUB_SYS_DP_EL) + \":_alert_hdl.._active\", active);    
+         
+    if(!active) 
+    {
+      status = \"Masked/Not Monitored\";
+      color = \"FwAlarmMasked\";
+    }
+    else if(alarms[i])
+    {
+      status = \"Disconnected\";
+      color = \"FwAlarmFatalAck\";
+    }
+    else
+    {
+      ++connected;
+      status = \"Connected\";
+      color = \"FwModeIncluded\";
+    }
+  
+    string dp = dpSubStr(dps[i], DPSUB_DP);
+    string sys = \"\";
+    dpGet(dp + \".systemName\", sys);
+    
+    tblSystems.updateLine(1, \"sys\", sys, \"status\", status);
+    tblSystems.cellBackColRC(i-1, \"status\", color);
+    
+    if(i == 1)
+    {
+      if(fwInstallationDB_connect())
+      {
+        dbError = true;
+      }
+      else
+        showSystem(sys);
+      
+    }
+  }
+  txMsg.text = \"Connected: \" + connected + \"/\" + dynlen(dps);
+  
+  return;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "bool dbError = false;
+
+
+showSystem(string sys)
+{
+  addSymbol(myModuleName(), myPanelName(), \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_pvssSystemProperties.pnl\",
+            \"SystemInfo\", makeDynString(\"$sys:\" + sys), 400, 20, 0, 1, 1);  
+}
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tblSystems"
+""
+1 0 0 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  28 28 372 582
+E"main(int row, string column, string value)
+{
+  string sys = \"\";
+  getValue(\"\", \"cellValueRC\", row, \"sys\", sys);
+
+  if(!dbError)
+  {
+    removeSymbol(myModuleName(), myPanelName(), \"SystemInfo\");  
+    showSystem(sys);
+  }
+}
+
+
+
+
+
+
+" 0
+ 1 0 1 2 0 "sys" 17 1 0 "s" 1
+LANG:1 6 System
+E
+1
+LANG:1 0 
+
+181 "status" 13 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+140 
+16 16 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+2 1
+"txMsg"
+""
+1 30 590 E E E 1 E 1 E N "White" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 30 590 31 604
+0 2 2 "0s" 0 0 0 192 0 0  30 590 1
+1
+LANG:1 25 Arial,8,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 0 
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

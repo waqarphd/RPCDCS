@@ -1,0 +1,278 @@
+V 11
+1
+LANG:1 7 FSTrend
+PANEL,-1 -1 603 420 N "_3DFace" 1
+"$deviceDp"
+"main()
+{
+  dyn_string devices = dpNames($deviceDp + \"/*\", \"FwFMCFs\");
+  string name;
+  string fs;
+  
+  cbDevices.appendItem(\"\");
+  for(int i = 1; i <= dynlen(devices); i++)
+  {
+    name = \"\";
+    dpGet(devices[i] + \".readings.file_system\", name);
+    fs = devices[i];
+    
+    strreplace(fs, $deviceDp, \"\");
+    strreplace(fs, \"/Monitoring\", \"\");
+    strreplace(fs, \"/FS\", \"\");
+    strreplace(fs, \"/\", \"\");
+    
+    if(name != \"\")        
+      cbDevices.appendItem(fs + \":\" + name);
+  }
+}
+" 0
+ E E E E 1 -1 -1 0  10 40
+""0  1
+E E 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 2
+"PUSH_BUTTON1"
+""
+1 460 380 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  458 378 582 412
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+2 3
+"PRIMITIVE_TEXT2"
+""
+1 250 20 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 250 20 367 34
+0 2 2 "0s" 0 0 0 192 0 0  250 20 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 25 Select a device to trend:
+22 4
+"cbDevices"
+""
+1 372 17 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  370 15 594 39
+0
+
+E
+"main()
+{
+  int x = 20, y = 50;
+  string net;
+  dyn_string ds = strsplit(this.text, \":\");
+  string fileSystem, mountPoint;
+  float rootTotal, user;
+  
+  if(ds == \"\")
+    return;
+  
+  if(dpTypeName($deviceDp) == \"FwFMCNode\")  
+  {
+    if((ds[1]+\":\") != getSystemName())
+      net = $deviceDp + \"/Monitoring/FS/\" + ds[1];
+    else
+      net = $deviceDp + \"/Monitoring/FS/\" + ds[2];
+      
+  }
+  else if(dpTypeName($deviceDp) == \"FwFMCFs\")
+    net = $deviceDp + \"/FS/\" + ds[1];
+  else
+    net = $deviceDp + \"/\" + ds[1];
+
+
+  dpGet(net + \".readings.file_system\", fileSystem,
+        net + \".readings.mount_point\", mountPoint,
+        net + \".readings.user\", user,
+        net + \".readings.total_root\", rootTotal);
+  
+  dyn_string ex;
+
+  if(txOldFs.text != \"\")  
+  {
+    fwTrending_removeFaceplate(myModuleName(), myPanelName(), txOldFs.text, ex);
+    if(dynlen(ex))
+      fwExceptionHandling_display(ex);
+  }
+  
+  fwTrending_addQuickFaceplate(myModuleName(),
+                               myPanelName(),
+                               net, 
+                               makeDynString(net + \".readings.user\", net + \".readings.total_root\"),
+                               x,
+                               y,
+                               ex);
+  txOldFs.text = net;
+
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+  
+  
+  frame.text = \"Showing device: \" + fileSystem;
+  txMountPoint.text = \"Mount Point: \" + mountPoint;
+  
+  txMsg.visible = false;
+    
+}
+
+
+
+
+
+
+
+
+" 0
+
+E
+ 1 0
+2 6
+"txMsg"
+""
+1 12 382 E E E 1 E 1 E N "red" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 12 382 245 412
+0 2 2 "0s" 0 0 0 192 0 0  12 382 2
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 50 Hint: Pick a device to trend in the drop-down list
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 38 in the upper right corner of the panel
+30 7
+"frame"
+""
+1 20 403 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+7 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.16 0 0.574712643678161 -13.2 88.39080459770111 0 E 20 403 521 491
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 18 No device selected
+2 8
+"txMountPoint"
+""
+1 32 343 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 32 343 322 363
+0 2 2 "0s" 0 0 0 64 0 0  32 343 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Mount Point: N/A
+2 9
+"txOldFs"
+""
+1 510 300 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 510 300 590 320
+0 2 2 "0s" 0 0 0 64 0 0  510 300 1
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

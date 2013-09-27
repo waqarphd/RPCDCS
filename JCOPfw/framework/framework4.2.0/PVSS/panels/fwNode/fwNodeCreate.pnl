@@ -1,0 +1,707 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,353 194 460 373 N "_3DFace" 3
+"$sDpName"
+"$sNodeType"
+"$sParentDpName"
+"main()
+{
+	string nodeTypeVar;
+	dyn_string navigatorPanels, editorPanels, nodeDpTypes, exceptionInfo;
+	dyn_string nodeTypes = makeDynString(fwNode_TYPE_VENDOR, fwNode_TYPE_LOGICAL, fwNode_TYPE_LOGICAL_ROOT);
+	
+//	DebugN($sDpName, $sParentDpName, $sNodeType);
+	
+	// check in which mode the panel was opened (see description in general)
+	
+	// if device is passed, then it is a modification
+	if(isDollarDefined(\"$sDpName\"))
+	{
+		if(dpExists($sDpName))
+		{
+			if(dpTypeName($sDpName) != \"FwNode\")
+			{
+				fwException_raise(	exceptionInfo,
+									\"ERROR\",
+									\"The device passed as parameter is not of type FwNode (\" + $sDpName + \")\",
+									\"\");
+				fwExceptionHandling_display(exceptionInfo);
+				return;
+			}
+			
+			isCreate = FALSE;
+
+			nodeNameText.text = $sDpName;
+			nodeNameText.enabled = FALSE;
+			
+			// get the current operation and configuration panel
+			fwNode_getPanels($sDpName, fwDEN_MODE_NAVIGATOR, navigatorPanels, exceptionInfo);
+			fwNode_getPanels($sDpName, fwDEN_MODE_EDITOR, editorPanels, exceptionInfo);
+			
+			// get the node type
+			fwNode_getType($sDpName, nodeTypeVar, exceptionInfo);
+			nodeType.text = nodeTypeVar;
+			displayControls(nodeTypeVar);
+			nodeType.enabled = FALSE;
+
+			if(nodeTypeVar == fwNode_TYPE_VENDOR)
+			{
+				fwNode_getDpTypes($sDpName, nodeDpTypes, exceptionInfo);
+				childrenDpTypes.items = nodeDpTypes;
+			}
+		}
+	}
+	else
+	{
+		isCreate = TRUE;
+	}
+	
+//	DebugN(\"isCreate \" + isCreate);
+	if(isCreate)
+	{
+		if(isDollarDefined(\"$sParentDpName\"))
+		{
+			if(dpExists($sParentDpName))
+			{
+				if(dpTypeName($sParentDpName) != \"FwNode\")
+				{
+					fwException_raise(exceptionInfo,
+											\"ERROR\",
+											\"The device passed as parameter is not of type FwNode (\" + $sParentDpName + \")\",
+											\"\");
+					fwExceptionHandling_display(exceptionInfo);
+					return;
+				}
+				
+				parentDpName = $sParentDpName;
+			}
+		}
+		
+		if(isDollarDefined(\"$sNodeType\"))
+		{
+			if(dynContains(nodeTypes, $sNodeType) > 0)
+			{
+				nodeType.text = $sNodeType;
+				displayControls($sNodeType);
+				nodeType.enabled = FALSE;
+			}
+			else
+			{
+				fwException_raise(exceptionInfo,
+										\"ERROR\",
+										\"Unsupported node type (\" + $sNodeType + \")\",
+										\"\");
+				fwExceptionHandling_display(exceptionInfo);
+				return;
+			}
+		}
+		else
+		{
+			// initialize node type combobox
+			nodeType.items = nodeTypes;
+			nodeType.selectedPos(0);
+			displayControls(nodeType.text);
+		}
+
+		// get default operation and configuration panels
+		fwDevice_getDefaultOperationLogicalPanels(\"FwNode\", navigatorPanels, exceptionInfo);
+		fwDevice_getDefaultConfigurationLogicalPanels(\"FwNode\", editorPanels, exceptionInfo);
+	}
+	
+	// display operation and configuration panels
+	navigatorPanelText.text = navigatorPanels[1];
+	editorPanelText.text = editorPanels[1];	
+}" 0
+EE E E 1 -1 -1 0  10 18
+"" 0 1
+E"
+/*
+	Parameters:
+		$sDpName, $sParentDpName, $sNodeType
+		
+	Use cases:
+	
+	1) Create node
+		a) 	If $sParentDpName exists then it is taken as the parent,
+			then only nodes of type fwNode_TYPE_LOGICAL can be created
+		b) 	If $sParentDpName not defined or it is empty,
+			then only nodes of type fwNode_TYPE_VENDOR and fwNode_TYPE_LOGICAL_ROOT can be created
+			$sNodeType can be specified to restrict the type
+			
+		In both cases $sDpName can specify a default name
+			
+	2) Modify node
+		a)	If $sDpName is of type fwNode_TYPE_VENDOR, 
+			then panels and dp types can be modified
+		b)	If $sDpName is of type fwNode_TYPE_LOGICAL_ROOT or fwNode_TYPE_LOGICAL, 
+			then only panels can be modified
+*/
+
+string parentDpName;
+bool isCreate;
+
+// Either creates the node or just sets the node panels
+apply(dyn_string &exceptionInfo)
+{
+	string alias, parentAlias;
+	dyn_errClass err;		
+	
+	// if it is not a node creation, just set the associated panels
+	if(!isCreate)
+	{
+		dpSet($sDpName + \".navigatorPanels\", makeDynString(navigatorPanelText.text),
+				$sDpName + \".editorPanels\", makeDynString(editorPanelText.text),
+				$sDpName + \".dpTypes\", childrenDpTypes.items);
+		return;
+	}
+	
+	// get the parent alias
+	if (parentDpName == \"\")
+	{
+		parentAlias = \"\";
+	}
+	else
+	{
+		parentAlias = dpGetAlias(parentDpName + \".\");
+	}
+	
+	switch(nodeType.text)
+	{
+		case fwNode_TYPE_VENDOR:
+			fwNode_createVendor(	nodeNameText.text, makeDynString(editorPanelText.text), 
+										makeDynString(navigatorPanelText.text),
+										childrenDpTypes.items, exceptionInfo);
+			break;
+		case fwNode_TYPE_LOGICAL:
+		case fwNode_TYPE_LOGICAL_ROOT:
+			fwNode_createLogical(nodeAliasText.text, parentAlias, makeDynString(editorPanelText.text), 
+										makeDynString(navigatorPanelText.text), exceptionInfo);
+			break;
+		default:
+			break;
+	}
+}
+
+displayControls(string nodeType)
+{
+	bool logicalVisible;
+	
+	switch(nodeType)
+	{
+		case fwNode_TYPE_VENDOR:
+			logicalVisible = FALSE;
+			setInputFocus(myModuleName(), myPanelName(), \"nodeNameText\");
+			break;
+		case fwNode_TYPE_LOGICAL:
+		case fwNode_TYPE_LOGICAL_ROOT:
+			setInputFocus(myModuleName(), myPanelName(), \"nodeAliasText\");
+			logicalVisible = TRUE;
+			break;
+		default:
+			break;
+	}
+	
+	nodeAliasLabel.visible = logicalVisible;
+	nodeAliasText.visible = logicalVisible;
+		
+	nodeNameLabel.visible = !logicalVisible;
+	nodeNameText.visible = !logicalVisible;
+	
+	childrenDpTypes.visible = !logicalVisible;
+	childrenDpTypesButton.visible = !logicalVisible;
+	childrenDpTypesLabel.visible = !logicalVisible;
+	
+}" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 6
+"title"
+""
+1 10 18 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 120 34
+0 2 0 "s" 0 0 0 192 0 0  12 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 11 Create Node
+2 7
+"nodeNameLabel"
+""
+1 28 91 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 30 88 102 104
+0 2 0 "s" 0 0 0 192 0 0  30 88
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 10 Node Name:
+2 8
+"Text2"
+""
+1 28 160 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 30 157 124 173
+0 2 0 "s" 0 0 0 192 0 0  30 157
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 16 Navigator Panel:
+2 10
+"Text3"
+""
+1 28 195 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 30 192 105 208
+0 2 0 "s" 0 0 0 192 0 0  30 192
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 13 Editor Panel:
+2 14
+"Text4"
+""
+1 190 160 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 192 162 264 178
+0 2 0 "s" 0 0 0 192 0 0  192 162
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 12 editorPanels
+2 16
+"childrenDpTypesLabel"
+""
+1 28 234 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 30 231 139 247
+0 2 0 "s" 0 0 0 192 0 0  30 231
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 18 Children DP types:
+2 20
+"nodeTypeLabel"
+""
+1 28 53 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 30 50 96 66
+0 2 0 "s" 0 0 0 192 0 0  30 50
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 10 Node Type:
+2 23
+"nodeAliasLabel"
+""
+1 28 125 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 30 122 97 138
+0 2 0 "s" 0 0 0 192 0 0  30 122
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 11 Node Alias:
+22 22
+"nodeType"
+""
+1 130 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+128 48 412 75
+0
+E
+"main()
+{
+	displayControls(this.text);
+}" 0
+
+E
+ 0 0
+14 1
+"nodeNameText"
+""
+1 130 86 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+128 84 412 111
+3 "s" 0 0 0 0 0 0 
+E
+E
+E
+14 24
+"nodeAliasText"
+""
+1 130 120 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+128 118 412 145
+3 "s" 0 0 0 0 0 0 
+E
+E
+E
+13 12
+"navigatorPanelButton"
+""
+1 1230 355 E E E 1 E 1 E N "_3DFace" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-140-100-100-*-*-iso8859-1|-16,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+418 153 452 180
+P 
+14215660
+"pictures/fileselektor.xpm"
+1
+LANG:1 0 
+"main()
+{
+	string selectedPanel;
+	
+	panelSelector(selectedPanel);
+	
+	selectedPanel = substr(selectedPanel, 0, strpos(selectedPanel, \".\"));
+	
+	navigatorPanelText.text(selectedPanel);
+}" 0
+ E E E
+13 15
+"editorPanelButton"
+""
+1 1230 390 E E E 1 E 1 E N "_3DFace" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-140-100-100-*-*-iso8859-1|-16,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+418 188 452 215
+P 
+14215660
+"pictures/fileselektor.xpm"
+1
+LANG:1 0 
+"main()
+{
+	string selectedPanel;
+	
+	panelSelector(selectedPanel);
+	
+	selectedPanel = substr(selectedPanel, 0, strpos(selectedPanel, \".\"));
+	
+	editorPanelText.text(selectedPanel);
+}" 0
+ E E E
+13 18
+"childrenDpTypesButton"
+""
+1 1230 429 E E E 1 E 1 E N "_3DFace" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-140-100-100-*-*-iso8859-1|-16,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+418 227 452 254
+P 
+14215660
+"pictures/dpsel.xpm"
+1
+LANG:1 0 
+"main()
+{
+	dyn_string selectedDpTypes, exceptionInfo;
+	
+	selectedDpTypes = childrenDpTypes.items;
+	//DebugN(selectedDpTypes);
+	fwGeneral_DpTypeSelector(selectedDpTypes, \"\", exceptionInfo, TRUE, \"\");
+	//DebugN(selectedDpTypes);
+	childrenDpTypes.items = selectedDpTypes;
+}" 0
+ E E E
+13 3
+"okButton"
+""
+1 220 339 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+218 337 292 364
+T 
+1
+LANG:1 2 Ok
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	apply(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		PanelOff();
+}" 0
+ E E E
+13 5
+"applyButton"
+""
+1 300 339 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+298 337 372 364
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	apply(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E E
+13 4
+"cancelButton"
+""
+1 380 339 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+378 337 452 364
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+14 9
+"navigatorPanelText"
+""
+1 130 155 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+128 153 412 180
+3 "s" 0 0 0 0 0 0 
+E
+E
+E
+14 11
+"editorPanelText"
+""
+1 130 190 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+128 188 412 215
+3 "s" 0 0 0 0 0 0 
+E
+E
+E
+17 19
+"childrenDpTypes"
+""
+1 140 229 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+18 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+138 227 412 331
+0
+E
+E
+E
+
+3 1
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

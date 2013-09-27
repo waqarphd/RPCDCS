@@ -1,0 +1,90 @@
+string proj_path, bin_path, pvss_path, pvss_version, conf_path;
+
+main()
+{
+ 
+//   int pos, ok;
+// 	conf_path = getPath(CONFIG_REL_PATH, "config");
+// 	pos = strpos(conf_path,"/config/config");
+// 	proj_path = substr(conf_path, 0, pos);
+  
+  //Create dp for the Performance manager, assuming the type is already imported via dpfile
+  dyn_string dptypes = dpTypes("PerformanceCheck");
+  string dpName;
+  if(dynlen(dptypes)>0){
+  if(isRedundant()){
+    int redNum = myReduHostNum();
+    if(!dpExists("PerformanceCheck"))    dpCreate("PerformanceCheck",dptypes[1]);  
+    if(!dpExists("PerformanceCheck_2")) dpCreate("PerformanceCheck_2",dptypes[1]);  
+  }else {
+   if(!dpExists("PerformanceCheck")) dpCreate("PerformanceCheck",dptypes[1]);  
+  }
+  } else {
+    DebugTN("Dp Type PerformanceCheck does not exist");
+  } 
+
+
+  DebugN("Adding PVSS00Performance...");
+  string perf = getWCCOAExecutable("Perf");
+  // this is needed (see fwInstallationUtils)
+  initPmonVars(); 
+   dyn_mixed managerInfo;
+
+   string user, pwd, host, port;
+  host = fwInstallation_getHostname(); 
+  port = pmonPort();
+  
+  
+  if(user == "")
+    if(fwInstallation_getPmonInfo(user, pwd) != 0)
+    {
+      DebugN(" Could not resolve pmon username and password. Action aborted", "error", 1);
+      return ;
+    }
+  
+
+  
+  fwInstallationManager_getProperties(perf, "", managerInfo, host, port, user, pwd);
+
+
+  if (managerInfo[FW_INSTALLATION_MANAGER_PMON_IDX] == -1) {
+ 
+     fwInstallationManager_append(TRUE,"PVSS performance viewer",perf,"always",5,3,5,"-DIM_DNS_NODE cms-cen-dcs-u3,cms-cen-dcs-s3");
+  } else {
+    string options = managerInfo[FW_INSTALLATION_MANAGER_OPTIONS];
+     strreplace(options, "cms-cent-dcs-17,cms-cent-dcs-18",  "cms-cen-dcs-u3,cms-cen-dcs-s3");
+    if (managerInfo[FW_INSTALLATION_MANAGER_OPTIONS] != options) {
+       string oldOptions =  managerInfo[FW_INSTALLATION_MANAGER_OPTIONS];
+       managerInfo[FW_INSTALLATION_MANAGER_OPTIONS] = options;
+       DebugTN("Changing options to Perf : " + oldOptions + " ---> " + options);
+       fwInstallationManager_setProperties(perf, oldOptions, managerInfo, host, port, user, pwd);
+    }     
+  }
+  
+}
+
+
+string getWCCOAExecutable(string manager) {
+  if (isFunctionDefined("fwInstallation_getWCCOAExecutable") ) {
+    return fwInstallation_getWCCOAExecutable(manager);
+  }
+
+
+  return "PVSS00" + manager;
+}
+
+
+void initPmonVars() {
+  //Initialize the PMON variables:
+  if ( !globalExists("gFwInstallationPmonUser") )   {
+    addGlobal("gFwInstallationPmonUser", STRING_VAR);
+  }
+                                       
+  if ( !globalExists("gFwInstallationPmonPwd") ) {
+    addGlobal("gFwInstallationPmonPwd", STRING_VAR);
+  }
+
+
+  gFwInstallationPmonUser = "N/A";                                           
+  gFwInstallationPmonPwd = "N/A";
+}

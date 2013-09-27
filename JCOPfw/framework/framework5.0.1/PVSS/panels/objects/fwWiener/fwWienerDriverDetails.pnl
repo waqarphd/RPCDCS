@@ -1,0 +1,545 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 411 372 N "_3DFace" 1
+"$sDpName"
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "InvalidColour(string dp, bool invalid)
+{
+	string elementColour;
+
+	if(invalid)
+		this.backCol = \"FwDead\";
+	else
+		this.backCol = \"_3DFace\";
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+1
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 7
+"LastModifiedTitle"
+""
+1 46 125 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 22 120 39
+0 2 0 "0s" 0 0 0 192 0 0  12 22 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 20 Latest Driver Error:
+2 8
+"ServerUpTimeTitle"
+""
+1 29 125 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 20 102 37
+0 2 0 "0s" 0 0 0 192 0 0  10 20 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Server Up Time:
+25 5
+"table"
+""
+1 -150 -229 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 88 402 322
+"dyn_string gListOfDpElementToConnect, gListOfSettingsDpElement;
+
+main()
+{
+	dyn_string exceptionInfo, listOfRequiredElements, listOfElement,
+				 temp, unit, detail,setvalue;
+	int i, length, lenDpe, lenDp, rowNbr,lenS, pos;
+	string dpName,dpe;
+	dyn_dyn_string elements;
+		
+	this.sortOnClick = FALSE;	
+	
+	listOfRequiredElements = makeDynString(	\".Settings.BOOL_Cache\",
+												\".Settings.UI1_Cache\",
+												\".Settings.UI2_Cache\",
+												\".Settings.I2_Cache\",
+												\".Settings.I4_Cache\",
+												\".Settings.R4_Cache\",
+												\".Settings.BSTR_Cache\");
+
+	fwDevice_getConfigElements(dpTypeName($sDpName), fwDevice_ALL, elements, exceptionInfo);
+
+	length = dynlen(listOfRequiredElements);
+	for(i=1; i <= length; i++)
+	{
+		pos = dynContains(elements[1], listOfRequiredElements[i]);
+		if(pos > 0)
+		{
+			dynAppend(gListOfSettingsDpElement, $sDpName + elements[1][pos]);
+			dynAppend(listOfElement, elements[2][pos]);
+		}
+	}	
+
+	lenS = dynlen(gListOfSettingsDpElement);
+	for(i = 1; i <= lenS; i++ ) 
+	{
+		if(!dpExists(gListOfSettingsDpElement[i]))
+		{
+			fwException_raise(	exception,
+								\"ERROR\", 
+								\"The data point element\" + gListOfSettingsDpElement[i] + \" does not exist.\", 
+								\"\");
+			this.cellBackColRC(i - 1, \"settings\", \"DpDoesNotExist\");
+		}
+		else 
+		{
+			dpName = dpSubStr(gListOfSettingsDpElement[i], DPSUB_SYS_DP_EL);
+			dpe = gListOfSettingsDpElement[i];
+  			gListOfSettingsDpElement[i] = dpName;
+			if(dpConnect(\"_fwSettingsDataCB\", dpe + \":_online.._value\") == -1) 
+  				{
+  					fwException_raise(	exceptionInfo, 
+  										\"INFO\", 
+  										\"Connecting to the data point element\" + dpe + \" was unsuccessful.\", 
+  										\"\");
+					this.cellBackColRC(i - 1, \"settings\", \"DpDoesNotExist\");
+				}
+		}
+	}
+
+	length = dynlen(gListOfSettingsDpElement);
+	for(i=1; i <= length; i++)
+	{
+		gListOfDpElementToConnect[i] = gListOfSettingsDpElement[i];
+		strreplace(gListOfDpElementToConnect[i], \".Settings.\", \".ReadBackSettings.\");
+	}	
+
+	lenDpe = dynlen(gListOfDpElementToConnect);
+	lenDp = dynlen(listOfElement);
+	
+	if(lenDpe > lenDp)
+		rowNbr = lenDpe;
+	else
+		rowNbr = lenDp;
+		
+	for(i = 1; i <= lenDpe; i++) 
+	{
+		unit[i] = dpGetUnit(gListOfDpElementToConnect[i]);
+		detail[i] = \"Details\";
+		dpGet(gListOfSettingsDpElement[i] + \":_online.._value\", setvalue[i]);
+	}
+	this.deleteAllLines;
+	this.appendLines(rowNbr, \"element\", listOfElement, \"settings\", setvalue, \"unit\", unit);
+	fwColourTable_connectCellBackColToValueStatus(exceptionInfo);
+
+	lenS = dynlen(gListOfDpElementToConnect);
+	for(i = 1; i <= lenS; i++ ) 
+	{
+  		this.cellBackColRC(i-1, \"settings\", \"_Window\");
+	}
+}
+
+_fwSettingsDataCB(string dpe, string value)
+{
+	int cellPos;
+	string elementColour, dpName,temp;
+	dyn_string exceptionInfo;
+	
+	dpName = dpSubStr(dpe, DPSUB_SYS_DP_EL);
+	cellPos = dynContains(gListOfSettingsDpElement, dpName);
+
+	if(cellPos >= 1)
+	{
+		this.cellValueRC(cellPos-1, \"settings\", value);
+	}
+}" 0
+"main(int xpos,string columnName,string value)
+{
+	int i,len, row, col,nN;
+	string elementName;
+	dyn_string listOfElement, exceptionInfo;
+	dyn_int selectedLine;
+	
+	listOfElement = makeDynString(\"BOOL_Cache\",
+									\"UI1_Cache\",
+									\"UI2_Cache\",
+									\"I2_Cache\",
+									\"I4_Cache\",
+									\"R4_Cache\",
+									\"BSTR_Cache\");
+
+	elementName = listOfElement[xpos + 1];
+
+	if(elementName == \"\" )
+		return;
+	if (columnName == \"settings\")
+	{
+		ChildPanelOnCentral(\"fwGeneral/fwChangeSetting.pnl\",
+							\"Settings\",
+							 makeDynString(	\"$sDpName:\" + $sDpName,
+						  					\"$dpSetName:\" + \".Settings.\" + elementName)); 
+	}
+	else 
+	{
+		fwGeneral_openDetailsPanel($sDpName + \".ReadBackSettings.\" + elementName, exceptionInfo);
+	}
+}" 0
+ 1 0 1 4 1 "element" 14 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+165 "settings" 9 1 0 "s" 1
+LANG:1 7 Setting
+E
+1
+LANG:1 0 
+
+110 "status" 9 1 0 "s" 1
+LANG:1 8 ReadBack
+E
+1
+LANG:1 0 
+
+110 "unit" 4 0 0 "s" 1
+LANG:1 5 Units
+E
+1
+LANG:1 0 
+
+55 
+28 28 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 0 1 1 7
+1 0
+14 6
+"LastModifiedField"
+""
+1 130 19 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 128 17 322 44
+2 "0s" 0 0 0 0 0 -1  E "// Show date last modified
+main()
+{
+	if(dpTypeName($sDpName) == \"FwWienerDriver\")
+	{
+	  if(dpConnect(\"work\", TRUE, $sDpName + \".Status.DriverError:_online.._value\") == -1)
+	  {
+	     this.backCol = \"_dpdoesnotexist\";
+	     this.foreCol = \"_dpdoesnotexist\";
+	  }
+	  else
+		 	dpConnect(\"InvalidColour\", TRUE, $sDpName + \".Status.DriverError:_online.._invalid\");
+
+		LastModifiedField.visible = TRUE;
+		LastModifiedTitle.visible = TRUE;
+                LastErrorDetails.visible = TRUE;
+  }
+}
+
+work(string dp,bool error)
+{
+	string timeStamp;
+
+	if(error)
+	{
+		dpGet($sDpName + \".Status.DriverError\" + \":_online.._stime\", timeStamp);
+   		this.text = timeStamp;
+	}
+	else
+	{
+		this.text = \"NONE\";
+	}
+}
+" 0
+ E
+14 9
+"ServerUpTimeField"
+""
+1 110 19 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 108 17 272 44
+2 "0s" 0 0 0 2 0 -1  E "// Show date last modified
+main()
+{
+	if(dpTypeName($sDpName) == \"FwWienerServer\")
+	{
+	  if(dpConnect(\"_fwSettingsDataCB\", TRUE, $sDpName + \".UpTime:_online.._value\") == -1)
+	  {
+	     this.backCol = \"_dpdoesnotexist\";
+	     this.foreCol = \"_dpdoesnotexist\";
+	  }
+	  else
+		 	dpConnect(\"InvalidColour\", TRUE, $sDpName + \".UpTime:_online.._invalid\");
+
+		ServerUpTimeField.visible = TRUE;
+		ServerUpTimeTitle.visible = TRUE;
+                upTimeDetails.visible = TRUE;
+  }
+}
+
+_fwSettingsDataCB(string dpe, string value)
+{
+	float operatingTime;
+	int d, h, m, s;
+	
+	operatingTime = value;
+	d = floor(operatingTime);
+	operatingTime = (operatingTime - d)*24;
+
+	h = floor(operatingTime);
+	operatingTime = (operatingTime - h)*60;
+
+	m = floor(operatingTime);
+	operatingTime = (operatingTime - m)*60;
+
+	s = floor(operatingTime);
+	
+	sprintf(value, \"%d days %02d:%02d:%02d\", d, h, m, s);
+	this.text(value);
+}
+" 0
+ E
+2 10
+"LastUpdateTitle"
+""
+1 593 571 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 50 84 67
+0 2 2 "0s" 0 0 0 192 0 0  10 50 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Last Update:
+14 11
+"LastUpdate"
+""
+1 110 50 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 108 48 272 75
+2 "0s" 0 0 0 2 0 -1  E "main()
+{
+	if(dpTypeName($sDpName) == \"FwWienerServer\")
+	{
+	  string dpe = $sDpName + \".UpTime\" + \":_online.._stime\";	
+
+	  if(dpConnect(\"setValueCB\", dpe) == -1)
+	  {
+		this.backCol = \"_dpdoesnotexist\";
+		this.foreCol = \"_dpdoesnotexist\";
+	  }
+          LastUpdate.visible = TRUE;
+          LastUpdateTitle.visible = TRUE;
+        }
+}
+
+setValueCB(string dp, string str)
+{
+   this.text = str;
+}" 0
+ E
+13 12
+"upTimeDetails"
+""
+1 400 169 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 278 17 343 44
+
+T 
+2
+LANG:1 7 Details
+LANG:0 7 Details
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	fwGeneral_openDetailsPanel($sDpName + \".UpTime\", exceptionInfo);
+}
+" 0
+ E E E
+13 13
+"LastErrorDetails"
+""
+1 458 169 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 336 17 401 44
+
+T 
+2
+LANG:1 7 Details
+LANG:0 7 Details
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	fwGeneral_openDetailsPanel($sDpName + \".Status.DriverError\", exceptionInfo);
+}
+" 0
+ E E E
+13 14
+"PUSH_BUTTON1"
+""
+1 0 340 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ -2 338 192 372
+
+T 
+1
+LANG:1 24 TCP/IP Interface Details
+"main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentral(\"fwWiener/fwWienerTCPIPOperation.pnl\",
+      \"TCP/IP Interface Operation\",
+      makeDynString(\"$sDpName:\" + $sDpName));
+}" 0
+ E E "main()
+{
+  if(dpTypeName($sDpName) == \"FwWienerServer\")
+  {
+    this.visible = TRUE;
+  }
+}" 0
+
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

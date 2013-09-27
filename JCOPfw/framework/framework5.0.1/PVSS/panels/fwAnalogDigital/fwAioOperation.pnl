@@ -1,0 +1,784 @@
+V 10
+1
+LANG:1 0 
+PANEL,301 156 701 570 N "_3DFace" 3
+"$sDpName"
+"$sInDpe"
+"$sOutDpe"
+"main()
+{
+	int x, y;
+	string units, dpType;
+	dyn_string exceptionInfo;
+
+//	DebugN($sDpName, dpType);
+	
+	if(!isDollarDefined(\"$sDpName\"))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The dollar parameter $sDpName should be defined\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	deviceCommentText.text = dpGetComment($sDpName + \".\");
+	deviceNameText.text = $sDpName;
+	dpType = dpTypeName($sDpName);
+		
+	// Input DPE
+	if(isDollarDefined(\"$sInDpe\"))
+	{
+		inElement = $sInDpe;
+		inDpe = $sDpName + $sInDpe;
+	}
+	else
+	{
+		switch(dpType)
+		{
+			case \"FwAi\":
+				inElement = \".value\";
+				inDpe = $sDpName + \".value\";
+				break;
+			case \"FwAio\":
+				inElement = \".inValue\";
+				inDpe = $sDpName + \".inValue\";
+				break;
+			default:
+				inElement = \"\";
+				inDpe = \"\";
+				break;
+		}
+	}
+
+	if(inDpe != \"\")
+	{
+		if(!dpExists(inDpe))
+		{
+			inValueText.backCol = \"_dpdoesnotexist\";
+			inValueText.foreCol = \"_dpdoesnotexist\";
+			inLastModifiedText.backCol = \"_dpdoesnotexist\";
+			inLastModifiedText.foreCol = \"_dpdoesnotexist\";
+			fwException_raise(exceptionInfo, \"ERROR\", \"Datapoint element does not exist (\" + inDpe + \" )\", \"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	
+		// display units
+		units = \"\";
+		units = dpGetUnit(inDpe);
+		if(units == \"\")
+			units = \"(unit undefined)\"; 
+		
+		inValueUnits.text(units);
+		
+		// callback to update value	
+		dpConnect(\"setInputCB\", inDpe);
+		dpConnect(\"setInputTimeCB\", inDpe + \":_online.._stime\");
+		 
+		// add alert operation panel
+		getValue(\"alarmOperationPosition\", \"position\", x, y);
+//		DebugN(x, y);		
+		addSymbol(	myModuleName(), myPanelName(), \"fwConfigs/fwAlarmOperationPanel.pnl\", \"alertOperation\",
+					makeDynString(\"$sDpe:\" + inDpe), x, y, 0, 1, 1);
+		
+
+		if(dynlen(exceptionInfo) > 0)
+  			fwExceptionHandling_display(exceptionInfo);       
+	}
+	else
+	{
+		// Hide widgets for input
+		displayInput(FALSE);
+	}
+		
+	// Output DPE
+	if(isDollarDefined(\"$sOutDpe\"))
+	{
+		outElement = $sOutDpe;
+		outDpe = $sDpName + $sOutDpe;
+	}
+	else
+	{
+		switch(dpType)
+		{
+			case \"FwAo\":
+				outElement = \".value\";
+				outDpe = $sDpName + \".value\";
+				break;
+			case \"FwAio\":
+				outElement = \".outValue\";
+				outDpe = $sDpName + \".outValue\";
+				break;
+			default:
+				outElement = \"\";
+				outDpe = \"\";
+				break;
+		}
+	}
+	
+	if(outDpe != \"\")
+	{
+		if(!dpExists(outDpe))
+		{
+			outValueText.backCol = \"_dpdoesnotexist\";
+			outValueText.foreCol = \"_dpdoesnotexist\";
+			outLastModifiedText.backCol = \"_dpdoesnotexist\";
+			outLastModifiedText.foreCol = \"_dpdoesnotexist\";
+			fwException_raise(exceptionInfo, \"ERROR\", \"Datapoint element does not exist (\" + outDpe + \" )\", \"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	
+		// display units
+		units = \"\";
+		units = dpGetUnit(outDpe);
+		if(units == \"\")
+			units = \"(unit undefined)\"; 
+		
+		outValueUnits.text(units);
+		
+		// callback to update value	
+		dpConnect(\"setOutputCB\", outDpe);
+		dpConnect(\"setOutputTimeCB\", outDpe + \":_online.._stime\");
+	}
+	else
+	{
+		// Hide widgets for output
+		displayOutput(FALSE);
+	}
+	
+	// add trending button
+	getValue(\"trendingButtonPosition\", \"position\", x, y);
+	addSymbol(myModuleName(), myPanelName(), \"objects/fwGeneral/fwTrendingQuickPlotButton.pnl\", \"trendingButton\",
+							makeDynString(\"$sDpesToPlot:\" + inDpe + \";\" + outDpe), x, y, 0, 1, 1);
+	
+//	DebugN(inDpe, outDpe);
+	panelInitialized = TRUE;
+}
+
+setOutputCB(string dpe, float value)
+{
+	outValueText.text(value);
+}
+
+setInputCB(string dpe, float value)
+{
+	inValueText.text(value);
+}
+
+setInputTimeCB(string dpe, string str)
+{
+   inLastModifiedText.text = str;
+}
+
+setOutputTimeCB(string dpe, string str)
+{
+   outLastModifiedText.text = str;
+}
+" 0
+"main()
+{
+	int i;
+}" 0
+E E E 1 -1 -1 0  0 0
+"" 0 1
+E"bool panelInitialized;
+string inDpe, outDpe, inElement, outElement;
+
+displayOutput(bool display)
+{
+	Text4.visible = display;
+	outValueText.visible = display;
+	outValueUnits.visible = display;
+	outLastModifiedText.visible = display;
+	outLastModifiedLabel.visible = display;
+	outFrame.visible = display;
+	outDetails.visible = display;
+}
+
+displayInput(bool display)
+{
+	Text1.visible = display;
+	inValueText.visible = display;
+	inValueUnits.visible = display;
+	inLastModifiedText.visible = display;
+	inLastModifiedLabel.visible = display;
+	inFrame.visible = display;
+	alarmsFrame.visible = display;
+	inDetails.visible = display;
+	debugCheckBox.visible = display;
+}" 0
+ 2
+"CBRef""0"
+"EClose""main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 143
+"alarmOperationPosition"
+""
+1 52 237 E E E 1 E 0 E N {255,0,51} E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 54 239 120 275
+1 2 0 "s" 0 0 0 64 0 0  54 239
+ 2
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 0 
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 5 Text5
+2 16
+"Text1"
+""
+1 22 201 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 24 202 103 218
+0 2 2 "s" 0 0 0 192 0 0  24 202
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 14 Current value:
+2 27
+"inValueUnits"
+""
+1 204 201 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 205 202 235 218
+0 2 2 "s" 0 0 0 192 0 0  205 202
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 5 Units
+2 36
+"inLastModifiedLabel"
+""
+1 365 203 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 366 204 447 220
+0 2 2 "s" 0 0 0 192 0 0  366 204
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 14 Last modified:
+2 48
+"Text7"
+""
+1 20 44 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 45 102 61
+0 2 2 "s" 0 0 0 192 0 0  22 45
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 12 Device Name:
+2 73
+"Text3"
+""
+1 -9 -79 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 159 34
+0 2 0 "s" 0 0 0 192 0 0  12 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 16 Analog Operation
+2 113
+"Text2"
+""
+1 20 74 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 75 91 91
+0 2 2 "s" 0 0 0 192 0 0  22 75
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 12 Description:
+30 126
+"inFrame"
+""
+1 20 527 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 20 174 690 530
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 11 Input value
+2 127
+"Text4"
+""
+1 169 305 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 24 130 103 146
+0 2 2 "s" 0 0 0 192 0 0  24 130
+ 1
+2
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+2
+LANG:1 14 Current value:
+LANG:0 34  Wert eines DPE als Parameter p.. 
+2 129
+"outValueUnits"
+""
+1 328 255 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 206 128 236 144
+0 2 2 "s" 0 0 0 192 0 0  206 128
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 5 Units
+2 131
+"outLastModifiedLabel"
+""
+1 585 255 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 366 128 447 144
+0 2 2 "s" 0 0 0 192 0 0  366 128
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 14 Last Modified:
+30 136
+"outFrame"
+""
+1 20 164 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+21 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 20 105 690 165
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 12 Output value
+2 140
+"trendingButtonPosition"
+""
+1 640 150 E E E 1 E 0 E N {255,0,51} E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 642 152 688 198
+1 2 0 "s" 0 0 0 64 0 0  642 152
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 8 TRENDING
+30 142
+"alarmsFrame"
+""
+1 52 520 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+23 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 52 243 602 520
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 6 Alarms
+13 108
+"inDetails"
+""
+1 297 201 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+2
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+295 199 360 226
+T 
+2
+LANG:1 7 Details
+LANG:0 7 Details
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	fwGeneral_openDetailsPanel(inDpe, exceptionInfo);
+}" 0
+ E E E
+20 107
+"debugCheckBox"
+""
+1 123 227 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+121 225 195 244
+1
+T 
+1
+LANG:1 5 Debug
+ 0
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+1
+E E 
+EE14 3
+"inValueText"
+""
+1 107 200 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+107 198 203 225
+2 "s" 0 0 0 0 0 0 
+"main()
+{
+	if(debugCheckBox.state(0))
+	{
+		ChildPanelOnCentral(\"fwGeneral/fwChangeSetting.pnl\", \"Settings\",
+							 					makeDynString(	\"$sDpName:\" + $sDpName,
+							  												\"$dpSetName:\" + inElement));
+	}
+	
+	if(isDollarDefined(\"$sInDpe\"))
+	{
+		// connect background color to status
+		fwColour_connectItemBackColToStatus(inDpe, exceptionInfo);
+	}
+
+}" 0
+
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	while(panelInitialized == FALSE)
+		delay(0, 250);
+			
+	if(inDpe != \"\")
+	{
+		// connect background color to status
+		fwColour_connectItemBackColToStatus(inDpe, exceptionInfo);
+		if(dynlen(exceptionInfo) > 0)
+  			fwExceptionHandling_display(exceptionInfo);
+  }
+}" 0
+
+E
+13 134
+"outDetails"
+""
+1 417 276 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+2
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+295 124 360 151
+T 
+2
+LANG:1 7 Details
+LANG:0 7 Details
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	fwGeneral_openDetailsPanel(outDpe, exceptionInfo);
+}
+" 0
+ E E E
+14 132
+"outValueText"
+""
+1 443 422 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+2
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+107 124 203 151
+2 "0s" 0 0 0 0 0 0 
+"main()
+{
+	ChildPanelOnCentral(\"fwGeneral/fwChangeSetting.pnl\", \"Settings\",
+						makeDynString(\"$sDpName:\" + $sDpName, \"$dpSetName:\" + outElement)); 
+}" 0
+
+E
+E
+14 23
+"deviceCommentText"
+""
+1 99 70 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+98 68 682 95
+2 "s" 0 0 0 0 0 0 
+E
+E
+E
+14 28
+"deviceNameText"
+""
+1 110 40 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+108 38 682 65
+2 "s" 0 0 0 0 0 0 
+E
+E
+E
+14 35
+"inLastModifiedText"
+""
+1 450 200 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+448 198 627 225
+2 "s" 0 0 0 0 0 0 
+E
+E
+E
+13 115
+"close"
+""
+1 620 536 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+618 534 692 561
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+14 135
+"outLastModifiedText"
+""
+1 450 126 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+448 124 627 151
+2 "s" 0 0 0 0 0 0 
+E
+E
+E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

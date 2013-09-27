@@ -1,0 +1,849 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,400 229 656 439 N "_3DFace" 5
+"$bHierarchyBrowser"
+"$sDeviceTypesAdd"
+"$sDeviceTypesCreate"
+"$sDpName"
+"$sParentReference"
+"main()
+{	
+	// Access Control
+	if(	(isFunctionDefined(\"fwAccessControl_getUserPermission\")) && 
+		(isFunctionDefined(\"unGenericDpFunctionsHMI_setCallBack_user\"))) 
+	{
+		unGenericDpFunctionsHMI_setCallBack_user(\"selectCB\", iRes, exceptionInfo);
+	}
+}
+
+// Callback for changes in Access Control
+selectCB(string sUi, string sUser)
+{
+	bool granted = FALSE;
+	int i;
+	dyn_string exceptionInfo, domainList, priviledgeList;
+
+	fwAccessControl_getDomainList(domainList, exceptionInfo);
+	fwAccessControl_getPriviledgeList(priviledgeList, exceptionInfo);
+	
+	// set access control for applying changes
+	if(dynlen(exceptionInfo) <= 0)
+	{
+		fwAccessControl_getUserPermission(	priviledgeList[fwTrending_PRIVILEDGE_PLOT_CHANGE], domainList[fwTrending_DOMAIN], 
+											granted, exceptionInfo);
+	}
+	setValue(\"apply\", \"enabled\", granted);
+}" 0
+EE E E 1 -1 -1 0  0 0
+"" 0 1
+E"
+const int LABEL_COLUMN_NUMBER = 1;
+const int NAME_COLUMN_NUMBER = 2;
+const int DEVICE_TYPE_COLUMN_NUMBER = 3;
+const int TYPE_COLUMN_NUMBER = 4;
+
+updateListsOfDevices(dyn_string exceptionInfo)
+{
+	int i;
+	string label, compositeLabel, compositeParentLabel, dpName, deviceTypeName, dpType;
+	dyn_string 	currentChildrenDevices = makeDynString($sDpName),
+				devices, children, labelList;
+	
+	// Get all devices of selected type
+	fwDevice_getDpType(deviceType.text(), dpType, exceptionInfo);
+	//DebugN(\"dpType \" + dpType);
+	devices = dpNames(\"*\", dpType);
+
+	// Update list of current children
+	fwGenericDpFunctions_getChildren($sDpName, children, exceptionInfo);	
+	Table1.deleteAllLines();
+	for(i = 1; i <= dynlen(children); i++)
+	{
+		//fwGenericDpFunctions_getLabel(children[i], label, childCompositeLabel, exceptionInfo);
+		fwGenericDpFunctions_splitReference(children[i], compositeLabel, dpName, exceptionInfo);
+		fwGenericDpFunctions_splitLabel(compositeLabel, label, dpName, exceptionInfo);
+		fwDevice_getDeviceType(dpTypeName(dpName), deviceTypeName, exceptionInfo);
+		Table1.appendLine(	\"name\", dpName, \"label\", label, 
+							\"deviceType\", deviceTypeName, \"type\", dpTypeName(dpName));
+		dynAppend(currentChildrenDevices, dpName);	
+	}
+	
+	// Check for each device of selected type if it is already children,
+	// if not add to the table in the right
+	Table2.deleteAllLines();
+	for(i = 1; i <= dynlen(devices); i++)
+	{
+		if (dynContains(currentChildrenDevices, devices[i]) == 0)
+		{
+			fwGenericDpFunctions_getRawLabel(devices[i], labelList, exceptionInfo);
+			if (dynlen(labelList) > 0)
+			{
+				fwGenericDpFunctions_splitReference(labelList[1], compositeParentLabel, compositeLabel, exceptionInfo);
+				fwGenericDpFunctions_splitLabel(compositeLabel, label, dpName, exceptionInfo);
+			}
+			else
+			{
+				label = dpSubStr(devices[i], DPSUB_DP);
+			}
+			Table2.appendLine(	\"label\", label, \"name\", devices[i], \"deviceType\", deviceType.text(),
+								\"type\", dpTypeName(devices[i]));
+		}
+	}	
+}
+
+moveSelectedLinesBetweenTables(string sourceTableName, string destinationTableName, dyn_string exceptionInfo)
+{
+	int i;
+	shape 	sourceTable = getShape(sourceTableName),
+			destinationTable = getShape(destinationTableName);
+	dyn_int selectedLines;
+	dyn_string tableLine;
+	
+	selectedLines = sourceTable.getSelectedLines();	
+	
+	// Move selected lines
+	for (i = 1; i <= dynlen(selectedLines); i++)
+	{
+		tableLine = sourceTable.getLineN(selectedLines[i]);		
+		destinationTable.appendLine(	\"label\", tableLine[LABEL_COLUMN_NUMBER], 
+										\"name\", tableLine[NAME_COLUMN_NUMBER],
+										\"deviceType\", tableLine[DEVICE_TYPE_COLUMN_NUMBER],
+										\"type\", tableLine[TYPE_COLUMN_NUMBER]);
+		sourceTable.deleteLineN(selectedLines[i]);
+	}
+}
+
+moveAllLinesBetweenTables(string sourceTableName, string destinationTableName, dyn_string exceptionInfo)
+{
+	int i;
+	shape 	sourceTable = getShape(sourceTableName),
+			destinationTable = getShape(destinationTableName);
+	dyn_string tableLine;
+	
+	// Copy selected lines
+	for (i = 0; i < sourceTable.lineCount; i++)
+	{
+		tableLine = sourceTable.getLineN(i);
+		destinationTable.appendLine(	\"label\", tableLine[LABEL_COLUMN_NUMBER], 
+										\"name\", tableLine[NAME_COLUMN_NUMBER],
+										\"deviceType\", tableLine[DEVICE_TYPE_COLUMN_NUMBER],
+										\"type\", tableLine[TYPE_COLUMN_NUMBER]);
+	}	
+	// Delete moved lines
+	sourceTable.deleteAllLines();
+}
+
+initDeviceList(string dollarParam, string shapeName, dyn_string exceptionInfo)
+{
+	int i;
+	string aux;
+	shape listShape = getShape(shapeName);
+	dyn_string dpTypesNames, deviceTypesNames;
+	
+	//DebugN($sDeviceTypes);
+
+	if (isDollarDefined(dollarParam))
+	{
+		// sDeviceTypes contains the list of device types to search
+		aux = getDollarValue(dollarParam);
+		strreplace(aux, \" \", \"\");
+		dpTypesNames = strsplit(aux, \"|\");
+	}
+	else // use all Framework devices that can be referenced directly
+	{
+		
+	}
+	
+	for(i = 1; i <= dynlen(dpTypesNames); i++)
+	{
+		fwDevice_getDeviceType(dpTypesNames[i], deviceTypesNames[i], exceptionInfo);
+	}
+	
+	listShape.items = deviceTypesNames;	
+	//DebugN(deviceTypes);
+	listShape.selectedPos(1);
+}
+
+editPlot(string plot, string command)
+{
+	dyn_float df;
+	dyn_string ds;
+	
+	ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfPanel.pnl\", 
+							\"Edit Plot\",
+							makeDynString(	\"$bHierarchyBrowser:\" + $bHierarchyBrowser, 
+											\"$sDpName:\" + plot ,
+											\"$Command:\" + command,
+											\"$sParentReference:\" + $sParentReference),
+							0, 0, df, ds);												
+}
+
+editPage(string page, string command)
+{
+	dyn_float df;
+	dyn_string ds;
+		
+	ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotsPage.pnl\",
+							\"Create Children Pages\",
+							makeDynString(	\"$bHierarchyBrowser:\" + $bHierarchyBrowser, 
+											\"$sDpName:\" + page ,
+											\"$Command:\" + command,
+											\"$sParentReference:\" + $sParentReference),
+							0, 0, df, ds);
+}
+
+createNode()
+{
+	int i;
+	string parentLabel, label, dpName;
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	
+	ChildPanelOnModalReturn(\"fwNodeCreate.pnl\",
+							\"Create Children Nodes\",
+							makeDynString(	\"$bHierarchyBrowser:\" + $bHierarchyBrowser, 
+											\"$sDpName:\" + $sDpName ,
+											\"$sParentReference:\" + $sParentReference,
+											\"$sDpTypes:\" + \"_FwNode\",
+											\"$bReturnDpName:TRUE\"),
+							0, 0, df, ds);
+																		
+	// If the node was created add the configuration panel
+	if(df[1] == 1)
+	{
+		fwGenericDpFunctions_getLabel($sDpName, $sParentReference, parentLabel, exceptionInfo);
+		fwGenericDpFunctions_splitLabel(parentLabel, label, dpName, exceptionInfo);		
+		fwGenericDpFunctions_addConfigPanelToList(	ds[1], 
+													parentLabel, 
+													\"fwTrending/fwTrendingManageChildren\",
+													1,										// position
+													exceptionInfo);	
+	}
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+enableControls(bool enabled)
+{
+	right.enabled = enabled;
+	left.enabled = enabled;
+	allRight.enabled = enabled;
+	allLeft.enabled	= enabled;
+	apply.enabled = enabled;
+	navig.enabled = enabled;
+}
+
+doubleClickTableLine(string tableName)
+{
+	shape table = getShape(tableName);
+	dyn_int selectedLines;
+	dyn_string line;
+	
+	selectedLines = table.getSelectedLines();
+	
+	// Edit the first of the selected lines
+	line = table.getLineN(selectedLines[1]);	
+	switch(line[TYPE_COLUMN_NUMBER])
+	{
+		case \"_FwTrendingPlot\":
+			editPlot(line[NAME_COLUMN_NUMBER], \"edit\");
+			break;
+		case \"_FwTrendingPage\":
+			editPage(line[NAME_COLUMN_NUMBER], \"edit\");
+			break;
+		case \"_FwNode\":
+			// do nothing
+			break;
+		default:
+			break;
+	}
+}" 0
+ 2
+"CBRef""0"
+"EClose""main()
+{
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 3
+"Text2"
+""
+1 11 6 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 13 8 223 30
+0 2 0 "s" 0 0 0 192 0 0  13 8
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 25 Look for existing devices
+10 23
+"Polyline1"
+""
+1 327 1399 E E E 1 E 1 E N "_Window" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E U  0 E 3 213 414
+213 424
+14 424
+0
+10 24
+"Polyline2"
+""
+1 151 1409 E E E 1 E 1 E N "_ButtonShadow" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E U  0 E 3 13 424
+13 414
+211 414
+0
+6 25
+"busySize"
+""
+1 173 1403 E E E 1 E 1 E N "_3DFace" E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 18 415 205 421
+6 26
+"busyFlag"
+""
+1 168 1407 E E E 1 E 0 E N {0,0,153} E N {0,0,153} E E
+ E E
+10 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 15 416 63 422
+30 37
+"Frame1"
+""
+1 370 411 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 370 40 651 411
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 15 Current Context
+30 38
+"Frame2"
+""
+1 10 410 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 10 39 291 410
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 5 Other
+25 2
+"Table1"
+""
+1 378 91 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main()
+{
+	doubleClickTableLine(\"Table1\");
+}" 0
+
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+376 89 642 402
+"main()
+{	
+	// Put table in multiple selection mode
+	Table1.tableMode(TABLE_SELECT_MULTIPLE); 
+	Table1.selectByClick(TABLE_SELECT_LINE );
+}" 0
+ E 1 0 1 4 1 "label" 0 1 0 "s" 1
+LANG:1 5 Label
+E1
+LANG:1 0 
+ 150 "name" 0 0 0 "s" 1
+LANG:1 4 Name
+E1
+LANG:1 0 
+ 150 "deviceType" 0 1 0 "s" 1
+LANG:1 4 Type
+E1
+LANG:1 0 
+ 150 "type" 0 0 0 "s" 1
+LANG:1 4 Type
+E1
+LANG:1 0 
+ 150 26 26 "" 1 1
+LANG:1 2 #1
+8 30 1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 3 0
+1 0
+25 27
+"Table2"
+""
+1 -26 4 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main()
+{
+	doubleClickTableLine(\"Table2\");
+}" 0
+
+10 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+12 89 276 402
+"main()
+{
+	// Put table in multiple selection mode
+	Table2.tableMode(TABLE_SELECT_MULTIPLE); 
+	Table2.selectByClick(TABLE_SELECT_LINE );
+}" 0
+ "main(int row, string column, string value)
+{
+
+	
+}" 0
+ 1 0 1 4 1 "label" 0 -1 0 "s" 1
+LANG:1 5 Label
+E1
+LANG:1 0 
+ 200 "name" 0 0 0 "s" 1
+LANG:1 4 Name
+E1
+LANG:1 0 
+ 200 "deviceType" 0 0 0 "s" 1
+LANG:1 4 Type
+E1
+LANG:1 0 
+ 190 "type" 0 0 0 "s" 1
+LANG:1 4 Type
+E1
+LANG:1 0 
+ 190 26 26 "" 1 1
+LANG:1 2 #1
+8 30 1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 3 0
+1 0
+13 28
+"left"
+""
+1 300 155 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+298 153 362 180
+T 
+1
+LANG:1 1 <
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	enableControls(FALSE);
+	moveSelectedLinesBetweenTables(\"Table1\", \"Table2\", exceptionInfo);
+	enableControls(TRUE);
+}" 0
+ E E E
+13 29
+"right"
+""
+1 570 243 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+298 113 362 140
+T 
+1
+LANG:1 1 >
+"main()
+{
+	dyn_string exceptionInfo;
+	enableControls(FALSE);
+	moveSelectedLinesBetweenTables(\"Table2\", \"Table1\", exceptionInfo);
+	enableControls(TRUE);
+}" 0
+ E E E
+13 30
+"apply"
+""
+1 840 596 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+298 281 362 308
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	int i, index;
+	string deviceName, label, sDpCompositeLabel, sDpLabel, compositeLabel;
+	dyn_string children, childrenNames, requestedChildrenNames, requestedChildrenLabels, exceptionInfo;	
+	dyn_anytype tableLine;	
+	
+	enableControls(FALSE);
+	fwGenericDpFunctions_getLabel($sDpName, $sParentReference, sDpCompositeLabel, exceptionInfo);
+	fwGenericDpFunctions_splitLabel(sDpCompositeLabel, sDpLabel, deviceName, exceptionInfo);
+
+	// Get requested list of children
+	for (i = 0; i < Table1.lineCount; i++)
+	{
+		tableLine = Table1.getLineN(i);
+		dynAppend(requestedChildrenNames, tableLine[NAME_COLUMN_NUMBER]);
+		dynAppend(requestedChildrenLabels, tableLine[LABEL_COLUMN_NUMBER]);	
+	}
+	
+	// Get the current children
+	fwGenericDpFunctions_getChildren($sDpName, children, exceptionInfo);
+	if(dynlen(exceptionInfo) > 0) 
+		fwExceptionHandling_display(exceptionInfo);
+	// For new core
+	//fwDevice_getContextChildrenWithLabels(makeDynString($sDpName, label, \"-1\"), children, exceptionInfo);	
+	
+	// Remove current children that were not requested
+	for(i = 1; i <= dynlen(children); i++)
+	{
+		fwGenericDpFunctions_splitReference(children[i], compositeLabel, deviceName, exceptionInfo);
+		fwGenericDpFunctions_splitLabel(compositeLabel, label, deviceName, exceptionInfo);
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+		index = dynContains(requestedChildrenNames, deviceName);
+		if (index > 0)	// this child is requested 
+		{
+			dynRemove(requestedChildrenNames, index);
+		}
+		else	// this child is not requested
+		{	
+			//DebugN(\"Removing \" + deviceName + \" from context \" + sDpLabel + \";\" + $sDpName);
+			fwGenericDpFunctions_removeDeviceFromContext(deviceName, sDpLabel +  \";\" + $sDpName, exceptionInfo);
+			if(dynlen(exceptionInfo) > 0) 
+				fwExceptionHandling_display(exceptionInfo);
+		}
+	}
+		
+	// Add requested children that are not yet in the list	
+	for(i = 1; i <= dynlen(requestedChildrenNames); i++)
+	{
+		//DebugN(\"Adding \" + requestedChildrenNames[i] + \" to context \" + makeDynString($sDpName, sDpLabel, \"-1\"));
+		fwDevice_addInHierarchy(requestedChildrenNames[i], requestedChildrenLabels[i], makeDynString($sDpName, sDpLabel,\"-1\"), exceptionInfo);
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+	}	
+	
+	enableControls(TRUE);
+}                             " 0
+ E E E
+13 31
+"allRight"
+""
+1 840 461 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+298 203 362 230
+T 
+1
+LANG:1 2 >>
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	enableControls(FALSE);
+	moveAllLinesBetweenTables(\"Table2\", \"Table1\", exceptionInfo);
+	enableControls(TRUE);
+}" 0
+ E E E
+13 32
+"allLeft"
+""
+1 1109 602 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+298 243 362 270
+T 
+1
+LANG:1 2 <<
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	enableControls(FALSE);
+	moveAllLinesBetweenTables(\"Table1\", \"Table2\", exceptionInfo);
+	enableControls(TRUE);
+}" 0
+ E E E
+22 35
+"deviceType"
+""
+1 497 125 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+18 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+122 58 277 86
+0
+"main()
+{
+	string aux = $sDeviceTypesAdd; // needed to have the dollar parameter in the panel
+	dyn_string exceptionInfo;
+	
+	while(!isFunctionDefined(\"initDeviceList\"));
+	initDeviceList(\"$sDeviceTypesAdd\", \"deviceType\", exceptionInfo);
+
+	updateListsOfDevices(exceptionInfo);
+}" 0
+
+"main()
+{
+	dyn_string exceptionInfo;
+	updateListsOfDevices(exceptionInfo);
+}" 0
+
+E
+ 0 0
+13 36
+"create"
+""
+1 555 59 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+553 57 642 85
+T 
+1
+LANG:1 10 Create New
+"main()
+{
+	string dpType;
+	dyn_string exceptionInfo;
+
+	fwDevice_getDpType(deviceTypeCurrent.text(), dpType, exceptionInfo);
+	switch(dpType)
+	{
+		case \"_FwTrendingPlot\":
+			editPlot($sDpName, \"new\");
+			break;
+		case \"_FwTrendingPage\":
+			editPage($sDpName, \"new\");
+			break;
+		case \"_FwNode\":
+			createNode();
+			break;
+		default:
+			break;
+	}
+	
+	updateListsOfDevices(exceptionInfo);
+}" 0
+ E E E
+22 39
+"deviceTypeCurrent"
+""
+1 763 126 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+20 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+388 59 543 87
+0
+"main()
+{
+	string aux = $sDeviceTypesCreate; // needed to have the dollar parameter in the panel
+	dyn_string exceptionInfo;
+	
+	while(!isFunctionDefined(\"initDeviceList\"));
+	initDeviceList(\"$sDeviceTypesCreate\", \"deviceTypeCurrent\", exceptionInfo);
+}" 0
+
+"main()
+{
+}" 0
+
+E
+ 0 0
+13 40
+"navig"
+""
+1 840 633 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+298 318 362 345
+T 
+1
+LANG:1 5 Navig
+"
+const int c_unicosWindowTree_Xpos = 10;
+const int c_unicosWindowTree_Ypos = 10;
+
+main()
+{
+	ChildPanelOnModal(	\"vision/unPanel/unPanelNavigationConfiguration.pnl\",
+						\"unPanelNavigationConfiguration\",
+						makeDynString(\"$sDpName:\" + $sDpName),
+						c_unicosWindowTree_Xpos, 
+						c_unicosWindowTree_Ypos);
+}                             " 0
+ E E "main()
+{
+	if(!isFunctionDefined(\"unPanelNavigationConfiguration\"))
+	{
+		this.visible = FALSE;
+		this.enabled = FALSE;
+	}
+}" 0
+
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+2 "Group3" 13 414 213 424
+4 26 25 24 23
+0

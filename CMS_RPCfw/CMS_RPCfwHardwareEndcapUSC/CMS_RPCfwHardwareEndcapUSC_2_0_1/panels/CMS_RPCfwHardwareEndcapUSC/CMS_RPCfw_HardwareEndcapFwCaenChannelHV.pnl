@@ -1,0 +1,1013 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 737 665 N "_3DFace" 1
+"$2"
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"CMS_RPCfwHardwareEndcap/CMS_RPCfwHardwareEndcap.ctl\"
+
+
+dyn_string gListOfDpElementToConnect, gListOfSettingsDpElement;
+string channel,SYSNAME;
+getChannelsName(string logicName,string &channels)
+{
+
+	channels = fwDU_getPhysicalName(logicName);
+	addSystemName(channels)	;
+
+}
+DisableAllInPanel()
+{
+  tableParaView.enabled = FALSE;
+  on.enabled = FALSE;  
+  off.enabled = FALSE;
+  Button1.enabled = FALSE;
+  Button2.enabled = FALSE;
+  }
+enableControl(){
+  on.enabled = TRUE;  
+  off.enabled = TRUE;
+   }
+enableDebug(){
+  tableParaView.enabled = TRUE;
+  on.enabled = TRUE;  
+  off.enabled = TRUE;
+  Button1.enabled = TRUE;
+  Button2.enabled = TRUE;
+  }
+addSystemName(string &name)
+{
+if(SYSNAME == \"\")
+  SYSNAME = RPCfwSupervisor_getComponent(\"EndcapHV\");
+
+if(strpos(name,\":\")==-1)
+		name = SYSNAME + name;
+		//DebugN($2,name,\"sa\",strpos(name,\":\"));
+}
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+
+//below done by Hassan for test
+//fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+//fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+hasControl=1;
+hasDebug=1;
+if (hasControl) enableControl();
+if (hasDebug) enableDebug();
+}" 0
+ 2
+"CBRef" "0"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 17
+"Text7"
+""
+1 46 61 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+dyn_string exceptionInfo;
+//This function creates a callback to the function passed as //first parameter every time the user logged in changes
+if(ACCESS_DCS)
+  fwAccessControl_setupPanel( \"ApplyPanelAccessControl\", exceptionInfo);
+}" 0
+ E 0 1 1 0 1 E U  0 E 20 18 266 41
+0 2 0 "0s" 0 0 0 192 0 0  20 18 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 CAEN HV Channel Operation
+2 86
+"LastModifiedText"
+""
+1 593 494 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+85 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 373 367 488 384
+0 2 2 "0s" 0 0 0 192 0 0  373 367 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 vMon Last Modified:
+6 186
+"Border1"
+""
+1 110 650 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+124 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+int x,y;
+float xSize,ySize;
+dyn_string exceptionInfo;
+string sys = dpSubStr($2,DPSUB_SYS);
+string TrendDp= sys+\"vMon_iMonTrend\";
+getValue(\"Border1\",\"position\",x,y);
+getValue(\"Border1\",\"size\",xSize,ySize);
+string channel = fwDU_getPhysicalName($2);
+addSystemName(channel);
+addSystemName(TrendDp);
+//DebugN(channel,TrendDp);
+fwTrending_addFaceplate (myModuleName(), myPanelName(), \"Channel Trend\",
+			TrendDp,
+			makeDynString(\"device\"),
+			makeDynString(channel),
+			x,y-ySize, exceptionInfo);
+if(dynlen(exceptionInfo) > 0)
+	{
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+	}
+this.visible=FALSE;
+}" 0
+ E 0 1 1 0 1 E U  0 E 110 410 594 650
+25 38
+"tableParaView"
+""
+1 7 100 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E "/* This Script is used to confirm the choice for the value of each setting parameter
+	and applies its on readback.
+	
+	Creation date 14/06/04
+
+	Modification History: None
+	
+	@author Gianni Polese (INFN Naples)*/
+dyn_string gListOfDpElementToConnect, gListOfSettingsDpElement,setvalue;
+
+
+main()
+{	int xpos,i;
+	string columnName;
+	int columnNr, value;
+	
+	getChannelsName($2,channel);
+		
+	// get the shape of the table
+	shape tab = getShape(\"tableParaView\");
+	
+	// get the coordinates of the current cell
+	getValue(tab, \"currentCell\", xpos, columnNr);
+	//DebugN(xpos,columnNr);
+	columnName = tab.currentColumn();
+	//DebugN(columnName);
+	//DebugN(\"questo è channel\",channel);
+
+
+gListOfSettingsDpElement =  makeDynString(channel + \".settings.v0\",
+					channel + \".settings.v1\",
+					channel + \".settings.i0\",
+					channel + \".settings.i1\",
+					channel + \".settings.rDwn\",
+					channel + \".settings.rUp\",
+					channel + \".settings.tripTime\",
+					channel + \".settings.vMaxSoftValue\");
+					
+	
+
+gListOfDpElementToConnect = makeDynString(channel + \".readBackSettings.v0\",
+						channel + \".readBackSettings.v1\",
+						channel + \".readBackSettings.i0\",
+						channel + \".readBackSettings.i1\",
+						channel + \".readBackSettings.rDwn\",
+						channel + \".readBackSettings.rUp\",
+						channel + \".readBackSettings.tripTime\",
+						channel + \".readBackSettings.vMaxSoftValue\");
+
+
+int lenDpe = dynlen(gListOfDpElementToConnect);
+for( i=1; i<=lenDpe; i++)
+	
+	{
+	if(((i-1) == xpos) && (columnNr == 2))
+		{
+		//dpGet(gListOfSettingsDpElement[i] + \":_online.._value\", setvalue[i]);
+		this.cellValue(\"Ok\");
+		string CName= tableParaView.columnName(1); 
+		getValue(tab, \"cellValueRC\", xpos, CName , setvalue[i]);
+		float value = setvalue[i] ;
+		//DebugN(setvalue[i]);
+		dpSet(gListOfSettingsDpElement[i] + \":_original.._value\", setvalue[i]);
+		//DebugN(this.cellValue);
+		if(i==3)
+			setI0Alarm(channel,setvalue[i]);
+		//DebugN(this.cellValue);
+		}
+	}
+
+}
+
+void setI0Alarm(string dpe, float value){
+
+float diff1,diff2;
+dyn_string exceptionInfo;
+string channelName,channel;
+
+dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\");
+       
+dyn_float limits; 
+dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\");
+      
+string alertPanel; dyn_string summary,alertPanelParameters; string alertHelp;
+
+ if(value != 0)
+ {
+ diff1=value*0.05;//primo limite al 10%
+ diff2=value*0.1;//secondo limite al 20%
+ 
+  
+///Set  Alarm channel for Imon
+ channel= dpe+\".actual.iMon\";
+ 
+
+ fwAlertConfig_deactivate(channel,exceptionInfo);  
+  limits = makeDynFloat( value-diff2,value-diff1 );
+ fwAlertConfig_set(channel,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exceptionInfo);
+             if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+ fwAlertConfig_activate(channel,exceptionInfo);
+ }
+}" 0
+
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 98 382 346
+"/* This script is used to create a table where are visualized  main input parameters 
+of the channel;this are read when the panel starts and are refreshed if each parameter 
+changes thanks to a dpConnect function
+
+Creation date 10/06/04
+
+Modification History: None
+
+External functions: fwException_raise
+										fwColourTable_connectCellBackColToValueStatus
+
+@author Gianni Polese (INFN Naples)*/
+
+dyn_string gListOfDpElementToConnect, gListOfSettingsDpElement;
+
+main()
+{
+	dyn_string exception, listOfElement,listOfUnit,
+				 temp, unit, detail,setvalue,setvalueReadBack;
+	int i, lenDpe, lenDp, rowNbr,lenS;
+	string dpName,dpe;
+	
+	this.sortOnClick = FALSE;	
+	
+	string channel = fwDU_getPhysicalName($2);
+	addSystemName(channel);
+	DebugN(\"$2:ss \",channel,$2);
+	
+	listOfElement = makeDynString(\"v0\", \"v1\", \"i0\", \"i1\", \"Ramp down\", \"Ramp up\", \"Trip time\",\"v MaxSoft\");
+	listOfUnit = makeDynString(\"V\", \"V\", \"microA\", \"microA\", \"V/s\", \"V/s\", \"s\", \"V\");
+	gListOfSettingsDpElement = makeDynString(channel + \".settings.v0\",
+						channel + \".settings.v1\",
+						channel + \".settings.i0\",
+						channel + \".settings.i1\",
+						channel + \".settings.rDwn\",
+						channel + \".settings.rUp\",
+						channel + \".settings.tripTime\",
+						channel + \".settings.vMaxSoftValue\");
+
+	lenS = dynlen(gListOfSettingsDpElement);
+	for(i = 1; i <= lenS; i++ ) 
+	{
+		if(!dpExists(gListOfSettingsDpElement[i]))
+		{
+			fwException_raise(	exception,
+								\"ERROR\", 
+								\"The data point element\" + gListOfSettingsDpElement[i] + \" does not exist.\", 
+								\"\");
+			this.cellBackColRC(i - 1, \"settings\", \"DpDoesNotExist\");
+		}
+		else 
+		{
+			dpName = dpSubStr(gListOfSettingsDpElement[i], DPSUB_SYS_DP_EL);
+			dpe = gListOfSettingsDpElement[i];
+  			gListOfSettingsDpElement[i] = dpName;
+  		
+			if(dpConnect(\"_fwSettingsDataCB\", dpe + \":_online.._value\") == -1) 
+  				{
+  					fwException_raise(	exceptionInfo, 
+  										\"INFO\", 
+  										\"Connecting to the data point element\" + dpe + \" was unsuccessful.\", 
+  										\"\");
+					this.cellBackColRC(i - 1, \"settings\", \"DpDoesNotExist\");
+				}
+			
+	}
+
+	gListOfDpElementToConnect = makeDynString(channel + \".readBackSettings.v0\",
+						channel + \".readBackSettings.v1\",
+						channel + \".readBackSettings.i0\",
+						channel + \".readBackSettings.i1\",
+						channel + \".readBackSettings.rDwn\",
+						channel + \".readBackSettings.rUp\",
+						channel + \".readBackSettings.tripTime\",
+						channel + \".readBackSettings.vMaxSoftValue\"
+						);
+
+	lenDpe = dynlen(gListOfDpElementToConnect);
+	lenDp = dynlen(listOfElement);
+	
+	if(lenDpe > lenDp)
+		rowNbr = lenDpe;
+	else
+		rowNbr = lenDp;
+		
+	for(i = 1; i <= lenDpe; i++) 
+	
+	{
+		unit[i] = listOfUnit[i];
+		detail[i] = \"Details\";
+		dpGet(gListOfSettingsDpElement[i] + \":_online.._value\", setvalue[i]);
+		dpGet(gListOfDpElementToConnect[i] + \":_online.._value\", setvalueReadBack[i]);
+		gListOfDpElementToConnect[i] = dpSubStr(gListOfDpElementToConnect[i], DPSUB_SYS_DP_EL);
+		if(dpConnect(\"_fwReadBackDataCB\", gListOfDpElementToConnect[i] + \":_online.._value\") == -1) 
+  				{
+  					fwException_raise(	exceptionInfo, 
+  										\"INFO\", 
+  										\"Connecting to the data point element\" + dpe + \" was unsuccessful.\", 
+  										\"\");
+					this.cellBackColRC(i - 1, \"settings\", \"DpDoesNotExist\");
+				}
+	}
+	this.deleteAllLines;
+	this.appendLines(rowNbr, \"element\", listOfElement, \"settings\", setvalue,\"status\",setvalueReadBack, \"unit\", unit);
+	fwColourTable_connectCellBackColToValueStatus(exception);
+	}
+	
+	
+	
+}
+_fwSettingsDataCB(string dpe, string value)
+{
+	int cellPos;
+	string elementColour, dpName,temp;
+	dyn_string exceptionInfo;
+	
+	dpName = dpSubStr(dpe, DPSUB_DP_EL);
+	
+	cellPos = dynContains(gListOfSettingsDpElement, dpName);
+	
+
+	if(cellPos >= 1)
+	{
+		this.cellValueRC(cellPos-1, \"settings\", value);
+	}
+}
+
+_fwReadBackDataCB(string dpe,string value)
+{
+	int cellPos;
+	string dpName;
+	
+	
+	dpName = dpSubStr(dpe, DPSUB_DP_EL);
+	
+	cellPos = dynContains(gListOfDpElementToConnect, dpName);
+	
+	if(cellPos >= 1)
+	{
+		this.cellValueRC(cellPos-1, \"status\", value);
+	}
+
+
+
+}
+getChannelsName(string logicName,string &channels)
+{
+
+	channels = fwDU_getPhysicalName(logicName);
+	
+
+}
+" 0
+"main(int xpos,string columnName,string value)
+{
+	int i,len, row, col,nN;
+	string elementName;
+	dyn_string listOfElement;
+	dyn_int selectedLine;
+	
+	listOfElement = makeDynString(\"v0\", \"v1\", \"i0\",	\"i1\", \"rDwn\", \"rUp\", 
+																\"tripTime\", \"vMaxSoftValue\");
+
+	elementName = listOfElement[xpos + 1];
+	
+	
+	if(elementName == \"\" )
+		return;
+	if (columnName == \"settings\")
+	{
+		
+		// get the shape of the table
+		shape tab = getShape(\"tableParaView\");
+		
+		tab.cellValueRC(xpos, \"Apply\", \"  Return\");
+	
+		
+		  					
+	}
+		
+}" 0
+ 1 0 1 5 1 "element" 8 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+100 "settings" 6 1 1 "s" 1
+LANG:1 7 Setting
+E
+1
+LANG:1 0 
+
+75 "Apply" 4 1 0 "s" 1
+LANG:1 5 Apply
+E
+1
+LANG:1 0 
+
+60 "status" 6 1 0 "s" 1
+LANG:1 8 ReadBack
+E
+1
+LANG:1 0 
+
+80 "unit" 3 1 0 "s" 1
+LANG:1 5 Units
+E
+1
+LANG:1 0 
+
+50 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+25 41
+"Table1"
+""
+1 385 96 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 388 94 722 342
+"/* This script is used to create a table where are visualized  main output parameters of 
+the channel;this are read when the panel starts and are refreshed if each parameter 
+changes thanks to a dpConnect function
+
+Creation date 10/06/04
+
+Modification History: None
+
+External functions: fwException_raise
+										fwColourTable_connectCellBackColToValueStatus
+
+@author Gianni Polese (INFN Naples)*/
+dyn_string gListOfDpElementToConnect;
+
+main()
+{
+	int i, lenDpe, lenDp, rowNbr;
+	dyn_string listOfElements, exception, units, details,listOfUnit,value;
+	string channel = fwDU_getPhysicalName($2);
+	addSystemName(channel);
+	this.sortOnClick = FALSE;
+	listOfElements = makeDynString(	\"v mon\", \"i mon\", \"is on\", \"Tripped\", \"Over current\",
+									\"Over voltage\",	\"Under voltage\", \"Ramping direction\",\"Unplugged\",\"Over HvMax\");
+	listOfUnit = makeDynString(\"V\", \"microA\", \"\", \"\", \"\", \"\", \"\", \"V\", \"\", \"\");								
+	gListOfDpElementToConnect = makeDynString(	channel + \".actual.vMon\", 
+												channel + \".actual.iMon\",
+												channel + \".actual.isOn\",
+												channel + \".actual.Trip\",
+												channel + \".actual.OvC\",
+												channel + \".actual.OvV\",
+												channel + \".actual.UnV\",
+												channel + \".actual.rampingDirection\",
+												channel + \".actual.unplugged\",
+												channel + \".actual.overHvMax\");
+
+	lenDpe = dynlen(gListOfDpElementToConnect);
+	lenDp = dynlen(listOfElements);
+	
+	if(lenDpe > lenDp)
+		rowNbr = lenDpe;
+	else
+		rowNbr = lenDp;
+		
+	for(i = 1; i <= lenDpe; i++) 
+	{
+		units[i] = listOfUnit[i];
+		details[i] = \"Details\";
+		dpGet(gListOfDpElementToConnect[i] + \":_online.._value\",value[i]);
+		
+		
+		if(dpConnect(\"ActualDataCB\", gListOfDpElementToConnect[i] + \":_online.._value\") == -1) 
+  				{
+  					fwException_raise(	exceptionInfo, 
+  										\"INFO\", 
+  										\"Connecting to the data point element\" + dpe + \" was unsuccessful.\", 
+  										\"\");
+					this.cellBackColRC(i - 1, \"settings\", \"DpDoesNotExist\");
+				}
+			gListOfDpElementToConnect[i] = dpSubStr(gListOfDpElementToConnect[i], DPSUB_SYS_DP_EL);
+	}
+	
+	this.deleteAllLines;
+	this.appendLines(rowNbr, \"parameter\", listOfElements, \"units\", units,\"status\",value, \"details\", details);
+
+	fwColourTable_connectCellBackColToValueStatus(exception);
+}
+
+ActualDataCB(string dpe, string value)
+{
+	int cellPos;
+	string dpName;
+	
+	dpName = dpSubStr(dpe, DPSUB_SYS_DP_EL);
+	cellPos = dynContains(gListOfDpElementToConnect, dpName);
+	
+	if(cellPos >= 1)
+	{
+		this.cellValueRC(cellPos-1, \"status\", value);
+	}
+
+
+}
+getChannelsName(string logicName,string &channels)
+{
+
+	channels = fwDU_getPhysicalName(logicName);
+	addSystemName(channels);
+
+}
+" 0
+"main(int xpos,string columnName,string value)
+{
+	bit32 status;
+	int i,len, row, col, type;
+	string elementName;
+	dyn_string listOfElement;
+	dyn_int selectedLine;
+
+	listOfElement = makeDynString(	\"vMon\", \"iMon\", \"isOn\", \"Trip\", \"OvC\",
+									\"OvV\",	\"UnV\", \"RampingDirection\",\"unplugged\",\"OverHvMax\");
+	elementName = listOfElement[xpos + 1];
+	//DebugN(xpos);
+	
+	// to correct $2 wrong value
+	getChannelsName($2,channel);
+	if (columnName == \"status\") 
+	{
+		ChildPanelOnCentralModal(	\"CMS_RPCfw_HardwareEndcap//CMS_RPCfw_HardwareEndcapAlarmOperationPopupPanel.pnl\",
+									\"Alarm Options\", 
+									makeDynString(\"$sDpe:\" + channel + \".actual.\" + elementName));
+	}
+	else 
+	{
+		if(elementName == \"\" )
+			return;
+		dpGet(channel + \".actual.\" + elementName + \":_original.._status\", status);
+
+		ChildPanelOnCentralModal(	\"fwGeneral/fwDetailDpElement.pnl\",
+									\"Detail\", makeDynString(\"$1:\" + channel + \".actual.\" + elementName, 
+															\"channel:\" + status));
+	}
+}" 0
+ 1 0 1 4 1 "parameter" 11 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+130 "status" 5 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+65 "units" 4 1 0 "s" 1
+LANG:1 5 Units
+E
+1
+LANG:1 0 
+
+55 "details" 4 1 0 "s" 1
+LANG:1 7 Details
+E
+1
+LANG:1 0 
+
+60 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+14 88
+"LastModifiedField"
+""
+1 490 360 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+87 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 358 682 385
+2 "0s" 0 0 0 0 0 -1  E "// Show date last modified
+main()
+{
+ string channel = fwDU_getPhysicalName($2);
+ addSystemName(channel); 
+  if(dpConnect(\"work\", channel + \".actual.vMon\" + \":_online.._stime\") == -1)
+  {
+     this.backCol = \"_dpdoesnotexist\";
+     this.foreCol = \"_dpdoesnotexist\";
+  }
+}
+
+work(string dp,string str)
+{
+   this.text = str;
+}
+" 0
+ E
+13 106
+"Button1"
+""
+1 20 349 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+101 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 347 212 381
+
+T 
+1
+LANG:1 27 Load settings from hardware
+"main()
+{
+	string channel = fwDU_getPhysicalName($2);
+	addSystemName(channel);
+
+	
+	//Load all parameters set 
+	shape table = getShape(\"tableParaView\");
+	float value;
+	dyn_dyn_string settings;
+
+	
+	settings[1] = makeDynString(\".settings.v0\", \".readBackSettings.v0\");
+	settings[2] = makeDynString(\".settings.v1\", \".readBackSettings.v1\");
+	settings[3] = makeDynString(\".settings.i0\", \".readBackSettings.i0\");
+	settings[4] = makeDynString(\".settings.i1\", \".readBackSettings.i1\");
+	settings[5] = makeDynString(\".settings.rDwn\", \".readBackSettings.rDwn\");
+	settings[6] = makeDynString(\".settings.rUp\", \".readBackSettings.rUp\");
+	settings[7] = makeDynString(\".settings.tripTime\", \".readBackSettings.tripTime\");
+	
+		
+	for(int i = 1; i <= dynlen(settings); i++)
+	{
+		dpGet(channel + settings[i][2], value);
+		dpSet(channel + settings[i][1], value);
+		
+		setValue(table,\"cellValueRC\",i-1, \"settings\", value);
+	}
+}
+" 0
+ E E E
+13 125
+"on"
+""
+1 540 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+114 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 538 58 582 86
+
+T 
+1
+LANG:1 2 On
+"main()
+{
+  DebugN(\"Dollar Param:\"+ $2);
+string channel = fwDU_getPhysicalName($2);
+DebugN(\"Channel : \"+channel);
+	addSystemName(channel);
+	dpSet(channel + \".settings.onOff:_original.._value\", TRUE);
+}
+" 0
+ E E E
+13 126
+"off"
+""
+1 690 468 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+115 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 578 58 622 86
+
+T 
+1
+LANG:1 3 Off
+"main()
+{
+string channel = fwDU_getPhysicalName($2);
+	addSystemName(channel);
+	dpSet(channel + \".settings.onOff:_original.._value\", FALSE);
+}
+" 0
+ E E E
+13 127
+"Button6"
+""
+1 438 22 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+116 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 436 20 560 50
+
+T 
+1
+LANG:1 15 Alert Summary :
+"main()
+{
+string channel = fwDU_getPhysicalName($2);
+addSystemName(channel);
+ 	// open on new panel or existing Alert Summary Panel
+	ChildPanelOnCentralModal(	\"CMS_RPCfw_HardwareBarrel/CMS_RPCfw_HardwareBarrelAlertAction.pnl\",
+								\"Alert Summary Panel\",
+								makeDynString(\"$sDpeName:\" +channel+\".\"));
+                    
+}
+
+
+	
+
+" 0
+ E E E
+14 128
+"TextField1"
+""
+1 989 32 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+117 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 576 20 622 49
+2 "0s" 0 0 0 0 0 -1  E "/* This script is used to calculate and display the Alarm summary of the channel;
+Dps presents in the summary alert are: Trip,OverCurrent,UnderVoltage,
+overVoltage and iMon.
+
+
+Creation date 14/06/04
+
+Modification History: None
+
+External functions: fwAlertConfig_checkIsDpInAlertSummary
+										fwAlertConfig_addDpInAlertSummary
+										fwExceptionHandling_display
+										fwColour_connectItemBackColToStatus
+
+@author Gianni Polese (INFN Naples)*/
+
+main()
+{
+	dyn_string exceptionInfo;
+	bool yes;	
+	
+	string channel = fwDU_getPhysicalName($2);
+	addSystemName(channel);
+	string newAlert = dpSubStr(channel+\".actual.iMon\",DPSUB_ALL);
+	fwAlertConfig_checkIsDpInAlertSummary(channel+\".\",newAlert,yes,exceptionInfo);
+	//DebugN(yes);
+	
+	if (yes ==FALSE)
+	{
+	fwAlertConfig_addDpInAlertSummary(channel+\".\",channel+\".actual.iMon\",exceptionInfo);
+	}
+	
+	fwColour_connectItemBackColToStatus(channel+\".\", exceptionInfo); 	
+
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+
+" 0
+ E
+13 132
+"Button2"
+""
+1 648 24 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+121 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 646 22 723 50
+
+T 
+1
+LANG:1 6 Action
+"//Endcap// SimpleCtrlScriptStart {invalid}
+main()
+{
+string channel = fwDU_getPhysicalName($2);
+ addSystemName(channel);
+
+  ChildPanelOnCentral(\"CMS_RPCfw_HardwareEndcap/CMS_RPCfw_HardwareEndcapAction.pnl\",
+      \"Action Panel\",
+      makeDynString(\"$sDpName:\" + channel));
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnCentral}
+// File {fwAction.pnl}
+// Panel {}
+// Parent {}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// PanelPara1 {$2:$2}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ E E E
+13 133
+"Button3"
+""
+1 648 64 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+122 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 646 62 723 90
+
+T 
+1
+LANG:1 4 Info
+"// SimpleCtrlScriptStart {invalid}
+main()
+{
+string channel = fwDU_getPhysicalName($2);
+ addSystemName(channel); 
+  DebugN(channel);
+  dyn_string channels;
+  ChildPanelOnCentralModal(	\"CMS_RPCfw_HardwareEndcap/CMS_RPCfw_HardwareEndcapInfoPanel.pnl\",
+  							\"Info Panel\",
+  							makeDynString(\"$sDpName:\" + channel));
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

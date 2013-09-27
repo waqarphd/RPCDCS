@@ -1,0 +1,976 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 759 456 N "_3DFace" 2
+"$sConfigDp"
+"$sDipPublicationName"
+"main()
+{
+	dyn_string tmps;
+	dyn_int tmpi;
+	dyn_string exceptionInfo;
+	int resultType;
+	string dataTypeText;
+	
+	configDp = $sConfigDp;
+	dipPublicationName.text = $sDipPublicationName; // we need the address of the publication
+	
+	int timeout;
+	dpGet(configDp+\".queryTimeout\", timeout);
+	
+	fwOpenProgressBar(\"Information\", \"Querying API Manager for the publication structure\", 1);
+	
+	resultType = fwDIP_DipQuery(configDp, dipPublicationName.text,
+															tmps, tmpi,
+															fieldName, fieldType,
+															exceptionInfo, timeout);
+	
+	if (dynlen(exceptionInfo) != 0 || resultType == -1)
+	{
+		fwCloseProgressBar(\"There were errors while querying API Manager\");
+		fwExceptionHandling_display(exceptionInfo);
+		PanelOffReturn(0,\"cancel\");
+	}
+	fwCloseProgressBar(\"\");
+	for(int i=1; i<=dynlen(fieldName); i++)
+	{
+		fwConfigs_getDataTypeText(fieldType[i], dataTypeText, exceptionInfo);
+		dipPublicationContentsTable.appendLine(	\"dipTag\", fieldName[i],
+							\"type\", dataTypeText,
+							\"fieldType\", fieldType[i]);
+	}
+
+          
+	state = 0;
+	// fill the DPT choice box and DP choice box
+	selectDpt(state);
+	refreshDptData();
+
+	for(int i=1; i<=dynlen(fieldName); i++)
+          dipPublicationContentsTable.cellBackColRC(i-1, \"dpe\", \"_Window\");
+}" 0
+ "main()
+{
+	int i;
+}" 0
+ E E E 1 0 0 0  10 10
+""0  1
+E "string configDp;  // DIP configuration DP
+
+dyn_string fieldName; // field names of the DIP service - obtained from the API manager
+dyn_int fieldType; // field types of the DIP service - obtained from the API manager
+
+dyn_string dptFieldName; // field names of the selected DPT
+dyn_int dptFieldType; // field types of the selected DPT
+
+int state; // 0 - Only matching DPTs (matching field types and names)
+					 // 1 - Compatible DPTs (matching field types)
+					 // 2 - all the DPTs
+
+
+/** Function to get the field names and types of DIP compatible DPT
+@param DPT						input, the name of the DPT
+@param dfn						output, field names
+@param dft						output, field types
+*/ 
+getDptFieldData(string DPT, dyn_string &dfn, dyn_int &dft)
+{
+	dynClear(dfn);
+	dynClear(dft);
+
+	dyn_dyn_string names;
+	dyn_dyn_int types;
+	dpTypeGet(DPT,names,types);
+	for(int i=2; i<=dynlen(names);i++)
+	{
+		if(dynlen(names[i])==2)
+		{
+			dynAppend(dfn,names[i][2]);
+			dynAppend(dft,types[i][2]);
+		}
+	}	
+}
+
+/**
+  * Refreshes the data about selected DPT:
+  * 	populates the globals: dptFieldName, dptFieldType
+  *		calls the refreshDp()
+  */
+refreshDptData()
+{
+	if(selectedDpt.itemCount!=0)
+	{
+		getDptFieldData(selectedDpt.selectedText, dptFieldName, dptFieldType);
+		refreshDp();
+	}
+	else
+	{
+		selectedDpt.deleteAllItems;
+		selectedDp.deleteAllItems;
+		selectedDp.text=\"\";
+		selectedDpt.text=\"\";
+	}
+	// clear the dpe entries in the table
+	for(int i=0; i<dipPublicationContentsTable.lineCount; i++)
+		setValue(\"dipPublicationContentsTable\", \"cellValueRC\", i, \"dpe\", \"\");
+}
+
+
+/**
+ * Populates the selection box with the DPs of selected DPT.
+ * Only displays the DPs that are not being used for DIP subscription
+ */
+refreshDp()
+{
+	dyn_string allDps; // all the DPs of the given type
+	dyn_string notSubscribed; // These will contain the list of dps that can be used for subscription
+	dyn_string dpesToCheck; // Temporary list of dpes of given dp - for checking whether the dp can be used for complex subscription
+	dyn_bool isConfigured;
+	dyn_string foo, exceptionInfo;
+	allDps = dpNames(\"*\", selectedDpt.selectedText);
+	
+	for(int i=1; i<=dynlen(allDps); i++)
+	{
+		dynClear(dpesToCheck);
+		for(int j=1; j<=dynlen(dptFieldName); j++)
+			dynAppend(dpesToCheck, allDps[i]+\".\"+dptFieldName[j]);
+		_fwDIP_checkIsDpeListSubscribed(dpesToCheck, isConfigured, foo, exceptionInfo);
+		if(dynContains(isConfigured,1)<=0)
+			dynAppend(notSubscribed, allDps[i]);
+	}
+	
+	selectedDp.items = notSubscribed;
+	selectedDp.text	= \"\";
+	selectedDp.selectedPos = 1;
+}
+
+selectDpt(int button)
+{
+	dyn_string allDpts; // will store all the DPTs that are to be used with DIP
+	dyn_string compatibleDpt; // will store the compatible DPTs (field types match)
+	dyn_string matchingDpt; // will store DPTs that are compatible AND for which dpe field names match
+	dyn_string notInternal; // will store all the \"notinternal\" DPTs
+	allDpts = dpTypes(/*fwDIP_DPT_PREFIX+*/\"*\");
+	
+	dyn_string names; dyn_int types;
+
+	if(ShowInternalDpt.state(0)==0)
+	{
+		for(int i=1; i<=dynlen(allDpts); i++)
+		{
+			if(strpos(allDpts[i],\"_\")==0)
+				continue;
+			dynAppend(notInternal,allDpts[i]);
+		}
+		allDpts = notInternal;
+	}
+
+	if(button==0||button==1) // Check whether the types of DPT can accomodate the publication
+	{
+		for(int i=1; i<=dynlen(allDpts); i++)
+		{
+			bool isCompatible = true;
+			getDptFieldData(allDpts[i], names, types);
+
+			if(dynlen(names) < dynlen(fieldName)) // no need to check - to few dpe's
+				continue;
+
+			for(int j=1; j<=dynlen(fieldType); j++)
+			{
+				if(dynCount(fieldType, fieldType[j]) > dynCount(types, fieldType[j]))
+				{
+					isCompatible = false; // to few dpes of given type
+					break;
+				}
+			}
+			if(isCompatible)
+				dynAppend(compatibleDpt, allDpts[i]);
+		}
+	}
+	if(button==1)  // checked that the dpe types are ok
+		selectedDpt.items = compatibleDpt;
+
+	if(button==0)  // check the names of the fields
+	{
+		for(int i=1; i<=dynlen(compatibleDpt); i++)
+		{
+			bool isMatching = true;
+			getDptFieldData(compatibleDpt[i], names, types);
+			for(int j=1; j<=dynlen(fieldName); j++)
+			{
+				if((!checkDpeTypeCompatibility(fieldName[j], fieldType[j], names, types)))
+				{
+					isMatching = false;
+					break;
+				}
+			}
+			if(isMatching)
+				dynAppend(matchingDpt, compatibleDpt[i]);
+		}
+		selectedDpt.items = matchingDpt;
+	}
+
+	if(button==2) // select all DPT's
+	{
+		selectedDpt.items = allDpts;
+	}
+	selectedDpt.selectedPos = 1;
+}
+
+
+/**
+Check whether the given DPT has a field named *name* with type *type*
+@param name						input, the name the field to check
+@param type						input, the type of the field to check
+@param dfn						input, field names of the DPT
+@param dft						input, field types of the DPT
+@return								Whether there is a compatible dpe in given DPT
+*/
+bool checkDpeTypeCompatibility(string name, int type, dyn_string &fn, dyn_int &ft)
+{
+	int pos = dynContains(fn, name);
+	if(pos<=0)
+		return false;
+	if(ft[pos]==type)
+		return true;
+	else
+		return false;	
+}
+
+bool DPTExists(string pattern)
+{
+	if(dynlen(dpTypes(pattern))==1)
+		return true;
+	return false;
+}
+
+/**
+Creates a DPT for the DIP subscription
+@param dptName						input, the name the DPT to create
+@param fieldNames					input, field names of the DPT
+@param fieldTypes					input, field types of the DPT
+@param exceptionInfo			output, information about errors
+*/
+fwCreateDPT(string dptName, dyn_string fieldNames, dyn_int fieldTypes, dyn_string &exceptionInfo)
+{
+	dyn_dyn_string a;
+	dyn_dyn_int b;
+
+	int length;
+	length = dynlen(fieldNames);
+	
+	// check if there is no name collision
+	if (DPTExists(dptName))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"DataPoint Type \" + dptName + \" already exists!\", \"\"); 
+		return;
+	}          
+        
+	// this is the 'root' element	
+	a[1] = makeDynString(dptName, \"\");
+	b[1] = makeDynInt(DPEL_STRUCT);
+
+	// and the underlying flat structure
+	for(int i=2; i<=length+1; i++)
+	{
+		a[i] = makeDynString(\"\", fieldNames[i-1]);
+		b[i] = makeDynInt(0, fieldTypes[i-1]);
+	}
+	dpTypeCreate(a,b);
+}" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 108 28
+0 2 0 "0s" 0 0 0 64 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Publication:
+2 5
+"Text2"
+""
+1 10 83 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 85 88 101
+0 2 0 "0s" 0 0 0 64 0 0  12 85 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 DPT:
+2 7
+"Text3"
+""
+1 10 126 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 128 88 144
+0 2 0 "0s" 0 0 0 64 0 0  12 128 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 DP:
+2 23
+"Text4"
+""
+1 10 40 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 42 108 58
+0 2 0 "0s" 0 0 0 64 0 0  12 42 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 System (local):
+14 1
+"dipPublicationName"
+""
+1 110 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-*-90-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 108 8 532 33
+2 "0s" 0 0 0 0 0 -1  E E E
+25 3
+"dipPublicationContentsTable"
+""
+1 -39.1428571428572 76.3584905660378 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E "main()
+{
+	int column, row;
+	string selectedType, selectedTag, selectedDpe;
+	
+	dyn_string matchingFieldName;
+	dyn_float df; dyn_string ds;
+	
+	getValue(\"\", \"currentCell\", row, column);
+	
+	if(row < 0)
+		return;
+			
+	selectedType = this.cellValueRC(row,\"fieldType\");
+	selectedTag = this.cellValueRC(row,\"dipTag\");
+	selectedDpe = this.cellValueRC(row,\"dpe\");
+	
+	if(selectedDpe!=\"\")
+	{
+		dynAppend(dptFieldName,selectedDpe);
+		dynAppend(dptFieldType,selectedType);
+	}
+
+	for(int i=1; i<=dynlen(dptFieldType); i++)
+	{
+		if(dptFieldType[i]==selectedType)
+		{
+			dynAppend(matchingFieldName,dptFieldName[i]);
+		}
+	}
+	// Invoke the selection panel
+	// Get the selected dpe field name
+	ChildPanelOnParentModalReturn(\"fwDIP/fwDipEditDpeMapping.pnl\",
+			\"Select DPT field\",
+			myPanelName(),
+			makeDynString(\"$sText:Select field for DIP tag \"+selectedTag,
+										\"$dsFieldName:\"+matchingFieldName),
+										0,0,
+										df,ds);
+	if(df[1]==0)
+		return;
+	
+	// put it into the table
+	setValue(\"\", \"cellValueRC\", row, \"dpe\", ds[2]);
+	// remove it from available field names
+	int position;
+	position = dynContains(dptFieldName,ds[2]);
+	dynRemove(dptFieldName, position);
+	dynRemove(dptFieldType, position);	
+}" 0
+
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 163 742 399
+"main()
+{
+	this.tableMode(TABLE_SELECT_NOTHING);
+	this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 4 1 "dipTag" 12 1 0 "s" 1
+LANG:1 7 DIP Tag
+E
+1
+LANG:1 0 
+
+180 "type" 8 1 0 "s" 1
+LANG:1 8 Datatype
+E
+1
+LANG:1 0 
+
+120 "fieldType" 0 0 0 "s" 1
+LANG:1 10 Field Type
+E
+1
+LANG:1 0 
+
+0 "dpe" 26 1 0 "s" 1
+LANG:1 17 Datapoint Element
+E
+1
+LANG:1 0 
+
+395 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 0 1 7
+1 0
+22 4
+"selectedDpt"
+""
+1 50 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 48 78 532 105
+0
+
+E
+"main()
+{
+	refreshDptData();
+}" 0
+
+E
+ 0 0
+22 6
+"selectedDp"
+""
+1 50 122 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 48 120 532 147
+0
+
+E
+E
+E
+ 0 0
+13 13
+"createNewDpButton"
+""
+1 640 120 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 638 118 722 152
+
+T 
+1
+LANG:1 9 Create DP
+"main()
+{
+	if(selectedDpt.selectedText==\"\")
+		return;
+	dyn_float df;
+	dyn_string ds;
+	dyn_string exceptionInfo;
+	
+	//dyn_string initialName = strsplit(dipPublicationName.text,\"//\");
+	
+	
+	ChildPanelOnRelativModalReturn(\"fwDIP/fwDipInputDialog.pnl\",
+		\"Name of the DP\",
+		makeDynString(\"$sText:Enter the name for new DP:\",
+									\"$sInitialText:\"+dipPublicationName.text/*initialName[dynlen(initialName)]*/),
+		0,0,
+		df,ds);
+		
+	if(df[1]==0)
+		return;
+	
+	ds[2] = /*fwDIP_DP_PREFIX+*//*selectedDpt.selectedText+\"_\"+*/ds[2];
+	
+	if(!dpIsLegalName(ds[2]))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Name \" + ds[2] + \" contains characters that PVSS does not allow in a DP name. \"
+                                                  \"Please try again with a different dp name.\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	if(dpExists(ds[2]))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Datapoint \" + ds[2] + \" with already exists.\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	dpCreate(ds[2], selectedDpt.selectedText);
+	refreshDp();
+}" 0
+ E E E
+13 14
+"subscribeButton"
+""
+1 540 410 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 538 408 642 442
+
+T 
+1
+LANG:1 9 Subscribe
+"main()
+{
+	bool allDpesFilled; // flag whether all tags have a corresponding dpe
+	dyn_string dpes, tags;
+	dyn_string exceptionInfo;
+	string dpe, tag;
+	
+	dyn_string configParameters;
+	
+ 	if(selectedDp.selectedText==\"\"||selectedDpt.selectedText==\"\")
+  {
+  	fwException_raise(exceptionInfo, \"ERROR\", \"You must select both a DPT and a DP.\", \"\");
+  	fwExceptionHandling_display(exceptionInfo);
+  	return;
+  }
+	
+	for(int i=0; i<dipPublicationContentsTable.lineCount; i++)
+	{
+		dpe = dipPublicationContentsTable.cellValueRC(i,\"dpe\");
+		tag = dipPublicationContentsTable.cellValueRC(i,\"dipTag\");
+		if(dpe!=\"\")
+		{
+			dynAppend(dpes,selectedDp.selectedText+\".\"+dpe);
+			dynAppend(tags,tag);
+		}
+	}
+	
+//	configParameters[fwPeriphAddress_TYPE] = fwPeriphAddress_TYPE_DIP;
+//	configParameters[fwPeriphAddress_DRIVER_NUMBER] = fwDIP_DRIVER_NUMBER;
+//	configParameters[fwPeriphAddress_DIP_CONFIG_DP] = configDp + \".clientConfig\";
+//	for(int i=1; i<=dynlen(dpes); i++)
+//	{
+//		configParameters[fwPeriphAddress_ROOT_NAME] = dipPublicationName.text + fwDIP_SEPERATOR + tags[i];
+//		fwPeriphAddress_set(dpes[i], configParameters, exceptionInfo, TRUE); 
+//	}
+
+  fwDIP_subscribeStructure(dipPublicationName.text, dpes, tags, configDp, exceptionInfo);
+
+  if(dynlen(exceptionInfo)!=0)
+  {
+  	fwCloseProgressBar(\"There were errors\");
+  	fwExceptionHandling_display(exceptionInfo);
+  	fwDIP_unsubscribeMany(dpes,exceptionInfo);
+  	return;
+  }
+  fwCloseProgressBar(\"No errors\");
+  PanelOffReturn(makeDynFloat(1), makeDynString(\"ok\"));
+}" 0
+ E E E
+13 15
+"Cancel"
+""
+1 801 450 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 648 408 742 442
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOffReturn(makeDynFloat(0), makeDynString(\"cancel\"));
+}" 0
+ E E E
+19 16
+"DPT_ModeSelector"
+""
+1 550 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 548 8 692 82
+3
+T 
+1
+LANG:1 12 Matching DPT
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 14 Compatible DPT
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 7 All DPT
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+	if(state!=button)
+	{
+		selectDpt(button);
+		refreshDptData();
+		state = button;
+	}
+}" 0
+
+13 18
+"createNewDptButton"
+""
+1 550 120 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 548 118 632 152
+
+T 
+1
+LANG:1 10 Create DPT
+"main()
+{
+        string dpType;
+	dyn_float df;
+	dyn_string ds;
+	dyn_string exceptionInfo;
+	
+	dyn_string initialName = strsplit(dipPublicationName.text,\"//\");
+		
+	ChildPanelOnRelativModalReturn(\"fwDIP/fwDipInputDialog.pnl\",
+		\"Name of the DP Type\",
+		makeDynString(\"$sText:Enter the name for new DPT:\",
+									\"$sText2:Please consult the help before giving a name to a DPT\",
+									\"$bShowHelp:true\",
+									\"$sInitialText:\"),
+		0,0,
+		df,ds);
+		
+	if(df[1]==0)
+		return;
+	
+	dpType = /*fwDIP_DPT_PREFIX+*/ds[2];
+        
+        for(int i=1; i<=dynlen(fieldName); i++)
+        {
+          if(!dpIsLegalName(fieldName[i]))
+          {
+            ChildPanelOnRelativModalReturn(\"fwDIP/fwDipInputDialog.pnl\",
+		  \"Name of the DP Element\",
+		makeDynString(\"$sText:Invalid DP Element name\",
+				\"$sText2:This DIP tag contains characters which can not be used\\n\"
+                                +\"for the DPT in PVSS. Please remove unsupported\\ncharacters from the name for the PVSS DP element.\",
+				\"$bShowHelp:false\",
+				\"$sInitialText:\"+fieldName[i]), 0,0, df,ds);         
+            if(df[1]==0)
+		return;
+            else
+              fieldName[i] = ds[2];            
+            i--;
+          }
+        }          
+        
+	fwCreateDPT(dpType, fieldName, fieldType, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+		fwExceptionHandling_display(exceptionInfo);
+		
+	selectDpt(state);
+	refreshDptData();
+}" 0
+ E E E
+13 19
+"autoFillButton"
+""
+1 20 410 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 408 142 442
+
+T 
+1
+LANG:1 18 Fill matching dpes
+"main()
+{
+	string selectedType, selectedTag, selectedDpe;
+	
+	for(int i=0; i<dipPublicationContentsTable.lineCount; i++)
+	{
+		selectedType = dipPublicationContentsTable.cellValueRC(i,\"fieldType\");
+		selectedTag = dipPublicationContentsTable.cellValueRC(i,\"dipTag\");
+		selectedDpe = dipPublicationContentsTable.cellValueRC(i,\"dpe\");
+		if(selectedDpe!=\"\")
+			continue;
+		if(!checkDpeTypeCompatibility(selectedTag, selectedType, dptFieldName, dptFieldType))
+			continue;
+		// put it into the table
+		setValue(\"dipPublicationContentsTable\", \"cellValueRC\", i, \"dpe\", selectedTag);
+	}
+}" 0
+ E E E
+13 20
+"clearButton"
+""
+1 160 410 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 158 408 242 442
+
+T 
+1
+LANG:1 5 Clear
+"main()
+{
+	for(int i=0; i<dipPublicationContentsTable.lineCount; i++)
+		setValue(\"dipPublicationContentsTable\", \"cellValueRC\", i, \"dpe\", \"\");
+}" 0
+ E E E
+1 25 0 "" 0
+0
+20 22
+"ShowInternalDpt"
+""
+1 550 82 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 548 80 712 104
+1
+T 
+1
+LANG:1 18 Show Internal DPTs
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state_box)
+{
+	selectDpt(state);
+	refreshDptData();
+}" 0
+14 24
+"TextField1"
+""
+1 110 40 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 108 38 532 65
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = getSystemName();
+}" 0
+ E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 410 20 T 20 1 0 1 304 -10
+1
+"$sPanelRelativePath""fwDIP/fwDipEditDptCreate"
+0

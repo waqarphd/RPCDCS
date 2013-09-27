@@ -1,0 +1,154 @@
+domain_change(string dp, int value)
+{
+	dyn_string items;
+	string domain;
+	int index;
+
+	items = strsplit(dp,":.");
+	domain = items[2];
+	strreplace(domain, "fwCU_","");	
+	if(index = dynContains(FwFsmDomains, domain))
+	{
+		if(value == -1)
+			value = 0;
+		FwFsmDomainsOn[index] = value;
+		if(FwFsmDomainsOn[index] != FwFsmDevicesOn[index])
+		{
+			if((!FwFsmDomainsOn[index]) && (FwFsmDevicesOn[index]))
+			{
+				FwFsmDevicesOn[index] = 0;
+			}
+			else
+				check_domains_flag++;
+		}
+	}
+}
+
+do_start_domain(string domain)
+{
+	string domain_name;
+	int ctrlDUFlag;
+
+	ctrlDUFlag = fwFsm_getCUCtrlFlag(domain);
+
+	if(ctrlDUFlag == 1)
+	{
+		fwFsm_startCUProcess(domain);
+	}
+	else
+	{
+		domain_name = domain;
+		strreplace(domain_name,fwDev_separator,"_");
+		strreplace(domain_name,"-","_");
+
+		execScript("#uses \""+domain_name+".ctl\"\n main() {	DebugN(\"Starting devices for: "+
+			domain+"\"); startDomainDevices_"+
+			domain_name+"(); fwFsm_waitDomainEnd(\""+domain+"\"); DebugN(\"Stopping devices for: "+
+			domain+"\"); }", 
+			makeDynString());
+	}
+}
+
+/*
+do_start_domain(string domain)
+{
+	string domain_name;
+
+	domain_name = domain;
+	strreplace(domain_name,fwDev_separator,"_");
+DebugN("#uses \""+domain_name+".ctl\"\n main() {	DebugN(\"Starting devices for: "+
+		domain+"\"); startDomainDevices_"+
+		domain_name+"(); fwFsm_waitDomainEnd(\""+domain+"\"); stopDomainDevices_"+
+		domain_name+"(); DebugN(\"Stopping devices for: "+
+		domain+"\"); }");
+
+	execScript("#uses \""+domain_name+".ctl\"\n main() {	DebugN(\"Starting devices for: "+
+		domain+"\"); startDomainDevices_"+
+		domain_name+"(); fwFsm_waitDomainEnd(\""+domain+"\"); stopDomainDevices_"+
+		domain_name+"(); DebugN(\"Stopping devices for: "+
+		domain+"\"); }", 
+		makeDynString());
+}
+*/
+
+dyn_string old_domains;
+int check_domains_flag;
+
+get_domains()
+{
+dyn_string domains;
+string dp;
+int i;
+
+	domains = fwFsm_getLocalDomains();
+	if(old_domains != domains)
+	{ 
+		for(i = 1; i <= dynlen(domains); i++)
+		{
+			fwUi_getDomainPrefix(domains[i], dp);
+			if(dpExists(dp))
+			{
+				if(!dynContains(FwFsmDomains, domains[i]))
+				{
+					dynAppend(FwFsmDomains, domains[i]);
+					dynAppend(FwFsmDomainsOn, 0);
+					dynAppend(FwFsmDevicesOn, 0);
+		 			dpConnect("domain_change",dp+".running");
+				}
+			}
+		}
+		old_domains = domains;
+	}
+}
+
+main()
+{
+dyn_string domains, devices;
+string dp;
+int i, n, manId;
+
+	check_domains_flag = 0;
+	manId = myManNum();
+ 	dpSetWait("ToDo.ctrlPid", manId);
+	addGlobal("FwFsmDomains",DYN_STRING_VAR);
+	addGlobal("FwFsmDomainsOn",DYN_INT_VAR);
+	addGlobal("FwFsmDevicesOn",DYN_INT_VAR);
+	fwFsm_initialize();
+	get_domains();
+	n = 5;
+	while(1)
+	{
+		delay(1);
+		if(check_domains_flag)
+		{
+			check_domains_flag--;
+			for(i = 1; i <= dynlen(FwFsmDomainsOn); i++)
+			{
+				devices = fwFsm_getDomainDevices(FwFsmDomains[i]);
+				if(dynlen(devices))
+				{
+					if((FwFsmDomainsOn[i]) && (!FwFsmDevicesOn[i]))
+					{
+//						fwFsm_startDomainDevicesNewNew(FwFsmDomains[i]);
+//						execScript("#uses \""+FwFsmDomains[i]+".ctl\"\n main() {startDomainDevices_"+FwFsmDomains[i]+"();}", makeDynString());
+
+						startThread("do_start_domain", FwFsmDomains[i]);
+
+						FwFsmDevicesOn[i] = 1;
+					}
+//					else if((!FwFsmDomainsOn[i]) && (FwFsmDevicesOn[i]))
+//					{
+////						fwFsm_stopDomainDevicesNewNew(FwFsmDomains[i]);
+//						FwFsmDevicesOn[i] = 0;
+//					}
+				}
+			}
+		}
+		n--;
+		if(!n)
+		{
+			get_domains();
+			n = 5;
+		}		
+	}
+}

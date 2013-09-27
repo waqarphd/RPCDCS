@@ -1,0 +1,1214 @@
+V 11
+1
+LANG:1 25 JCOP Alarm Screen Options
+PANEL,-1 -1 872 529 N "_3DFace" 8
+"$bShowDistDetails"
+"$dbAllColumnsVisible"
+"$diAllColumnsWidth"
+"$dsAllColumnsName"
+"$dsColumnsVisible"
+"$iIdleTimeout"
+"$iOnlineValueUpdateRate"
+"$iSummariesMode"
+"main()
+{
+  int length, summaryMode, maxLines;
+  string defaultFilter;
+  dyn_string configDpNames, columns, exceptionInfo;
+  bool bOneRowPerAlarm;
+
+  fwAlarmHandlingScreen_getDescriptionColumnBehaviour(g_descriptionOption, exceptionInfo);
+  showDpeInDescription.number = g_descriptionOption;
+
+//  fwAlarmHandlingScreen_getTimeColumnBehaviour  
+  
+  fwAlarmHandlingScreen_getRowColourBehaviour(g_rowColourOption, exceptionInfo);
+  colourWholeRow.state(0) = g_rowColourOption;
+  
+//   fwAlarmHandlingScreen_getOneRowPerAlarm(bOneRowPerAlarm, exceptionInfo);
+//   oneRowPerAlarm.state(0) = bOneRowPerAlarm;
+  
+  fwAlarmHandlingScreen_getScrollLockTimeout(g_scrollLockTimeout, exceptionInfo);
+  scrollLock.state(0) = (g_scrollLockTimeout != 0);
+  scrollLockValue.enabled = (g_scrollLockTimeout != 0);
+  scrollLockValue.text = g_scrollLockTimeout==0?10:g_scrollLockTimeout;
+        
+  fwGeneral_stringToDynString($dsColumnsVisible, columns, \"|\", FALSE, TRUE);
+	
+  columnVisibleOptions.state(0) = columns[fwAlarmHandlingScreen_COLUMN_ID_DP_NAME];
+  columnVisibleOptions.state(1) = columns[fwAlarmHandlingScreen_COLUMN_ID_LOGICAL_NAME];
+  columnVisibleOptions.state(2) = columns[fwAlarmHandlingScreen_COLUMN_ID_DESCRIPTION];
+		
+  columnValueOptions.state(0) = columns[fwAlarmHandlingScreen_COLUMN_ID_ALERT_VALUE];
+  columnValueOptions.state(1) = columns[fwAlarmHandlingScreen_COLUMN_ID_ONLINE_VALUE];
+
+  cameWentTimeSelection.selectedPos = columns[fwAlarmHandlingScreen_COLUMN_ID_TIME_CAME]?2:1;
+  
+  idleTimeoutValue.text = (int)$iIdleTimeout;
+  idleTimeout.state(0) = (idleTimeoutValue.text != 0);
+  idleTimeoutValue.enabled = idleTimeout.state(0);
+                           
+  showDpeInDescription.enabled = columnVisibleOptions.state(2);
+        
+  onlineValueUpdateRate.text = $iOnlineValueUpdateRate;
+  onlineValueUpdateRate.enabled = columnValueOptions.state(1);
+        
+  showDistSystemDetails.state(0) = (bool)$bShowDistDetails;
+
+  summaryMode = (int)$iSummariesMode;
+  switch(summaryMode)
+  {
+    case AES_SUMALERTS_BOTH:
+      summariesMode.number = 0;
+      break;
+    case AES_SUMALERTS_FILTERED:
+      summariesMode.number = 1;
+      break;
+    case AES_SUMALERTS_NO:
+      summariesMode.number = 2;
+      break;
+  }
+  
+  fwAlarmHandlingScreen_getDefaultFilterName(defaultFilter, exceptionInfo);
+		strreplace(defaultFilter, fwAlarmHandlingScreen_FILTER_DP_PREFIX, \"\");
+	configDpNames = dpNames(fwAlarmHandlingScreen_FILTER_DP_PREFIX + \"*\", fwAlarmHandlingScreen_FILTER_DP_TYPE);
+	
+	length = dynlen(configDpNames);
+	for(int i=1; i<=length; i++)
+	{
+		configDpNames[i] = dpSubStr(configDpNames[i], DPSUB_DP);
+		strreplace(configDpNames[i], fwAlarmHandlingScreen_FILTER_DP_PREFIX, \"\");
+	}
+  dynInsertAt(configDpNames, \"Show All (*)\", 1);
+  savedFilterList.items(configDpNames);
+  
+  if(dynContains(configDpNames, defaultFilter) > 0)
+    savedFilterList.text = defaultFilter;
+  else
+    savedFilterList.selectedPos = 1;
+  
+  fwAlarmHandlingScreen_getHistoricalMaxLines(maxLines,exceptionInfo);
+  historicalMaxLineslValue.text = maxLines;
+}
+
+" 0
+ "main()
+{
+	int i;
+}" 0
+ E E E 1 0 0 0  10 10
+""0  1
+E "unsigned g_descriptionOption;
+bool g_rowColourOption;
+int g_scrollLockTimeout;
+
+showRestartWarning()
+{
+  if((colourWholeRow.state(0) == g_rowColourOption)
+      && ((showDpeInDescription.number == g_descriptionOption)|| !showDpeInDescription.enabled)
+      && ((int)(scrollLock.state(0)?scrollLockValue.text:0) == g_scrollLockTimeout))
+  {
+    restartNote.visible = FALSE;
+    restartNoteFrame.visible = FALSE;
+  }
+  else
+  {
+    restartNote.visible = TRUE;
+    restartNoteFrame.visible = TRUE;
+  }
+}" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text1"
+""
+1 8 8 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 10 276 36
+0 2 0 "0s" 0 0 0 64 0 0  10 10 1
+1
+LANG:1 26 Arial,-1,19,5,40,0,0,0,0,0
+0 1
+LANG:1 28 Alarm Screen Display Options
+30 2
+"Frame1"
+""
+1 20 169 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 3.529411764705878 8.88178419700125e-016 -126.4705882352939 0 E 20 50 460 170
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 19 Alarm Table Options
+2 3
+"Text13"
+""
+1 228 74 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 230 76 442 178
+0 2 0 "0s" 0 0 0 192 0 0  230 76 6
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 5 NOTE:
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 35 It is recommended to show only 2 of
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 37 the 3 possible columns. If you select
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 38 all 3, the default columns widths will
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 31 make the table too wide to see.
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 0 
+20 1
+"columnVisibleOptions"
+""
+1 40 75 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  38 73 212 167
+3
+T 
+1
+LANG:1 19 Show Device DP Name
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 Show Logical Name
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 16 Show Description
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, bool state)
+{
+  showDpeInDescription.enabled = columnVisibleOptions.state(2);
+  showRestartWarning();
+}" 0
+13 4
+"Button1"
+""
+1 680 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 36 Confirm changes to column visibility
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  678 488 762 522
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  int idleTimer, summaryMode, pvssSummaryMode, historicalMaxLines;
+	dyn_string exceptionInfo, columnsVisible;
+	
+	columnsVisible[fwAlarmHandlingScreen_COLUMN_ID_DP_NAME] = columnVisibleOptions.state(0);
+	columnsVisible[fwAlarmHandlingScreen_COLUMN_ID_LOGICAL_NAME] = columnVisibleOptions.state(1);
+	columnsVisible[fwAlarmHandlingScreen_COLUMN_ID_DESCRIPTION] = columnVisibleOptions.state(2);
+	columnsVisible[fwAlarmHandlingScreen_COLUMN_ID_ALERT_VALUE] = columnValueOptions.state(0);
+	columnsVisible[fwAlarmHandlingScreen_COLUMN_ID_ONLINE_VALUE] = columnValueOptions.state(1);
+	columnsVisible[fwAlarmHandlingScreen_COLUMN_ID_TIME_STANDARD] = (cameWentTimeSelection.selectedPos == 1);
+	columnsVisible[fwAlarmHandlingScreen_COLUMN_ID_TIME_CAME] = (cameWentTimeSelection.selectedPos == 2);
+
+  summaryMode = summariesMode.number;
+  switch(summaryMode)
+  {
+    case 0:
+      pvssSummaryMode = AES_SUMALERTS_BOTH;
+      break;
+    case 1:
+      pvssSummaryMode = AES_SUMALERTS_FILTERED;
+      break;
+    case 2:
+      pvssSummaryMode = AES_SUMALERTS_NO;
+      break;
+  }
+  
+  fwAlarmHandlingScreen_setHistoricalMaxLines(historicalMaxLineslValue.text,exceptionInfo);
+	fwAlarmHandlingScreen_setDescriptionColumnBehaviour(showDpeInDescription.number, exceptionInfo);
+	fwAlarmHandlingScreen_setRowColourBehaviour(colourWholeRow.state(0), exceptionInfo);
+  fwAlarmHandlingScreen_setScrollLockTimeout(scrollLock.state(0)?scrollLockValue.text:0, exceptionInfo);
+//   fwAlarmHandlingScreen_setOneRowPerAlarm(oneRowPerAlarm.state(0), exceptionInfo);
+      
+  if(savedFilterList.selectedPos == 1)
+    fwAlarmHandlingScreen_setDefaultFilterName(\"\", exceptionInfo);
+  else
+    fwAlarmHandlingScreen_setDefaultFilterName(savedFilterList.text, exceptionInfo);
+
+        if(idleTimeout.state(0))
+          idleTimer = idleTimeoutValue.text;
+        else
+          idleTimer = 0;
+        
+        if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		PanelOffReturn(makeDynFloat(1, onlineValueUpdateRate.text, showDistSystemDetails.state(0),
+                                            pvssSummaryMode, idleTimer),
+                               columnsVisible);
+}
+" 0
+ E E E
+13 5
+"Button2"
+""
+1 770 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 27 0
+E E E
+0
+1
+LANG:1 33 Leave column visibility unchanged
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  768 488 852 522
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOffReturn(makeDynFloat(0), makeDynString());
+}" 0
+ E E E
+13 6
+"Button3"
+""
+1 20 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 35 Revert to the default JCOP settings
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  18 488 102 522
+
+T 
+1
+LANG:1 7 Default
+"main()
+{
+  columnVisibleOptions.state(0) = TRUE;
+  columnVisibleOptions.state(1) = TRUE;
+  columnVisibleOptions.state(2) = FALSE;
+	
+  columnValueOptions.state(0) = TRUE;
+  columnValueOptions.state(1) = FALSE;
+  onlineValueUpdateRate.enabled = columnValueOptions.state(1);
+  onlineValueUpdateRate.text = 5;
+
+  showDpeInDescription.number = 0;
+  
+  colourWholeRow.state(0) = FALSE;      
+  showDistSystemDetails.state(0) = FALSE;
+  summariesMode.number = 1;
+        
+  idleTimeout.state(0) = FALSE;
+  idleTimeoutValue.enabled = idleTimeout.state(0);
+  idleTimeoutValue.text = 10;
+  
+  scrollLock.state(0) = FALSE;
+  scrollLockValue.enabled = scrollLock.state(0);
+  scrollLockValue.text = 10;
+  
+  cameWentTimeSelection.selectedPos = 1;
+}" 0
+ E E E
+13 7
+"Button4"
+""
+1 110 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 66 Save settings (will be used whenever starting a JCOP alarm screen)
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  108 488 192 522
+
+T 
+1
+LANG:1 4 Save
+"main()
+{
+  bool alwaysShowCameTime;
+	int length, idleTimer, summaryMode, pvssSummaryMode;
+	string propertyDp = \"_AESProperties_fwAes\";
+	dyn_string exceptionInfo;
+	
+  dyn_string allColumnsName, saveColumnsName;
+  dyn_bool allColumnsVisible;
+  dyn_int allColumnsWidth, saveColumnsWidth;
+    
+  fwGeneral_stringToDynString($dsAllColumnsName, allColumnsName, \"|\", FALSE, TRUE);
+  fwGeneral_stringToDynString($dbAllColumnsVisible, allColumnsVisible, \"|\", FALSE, TRUE);
+  fwGeneral_stringToDynString($diAllColumnsWidth, allColumnsWidth, \"|\", FALSE, TRUE);
+//  DebugN(allColumnsName, allColumnsVisible, allColumnsWidth);
+  
+  length = dynlen(allColumnsName);
+  for(int i=1; i<=length; i++)
+  {
+    if((allColumnsVisible[i] == TRUE) && (allColumnsWidth[i] != 0))
+    {
+      dynAppend(saveColumnsName, allColumnsName[i]);
+      dynAppend(saveColumnsWidth, allColumnsWidth[i]);
+    }
+  }
+//  DebugN(columnSettings);
+  fwAlarmHandlingScreen_saveColumnWidths(saveColumnsName, saveColumnsWidth, exceptionInfo);
+      
+	_fwAlarmHandlingScreen_showHideColumn(propertyDp,
+						fwAlarmHandlingScreen_COLUMN_DP_NAME,
+						columnVisibleOptions.state(0), exceptionInfo, FALSE);
+	_fwAlarmHandlingScreen_showHideColumn(propertyDp,
+						fwAlarmHandlingScreen_COLUMN_LOGICAL_NAME,
+						columnVisibleOptions.state(1), exceptionInfo, FALSE);
+	_fwAlarmHandlingScreen_showHideColumn(propertyDp,
+						fwAlarmHandlingScreen_COLUMN_DESCRIPTION,
+						columnVisibleOptions.state(2), exceptionInfo, FALSE);
+  
+	_fwAlarmHandlingScreen_showHideColumn(propertyDp,
+						fwAlarmHandlingScreen_COLUMN_ALERT_VALUE,
+						columnValueOptions.state(0), exceptionInfo, FALSE);
+  _fwAlarmHandlingScreen_showHideColumn(propertyDp,
+						fwAlarmHandlingScreen_COLUMN_ONLINE_VALUE,
+						columnValueOptions.state(1), exceptionInfo, FALSE);
+
+  alwaysShowCameTime = cameWentTimeSelection.text==\"CAME timestamp\"?TRUE:FALSE;
+  
+  _fwAlarmHandlingScreen_showHideColumn(propertyDp,
+						fwAlarmHandlingScreen_COLUMN_TIME_STANDARD,
+						!alwaysShowCameTime, exceptionInfo, FALSE);
+  _fwAlarmHandlingScreen_showHideColumn(propertyDp,
+						fwAlarmHandlingScreen_COLUMN_TIME_CAME,
+						alwaysShowCameTime, exceptionInfo, FALSE);
+  
+  summaryMode = summariesMode.number;
+  switch(summaryMode)
+  {
+    case 0:
+      pvssSummaryMode = AES_SUMALERTS_BOTH;
+      break;
+    case 1:
+      pvssSummaryMode = AES_SUMALERTS_FILTERED;
+      break;
+    case 2:
+      pvssSummaryMode = AES_SUMALERTS_NO;
+      break;
+  }        
+        
+  fwAlarmHandlingScreen_setDescriptionColumnBehaviour(showDpeInDescription.number, exceptionInfo);
+//   fwAlarmHandlingScreen_setOneRowPerAlarm(oneRowPerAlarm.state(0), exceptionInfo);
+	fwAlarmHandlingScreen_setRowColourBehaviour(colourWholeRow.state(0), exceptionInfo);
+  fwAlarmHandlingScreen_setOnlineValueUpdateRate(onlineValueUpdateRate.text, exceptionInfo);
+  fwAlarmHandlingScreen_setDistSystemDisplayOption(showDistSystemDetails.state(0), exceptionInfo);
+  fwAlarmHandlingScreen_setReductionMode(propertyDp, pvssSummaryMode, exceptionInfo);
+  fwAlarmHandlingScreen_setScrollLockTimeout(scrollLock.state(0)?scrollLockValue.text:0, exceptionInfo);
+  fwAlarmHandlingScreen_setHistoricalMaxLines(historicalMaxLineslValue.text,exceptionInfo);
+        
+        if(idleTimeout.state(0))
+          idleTimer = idleTimeoutValue.text;
+        else
+          idleTimer = 0;
+        
+        fwAlarmHandlingScreen_setIdleTimeout(idleTimer, exceptionInfo);
+																				
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+
+
+" 0
+ E E E
+19 15
+"showDpeInDescription"
+""
+1 80 170 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  78 168 410 242
+3
+T 
+1
+LANG:1 39 Show nothing if Description not present
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 39 Show DP Name if Description not present
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 50 Show Alias (or DP Name) if Description not present
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  showRestartWarning();
+}" 0
+
+20 16
+"colourWholeRow"
+""
+1 40 380 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  38 378 312 402
+1
+T 
+1
+LANG:1 42 Use alarm colour to highlight complete row
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  showRestartWarning();
+}" 0
+2 17
+"restartNote"
+""
+1 497.9999999999999 422.0000000000001 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 499.9999999999999 424.0000000000001 802 492
+0 2 0 "0s" 0 0 0 192 0 0  499.9999999999999 424.0000000000001 4
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 49 You must reopen the Alarm Screen for some options
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 16 to take effect  
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 2   
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 0 
+20 19
+"columnValueOptions"
+""
+1 40 300 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  38 298 282 362
+2
+T 
+1
+LANG:1 22 Show First Alarm Value
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 36 Show Online Value, with update rate:
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, bool state)
+{
+  onlineValueUpdateRate.enabled = columnValueOptions.state(1);
+}" 0
+14 23
+"onlineValueUpdateRate"
+""
+1 281 331 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  279 329 333 355
+3 "0d" 0 0 0 2 0 -1  E E E
+2 25
+"PRIMITIVE_TEXT2"
+""
+1 334 333 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 336 335 385 352
+0 2 0 "0s" 0 0 0 192 0 0  336 335 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 7 seconds
+20 26
+"showDistSystemDetails"
+""
+1 500 80 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  498 78 842 102
+1
+T 
+1
+LANG:1 52 Display status of currently displayed remote systems
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  showRestartWarning();
+}" 0
+13 28
+"manageDisplayButton"
+""
+1 500 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  498 308 652 342
+
+T 
+1
+LANG:1 21 Alarm Help Formats...
+"main()
+{
+  ChildPanelOnCentral(\"fwAlarmHandling/fwAlarmHandlingHelpFileSetup.pnl\",
+			\"Help File Format Setup\", makeDynString());
+}" 0
+ E E E
+13 29
+"PUSH_BUTTON1"
+""
+1 670 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  668 308 822 342
+
+T 
+1
+LANG:1 17 Access Control...
+"main()
+{
+    ChildPanelOnCentral(\"fwAlarmHandling/fwAlarmHandlingScreenAccessControl.pnl\",
+			\"Access Control Setup\", makeDynString());
+}" 0
+ E E E
+20 30
+"idleTimeout"
+""
+1 500 143 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  498 141 702 165
+1
+T 
+1
+LANG:1 34 Show default filter when idle for:
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  idleTimeoutValue.enabled = idleTimeout.state(0);
+}" 0
+14 31
+"idleTimeoutValue"
+""
+1 710 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  708 138 762 164
+3 "0d" 0 0 0 2 0 -1  E E E
+2 32
+"PRIMITIVE_TEXT3"
+""
+1 764 142 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 766 144 812 161
+0 2 0 "0s" 0 0 0 192 0 0  766 144 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 7 minutes
+30 34
+"restartNoteFrame"
+""
+1 490 363 E E E 1 E 0 E N "_WindowText" E N {0,0,0} E E
+ E E
+50 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.027777777777778 0 0.510948905109489 -23.6111111111112 214.5255474452555 0 E 490 363 851 501
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 5 NOTE:
+30 35
+"FRAME2"
+""
+1 20 169 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+51 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.8405466970387244 0 2.857142857142854 463.1890660592255 -92.85714285714271 0 E 20 50 460 170
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 14 Screen Options
+19 36
+"summariesMode"
+""
+1 500 220 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  498 218 772 292
+3
+T 
+1
+LANG:1 15 Show all alarms
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 19 Use alarm reduction
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 23 Hide all summary alarms
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+14 38
+"scrollLockValue"
+""
+1 710 110 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"textChangedCB" "main(string newText)
+{
+  showRestartWarning();
+}"
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  708 108 762 134
+3 "0d" 0 0 0 2 0 -1  E E E
+2 39
+"PRIMITIVE_TEXT4"
+""
+1 764 112 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 766 114 815 131
+0 2 0 "0s" 0 0 0 192 0 0  766 114 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 7 seconds
+20 40
+"scrollLock"
+""
+1 500 111 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  498 109 702 133
+1
+T 
+1
+LANG:1 34 Keep scroll position for at least:
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  scrollLockValue.enabled = scrollLock.state(0);
+  showRestartWarning();
+}" 0
+2 41
+"PRIMITIVE_TEXT5"
+""
+1 500 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 500 180 658 197
+0 2 2 "0s" 0 0 0 192 0 0  500 180 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 31 Default filter on startup/idle:
+22 43
+"savedFilterList"
+""
+1 670 175 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  668 173 817 200
+0
+
+E
+E
+E
+ 0 0
+2 44
+"PRIMITIVE_TEXT6"
+""
+1 42 264 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42 264 238 281
+0 2 2 "0s" 0 0 0 192 0 0  42 264 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 31 For WENT alarm rows, show the: 
+22 45
+"cameWentTimeSelection"
+""
+1 240 260 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  238 258 372 285
+2
+1
+LANG:1 14 WENT timestamp
+
+0
+1
+LANG:1 14 CAME timestamp
+
+0
+
+E
+E
+E
+ 0 0
+2 48
+"PRIMITIVE_TEXT8"
+""
+1 40 408 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 42 410 164 427
+0 2 0 "0s" 0 0 0 192 0 0  42 410 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Show a maximum of 
+21 50
+"historicalMaxLineslValue"
+""
+1 172.0000000000001 407 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  170 405 252 431
+0
+
+E
+E
+E
+
+N 0 100000 1 0 1 1
+2 52
+"PRIMITIVE_TEXT10"
+""
+1 257 408 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 259 410 406 427
+0 2 0 "0s" 0 0 0 192 0 0  259 410 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 27 lines for Historical Alarms
+20 53
+"oneRowPerAlarm"
+""
+1 40 440 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  38 438 312 462
+1
+T 
+1
+LANG:1 30 Show one row for CAME and WENT
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  showRestartWarning();
+}" 0
+1 54 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "cmHelp" -1
+"objects\\fwGeneral\\fwHelpButton.pnl" 604 10 T 70 1 0 1 216 0
+1
+"$sPanelRelativePath""fwAlarmHandling/fwAlarmHandlingScreenOptions"
+0

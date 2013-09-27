@@ -1,0 +1,309 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 839 459 N "_3DFace" 2
+"$nodeList"
+"$sDpName"
+"main()
+{
+  dyn_string cpus;
+  
+  group = fwFMC_getGroupName($sDpName);
+  nodes = strsplit($nodeList, \"|\"); 
+  
+  for(int i =1; i <= dynlen(nodes); i++)
+    strreplace(nodes[i], \" \", \"\");
+
+  txTitle.text = \"Group: \" +  group + \" Task Manager \";
+  
+  cbCpus.items = makeDynString(\"core_00\", \"core_01\", \"core_02\", \"core_03\", \"core_04\", \"core_05\", \"core_06\", \"core_07\", \"core_08\", \"core_09\",
+                               \"core_10\", \"core_11\", \"core_12\", \"core_13\", \"core_14\", \"core_15\", \"core_16\", \"core_17\", \"core_18\", \"core_19\");
+  cbCpus.selectedPos(1);   
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwFMC/fwFMC.ctl\"
+#uses \"fwFMC/fwFMCTaskManager.ctl\"    
+#uses \"fwFMC/fwFMCLogger.ctl\"    
+    
+string group;
+dyn_string nodes;" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+1 33 1 "" 0
+0
+1 34 1 "" 1
+0
+1 35 1 "" 2
+0
+1 36 1 "" 3
+0
+1 37 1 "" 4
+0
+1 38 1 "" 5
+0
+1 39 1 "" 6
+0
+1 40 1 "" 7
+0
+1 41 1 "" 8
+0
+1 42 1 "" 9
+0
+1 43 1 "" 10
+0
+1 44 1 "" 11
+0
+1 45 1 "" 12
+0
+1 46 1 "" 13
+0
+1 47 1 "" 14
+0
+1 48 1 "" 15
+0
+1 49 1 "" 16
+0
+1 50 1 "" 17
+0
+1 51 1 "" 18
+0
+1 52 1 "" 19
+0
+1 53 1 "" 20
+0
+1 54 1 "" 21
+0
+1 55 1 "" 22
+0
+1 56 1 "" 23
+0
+1 57 1 "" 24
+0
+1 58 1 "" 25
+0
+1 59 1 "" 26
+0
+13 30
+"ButtonConfirm"
+""
+1 726.374501992032 364.615384615385 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 724.374501992032 362.615384615385 821.96015936255 393.497105045492
+
+T 
+1
+LANG:1 8 Send cmd
+"main()
+{
+	
+	string cmd = \"\", subCmd = \"\";
+	int numSched, numPrior;
+	dyn_string tableNameValue;
+        bool state;
+        string s;
+        string core;
+        int coreNr;
+		
+	//fwFMC_msg(\"Sending commands...\", 1);
+	
+        cmd = tfPath.text;
+
+	if ( strltrim(cmd, \" \") == \"\" ){
+		fwFMC_msg(\"Error. Empty PATH\", 2);
+		return;
+	}
+
+	// WORKING DIRECTORY
+	if (cbWd.state(0)){
+		subCmd = tfWd.text;
+		cmd = \"-w \" + subCmd + \" \" + cmd;
+	}
+	
+	// UTGID
+	if (cbUtgid.state(0)){
+		subCmd = tfUtgid.text;
+		cmd = \"-u \" + subCmd + \" \" + cmd;
+	}
+	
+	// DEAMON
+	if (cbDeamon.state(0)){
+		cmd = \"-d \" + cmd;
+	}
+
+	// CLEAR ENVIRONMENT
+	if (cbClearEnv.state(0)){
+		cmd = \"-c \" + cmd;
+	}
+
+	// Redirect STDOUT
+	if (cbStdout.state(0)){
+		cmd = \"-o \" + cmd;
+	}
+
+	// Redirect STDERR
+	if (cbStderr.state(0)){
+		cmd = \"-e \" + cmd;
+	}		
+
+	// ENVIRONMENT VARIABLES
+	for(int i=0; i< tblEnvVar.lineCount(); i++){
+		tableNameValue = tblEnvVar.getLineN(i);
+                cmd = \"-D \" + tableNameValue[1] + \"=\" + tableNameValue[2] + \" \" + cmd;
+	        dynClear(tableNameValue);
+	}    		
+
+	// USER
+	if (cbUser.state(0)){
+		subCmd = tfUser.text;
+		cmd = \"-n \" + subCmd + \" \" + cmd;
+	}
+
+	// SCHEDULER
+	if (cbScheduler.state(0)){
+		 numSched = clScheduler.selectedPos();
+		cmd = \"-s \" + (numSched - 1) + \" \" + cmd;
+		// SCHEDULER TIME SHARING
+		if (numSched == 1){
+			state = cbDynamicPriority.state(0);
+			if (state){
+				numPrior = clDynamicPriority.selectedPos();
+				cmd = \"-p \" + ( (-21) + numPrior ) + \" \" + cmd;
+			}
+		}
+		// SCHEDULER FIFO OR ROUND ROBIN
+		else{
+			state = cbStaticPriority.state(0);
+			if (state){
+				munPrior = clStaticPriority.selectedPos();
+				cmd = \"-r \" + numPrior + \" \" + cmd;
+			}
+		}
+	}
+	
+	// CPU AFFINITY
+	if(cbCpuAffinity.state(0))
+        {
+		core = cbCpus.selectedText();
+                sscanf(substr(core, strlen(core)-2, 2), \"%d\", coreNr);
+				cmd = \"-a \" + coreNr + \" \" + cmd;				
+	}
+        for(int i = 1; i <= dynlen(nodes); i++)
+          fwFMCTaskManager_sendCommand(group, nodes[i], cmd);
+
+}" 0
+ E E E
+13 31
+"ButtonLoggerView"
+""
+1 622.390438247012 366.976013234078 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 620.390438247012 364.976013234078 717.97609561753 393.745244003309
+
+T 
+1
+LANG:1 11 Open Logger
+"// SimpleCtrlScriptStart {invalid}
+main()
+{
+  dyn_string ds;
+  dyn_float df;
+  
+  ChildPanelOnCentralReturn(\"fwFMC/fwFMC_selectNode.pnl\",
+      \"Select Node\",
+      makeDynString(\"$nodes:\" + nodes), df, ds);
+
+  if(dynlen(df) && df[1] >= 1.)
+  {
+    //DebugN(\"Opening log viewer for node: \" + ds[1]);
+    ChildPanelOnCentral(\"fwFMC/fwFMC_loggerNavigator.pnl\",
+        \"LoggerView -> Node: \" + ds[1] + \" in group: \" + group,
+        makeDynString(\"$sDpName:\" + fwFMCLogger_getDp(group, ds[1])));
+  }
+}
+" 0
+ E E E
+13 32
+"PUSH_BUTTON3"
+""
+1 726.374501992032 422.903225806452 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 724.374501992032 420.903225806452 823 452
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 1 "PANEL_REF2"
+"objects/fwFMC/fwFMC_taskMangerRef.pnl" 0 0 T 1 U 
+0
+0

@@ -1,0 +1,1047 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 865 607 N "_3DFace" 0
+E E E E E 1 -1 -1 0  56 10
+""0  1
+E "dyn_string dp;
+string sup;
+
+void showtable(dyn_string value){
+  
+  
+  TABLE1.deleteAllLines();
+  string location;
+  dyn_string vv;  
+  int newpos;
+  int j =1;dyn_int idx;
+  bool hide = true;
+  int va = hidshow.selectedPos();
+  //DebugN(va);
+  if(va==2) hide = false;  
+  
+  for(int i=1;i<=dynlen(value);i++)
+  {
+    
+  vv = strsplit(value[i],\"|\");
+  
+  if(dynlen(vv)==7)
+  {  
+  location = vv[2]+\" \"+vv[3];
+  TABLE1.appendLine(\"num\",j,\"chamb\",location,\"tt\",vv[1],\"prob\",vv[5],\"since\",vv[6],\"user\",vv[7]);
+  newpos = vv[4];
+  }else if (dynlen(vv)==8){
+  location = vv[2]+\" \"+vv[3];
+  if(!hide)
+  TABLE1.appendLine(\"num\",j,\"chamb\",location,\"tt\",vv[1],\"prob\",vv[5],\"since\",vv[6],\"user\",vv[7],\"fixed\",vv[8]);
+  newpos = vv[4];
+  }else if(value[i]==\"\"){
+   dynAppend(idx,i); 
+   continue;
+ }else if (dynlen(vv)>8){
+  if(!hide)
+ TABLE1.appendLine(\"num\",j,\"chamb\",location,\"tt\",vv[1],\"prob\",vv[5],\"since\",vv[6],\"user\",vv[7],\"fixed\",vv[8]);
+ value[i] = vv[1]+\"|\"+vv[2]+\"|\"+vv[3]+\"|\"+vv[4]+\"|\"+vv[5]+\"|\"+vv[6]+\"|\"+vv[7]+\"|\"+vv[8];
+ dpSet(dpSubStr(dpe,DPSUB_SYS_DP_EL),value);
+ }
+  if(newpos==1)
+  {
+    TABLE1.cellBackColRC(j-1,\"num\",\"FwAlarmErrorAck\"); 
+  //DebugN(\"ce\",i);
+  }else if(newpos == 2)
+  {
+  TABLE1.cellBackColRC(j-1,\"num\",\"FwAlarmWarnUnack\"); 
+  }
+  j++;   
+  }
+  dyn_string val = value;
+  for(int i = dynlen(idx);i==1;i--)
+  {
+   // DebugN(\"aa\");
+   dynRemove(val,idx[i]);
+   dpSet(dpSubStr(dpe,DPSUB_SYS_DP_EL),val); 
+ }
+}
+DisableAllInPanel()
+{
+PUSH_BUTTON2.enabled = false;
+PUSH_BUTTON3.enabled = false;
+upbut.enabled = false;
+note.text = \"The logged user has not enought privileges to add problem\";
+syncdb.enabled = false;
+ }
+enableModify(){
+  //DebugN(\"ss\");
+PUSH_BUTTON2.enabled = true;
+PUSH_BUTTON3.enabled = true;
+upbut.enabled = true;
+note.text = \"\";
+syncdb.enabled = true;
+}
+
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl,hasModify;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Modify\", hasModify, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+if (hasModify) enableModify();
+//if (hasDebug) enableDebug();
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 24 24 E E E 1 E 1 E N "_Window" E N "_ETM" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 24 24 460 54
+0 2 2 "0s" 0 0 0 65 0 0  24 24 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 22 KNOWN  PROBLEMS REPORT
+25 1
+"TABLE1"
+""
+1 20.00000000000004 76.00000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 74 842 403
+"main()
+{
+  dyn_string exceptionInfo;
+  //if(ACCESS_DCS)
+  fwAccessControl_setupPanel( \"ApplyPanelAccessControl\", exceptionInfo);
+
+  sup = RPCfwSupervisor_getSupervisorSys();
+  dp = dpNames(sup+\"*Prob*\",\"RPCVector\");
+  
+  if(dynlen(dp)==1)
+  {
+    dpConnect(\"refresh\",dp[1]+\".svalue\");
+    }
+  
+  
+  
+}
+void refresh(string dpe, dyn_string value){
+  
+  //DebugN(dpe,value);
+  
+  showtable(value);
+
+  
+}
+  
+" 0
+"main(int row, string column, string value)
+{
+  dyn_anytype line;
+  line = this.getLineN(row);
+  //DebugN(line);
+  
+  updsel.text = line[1];
+  note.text = \"\";
+  note.text = line[4];
+  int posi;
+  if(strpos(line[2],\"arrel\")>0){
+    loc.text = \"Barrel\";
+    posi = strpos(line[2],\" W\");
+    }
+  else{  
+      loc.text =\"Endcap\";
+      posi = strpos(line[2],\" E\");
+    }
+    
+  pos.text = substr(line[2],posi+1);
+  
+  sys.text = line[3];
+  
+}" 0
+ 1 0 1 7 0 "num" 2 1 0 "s" 1
+LANG:1 1 #
+E
+1
+LANG:1 0 
+
+30 "chamb" 16 1 0 "s" 1
+LANG:1 8 Location
+E
+1
+LANG:1 0 
+
+160 "tt" 3 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+40 "prob" 38 1 0 "s" 1
+LANG:1 19 Problem Description
+E
+1
+LANG:1 0 
+
+350 "user" 4 1 0 "s" 1
+LANG:1 4 user
+E
+1
+LANG:1 0 
+
+50 "since" 10 1 0 "s" 1
+LANG:1 11 Reported at
+E
+1
+LANG:1 0 
+
+100 "fixed" 10 1 0 "s" 1
+LANG:1 8 Fixed at
+E
+1
+LANG:1 0 
+
+100 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 2
+"PUSH_BUTTON1"
+""
+1 712 545.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  710 543 850 575
+
+T 
+1
+LANG:1 5 Close
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+29 4
+"pos"
+""
+1 236.524122807018 444.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E "main(bool enter)
+{
+  if(enter)
+    this.toolTipText = \"ie. Y+1 R2 CH11 or W+1 S11 RB1in\";
+}" 0
+
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  237 444 347 469
+15 PVSS.TextEdit.1
+0
+E13 7
+"PUSH_BUTTON2"
+""
+1 54.00000000000023 545.9032258064517 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  52 544 160 572
+
+T 
+1
+LANG:1 15 Add new Problem
+"main()
+{
+  string type = sys.text();
+  string locd = loc.selectedText();
+  string posd = pos.text();
+  string data = note.text();
+  string user;
+  fwAccessControl_getUserName(user);
+  int pri = prio.selectedPos();
+  //DebugN(dp,type+\"|\"+locd+\"|\"+posd+\"|\"+data);
+  dyn_string last;
+  string now = getCurrentTime();
+  now=substr(now,0,16);
+  if((posd!=\"\")&&(data!=\"\"))
+  {
+  dpGet(dp+\".svalue\",last);
+  dynAppend(last,type+\"|\"+locd+\"|\"+posd+\"|\"+pri+\"|\"+data+\"|\"+now+\"|\"+user);
+  dpSet(dp+\".svalue\",last);
+}
+}" 0
+ E E E
+2 8
+"PRIMITIVE_TEXT2"
+""
+1 -312.101366874359 1220.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.99780701754386 0 1 -54.8245614035088 115.0000000000001 1 E 257 335 293 355
+0 2 2 "0s" 0 0 0 65 0 0  257 335 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 4 Pos.
+2 9
+"PRIMITIVE_TEXT3"
+""
+1 -513.1373056214344 1211.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.99780701754386 0 1 -59.8245614035088 114.0000000000001 1 E 82 336 118 356
+0 2 2 "0s" 0 0 0 65 0 0  82 336 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 3 Sys
+29 10
+"note"
+""
+1 92 483.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  92 483 392 533
+15 PVSS.TextEdit.1
+0
+E2 11
+"PRIMITIVE_TEXT4"
+""
+1 28.00000000000001 493.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 28.00000000000001 493.0000000000001 90 523.0000000000001
+0 2 2 "0s" 0 0 0 65 0 0  28.00000000000001 493.0000000000001 2
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Descr.
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Max 160 car.
+22 12
+"sys"
+""
+1 60.77954076367341 444.0952380952381 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  59 442 126 470
+8
+1
+LANG:1 2 HV
+
+0
+1
+LANG:1 2 LV
+
+0
+1
+LANG:1 6 LBB LV
+
+0
+1
+LANG:1 1 T
+
+0
+1
+LANG:1 3 GAS
+
+0
+1
+LANG:1 3 PSX
+
+0
+1
+LANG:1 5 HV SG
+
+0
+1
+LANG:1 9 I2C comm.
+
+0
+
+E
+E
+E
+ 0 0
+22 14
+"loc"
+""
+1 132.758771929825 444.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  131 442 205 470
+2
+1
+LANG:1 6 Endcap
+
+0
+1
+LANG:1 6 Barrel
+
+0
+
+E
+E
+E
+ 0 0
+30 15
+"FRAME2"
+""
+1 60 301 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+21 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.81140350877193 0 0.869565217391304 427.315789473684 152.2608695652172 0 E 60 301 517 371
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Remove Problem
+13 16
+"PUSH_BUTTON3"
+""
+1 640 440.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  638 438 712 464
+
+T 
+1
+LANG:1 2 ->
+"main()
+{
+  
+  q1.visible = true;
+  q2.visible = true;
+    q3.visible = true;
+      q4.visible = true;
+  }" 0
+ E E E
+21 18
+"posrem"
+""
+1 572 441.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  570 439 634 463
+0
+
+E
+E
+E
+
+N 1 200 1 0 1 1
+2 19
+"PRIMITIVE_TEXT6"
+""
+1 492 441.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 492 441.0000000000001 552 461.0000000000001
+0 2 2 "0s" 0 0 0 65 0 0  492 441.0000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 4 Num.
+2 20
+"printout"
+""
+1 740 441.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 740 441.0000000000001 835 461.0000000000001
+0 2 2 "0s" 0 0 0 65 0 0  740 441.0000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+22 21
+"prio"
+""
+1 400 444.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  398 442 452 470
+3
+1
+LANG:1 1 H
+
+0
+1
+LANG:1 1 M
+
+0
+1
+LANG:1 1 L
+
+0
+
+E
+E
+E
+ 0 0
+2 22
+"PRIMITIVE_TEXT7"
+""
+1 1246.165203368556 1220.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.99780701754386 0 1 100.559210526316 115.0000000000001 1 E 257 335 293 355
+0 2 2 "0s" 0 0 0 65 0 0  257 335 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Priority
+6 27
+"q1"
+""
+1 480 370 E E E 1 E 0 E N {0,0,0} E N "FwAlarmWarnUnack" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.01388888888889 0 1.16666666666667 -5.666666666666643 47.33333333333346 1 E 480 370 840 400
+2 28
+"q2"
+""
+1 486 489.0000000000001 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 486 489.0000000000001 666 504.0000000000001
+0 2 2 "0s" 0 0 0 65 0 0  486 489.0000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,12,5,75,0,0,0,0,0
+0 1
+LANG:1 16 ARE YOU SURE ???
+13 30
+"q3"
+""
+1 651 486.0000000000001 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  649 484 723 510
+
+T 
+1
+LANG:1 3 YES
+"main()
+{
+  int pp = posrem.text();
+  dyn_string last;
+  string mess;
+  dpGet(dp+\".svalue\",last);
+  if(pp <=dynlen(last))
+  {
+  dynRemove(last,pp);
+  mess = \"Removed\";
+  }else
+    mess = \"Not Exists\";
+    
+  dpSet(dp+\".svalue\",last);
+  printout.text = mess;
+  
+  
+    q1.visible = false;
+  q2.visible = false;
+    q3.visible = false;
+      q4.visible = false;
+
+  
+}" 0
+ E E E
+13 31
+"q4"
+""
+1 741 486.0000000000001 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  739 484 813 510
+
+T 
+1
+LANG:1 2 NO
+"main()
+{
+  
+  q1.visible = false;
+  q2.visible = false;
+    q3.visible = false;
+      q4.visible = false;
+
+  
+  
+}" 0
+ E E E
+30 34
+"FRAME5"
+""
+1 20 373 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+45 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.013636363636364 0 1.233576642335766 -0.2727272727272663 -48.12408759124074 0 E 20 373 461 511
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Add or Update Problem
+21 35
+"updsel"
+""
+1 304 547.0952380952382 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  302 545 366 573
+0
+
+"main()
+{
+  delay(1,0);
+  if(dynlen(dp)==0)
+    delay(2,0);
+  if(dynlen(dp)==0)
+    delay(2,0);
+  else{
+    dyn_string elems;
+    dpGet(dp + \".svalue\",elems);
+   //DebugN(dp); 
+  this.sbMaximum = dynlen(elems);
+  this.sbMinimum = 1;
+  }
+}" 0
+
+E
+E
+
+N 1 200 1 0 1 1
+13 37
+"upbut"
+""
+1 382 547.0434782608696 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  380 545 442 573
+
+T 
+1
+LANG:1 2 ->
+"main()
+{
+string type = sys.text();
+  string locd = loc.selectedText();
+  string posd = pos.text();
+  string data = note.text();
+  string user;
+  fwAccessControl_getUserName(user);
+  int pri = prio.selectedPos();
+  //DebugN(dp,type+\"|\"+locd+\"|\"+posd+\"|\"+data);
+  dyn_string last;
+  string now = getCurrentTime();
+  string vall;
+  now=substr(now,0,16);
+  
+  if(((posd!=\"\")&&(data!=\"\"))||(fix.number()==1))
+  {
+  dpGet(dp+\".svalue\",last);
+  
+  if(fix.number()==1){
+    vall = last[updsel.text()]+\"|\"+now;}
+    else vall = type+\"|\"+locd+\"|\"+posd+\"|\"+pri+\"|\"+data+\"|\"+now+\"|\"+user;
+    dynRemove(last,updsel.text());  
+    dynInsertAt(last,vall,updsel.text());
+    dpSet(dp+\".svalue\",last);
+  }
+  
+ }" 0
+ E E E
+2 38
+"PRIMITIVE_TEXT8"
+""
+1 198 551.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 198 551.0000000000001 293 571.0000000000001
+0 2 2 "0s" 0 0 0 65 0 0  198 551.0000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 17 or Update Prob. #
+19 39
+"fix"
+""
+1 404 490.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  402 488 454 528
+2
+T 
+1
+LANG:1 3 New
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 5 Fixed
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+13 40
+"syncdb"
+""
+1 499.9858156028369 544.9677419354839 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  498 543 638 575
+
+T 
+1
+LANG:1 13 Sync. with DB
+"main()
+{
+  float offset = 1267637179,differ,lastupdate;
+  dyn_string last,value;
+  time lastchange;
+  int up =0;
+  fwOpenProgressBar(\"Problem syncronization\",\"Syncronizing problems with db...\",1);
+  dpGet(dp+\".svalue\",last);
+  dyn_string dp2wr = dpNames(\"*KnownPro*\",\"RPCUtils\");
+  if(dynlen(dp2wr)>0){
+    dpGet(dp2wr[1]+\".fvalue\",lastupdate); 
+    for(int i = 1;i<=dynlen(last);i++){
+    value= strsplit(last[i],\"|\");
+    
+    if(dynlen(value)==7) 
+     lastchange = value[6];
+    else if(dynlen(value)==8)
+      lastchange = value[8];
+   
+    differ = (float)lastchange - (lastupdate+offset); 
+    //DebugN(dynlen(value),lastchange,differ);
+    if(differ>0){ 
+      dpSet(dp2wr[1]+\".svalue\",last[i]);
+      up++;      
+      }
+    delay(0,500); 
+     
+    }  
+
+  }
+  fwShowProgressBar(\"Updated \"+up+\" values\");  
+  delay(0,500); 
+  dpSet(dp2wr[1]+\".fvalue\",getCurrentTime()- offset );  
+  fwCloseProgressBar(\"Syncronization done.\");
+  
+}" 0
+ E E E
+22 41
+"hidshow"
+""
+1 748 42 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  746 40 842 64
+2
+1
+LANG:1 10 Hide Fixed
+
+0
+1
+LANG:1 10 Show Fixed
+
+0
+
+E
+"main()
+{
+  dyn_string value;
+  if(dynlen(dp)==1)
+  {
+    dpGet(dp[1]+\".svalue\",value);
+    showtable(value);
+  }
+    
+}" 0
+
+E
+ 0 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

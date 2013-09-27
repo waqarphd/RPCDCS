@@ -1,0 +1,422 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 839 658 N "_3DFace" 1
+"$sDpName"
+E E E E E 1 -1 -1 0  210 70
+""0  1
+E "dyn_string g_dpes;
+
+updateCellValue(string dpa1, anytype value,
+                string dpa2, bool userBit1,
+                string dpa3, bool userBit2,
+                string dpa4, bool invalid
+                )
+{
+  int pos;
+  string quality, valueAsString, dpe = dpSubStr(dpa1, DPSUB_SYS_DP_EL);
+  
+  if(!invalid)
+  {
+    if(userBit1 && userBit2)
+      quality = \"GOOD\";
+    else if(!userBit1 && userBit2)
+      quality = \"UNCERTAIN\";
+    else if(!userBit1 && !userBit2)
+      quality = \"BAD\";
+    else if(userBit1 && !userBit2)
+      quality = \"UNDEFINED\";
+  }
+  else
+    quality = \"INVALID\";
+
+  pos = dynContains(g_dpes, dpe);
+  if(dpe > 0)
+  {
+    valueAsString = dpValToString(dpe, value);
+    TABLE1.cellValueRC(pos - 1, \"value\", valueAsString);
+    TABLE1.cellValueRC(pos - 1, \"quality\", quality);  
+  }
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 3
+"TABLE1"
+""
+1 10 100 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  string dpElement;
+  dyn_string exceptionInfo;
+  
+  dpElement = this.cellValueRC(row, \"dpName\");
+
+  if(column == \"quality\")
+  {
+    fwGeneral_openDetailsPanel(dpElement, exceptionInfo);
+  }  
+  else if(column == \"value\")
+  {
+    ChildPanelOnCentralModal(\"fwConfigs/fwAlarmOperationPopupPanel.pnl\",
+                              \"Alert Details\",
+                              makeDynString(\"$sDpe:\" + dpElement));
+  }
+  else
+  {
+    ChildPanelOnCentralModal(\"fwExternalApps/fwExternalAppsPvssDipDnsDetails.pnl\",
+                              \"DIP Configuration Details\",
+                              makeDynString(\"$sDpe:\" + dpElement));
+  }
+}" 0
+
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 98 832 512
+"main()
+{
+  dyn_int addressMode;
+  dyn_string dpes, usedDpes, usedDpesUserBit1, usedDpesUserBit2, usedDpesInvalid, units, descriptions, exceptionInfo;
+  
+  this.deleteAllLines();
+  dpes = makeDynString();
+  units = makeDynString();
+  descriptions = makeDynString();
+  
+//  getElements($sDpName, dpTypeName($sDpName), dpes);
+//  getElements(\"dist_26:ExternalApps/Cooling/SF5/SH5/EP\", dpTypeName(\"dist_26:ExternalApps/Cooling/SF5/SH5/EP\"), dpes);
+  fwDevice_getElements(dpTypeName($sDpName), dpes, addressMode, exceptionInfo);
+  
+  for(int i=1; i<=dynlen(dpes); i++)
+  {
+    string unit, description;
+    
+    description = dpGetDescription($sDpName + dpes[i], 0);
+    if(dpSubStr($sDpName + dpes[i], DPSUB_SYS_DP) == dpSubStr(description, DPSUB_SYS_DP))
+      continue;
+    
+    unit = dpGetUnit($sDpName + dpes[i], 0);
+
+    dynAppend(usedDpes, $sDpName + dpes[i]);
+    dynAppend(usedDpesUserBit1, $sDpName + dpes[i] + \":_original.._userbit1\");
+    dynAppend(usedDpesUserBit2, $sDpName + dpes[i] + \":_original.._userbit2\");
+    dynAppend(usedDpesInvalid, $sDpName + dpes[i] + \":_original.._invalid\");
+    dynAppend(units, unit);
+    dynAppend(descriptions, description);
+  }
+
+  g_dpes = usedDpes;
+  this.appendLines(dynlen(usedDpes), \"dpName\", usedDpes, \"description\", descriptions, \"unit\", units);
+  
+  for(int i=1; i<=dynlen(usedDpes); i++)
+    dpConnect(\"updateCellValue\", TRUE, usedDpes[i], usedDpesUserBit1[i], usedDpesUserBit2[i], usedDpesInvalid[i]);
+}
+  
+  
+getElements(string dpName, string dpType, dyn_string &dpes)
+{  
+  int level = -1;
+  string path = dpName + \".\";
+  dyn_dyn_int types;
+  dyn_dyn_string elements;
+  
+  dpTypeGet(dpType, elements, types);
+  for(int i=2; i<=dynlen(elements); i++)
+  {
+    for(int j=1; j<=dynlen(elements[i]); j++)
+    {
+      if(elements[i][j] != \"\")
+      {
+        if(types[i][j] == DPEL_STRUCT)
+        {
+          if(level < j)
+          {
+            path += elements[i][j] + \".\";
+            level = j;
+          }
+          else if(level == j)
+          {
+            path = substr(path, 0, strpos(path, \".\") + 1) + elements[i][j] + \".\";
+          }
+        }
+        else
+          dynAppend(dpes, path + elements[i][j]);
+
+        break;
+      }
+    }
+  }
+}" 0
+E 1 0 1 5 0 "dpName" 22 0 0 "s" 1
+LANG:1 18 Data Point Element
+E
+1
+LANG:1 0 
+
+250 "description" 46 1 0 "s" 1
+LANG:1 11 Description
+E
+1
+LANG:1 0 
+
+520 "value" 9 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+110 "quality" 7 1 0 "s" 1
+LANG:1 12 Data Quality
+E
+1
+LANG:1 0 
+
+90 "unit" 6 1 0 "s" 1
+LANG:1 4 Unit
+E
+1
+LANG:1 0 
+
+75 
+20 20 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+2 4
+"Text1"
+""
+1 8 8 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 10 220 33
+0 2 0 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 External Application Data
+2 5
+"Text6"
+""
+1 55 156 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 53 50 70
+0 2 0 "0s" 0 0 0 192 0 0  12 53 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Name:
+14 6
+"sChannelName"
+""
+1 515.205882352941 182 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 58 48 832 75
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = $sDpName;
+}" 0
+ E
+13 7
+"Button8"
+""
+1 740 540 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 738 538 822 572
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+1 24 0 "" 0
+0
+1 25 0 "" 1
+0
+1 26 1 "" 19
+0
+1 27 1 "" 18
+0
+2 12
+"PRIMITIVE_TEXT1"
+""
+1 50 520 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 50 520 480 575
+0 2 2 "0s" 0 0 0 192 0 0  50 520 3
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 68 Double-click the "Data Quality" column to see the PVSS details panel
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 62 Double-click the "Value" column to see the alarm configuration
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 72 Double-click any other column to identify the DIP data item and PVSS dpe
+2 17
+"PRIMITIVE_TEXT2"
+""
+1 55 623 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 520 43 537
+0 2 0 "0s" 0 0 0 192 0 0  12 520 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Note:
+4 22
+"LINE1"
+""
+1 10 590 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E  10 590 830 590
+13 23
+"PUSH_BUTTON1"
+""
+1 9.99999999999996 610 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 608 832 642
+
+T 
+1
+LANG:1 92 Display all DPes, DIP items, DIP tags, values, quality and units of the DPs hierarchy below!
+"main()
+{
+  ChildPanelOnCentralModal(\"fwExternalApps/fwExternalAppsHierarchyOperation.pnl\",
+                           \"Hierarchy Operation\",
+                           makeDynString(\"$sDpName:\"+$sDpName));
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "PANEL_REF3"
+"objects\\fwConfigs\\fwAlarmSummaryButton.pnl" 230 40 T 14 1 0 1 616 -20
+1
+"$sDpName""$sDpName"
+3 1 "PANEL_REF2"
+"fwDeviceEditorNavigator\\fwActionButton.pnl" 360 -2 T 15 1 0 1 270 0
+1
+"$sDpName""$sDpName"
+0

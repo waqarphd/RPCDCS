@@ -1,0 +1,146 @@
+ALTER TABLE config_sumalerts MODIFY sumdpelist VARCHAR2(4000);
+
+ALTER TABLE items ADD (dpt_id number);
+update items i set dpt_id=(select unique dpt_id from config_items where item_id=i.id and rownum=1);
+ALTER TABLE items
+    ADD CONSTRAINT items_fk_dptid
+    FOREIGN KEY ( dpt_id )
+    REFERENCES device_types( dpt_id )
+ENABLE;
+
+
+ALTER TABLE recipe_data ADD (develem_id number);
+
+-- Make sure that "FwNode" is stored as a type...
+begin
+    DECLARE 
+	cnt number;
+	dptid number;
+    BEGIN
+	select count(*) into cnt from device_types where DPTYPE='FwNode' ;
+        if ( cnt < 1) then
+	    INSERT INTO device_types(dpt_id, dptype) values (dpt_id_seq.nextval,'FwNode');
+	    select dpt_id into dptid from device_types where dptype='FwNode';
+	    INSERT INTO device_elements(develem_id,dpt_id,elementname,elementtype) 
+			values(develem_id_seq.nextval,dptid,'.',1);
+        end if;
+    end;
+END;
+/
+                                                
+
+-- insert the "." element for FwNode! Otherwise we will not be able to resolve the develem_id in recipe data!
+insert into device_elements(develem_id,dpt_id,elementname,elementtype) 
+    values (develem_id_seq.nextval, (select unique dpt_id from device_types where DPTYPE='FwNode' and rownum=1),'.',0);
+
+UPDATE RECIPE_DATA rd set 
+    rd.develem_id=(
+	select develem_id from v_device_configs vdc, items i, device_types dt
+	where vdc.elementname=rd.propname
+	and vdc.elementtype=rd.proptype
+	AND i.id=rd.id
+	AND i.dpt_id=dt.dpt_id
+	AND vdc.dptype = dt.dptype
+    );
+								
+
+ALTER TABLE recipe_data
+    ADD CONSTRAINT rd_fk_develid
+    FOREIGN KEY ( develem_id )
+    REFERENCES device_elements( DEVELEM_ID )
+ENABLE;
+
+-- "logical" delete these columns - the data is taken from another table!
+ALTER TABLE recipe_data SET UNUSED(propname, proptype);
+-- then physically delete them!
+ALTER TABLE recipe_data DROP UNUSED COLUMNS;
+
+CREATE OR REPLACE VIEW v_items
+(
+    item_id,
+    parent_id,
+    hver,
+    name,
+    dpname,
+    parent_dpname,
+    dptype,
+    type,
+    detail,
+    description,
+    dpid
+)  AS SELECT
+    i.id,
+    i.parent,
+    i.hver,
+    i.name,
+    i.dpname,
+    (select dpname from v_item_names p where p.id=i.parent),
+    (select dptype from device_types where dpt_id=i.dpt_id),
+    i.type,
+    i.detail,
+    i.description,
+    i.dpid
+FROM items i;
+                                                            
+        
+CREATE OR REPLACE VIEW v_recipesall
+(
+    propid,
+    proptype,
+    item_id,
+    develem_id,
+    recipe_ver,
+    valid_from,
+    valid_to,
+    tag,
+    recipe_type,
+    recipe_comment,
+    hierarchy,
+    dpname,
+    property,
+    DPtype,
+    detail,
+    elementType,
+    has_value,
+    has_alert,
+    propvalue,
+    alert_type,
+    alert_active,
+    alert_classes,
+    alert_texts,
+    alert_limits
+) AS SELECT
+    rt.propid,
+    de.elementtype,
+    i.item_id,
+    rd.develem_id,
+    rd.rver,
+    rt.valid_from,
+    rt.valid_to,
+    r.name,
+    r.recipe_type,
+    r.description,
+    h.htype,
+    i.dpname,
+    de.elementname,
+    i.dptype,
+    i.detail,
+    de.elementtype,
+    rd.has_value,
+    rd.has_alert,
+    rd.propvalue,
+    rd.alert_type,
+    rd.alert_active,
+    rd.alert_classes,
+    rd.alert_texts,
+    rd.alert_limits
+FROM recipe_tags rt, recipes r, recipe_data rd ,v_items i,hierarchies h, device_elements de
+WHERE rt.propid=rd.propid
+AND r.tagid=rt.tagid
+AND h.hver=i.hver
+AND i.item_id=rd.id
+AND de.develem_id=rd.develem_id(+);
+
+drop view v_recipes;
+
+#include "fwConfigurationDB_upgradeSchema_2.02-2.06.sql.IN"

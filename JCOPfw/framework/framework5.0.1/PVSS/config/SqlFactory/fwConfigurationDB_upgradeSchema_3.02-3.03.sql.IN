@@ -1,0 +1,20 @@
+#ifndef _SCHEMA_VERSION_
+#define  _SCHEMA_VERSION_ 3.03
+#endif
+
+-- Fix for ENS-1065: the data describing branches in the logical view is moved to REFERENCES table
+insert into references(refver,id,ref_id,valid_from, valid_to)
+    select ci.tag_id refver,i.id id,i.id ref_id,ci.valid_from valid_from, ci.valid_to valid_to
+    from config_items_new ci, items i
+    where i.id=ci.item_id and i.hver=2
+    and i.id not in (select id from references where refver=ci.tag_id);
+
+delete from config_items_new ci where ci.item_id in (select id from items i where i.hver=2);
+
+#include "fwConfigurationDB_PLSQLAPI.SQL"
+
+#include "fwConfigurationDB_SCHEMAVERSION.SQL"
+
+commit;
+
+

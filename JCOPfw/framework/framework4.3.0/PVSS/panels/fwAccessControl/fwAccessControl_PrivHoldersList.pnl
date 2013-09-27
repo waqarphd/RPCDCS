@@ -1,0 +1,542 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 550 449 N "_3DFace" 2
+"$domain"
+"$privilege"
+"main()
+{
+
+populatePanel();
+
+if (isDollarDefined(\"$domain\")) {
+   if (dynContains(g_allDomainNames,$domain)) {
+   	setValue(\"Domain\",\"text\",$domain);
+   	domainChanged();
+   } else {
+	fwAccessControl_raiseException(exceptionInfo,\"ERROR\",\"Domain \"+$domain+\" does not exist\",\"\");
+	fwAccessControl_displayException(exceptionInfo);
+	return;
+   }
+} else {
+	if (dynlen(g_allDomainNames)>0) {
+   		setValue(\"Domain\",\"text\",g_allDomainNames[1]); 
+   		domainChanged(); 
+	}
+}
+
+if (isDollarDefined(\"$privilege\")) {
+   setValue(\"Privilege\",\"text\",$privilege);
+   privilegeChanged();
+}
+
+}" 0
+ E E E E 1 -1 -1 0  200 439
+""0  1
+E "dyn_string g_allDomainNames;
+
+void populatePanel()
+{
+dyn_string exceptionInfo,domainNames,domainFullNames;
+
+setValue(\"Groups\",\"deleteAllLines\");
+setValue(\"Users\",\"deleteAllLines\");
+setValue(\"Domain\",\"deleteAllItems\");
+setValue(\"Privilege\",\"deleteAllItems\");
+
+fwAccessControl_getAllDomains(domainNames, domainFullNames, exceptionInfo);
+if (dynlen(exceptionInfo)) {
+	fwAccessControl_displayException(exceptionInfo);
+	return;
+}
+
+setValue(\"Domain\",\"items\",domainNames);
+g_allDomainNames=domainNames;
+}
+
+
+void domainChanged()
+{
+string domainName, domainFullName, domainComment;
+int domainId;
+dyn_string privilegeNames, exceptionInfo;
+dyn_int privilegeIds;
+
+getValue(\"Domain\",\"text\",domainName);
+
+setValue(\"Groups\",\"deleteAllLines\");
+setValue(\"Users\",\"deleteAllLines\");
+setValue(\"Privilege\",\"deleteAllItems\");
+fwAccessControl_getDomain(domainName, domainFullName, domainComment, 
+		domainId, privilegeNames, privilegeIds, exceptionInfo);
+
+if (dynlen(exceptionInfo)) {
+	fwAccessControl_displayException(exceptionInfo);
+	return;
+}
+
+setValue(\"Privilege\",\"items\",privilegeNames);
+setValue(\"Privilege\",\"text\",\"\");
+
+}
+
+void privilegeChanged()
+{
+string privilegeName, domainName;
+dyn_string exceptionInfo, privUsers, privGroups;
+
+getValue(\"Domain\",\"text\",domainName);
+getValue(\"Privilege\",\"text\",privilegeName);
+
+setValue(\"Groups\",\"deleteAllLines\");
+setValue(\"Users\",\"deleteAllLines\");
+
+fwAccessControl_getGroupsHavingPrivilege(domainName, privilegeName, privGroups,
+					exceptionInfo);
+
+fwAccessControl_getUsersHavingPrivilege(domainName, privilegeName, privUsers,
+					exceptionInfo);
+
+if (dynlen(exceptionInfo)) {
+	fwAccessControl_displayException(exceptionInfo);
+	return;
+}
+
+setValue(\"Groups\",\"appendLines\",dynlen(privGroups),\"Name\",privGroups);
+setValue(\"Users\",\"appendLines\",dynlen(privUsers),\"Name\",privUsers);
+
+
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+1 19 1 "" 0
+0
+30 6
+"GroupsFrame"
+""
+1 10 120 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.381909547738694 0 -45.82914572864323 0 E 10 120 270 320
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Groups
+2 9
+"PRIMITIVE_TEXT1"
+""
+1 -20 24 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 40 130 55
+0 2 2 "0s" 0 0 0 192 0 0  10 40 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 21 Access right holders:
+30 12
+"UsersFrame"
+""
+1 280 120 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.381909547738694 0 -45.82914572864323 0 E 280 120 540 320
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Users
+2 15
+"Text1"
+""
+1 10 84 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 140 60 185 75
+0 2 2 "0s" 0 0 0 192 0 0  140 60 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Domain:
+2 16
+"PRIMITIVE_TEXT2"
+""
+1 240 74 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 140 90 188 105
+0 2 2 "0s" 0 0 0 192 0 0  140 90 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 Privilege
+2 18
+"Text2"
+""
+1 -318 -94 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 10 238 29
+0 2 2 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 JCOP Framework Access Control
+13 0
+"CloseButton"
+""
+1 458 403 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 403 538 433
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+25 11
+"Users"
+""
+1 290 139.0722891566265 E E E 1 E 1 E N "_3DText" E N "white" E E
+ "main()
+{
+
+int n,k;
+getValue (\"\", \"currentCell\", n, k);
+string user;
+getValue (\"\", \"cellValueRC\", n, \"Name\",user);
+if (user==\"\") return;
+
+dyn_string exceptionInfo;
+string fullName,description;
+int    id;
+bool enabled;
+dyn_string groupNames;
+
+fwAccessControl_getUser(user,fullName,description,id,enabled,groupNames,exceptionInfo);
+if (dynlen(exceptionInfo)) return;
+
+strreplace(fullName,\",\",\" \");
+strreplace(description,\",\",\" \");
+
+dyn_string txt;
+  int answer;
+  txt=makeDynString(
+  \"PUSH_BUTTON, user:\"+user+\", 1, 1\",
+  \"SEPARATOR\", // separating line
+  \"PUSH_BUTTON, \"+fullName+\", 2, 1\",
+  \"PUSH_BUTTON, \"+description+\", 3, 1\",
+  \"SEPARATOR\", // separating line
+  \"CASCADE_BUTTON, Commands, 1\", // branch
+  \"Commands\", // from here level 2
+  \"PUSH_BUTTON, Show details, 99, 1\");
+
+
+  popupMenu(txt, answer);
+
+
+if (answer==99) {
+	if (!isModuleOpen(\"User Details\")) ModuleOn(\"User Details\",0,0,0,0,1,1,\"\");
+
+	RootPanelOnModule(\"fwAccessControl/fwAccessControl_EditUser.pnl\",
+		user,\"User Details\",makeDynString(\"$userName:\"+user,\"$mode:RO\"));
+
+}
+
+}" 0
+ "main()
+{
+int n,k;
+getValue (\"\", \"currentCell\", n, k);
+string user;
+getValue (\"\", \"cellValueRC\", n, \"Name\",user);
+if (user==\"\") return;
+
+if (!isModuleOpen(\"User Details\")) {
+	ModuleOn(\"User Details\",0,0,0,0,1,1,\"\");
+}
+
+RootPanelOnModule(\"fwAccessControl/fwAccessControl_EditUser.pnl\",
+	user,\"User Details\",makeDynString(\"$userName:\"+user,\"$mode:RO\"));
+
+
+}" 0
+
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 290 140 530 387
+"main()
+{
+this.tableMode=TABLE_SELECT_BROWSE;
+this.selectByClick=TABLE_SELECT_LINE;
+}" 0
+E 0 0 1 1 1 "Name" 19 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+220 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+25 1
+"Groups"
+""
+1 20 139.0722891566265 E E E 1 E 1 E N "_3DText" E N "white" E E
+ "main()
+{
+
+int n,k;
+getValue (\"\", \"currentCell\", n, k);
+string group;
+getValue (\"\", \"cellValueRC\", n, \"Name\",group);
+if (group==\"\") return;
+
+dyn_string exceptionInfo;
+string fullName,description;
+int    id;
+
+fwAccessControl_getGroup(group,fullName,description,id,exceptionInfo);
+if (dynlen(exceptionInfo)) return;
+strreplace(fullName,\",\",\" \");
+strreplace(description,\",\",\" \"); 
+
+
+dyn_string txt;
+  int answer;
+  txt=makeDynString(
+  \"PUSH_BUTTON, group:\"+group+\", 1, 1\",
+  \"SEPARATOR\", // separating line
+  \"PUSH_BUTTON, \"+fullName+\", 2, 1\",
+  \"PUSH_BUTTON, \"+description+\", 3, 1\",
+  \"SEPARATOR\", // separating line
+  \"CASCADE_BUTTON, Commands, 1\", // branch
+  \"Commands\", // from here level 2
+  \"PUSH_BUTTON, Show details, 99, 1\");
+  popupMenu(txt, answer);
+
+if (answer==99) {
+	if (!isModuleOpen(\"Group Details\")) ModuleOn(\"Group Details\",0,0,0,0,1,1,\"\");
+
+	RootPanelOnModule(\"fwAccessControl/fwAccessControl_EditGroup.pnl\",
+		group,\"Group Details\",makeDynString(\"$groupName:\"+group,\"$mode:RO\"));
+
+}
+
+}" 0
+ "main()
+{
+int n,k;
+getValue (\"\", \"currentCell\", n, k);
+string group;
+getValue (\"\", \"cellValueRC\", n, \"Name\",group);
+if (group==\"\") return;
+
+if (!isModuleOpen(\"Group Details\")) {
+	ModuleOn(\"Group Details\",0,0,0,0,1,1,\"\");
+}
+
+RootPanelOnModule(\"fwAccessControl/fwAccessControl_EditGroup.pnl\",
+	group,\"Group Details\",makeDynString(\"$groupName:\"+group,\"$mode:RO\"));
+
+}" 0
+
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 20 140 260 387
+"main()
+{
+this.tableMode=TABLE_SELECT_BROWSE;
+this.selectByClick=TABLE_SELECT_LINE;
+}" 0
+E 0 0 1 1 1 "Name" 19 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+220 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+22 14
+"Privilege"
+""
+1 200 80 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 200 80 470 109
+0
+
+E
+"main()
+{
+  this.enabled=FALSE;
+  privilegeChanged();
+  this.enabled=TRUE;
+}" 0
+
+E
+ 0 0
+22 13
+"Domain"
+""
+1 200 50 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 200 50 470 79
+0
+
+E
+"main()
+{
+domainChanged();
+}" 0
+
+E
+ 0 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 1 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 6 1 0 1 180 0
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_PrivHoldersList"
+0

@@ -1,0 +1,979 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 926 527 N "_3DFace" 0
+"main()
+{
+PopulatePanel();
+}" 0
+ E E E E 1 -1 -1 0  20 24
+""0  1
+E "dyn_string columnNames;
+dyn_string columnTypes;
+
+void PopulatePanel()
+{
+// hide all columns
+for (int i=1;i<Results.columnCount;i++) {
+	Results.columnVisibility(i,FALSE); 
+}
+
+dyn_string exceptionInfo;
+	fwConfigurationDB_checkInit(exceptionInfo);
+    if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}
+
+ObjectTypes.text=\"Tables\";
+ObjectTypeChanged();
+}
+
+
+void ObjectTypeChanged()
+{
+
+Objects.enabled=FALSE;
+ObjectTypes.enabled=FALSE;
+
+Results.deleteAllLines;
+
+dyn_string items;
+Objects.deleteAllLines;
+
+Results.columnHeaderVisibility(FALSE);
+for (int i=1;i<=dynlen(columnNames);i++) {
+	Results.columnVisibility(i,FALSE);
+	Results.columnHeader(i,\"\");
+}
+
+if (ObjectTypes.text==\"Tables\") {
+	string sql=\"SELECT TABLE_NAME FROM USER_TABLES\";
+	dyn_string exceptionInfo;
+    	dyn_dyn_mixed aResults;
+
+    	_fwConfigurationDB_executeDBQuery(sql,g_fwConfigurationDB_DBConnection,
+		aResults, exceptionInfo,1,TRUE);
+    	if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}
+	if (dynlen(aResults)) items=aResults[1];
+
+
+} else if (ObjectTypes.text==\"Views\") {
+	string sql=\"SELECT VIEW_NAME FROM USER_VIEWS\";
+	dyn_string exceptionInfo;
+    	dyn_dyn_mixed aResults;
+
+    	_fwConfigurationDB_executeDBQuery(sql,g_fwConfigurationDB_DBConnection,
+		aResults, exceptionInfo,1,TRUE);
+    	if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}
+	if (dynlen(aResults)) items=aResults[1];
+
+}
+
+	Objects.appendLines(dynlen(items),\"#1\",items);
+Objects.enabled=TRUE;
+ObjectTypes.enabled=TRUE;
+
+}
+
+
+
+void ObjectSelected(string obj)
+{
+Objects.enabled=FALSE;
+ObjectTypes.enabled=FALSE;
+
+//DebugN(\"ObjectSelected\",obj);
+// hide all columns
+for (int i=1;i<Results.columnCount;i++) {
+	Results.columnVisibility(i,FALSE); 
+}
+Results.deleteAllLines;
+
+string sql=\"SELECT COLUMN_NAME,DATA_TYPE FROM USER_TAB_COLS WHERE TABLE_NAME=\\'\"+obj+\"\\'\";
+dyn_string exceptionInfo;
+dyn_dyn_mixed aResults;
+
+_fwConfigurationDB_executeDBQuery(sql,g_fwConfigurationDB_DBConnection,
+		aResults, exceptionInfo,2,TRUE);
+if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}
+
+if (dynlen(aResults)<2) return;
+columnNames=aResults[1];
+columnTypes=aResults[2];
+
+Results.columnHeaderVisibility(TRUE);
+for (int i=1;i<=dynlen(columnNames);i++) {
+	Results.columnVisibility(i,TRUE);
+	Results.columnHeader(i,columnNames[i]);
+	Results.columnWidth(i,10*strlen(columnNames[i])+10);	
+}
+
+string sql=\"SELECT \";
+for (int i=1;i<=dynlen(columnNames);i++){
+	sql=sql+columnNames[i];
+	if (i!=dynlen(columnNames)) sql=sql+\",\";
+}
+sql=sql+\" FROM \"+obj;
+ExecuteQuery(sql);
+Objects.enabled=TRUE;
+ObjectTypes.enabled=TRUE;
+
+}
+
+void ExecuteQuery(string sql)
+{
+
+	Results.deleteAllLines;
+	Results.stop(TRUE);
+
+	dyn_string exceptionInfo;
+    	dyn_dyn_mixed aResults;
+
+    int nCols=dynlen(columnNames);
+
+    _fwConfigurationDB_executeDBQuery(sql,g_fwConfigurationDB_DBConnection,
+		aResults, exceptionInfo,nCols,TRUE);
+    if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}
+
+    if (dynlen(aResults)<1) return;
+
+    dyn_int colIdx;
+    for (int i=1;i<=dynlen(aResults[1]);i++) colIdx[i]=i;
+
+    Results.appendLines(dynlen(colIdx),\"#0\",colIdx);
+
+    for (int i=1;i<=nCols;i++) {
+	Results.updateLines(1,\"#0\",colIdx,\"#\"+i,aResults[i]);
+    }
+
+
+    Results.stop(FALSE);
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 20 20 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 20 149 39
+0 2 2 "0s" 0 0 0 192 0 0  20 20 1
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-120-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Database Browser
+13 3
+"CloseButton"
+""
+1 800 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 800 490 900 521
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+PanelOff();
+}" 0
+ E E E
+25 4
+"Results"
+""
+1 280 60 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 97 -*-Courier New-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Courier New
+0 ""
+ 280 60 900 480
+EE 1 0 1 101 1 "#0" 4 1 0 "s" 1
+LANG:1 1 #
+E
+1
+LANG:1 0 
+
+40 "#1" 4 1 0 "s" 1
+LANG:1 2 #1
+E
+1
+LANG:1 0 
+
+40 "#2" 4 1 0 "s" 1
+LANG:1 2 #2
+E
+1
+LANG:1 0 
+
+40 "#3" 4 1 0 "s" 1
+LANG:1 2 #3
+E
+1
+LANG:1 0 
+
+40 "#4" 4 1 0 "s" 1
+LANG:1 2 #4
+E
+1
+LANG:1 0 
+
+40 "#5" 4 1 0 "s" 1
+LANG:1 2 #5
+E
+1
+LANG:1 0 
+
+40 "#6" 4 1 0 "s" 1
+LANG:1 2 #6
+E
+1
+LANG:1 0 
+
+40 "#7" 4 1 0 "s" 1
+LANG:1 2 #7
+E
+1
+LANG:1 0 
+
+40 "#8" 4 1 0 "s" 1
+LANG:1 2 #8
+E
+1
+LANG:1 0 
+
+40 "#9" 4 1 0 "s" 1
+LANG:1 2 #9
+E
+1
+LANG:1 0 
+
+40 "#10" 4 1 0 "s" 1
+LANG:1 3 #10
+E
+1
+LANG:1 0 
+
+40 "#11" 4 1 0 "s" 1
+LANG:1 3 #11
+E
+1
+LANG:1 0 
+
+40 "#12" 4 1 0 "s" 1
+LANG:1 3 #12
+E
+1
+LANG:1 0 
+
+40 "#13" 4 1 0 "s" 1
+LANG:1 3 #13
+E
+1
+LANG:1 0 
+
+40 "#14" 4 1 0 "s" 1
+LANG:1 3 #14
+E
+1
+LANG:1 0 
+
+40 "#15" 4 1 0 "s" 1
+LANG:1 3 #15
+E
+1
+LANG:1 0 
+
+40 "#16" 4 1 0 "s" 1
+LANG:1 3 #16
+E
+1
+LANG:1 0 
+
+40 "#17" 4 1 0 "s" 1
+LANG:1 3 #17
+E
+1
+LANG:1 0 
+
+40 "#18" 4 1 0 "s" 1
+LANG:1 3 #18
+E
+1
+LANG:1 0 
+
+40 "#19" 4 1 0 "s" 1
+LANG:1 3 #19
+E
+1
+LANG:1 0 
+
+40 "#20" 4 1 0 "s" 1
+LANG:1 3 #20
+E
+1
+LANG:1 0 
+
+40 "#21" 4 1 0 "s" 1
+LANG:1 3 #21
+E
+1
+LANG:1 0 
+
+40 "#22" 4 1 0 "s" 1
+LANG:1 3 #22
+E
+1
+LANG:1 0 
+
+40 "#23" 4 1 0 "s" 1
+LANG:1 3 #23
+E
+1
+LANG:1 0 
+
+40 "#24" 4 1 0 "s" 1
+LANG:1 3 #24
+E
+1
+LANG:1 0 
+
+40 "#25" 4 1 0 "s" 1
+LANG:1 3 #25
+E
+1
+LANG:1 0 
+
+40 "#26" 4 1 0 "s" 1
+LANG:1 3 #26
+E
+1
+LANG:1 0 
+
+40 "#27" 4 1 0 "s" 1
+LANG:1 3 #27
+E
+1
+LANG:1 0 
+
+40 "#28" 4 1 0 "s" 1
+LANG:1 3 #28
+E
+1
+LANG:1 0 
+
+40 "#29" 4 1 0 "s" 1
+LANG:1 3 #29
+E
+1
+LANG:1 0 
+
+40 "#30" 4 1 0 "s" 1
+LANG:1 3 #30
+E
+1
+LANG:1 0 
+
+40 "#31" 4 1 0 "s" 1
+LANG:1 3 #31
+E
+1
+LANG:1 0 
+
+40 "#32" 4 1 0 "s" 1
+LANG:1 3 #32
+E
+1
+LANG:1 0 
+
+40 "#33" 4 1 0 "s" 1
+LANG:1 3 #33
+E
+1
+LANG:1 0 
+
+40 "#34" 4 1 0 "s" 1
+LANG:1 3 #34
+E
+1
+LANG:1 0 
+
+40 "#35" 4 1 0 "s" 1
+LANG:1 3 #35
+E
+1
+LANG:1 0 
+
+40 "#36" 4 1 0 "s" 1
+LANG:1 3 #36
+E
+1
+LANG:1 0 
+
+40 "#37" 4 1 0 "s" 1
+LANG:1 3 #37
+E
+1
+LANG:1 0 
+
+40 "#38" 4 1 0 "s" 1
+LANG:1 3 #38
+E
+1
+LANG:1 0 
+
+40 "#39" 4 1 0 "s" 1
+LANG:1 3 #39
+E
+1
+LANG:1 0 
+
+40 "#40" 4 1 0 "s" 1
+LANG:1 3 #40
+E
+1
+LANG:1 0 
+
+40 "#41" 4 1 0 "s" 1
+LANG:1 3 #41
+E
+1
+LANG:1 0 
+
+40 "#42" 4 1 0 "s" 1
+LANG:1 3 #42
+E
+1
+LANG:1 0 
+
+40 "#43" 4 1 0 "s" 1
+LANG:1 3 #43
+E
+1
+LANG:1 0 
+
+40 "#44" 4 1 0 "s" 1
+LANG:1 3 #44
+E
+1
+LANG:1 0 
+
+40 "#45" 4 1 0 "s" 1
+LANG:1 3 #45
+E
+1
+LANG:1 0 
+
+40 "#46" 4 1 0 "s" 1
+LANG:1 3 #46
+E
+1
+LANG:1 0 
+
+40 "#47" 4 1 0 "s" 1
+LANG:1 3 #47
+E
+1
+LANG:1 0 
+
+40 "#48" 4 1 0 "s" 1
+LANG:1 3 #48
+E
+1
+LANG:1 0 
+
+40 "#49" 4 1 0 "s" 1
+LANG:1 3 #49
+E
+1
+LANG:1 0 
+
+40 "#50" 4 1 0 "s" 1
+LANG:1 3 #50
+E
+1
+LANG:1 0 
+
+40 "#51" 4 1 0 "s" 1
+LANG:1 3 #51
+E
+1
+LANG:1 0 
+
+40 "#52" 4 1 0 "s" 1
+LANG:1 3 #52
+E
+1
+LANG:1 0 
+
+40 "#53" 4 1 0 "s" 1
+LANG:1 3 #53
+E
+1
+LANG:1 0 
+
+40 "#54" 4 1 0 "s" 1
+LANG:1 3 #54
+E
+1
+LANG:1 0 
+
+40 "#55" 4 1 0 "s" 1
+LANG:1 3 #55
+E
+1
+LANG:1 0 
+
+40 "#56" 4 1 0 "s" 1
+LANG:1 3 #56
+E
+1
+LANG:1 0 
+
+40 "#57" 4 1 0 "s" 1
+LANG:1 3 #57
+E
+1
+LANG:1 0 
+
+40 "#58" 4 1 0 "s" 1
+LANG:1 3 #58
+E
+1
+LANG:1 0 
+
+40 "#59" 4 1 0 "s" 1
+LANG:1 3 #59
+E
+1
+LANG:1 0 
+
+40 "#60" 4 1 0 "s" 1
+LANG:1 3 #60
+E
+1
+LANG:1 0 
+
+40 "#61" 4 1 0 "s" 1
+LANG:1 3 #61
+E
+1
+LANG:1 0 
+
+40 "#62" 4 1 0 "s" 1
+LANG:1 3 #62
+E
+1
+LANG:1 0 
+
+40 "#63" 4 1 0 "s" 1
+LANG:1 3 #63
+E
+1
+LANG:1 0 
+
+40 "#64" 4 1 0 "s" 1
+LANG:1 3 #64
+E
+1
+LANG:1 0 
+
+40 "#65" 4 1 0 "s" 1
+LANG:1 3 #65
+E
+1
+LANG:1 0 
+
+40 "#66" 4 1 0 "s" 1
+LANG:1 3 #66
+E
+1
+LANG:1 0 
+
+40 "#67" 4 1 0 "s" 1
+LANG:1 3 #67
+E
+1
+LANG:1 0 
+
+40 "#68" 4 1 0 "s" 1
+LANG:1 3 #68
+E
+1
+LANG:1 0 
+
+40 "#69" 4 1 0 "s" 1
+LANG:1 3 #69
+E
+1
+LANG:1 0 
+
+40 "#70" 4 1 0 "s" 1
+LANG:1 3 #70
+E
+1
+LANG:1 0 
+
+40 "#71" 4 1 0 "s" 1
+LANG:1 3 #71
+E
+1
+LANG:1 0 
+
+40 "#72" 4 1 0 "s" 1
+LANG:1 3 #72
+E
+1
+LANG:1 0 
+
+40 "#73" 4 1 0 "s" 1
+LANG:1 3 #73
+E
+1
+LANG:1 0 
+
+40 "#74" 4 1 0 "s" 1
+LANG:1 3 #74
+E
+1
+LANG:1 0 
+
+40 "#75" 4 1 0 "s" 1
+LANG:1 3 #75
+E
+1
+LANG:1 0 
+
+40 "#76" 4 1 0 "s" 1
+LANG:1 3 #76
+E
+1
+LANG:1 0 
+
+40 "#77" 4 1 0 "s" 1
+LANG:1 3 #77
+E
+1
+LANG:1 0 
+
+40 "#78" 4 1 0 "s" 1
+LANG:1 3 #78
+E
+1
+LANG:1 0 
+
+40 "#79" 4 1 0 "s" 1
+LANG:1 3 #79
+E
+1
+LANG:1 0 
+
+40 "#80" 4 1 0 "s" 1
+LANG:1 3 #80
+E
+1
+LANG:1 0 
+
+40 "#81" 4 1 0 "s" 1
+LANG:1 3 #81
+E
+1
+LANG:1 0 
+
+40 "#82" 4 1 0 "s" 1
+LANG:1 3 #82
+E
+1
+LANG:1 0 
+
+40 "#83" 4 1 0 "s" 1
+LANG:1 3 #83
+E
+1
+LANG:1 0 
+
+40 "#84" 4 1 0 "s" 1
+LANG:1 3 #84
+E
+1
+LANG:1 0 
+
+40 "#85" 4 1 0 "s" 1
+LANG:1 3 #85
+E
+1
+LANG:1 0 
+
+40 "#86" 4 1 0 "s" 1
+LANG:1 3 #86
+E
+1
+LANG:1 0 
+
+40 "#87" 4 1 0 "s" 1
+LANG:1 3 #87
+E
+1
+LANG:1 0 
+
+40 "#88" 4 1 0 "s" 1
+LANG:1 3 #88
+E
+1
+LANG:1 0 
+
+40 "#89" 4 1 0 "s" 1
+LANG:1 3 #89
+E
+1
+LANG:1 0 
+
+40 "#90" 4 1 0 "s" 1
+LANG:1 3 #90
+E
+1
+LANG:1 0 
+
+40 "#91" 4 1 0 "s" 1
+LANG:1 3 #91
+E
+1
+LANG:1 0 
+
+40 "#92" 4 1 0 "s" 1
+LANG:1 3 #92
+E
+1
+LANG:1 0 
+
+40 "#93" 4 1 0 "s" 1
+LANG:1 3 #93
+E
+1
+LANG:1 0 
+
+40 "#94" 4 1 0 "s" 1
+LANG:1 3 #94
+E
+1
+LANG:1 0 
+
+40 "#95" 4 1 0 "s" 1
+LANG:1 3 #95
+E
+1
+LANG:1 0 
+
+40 "#96" 4 1 0 "s" 1
+LANG:1 3 #96
+E
+1
+LANG:1 0 
+
+40 "#97" 4 1 0 "s" 1
+LANG:1 3 #97
+E
+1
+LANG:1 0 
+
+40 "#98" 4 1 0 "s" 1
+LANG:1 3 #98
+E
+1
+LANG:1 0 
+
+40 "#99" 4 1 0 "s" 1
+LANG:1 3 #99
+E
+1
+LANG:1 0 
+
+40 "#100" 4 1 0 "s" 1
+LANG:1 4 #100
+E
+1
+LANG:1 0 
+
+40 
+18 18 "?" 0 10 96
+1
+LANG:1 97 -*-Courier New-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Courier New
+0 ""
+0 1 2 1 7
+1 0
+22 7
+"ObjectTypes"
+""
+1 20 70 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 20 70 220 97
+2
+1
+LANG:1 6 Tables
+
+1
+1
+LANG:1 5 Views
+
+0
+
+E
+"main()
+{
+ObjectTypeChanged();
+}" 0
+
+E
+ 0 1
+13 8
+"PUSH_BUTTON1"
+""
+1 280 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 280 490 380 521
+
+T 
+1
+LANG:1 10 SQL Window
+"main()
+{
+//ChildPanelOnRelativ(\"fwConfigurationDB/fwConfigurationDB_SqlQueryBrowser.pnl\",
+//		\"SQL Browser\",makeDynString(),0,0);
+
+
+string rModuleName=\"SQL Browser\";
+int idx=1;
+string moduleName=rModuleName+idx;
+while (isModuleOpen ( moduleName ) ){
+	idx++;
+	moduleName=rModuleName+idx;
+}
+
+ModuleOnWithPanel(moduleName,-1,-1,0,0,1,1,\"\",
+\"fwConfigurationDB/fwConfigurationDB_SqlQueryBrowser.pnl\", \"SQL Browser\",
+		makeDynString(),0,0);
+
+}" 0
+ E E E
+1 11 0 "" 0
+0
+25 10
+"Objects"
+""
+1 20 120 E E E 1 E 1 E N "_3DText" E N "FwBackgroundInputText" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 20 120 220 480
+"main()
+{
+this.tableMode=TABLE_SELECT_BROWSE;
+this.selectByClick=TABLE_SELECT_LINE;
+}" 0
+"main(int row, string column, string value)
+{
+ObjectSelected(value);
+}" 0
+ 1 0 1 1 1 "#1" 14 1 0 "s" 1
+LANG:1 11 Object Name
+E
+1
+LANG:1 0 
+
+180 
+17 17 "?" 0 10 84
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 270 20 T 12 1 0 1 602 -8
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_DBBrowser"
+0

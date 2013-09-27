@@ -1,0 +1,770 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 682 488 N "_3DFace" 0
+E E E E E 1 -1 -1 0  40 60
+""0  1
+E E 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"PUSH_BUTTON1"
+""
+1 270 50 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 268 48 412 122
+
+T 
+1
+LANG:1 10 DB_Update*
+"#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+
+main()
+{
+  dyn_dyn_mixed hostsInfo;
+  
+  dyn_string dbHosts, dbProjects, pvssHosts, hostToBeDeleted, projectToBeDeleted;
+  bool found = 0;
+  bool projFound=0;
+  bool onlyActive = true;
+  dyn_string pvssProjects;
+  dyn_dyn_string deleteHostProjects;
+  
+  deleteHostProj.deleteAllLines();
+  deleteHost.deleteAllLines();
+    
+  fwInstallationDB_connect();
+// 1. CONDITION FOR DB CONNECTION !  
+  
+  if (fwInstallationDB_connect()!=0)
+  {
+//   DebugTN(\"Could not connect to the Data Base\");
+  }
+  
+  fwInstallationDB_getHostsInfo(hostsInfo);
+//  DebugTN(\"hostsInfo=\", hostsInfo);
+//  DebugTN(\"hostsInfo[1][1]=\", hostsInfo[1][1]);
+  
+  for(int i=1; i<=dynlen(hostsInfo); i++)
+  {
+    dynAppend(dbHosts, hostsInfo[i][1]);
+  }
+//  DebugTN(\"dbHosts=\", dbHosts);
+
+  fwSysOverview_getHosts(pvssHosts);
+//  DebugTN(\"pvssHosts=\", pvssHosts);
+    
+  for (int i=1; i<=dynlen(pvssHosts); i++)
+  {
+    
+    for(int j=1; j<=dynlen(dbHosts);j++)
+    {
+      if(pvssHosts[i] == dbHosts[j])
+      {
+        found = TRUE;
+        break;
+      }
+      else
+      {
+        found = FALSE;       
+      }
+    } 
+//    DebugTN(\"found\", found); 
+   
+    fwSysOverview_getPcProjects(pvssHosts[i], pvssProjects);  
+
+        
+    if (!found)
+    {
+      dynAppend(hostToBeDeleted, pvssHosts[i]);
+   
+      for(int j=1; j<= dynlen(pvssProjects);j++)
+      {
+        deleteHostProjects[j][1] = pvssHosts[i];
+        deleteHostProjects[j][2] = pvssProjects[j];
+     
+        setValue(\"deleteHostProj\", \"appendLine\", \"host\",pvssHosts[i], \"project\",pvssProjects[j]); 
+      }
+   
+      if (dynlen(pvssProjects) == 0)
+        setValue(\"deleteHost\", \"appendLine\", \"host\",pvssHosts[i], \"project\",\"*No Project*\");      
+    }
+    
+    else
+    {
+      fwInstallationDB_getPvssProjects(dbProjects, pvssHosts[i], onlyActive); // pvssHosts[i] == dpHosts[j]
+DebugTN(\"pvssProjects=\",pvssProjects);      
+DebugTN(\"dbProjects=\",dbProjects);      
+     for(int j=1; j<= dynlen(pvssProjects);j++)
+      {
+        for(int k=1; k<=dynlen(dbProjects); k++)
+        {
+          if(pvssProjects[j] == dbProjects[k])
+          {
+            projFound=TRUE;
+            break;
+          }
+          else
+          {
+            projFound=FALSE;
+          }
+
+        }
+DebugTN(\"projFound=\",projFound);          
+          if(!projFound)
+          {
+            dynAppend(projectToBeDeleted, pvssProjects[j]);
+            setValue(\"deleteHostProj\", \"appendLine\", \"host\",pvssHosts[i], \"project\",pvssProjects[j]);
+          }
+        }
+      }
+    }
+  
+  deleteHostProj.removeSelectLines(0);
+  deleteHost.removeSelectLines(0);
+}" 0
+ E E E
+25 1
+"deleteHostProj"
+""
+1 40 200 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 38 198 294.988047808765 382
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  this.removeSelectLines(0);
+}" 0
+E 1 0 1 2 0 "host" 10 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 0 
+
+100 "project" 15 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 0 
+
+150 
+14 14 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 1 1 1 7
+1 0
+13 2
+"PUSH_BUTTON2"
+""
+1 40 390 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 38 388 102 412
+
+T 
+1
+LANG:1 11 clear table
+"main()
+{
+ deleteHostProj.deleteAllLines; 
+}" 0
+ E E E
+13 3
+"PUSH_BUTTON3"
+""
+1 580 10 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 578 8 672 42
+
+T 
+1
+LANG:1 9 add hosts
+"main()
+{  
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST01\",\"FwSystemOverviewPC\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST02\",\"FwSystemOverviewPC\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST03\",\"FwSystemOverviewPC\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST04\",\"FwSystemOverviewPC\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST05\",\"FwSystemOverviewPC\"); 
+}" 0
+ E E E
+13 4
+"PUSH_BUTTON4"
+""
+1 200 390 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 198 388 302 422
+
+T 
+1
+LANG:1 18 Delete Project(s)
+
+"main()
+{
+//  .getSelectedLines //getValue (string shape, \"getSelectedLines\", dyn_int &lines);
+//  .deleteSelection
+   
+  dyn_int rows;
+  dyn_string results;
+  dyn_string hosts; 
+  dyn_string proj;
+
+ 
+   
+  dynClear(results);
+  dynClear(rows);
+  dynClear(proj);
+  dynClear(hosts); 
+    
+  getValue (\"deleteHostProj\", \"getSelectedLines\", rows);
+  
+  
+//  DebugTN (\"rows\",rows);
+  
+//  for (int i=1; i<=dynlen(rows);i++)
+  for (int i=dynlen(rows); i>=1;i--)
+  {
+    
+    getValue(\"deleteHostProj\", \"getLineN\", rows[i], results);
+//   deleteHostProj.getLineN(rows[i], projects);
+
+    dynAppend(hosts,results[1]);
+   
+//    DebugTN(\"rows[i]\",rows[i]);
+//    DebugTN(\"results\",results);
+
+   
+    if (results[2]!=\"*No Project*\")
+    {
+     dpDelete(\"SystemOverview/\" + results[1] + \"/\" + results[2]);
+    }
+    else
+    {
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"WARNING:No project\", makeDynString(\"$1: Selected host: \"+results[1] + \" does not have project to be deleted.\"));
+//   dpDelete(\"SystemOverview/\" + results[1]);
+    }
+    
+    deleteHostProj.deleteLineN(rows[i]);
+    }
+  
+  dynUnique(hosts);   
+DebugTN(\"hosts=\",hosts);
+         
+  for(int i =1; i<=dynlen(hosts);i++)
+  {
+    proj = dpNames(\"SystemOverview/\"+hosts[i]+\"/*\",\"FwSystemOverviewProject\");
+DebugTN(\"proj=\",proj      );
+
+    if (dynlen(proj)==0)
+    {
+      if (dpExists(\"SystemOverview/\"+hosts[i],\"FwSystemOverviewPC\"))
+      {
+        deleteHost.appendLine(\"host\",hosts[i], \"project\",\"*No Project*\");
+        deleteHost.sort(true, \"host\");
+//          continue; 
+      }
+    }
+  }
+
+}" 0
+ E E E
+13 6
+"PUSH_BUTTON6"
+""
+1 560 390 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 558 388 662 422
+
+T 
+1
+LANG:1 15 Delete Host(s)
+
+"main()
+{
+   
+  dyn_int rows;
+  dyn_string results;
+    
+  getValue (\"deleteHost\", \"getSelectedLines\", rows);
+  
+  
+  
+  DebugTN (\"rows\",rows);
+  
+  for (int i=dynlen(rows); i>=0 ;i--)
+  {    
+    getValue(\"deleteHost\", \"getLineN\", rows[i], results);
+
+    if(dpExists(\"SystemOverview/\" + results[1]))
+    {
+      dpDelete(\"SystemOverview/\" + results[1]);
+    }
+
+    deleteHost.deleteLineN(rows[i]);
+  }
+
+}" 0
+ E E E
+25 7
+"deleteHost"
+""
+1 400 200 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 398 198 654.988047808765 382
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  this.removeSelectLines(0);
+}" 0
+E 1 0 1 2 0 "host" 10 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 0 
+
+100 "project" 15 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 0 
+
+150 
+14 14 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 1 1 1 7
+1 0
+2 8
+"PRIMITIVE_TEXT1"
+""
+1 90 150 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 90 150 199 164
+0 2 2 "0s" 0 0 0 192 0 0  90 150 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 22 Projects to be removed
+2 9
+"PRIMITIVE_TEXT2"
+""
+1 440 150 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 440 150 636 164
+0 2 2 "0s" 0 0 0 192 0 0  440 150 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 41 Host to be removed (does not exist in DB)
+2 10
+"PRIMITIVE_TEXT3"
+""
+1 440 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 440 180 596 194
+0 2 2 "0s" 0 0 0 192 0 0  440 180 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 32 Host without any project in PVSS
+2 11
+"PRIMITIVE_TEXT4"
+""
+1 60 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 60 180 258 194
+0 2 2 "0s" 0 0 0 192 0 0  60 180 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 41 Projects which do not exist in DB anymore
+13 12
+"PUSH_BUTTON7"
+""
+1 570 110 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 568 108 672 142
+
+T 
+1
+LANG:1 19 Delete Host(s) OLD
+
+"main()
+{
+//  .getSelectedLines //getValue (string shape, \"getSelectedLines\", dyn_int &lines);
+//  .deleteSelection
+   
+  dyn_int rows;
+  dyn_string results;
+  dyn_string hosts; 
+  dyn_string hostProjects;
+  dyn_dyn_string testResults;
+ 
+   
+  dynClear(results);
+  dynClear(rows);
+  dynClear(hosts);
+  dynClear(hostProjects);
+    
+  getValue (\"deleteHostProj\", \"getSelectedLines\", rows);
+  
+  
+  
+  DebugTN (\"rows\",rows);
+  
+  for (int i=1; i<=dynlen(rows);i++)
+  {
+   getValue(\"deleteHostProj\", \"getLineN\", rows[i], results);
+  
+   dynAppend(hosts, results[1]);
+//   dynAppend(projects, result[2]);
+   dynAppend(testResults[1][i], results[1]);
+   dynAppend(testResults[i][1], results[2]);
+  }
+  
+  dynUnique(hosts);
+  
+  for (int i =1; i<=dynlen(hosts);i++)
+  {
+    
+    for (int j=1; j<=dynlen(testResults); j++)
+    {
+      if ( host[i] == testResults[1][j])
+      {
+        if(dpExists(\"SystemOverview/\" + testResults[1][j] + \"/\" + testResults[2][j]))
+        {
+          dpDelete(\"SystemOverview/\" + testResults[1][j] + \"/\" + testResults[2][j]);
+        }
+        continue;
+      }
+      dpDelete(\"SystemOverview/\" + hosts[i]);
+    }
+    
+    
+/*
+    hostProjects = dpNames(\"SystemOverview/*\"+hosts[i]+\"/*\",\"FwSystemOverviewProject\");   // I should get all possible project names form a table for selected PC(s)...
+    
+    if(dynlen(hostProjects)>0)
+    {
+      for(int j=1; j<=dynlen(hostProjects); j++)
+      {
+        dpDelete(hostProjects[j]);
+      }
+    }
+    
+    if(dpExists(\"SystemOverview/\" + hosts[i]))
+    {
+      dpDelete(\"SystemOverview/\" + hosts[i]);
+      
+//      deleteHostProj.deleteLines(1,\"host\", makeDynString(hosts[i],);
+    }
+*/
+  }
+   
+  
+ //undo     
+}" 0
+ E E E
+13 13
+"PUSH_BUTTON8"
+""
+1 400 390 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 398 388 462 412
+
+T 
+1
+LANG:1 11 clear table
+"main()
+{
+ deleteHost.deleteAllLines; 
+}" 0
+ E E E
+13 14
+"btRefresh"
+""
+1 500 450 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 498 448 576.375 482
+
+T 
+1
+LANG:1 8 Refresh
+
+"main()
+{
+//  update();
+}" 0
+ E E E
+13 15
+"btClose"
+""
+1 595.625 450 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 593.625 448 672 482
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+   PanelOff();
+}" 0
+ E E E
+13 16
+"PUSH_BUTTON9"
+""
+1 580 50 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 578 48 672 82
+
+T 
+1
+LANG:1 12 add projects
+"main()
+{  
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST01/Project01\",\"FwSystemOverviewProject\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST01/Project02\",\"FwSystemOverviewProject\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST01/Project03\",\"FwSystemOverviewProject\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST01/Project04\",\"FwSystemOverviewProject\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST02/Project01\",\"FwSystemOverviewProject\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST02/Project02\",\"FwSystemOverviewProject\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCTEST03/Project01\",\"FwSystemOverviewProject\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCITCO176/Test01\",\"FwSystemOverviewProject\");
+  dpCreate(fwSysOverview_SYSTEM_DP+\"PCITCO176/Test02\",\"FwSystemOverviewProject\");  
+}" 0
+ E E E
+2 17
+"PRIMITIVE_TEXT5"
+""
+1 510 165 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 510 165 528 179
+0 2 2 "0s" 0 0 0 192 0 0  510 165 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 3 and
+2 18
+"PRIMITIVE_TEXT6"
+""
+1 132 166 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 132 166 150 180
+0 2 2 "0s" 0 0 0 192 0 0  132 166 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 3 and
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

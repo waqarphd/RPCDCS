@@ -1,0 +1,242 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 319 88 N "_3DFace" 0
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E E 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 0
+"FRAME3"
+""
+1 10 323 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+1 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.731707317073171 0 0.721649484536083 2.68292682926829 -223.092783505155 0 E 10 323 421 421
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 23 Set a new Archive Class
+22 1
+"cbNewArchive"
+""
+1 20 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 18 38 192 62
+0
+
+"main()
+{
+  string RDBPattern = \"_RDBArchive\";
+  int value;  
+  string fileName =  getPath(CONFIG_REL_PATH) + \"config\";
+  string section = \"general\";
+  string key = \"useRDBArchive\";
+  dyn_string readFromSystems = getSystemName();
+  dyn_string archiveClasses;
+  dyn_string archiveGroupDps, archiveClassDps;
+  dyn_string exceptionInfo;    
+  
+  paCfgReadValue(fileName, section, key , value);
+  
+  if(value == 0)
+  {    
+    fwArchive_getAllValueArchiveClasses(readFromSystems, archiveClasses, archiveClassDps, exceptionInfo);
+    if(dynlen(exceptionInfo)){return;}
+  
+    for(int i = 1; i<= dynlen(archiveClasses); i++)
+      this.appendItem = archiveClasses[i];   
+  }
+  else
+  {
+    fwArchive_getAllRDBArchiveClasses(readFromSystems, archiveClasses, archiveGroupDps, exceptionInfo);
+    if(dynlen(exceptionInfo)){return;}
+    
+    for(int i = 1; i<= dynlen(archiveClasses); i++)
+    {
+      this.appendItem = archiveClasses[i];   
+    }
+  }
+      
+}" 0
+
+E
+E
+ 1 0
+13 2
+"PUSH_BUTTON4"
+""
+1 210 30 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 208 28 292 62
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+  string currentArchiveClass;
+  string newArchiveClass = cbNewArchive.text;
+  dyn_float resultFloat;
+  dyn_string resultText;  
+  dyn_string systemDps; //projDps, managersDps, 
+//  string projSystem;
+  dyn_string exceptionInfo;
+//  int type;
+  int enable = 0;
+  bool ok;
+   
+  fwSysOverview_getAchiveClass(currentArchiveClass);
+  
+  if(newArchiveClass == \"\" || newArchiveClass == currentArchiveClass)
+    return;
+  
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation\", 
+                          makeDynString(\"$1:Are you sure you want to set a new Archive Class: \" + newArchiveClass, \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+                           
+  ok = FALSE;
+  if(dynlen(resultFloat) > 0 ) 
+    ok = resultFloat[1];
+
+  if(ok)
+  {     
+    fwSysOverview_isArchivingEnabled(enable);
+   
+    if(enable == 1)
+    {
+      ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation\", 
+                          makeDynString(\"$1:Data points are currently archived. Are you sure you want to apply the chosen Archive Class and change archiving settings?\" , \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+                           
+      ok=FALSE;
+      if(dynlen(resultFloat) > 0 ) 
+        ok = resultFloat[1];
+
+      if(ok)
+      {
+        fwSysOverview_getSystemsDps(systemDps);
+
+        for(int i =1; i<= dynlen(systemDps); i++)
+        {
+          fwSysOverview_stopArchivingSystemState(systemDps[i], exceptionInfo);
+          if(dynlen(exceptionInfo)){continue;}
+          
+          fwSysOverview_startArchivingSystemState(systemDps[i], newArchiveClass, exceptionInfo);
+          if(dynlen(exceptionInfo)){continue;}
+        }
+        dpSetWait(fwSysOverview_PARAMETRIZATION + fwSysOverview_ARCHIVE_CLASS, newArchiveClass);
+      }  
+    }
+    else
+      dpSetWait(fwSysOverview_PARAMETRIZATION + fwSysOverview_ARCHIVE_CLASS, newArchiveClass);
+  }
+  PanelOff();
+}
+
+/*  
+    fwSysOverview_getAllProjects(projDps);
+  
+    for(int i=1; i<=dynlen(projDps); i++)
+    {
+      fwSysOverview_getProjectSystem(projDps[i], projSystem, exceptionInfo);
+      //if(dynlen(exceptionInfo)){return;}      
+      dynAppend(systemDps, projSystem);
+    
+//      if(fwSysOverview_configExists(projDps[i] + fwSysOverview_STATE, \"archive\") == 0)
+//      {
+        fwSysOverview_createArchiveConfig(projDps[i] + fwSysOverview_STATE, newArchiveClass, exceptionInfo);
+        //if(dynlen(exceptionInfo)){return;}        
+ //     }
+
+      managersDps = fwSysOverview_getProjectManagerDPs(projDps[i]);
+      for(int j=1; j<=dynlen(managersDps); j++)
+      {        
+//        if(fwSysOverview_configExists(managersDps[j] + fwSysOverview_STATE, \"archive\") == 0)
+//        {
+          fwSysOverview_createArchiveConfig(managersDps[j] + fwSysOverview_STATE, newArchiveClass, exceptionInfo);       
+//        } 
+      }
+    }
+  
+    dynUnique(systemDps);  
+    
+    for(int i=1; i<=dynlen(systemDps); i++)
+    {
+//      if(fwSysOverview_configExists(systemDps[i] + fwSysOverview_STATE, \"archive\") == 0)
+//      {
+        fwSysOverview_createArchiveConfig(systemDps[i] + fwSysOverview_STATE, newArchiveClass, exceptionInfo);
+        //if(dynlen(exceptionInfo)){return;}   
+//      } 
+    }
+  
+    dpSetWait(fwSysOverview_PARAMETRIZATION + fwSysOverview_ARCHIVE_CLASS, newArchiveClass);
+  }
+  
+}
+*/" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

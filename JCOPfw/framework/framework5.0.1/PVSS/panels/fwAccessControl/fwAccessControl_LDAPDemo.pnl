@@ -1,0 +1,379 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 618 573 N "_3DFace" 0
+E E E E E 1 -1 -1 0  160 120
+""0  1
+E "#uses \"CtrlLDAP\"" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+14 1
+"Surename"
+""
+1 80 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 78 58 242 82
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+    PeopleTable.deleteAllLines();
+    DetailsTable.deleteAllLines();
+    DetailsTable.visible=FALSE;
+    
+  if (!isFunctionDefined(\"ldapGetVersion\")) {
+    DebugN(\"ERROR: LDAP Extension not available.\");
+    return;
+  }
+  
+  string surename=Surename.text;
+  strreplace(surename,\"*\",\"\");
+  strrtrim(surename);
+  if (surename==\"\") {
+    DebugN(\"You need to specify a surename.\"); 
+    PeopleTable.appendLine(\"Name\",makeDynString(\"You need to specify a surename.\"));
+    return;
+  }
+  
+  //restore the original content
+  surename=Surename.text;
+  
+//  string ver=ldapGetVersion();
+//  DebugN(ver);
+
+  string hostName=\"ldap.cern.ch\";
+  string baseDN=\"o=cern,c=ch\";
+  string userName=\"\";// anonymous bind
+  string password=\"\";
+  dyn_dyn_string attrNames,attrValues;
+  // select which attrs to query
+  attrNames[1]=makeDynString(\"cn\",\"telephoneNumber\",\"mobile\");
+
+  string filter=\"(&(sn=\"+surename+\"))\";
+  int timeout=0;
+  string authMethod=\"SIMPLE\";
+  this.enabled=FALSE;
+  int rc=ldapSearch(hostName,baseDN,attrNames,attrValues,userName,password,filter,timeout,authMethod);
+  this.enabled=TRUE;
+  
+  if (rc) {
+   dyn_errClass err=getLastError();
+   DebugN(\"Error in LDAP Query:\",rc,err);
+   if (rc==4) {
+    PeopleTable.appendLine(\"Name\",makeDynString(\"Too many results\"));
+      } else {
+      errorDialog(err);
+    }
+   return; 
+  }
+  
+  if (dynlen(attrValues)<1) {
+   DebugN(\"Nothing found\"); 
+   PeopleTable.appendLine(\"Name\",makeDynString(\"Nothing found\"));
+   return;
+  }
+  
+  // process the lines and add them to the table...
+//  DebugN(\"Result:\",attrNames,attrValues);
+  for (int i=1;i<=dynlen(attrValues);i++) {
+    string cn,tel,dn;
+    for (int j=1;j<=dynlen(attrValues[i]);j++) {
+      if (attrNames[i][j]==\"DN\") dn=attrValues[i][j];
+      if (attrNames[i][j]==\"cn\") cn+=attrValues[i][j]+\" \";
+      if (attrNames[i][j]==\"telephoneNumber\") tel+=attrValues[i][j]+\" \";
+      if (attrNames[i][j]==\"mobile\") tel+=attrValues[i][j]+\" \";
+    }
+      PeopleTable.appendLine(\"Name\",makeDynString(cn),\"Telephone\",makeDynString(tel),\"DN\",makeDynString(dn));
+  }
+
+}" 0
+
+2 2
+"PRIMITIVE_TEXT1"
+""
+1 20 63.81405895691611 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 62 83 78.19047619047619
+0 2 2 "0s" 0 0 0 64 0 0  20 62 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 Surename:
+25 3
+"PeopleTable"
+""
+1 20.00000000000001 100 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 98 432 262
+"main()
+{
+  this.tableMode(TABLE_SELECT_BROWSE);
+  this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+"main(int row, string column, string value)
+{
+  DetailsTable.deleteAllLines();
+  DetailsTable.visible(FALSE);
+  
+  string dn=this.cellValueRC(row,\"DN\");
+  //DebugN(dn);
+  
+  
+  string hostName=\"ldap.cern.ch\";
+
+  string userName=\"\";// anonymous bind
+  string password=\"\";
+  dyn_dyn_string attrNames,attrValues;
+  string filter=\"\";
+  int timeout=0;
+  string authMethod=\"SIMPLE\";
+  this.enabled=FALSE;
+  int rc=ldapSearch(hostName,dn,attrNames,attrValues,userName,password,filter,timeout,authMethod);
+  this.enabled=TRUE;
+
+  
+  if (rc) {
+   dyn_errClass err=getLastError();
+   DebugN(\"Error in LDAP Query:\",rc,err);
+   errorDialog(err);
+   return; 
+  }
+
+    //DebugN(attrNames,attrValues);  
+  if (dynlen(attrValues)>0) {
+
+         DetailsTable.appendLines(dynlen(attrValues[1]),\"Attr\",attrNames[1],\"Val\",attrValues[1]);
+             DetailsTable.visible=TRUE;  
+
+  }
+
+
+}" 0
+ 1 0 1 3 0 "Name" 17 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+200 "Telephone" 17 1 0 "s" 1
+LANG:1 9 Telephone
+E
+1
+LANG:1 0 
+
+200 "DN" 0 0 0 "s" 1
+LANG:1 2 DN
+E
+1
+LANG:1 0 
+
+0 
+14 14 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+25 4
+"DetailsTable"
+""
+1 20 289.9999999999999 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 288 532 562
+EE 1 0 1 2 0 "Attr" 8 1 0 "s" 1
+LANG:1 9 Attribute
+E
+1
+LANG:1 0 
+
+100 "Val" 35 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+400 
+14 14 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+2 5
+"PRIMITIVE_TEXT2"
+""
+1 20 270 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 270 62 287
+0 2 2 "0s" 0 0 0 192 0 0  20 270 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Details:
+13 6
+"PUSH_BUTTON1"
+""
+1 540 540 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 538 538 612 568
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+2 7
+"PRIMITIVE_TEXT3"
+""
+1 10 20 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 20 323 41
+0 2 2 "0s" 0 0 0 192 0 0  10 20 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 40 CERN Telephone book - LDAP demonstration
+2 8
+"PRIMITIVE_TEXT4"
+""
+1 270 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 270 60 558.7102357105372 76.1904761904762
+1 2 2 "0s" 0 0 0 64 0 0  270 60 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 46 You may use the * wildcard as part of the name
+2 10
+"PRIMITIVE_TEXT6"
+""
+1 616.144578313253 255.2380952380952 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 440 160 607.855421686747 176.1904761904762
+1 2 2 "0s" 0 0 0 64 0 0  440 160 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 Click an entry to see details
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

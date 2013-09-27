@@ -1,0 +1,595 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 404 388 N "_3DFace" 5
+"$1"
+"$2"
+"$3"
+"$4"
+"$5"
+"//dyn_string manDP, userName, userPass, hostName, port, manIdx, manOption ;
+
+main()
+{
+  enableControls(false);
+  
+  dyn_dyn_string ddsResult;
+  string command = \"\";
+  int err, sKill;  
+  string s1, s2, s3, s4, s5; //1.manager's index 2.user, 3.password, 4. host, 5.pmon port
+  
+  if(!isDollarDefined(\"$1\"))
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"WARNING: No manager(s) defined\", makeDynString(\"There is no manager to be configured.\"));
+    return;
+  }
+  
+  s1=$1; strreplace(s1, \" \", \"\"); //manager's index
+  s2=$2; strreplace(s2, \" \", \"\"); //user
+  s3=$3; strreplace(s3, \" \", \"\"); //password
+  s4=$4; strreplace(s4, \" \", \"\"); //host
+  s5=$5; strreplace(s5, \" \", \"\"); //pmon port
+    
+  indexes = strsplit(s1,\"|\");        
+  users = strsplit(s2,\"|\");
+  passwords = strsplit(s3,\"|\");
+  hosts = strsplit(s4,\"|\");
+  ports = strsplit(s5,\"|\");         
+  
+  for(int i=1; i<=dynlen(hosts);i++)
+  {
+    if (users[i] == \"N/A\")
+      users[i] = \"\";
+    if (passwords[i] == \"N/A\")
+      passwords[i] = \"\"; 
+    
+    command = users[i] + \"#\" + passwords[i] +\"#MGRLIST:LIST\";
+    err = pmon_query(command, hosts[i], ports[i], ddsResult, false, true);
+
+    if(err)
+    {
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"WARNING: Unable to connect\", makeDynString(\"Unable to retrive Manager list from\" + hosts[i]));
+      continue;
+    }
+        
+    managerData[i][1] = ddsResult[(indexes[i]+1)][2]; // start mode
+    managerData[i][2] = ddsResult[(indexes[i]+1)][3]; // sKill
+    managerData[i][3] = ddsResult[(indexes[i]+1)][4]; // restartCount
+    managerData[i][4] = ddsResult[(indexes[i]+1)][5]; // resetMin
+    if(dynlen(ddsResult[(indexes[i]+1)]) >=6)
+      managerData[i][5] = ddsResult[(indexes[i]+1)][6]; // options
+    else
+      managerData[i][5] = \"\";
+    
+    if(dynlen(hosts) == 1)
+    {
+      switch(managerData[i][1])
+      {
+        case 2: setValue(\"startMode\", \"number\", 0); break; // PMON_START_ALWAYS
+        case 1: setValue(\"startMode\", \"number\", 2); break; // PMON_START_ONCE
+        case 0: setValue(\"startMode\", \"number\", 1); break; //PMON_START_MANUAL
+      }      
+      
+      sKill             =  managerData[i][2];
+      noStop.state(0)   = (sKill < 0);
+      secKill.text      = (sKill < 0)?-sKill:sKill;
+      restartCount.text =  managerData[i][3];
+      resetMin.text     =  managerData[i][4];
+      options.text      =  managerData[i][5];
+    }
+    else
+    {
+      txManagers.visible = true;
+      noStop.state(0) = false;
+      secKill.text = 30;     //    secKill.toolTipText = \"default value is 30 sec.\";
+      restartCount.text = 3; //    restartCount.toolTipText = \"default value is 3 times.\";
+      resetMin.text = 2;     //    resetMin.toolTipText = \"default value is 2 min.\";
+      options.enabled = false;
+    }   
+  }
+  enableControls(true);
+}
+
+enableControls(bool enabled)
+{
+  startMode.enabled = enabled;
+  restartCount.enabled = enabled;
+  resetMin.enabled = enabled;
+  secKill.enabled = enabled;
+  noStop.enabled = enabled;
+  btOk.enabled = enabled;
+}" 0
+ E E E E 1 -1 -1 0  10 13
+""0  1
+E "//dyn_string manDP, userName, userPass, hostName, manOptions;
+//dyn_int manIdx, port;
+  dyn_string hosts, users, passwords, option;
+  dyn_int  ports, indexes;  
+  dyn_dyn_mixed managerData;" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 0
+"FRAME1"
+""
+1 10 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+0 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.791666666666667 0 1 2.08333333333333 0 0 E 10 13 491 381
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Manager(s) Properties
+19 1
+"startMode"
+"Startmoduseinstellen"
+1 39 58 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+2
+LANG:1 18 Setting start mode
+LANG:0 21 Startmodus einstellen
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  38 58 112 133
+3
+T 
+2
+LANG:1 6 always
+LANG:0 5 immer
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+2
+LANG:1 6 manual
+LANG:0 7 manuell
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+2
+LANG:1 4 once
+LANG:0 6 einmal
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+21 2
+"restartCount"
+""
+1 138 58 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+2
+LANG:1 18 Number of restarts
+LANG:0 19 Anzahl der Neustart
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  138 58 208 85
+0
+
+E
+E
+E
+
+N 1 100 1 3 1 1
+21 3
+"secKill"
+""
+1 138 118 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+2
+LANG:1 17 default 30seconds
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  138 118 208 145
+0
+
+E
+E
+E
+
+N 1 100 1 30 1 1
+30 4
+"Frame1"
+""
+1 10 220 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+1
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 20 -70 0 E 10 110 100 220
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 12  Start mode 
+LANG:0 12  Startmodus 
+30 5
+"Frame2"
+""
+1 110 160 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+1
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 20 -70 0 E 110 110 200 160
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 9  Restart 
+LANG:0 9  Restart 
+30 6
+"Frame4"
+""
+1 110 220 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+1
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 20 -70 0 E 110 170 360 220
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 17  Seconds to Kill 
+LANG:0 19  Sekunden bis Kill 
+30 7
+"Frame3"
+""
+1 210 160 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+1
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 20 -70 0 E 210 110 360 160
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 21  Reset start counter 
+LANG:0 24  Startzähler rücksetzen 
+2 8
+"Text1"
+""
+1 287 72 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 322 62 351 79
+0 2 2 "0s" 0 0 0 192 0 0  322 62 1
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 5 [min]
+LANG:0 5 [Min]
+21 9
+"resetMin"
+""
+1 238 58 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+2
+LANG:1 56 Restart Counter is reset after given minutes - default 2
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  238 58 308 85
+0
+
+E
+E
+E
+
+N 1 60 1 2 1 1
+30 10
+"Frame5"
+""
+1 10 260 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+1
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 20 -70 0 E 10 220 360 260
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 0 
+LANG:0 0 
+20 11
+"noStop"
+""
+1 40 160 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  38 158 372 184
+1
+T 
+2
+LANG:1 45 Don't stop manager in case of project restart
+LANG:0 41 Manager bei Projektneustart nicht beenden
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE13 12
+"btOk"
+""
+1 110 340 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  108 338 182 372
+
+T 
+1
+LANG:1 2 Ok
+"main()
+{
+  int sKill = secKill.text;
+  string mode;
+  string command;
+  dyn_float resultFloat, df;
+  dyn_string resultText, ds;
+  bool err;
+  
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation required\", 
+                          makeDynString(\"$1:Are you sure you want to APPLY changes to selected manager(s).\", \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+                        
+  bool ok=FALSE;
+  if(dynlen(resultFloat) > 0 ) 
+    ok = resultFloat[1];
+  
+  if(ok)
+  {
+    openProgressBar(\"\",\"\",\"Sending commands to manager(-s).\", \"\",\"\", 2);
+    
+    for(int i=1; i<=dynlen(hosts);i++)
+    {
+      showProgressBar(\"Sending commands to manager(-s).\", \"\", \"\", (100*i)/dynlen(hosts));
+      switch(startMode.number)
+      {
+        case 0: mode = \"always\"; break;
+        case 1: mode = \"manual\"; break;
+        case 2: mode = \"once\";   break;
+      }    
+      
+      if(dynlen(hosts) == 1)
+      {
+        command = users[i] + \"#\" + passwords[i] + \"#SINGLE_MGR:PROP_PUT \"+ indexes[i] + \" \" + 
+                  mode + \" \" + ((noStop.state(0))?-sKill:sKill) + \" \" + restartCount.text() + \" \" + 
+                  resetMin.text() + \" \"+ options.text;
+      }
+      else
+      {
+        command = users[i] + \"#\" + passwords[i] + \"#SINGLE_MGR:PROP_PUT \"+ indexes[i] + \" \" + 
+                  mode + \" \" + ((noStop.state(0))?-sKill:sKill) + \" \" + restartCount.text() + \" \" + 
+                  resetMin.text() + \" \"+ managerData[i][5];
+      }
+
+     err = pmon_command(command, hosts[i], ports[i], false, true);
+     
+     if(!err)
+       ds = makeDynString(options.text,mode);
+    }
+    closeProgressBar();
+  }
+  df[1] = 1;
+//  PanelOff();
+  PanelOffReturn(df,ds);
+}" 0
+ E E E
+13 13
+"btCancel"
+""
+1 220 340 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  218 338 292 372
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+2 16
+"txManagers"
+""
+1 110 210 E E E 1 E 0 E N "FwStateAttention3" E N "_Transparent" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 110 210 280 224
+0 2 2 "0s" 0 0 0 192 0 0  110 210 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 30 Multiple managers selected !!!
+14 18
+"options"
+""
+1 40 250 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  38 248 362 271
+3 "0s" 0 0 0 0 0 -1  E E E
+30 19
+"FRAME2"
+""
+1 30 233 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+32 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E U  0 E 30 233 371 281
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Options :
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

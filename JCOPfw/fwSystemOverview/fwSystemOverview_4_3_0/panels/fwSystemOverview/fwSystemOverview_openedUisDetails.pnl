@@ -1,0 +1,303 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 665 388 N "_3DFace" 6
+"$applications"
+"$fsmNode"
+"$hostNames"
+"$manNums"
+"$startTimes"
+"$systems"
+"main()
+{
+  dyn_string systems;
+  fwGeneral_stringToDynString($systems, systems);
+
+  dyn_string hostNames;
+  fwGeneral_stringToDynString($hostNames, hostNames);
+
+  dyn_string manNums;
+  fwGeneral_stringToDynString($manNums, manNums);
+  
+  dyn_string applications;
+  fwGeneral_stringToDynString($applications, applications);
+  
+  dyn_string startTimes = strsplit($startTimes,\"|\");
+  display(systems, hostNames, manNums, startTimes, applications);
+}
+" 0
+ E E E E 1 -1 -1 0  20 40
+""0  1
+E "#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+
+bool hasExpertPrivilege;
+
+display(dyn_string systems, dyn_string hostNames, dyn_string manNums, dyn_string startTimes, dyn_string applications)
+{
+  tbUIs.deleteAllLines();
+  dyn_string IPs, users;
+
+  for(int i=1; i<= dynlen(systems); i++)
+  {
+    dynAppend(IPs, getHostByName(hostNames[i]));
+    string user;
+    dpGet(systems[i] + \"_Ui_\" + manNums[i] + \".UserName\", user);
+    dynAppend(users, user);
+  }
+  tbUIs.appendLines(dynlen(systems), \"hostName\", hostNames, \"startTime\", startTimes, 
+                    \"managerNum\", manNums, \"ip\", IPs, \"user\", users, \"system\", systems, \"application\", applications);
+
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tbUIs"
+""
+1 20.00000000000001 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{  
+  string application = tbUIs.cellValueRC(row, \"application\");
+  bool hasExpertPrivilege = hasRights(application);
+  
+  dyn_string popUpItems;  
+  dynAppend(popUpItems,\"PUSH_BUTTON, Send message ,1, \" + (int)hasExpertPrivilege);  
+  dynAppend(popUpItems,\"PUSH_BUTTON, Terminate , 2, \" + (int)hasExpertPrivilege);
+  int answer;
+  popupMenu(popUpItems,answer);
+  dyn_string systems, managerNums, hostNames;
+  getSelection(systems, managerNums, hostNames);
+ 
+  switch (answer)
+  {
+      case 1:
+         ChildPanelOnCentralModal( \"fwSystemOverview/fwSystemOverview_sendMessageToUi.pnl\",
+                                   \"Send message\",
+                                   makeDynString(\"$systems:\"+systems,  \"$managerNums:\"+managerNums, \"$hostNames:\"+hostNames ));
+         break;
+      case 2:
+         terminateUi(systems, managerNums);
+         break;
+  }
+}
+
+terminateUi(dyn_string systemNames, dyn_int manNums)
+{
+  string actionDescription = myPanelName() + \": Terminating UIs. Systems: \" + systemNames + \". UI nums: \" + manNums;
+  for(int i=1; i <= dynlen(systemNames); i++)
+  {
+    dpSet(systemNames[i] + \"_Managers.Exit:_original.._value\", convManIdToInt(UI_MAN,  manNums[i], 0, 0 ),
+          systemNames[i] + \"_Managers_2.Exit:_original.._value\", convManIdToInt(UI_MAN,  manNums[i] , 0, 255));   
+  } 
+     
+  fwConfigurationDBSystemInformation_logAction(actionDescription);  
+}
+
+getSelection(dyn_string& systems, dyn_string& managerNums, dyn_string& hostNames)
+{
+  dyn_int selectedLines = tbUIs.getSelectedLines();
+  for(int i=1; i<= dynlen(selectedLines); i++)
+  {
+    dynAppend(systems, tbUIs.cellValueRC(selectedLines[i], \"system\"));
+    dynAppend(managerNums, tbUIs.cellValueRC(selectedLines[i], \"managerNum\"));    
+    dynAppend(hostNames, tbUIs.cellValueRC(selectedLines[i], \"hostName\"));        
+  }
+}
+
+bool hasRights(string application)
+{
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string domain;
+  fwSysOverview_getACDomain(domain, \"\", application);
+  
+
+  if(domain == \"\") //AC not yet configured. Enable access 
+  {
+    hasExpertPrivilege = true;
+  }
+  else
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+  
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+  }
+  return hasExpertPrivilege;
+}" 0
+ E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 38 652 372
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 7 0 "hostName" 11 1 0 "s" 1
+LANG:1 8 Hostname
+E
+1
+LANG:1 0 
+
+120 "ip" 11 1 0 "s" 1
+LANG:1 2 IP
+E
+1
+LANG:1 0 
+
+120 "system" 11 1 0 "s" 1
+LANG:1 7 System 
+E
+1
+LANG:1 0 
+
+120 "managerNum" 11 0 0 "s" 1
+LANG:1 10 managerNum
+E
+1
+LANG:1 0 
+
+120 "user" 11 1 0 "s" 1
+LANG:1 4 User
+E
+1
+LANG:1 0 
+
+120 "startTime" 14 1 0 "s" 1
+LANG:1 10 Start time
+E
+1
+LANG:1 0 
+
+150 "application" 6 0 0 "s" 1
+LANG:1 11 Application
+E
+1
+LANG:1 0 
+
+0 
+16 16 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 20 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 20 10 80 24
+0 2 2 "0s" 0 0 0 192 0 0  20 10 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Opened UIs:
+13 2
+"btnRefresh"
+""
+1 530 10 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  528 8 652 35
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+  dyn_string systemNames;  
+  dyn_string systemIntegrityChildren = fwSysOverviewFsm_getChildrenOfType($fsmNode, \"IcemonSystemIntegrity\");
+  for (int i=1; i<=dynlen(systemIntegrityChildren); i++)
+  {
+    string systemName;
+    dpGet(systemIntegrityChildren[i] + \".systemName\", systemName);
+    dynAppend(systemNames, systemName); 
+  }
+  dyn_string hostNames  , startTimes, manNums, systems, currentSystemHostNames, currentSystemStartTimes, currentSystemManNums;
+  for(int i=1; i<=dynlen(systemNames); i++)
+  {
+    string dp = systemNames[i] + \"_Connections.Ui\";
+    dpGet(dp + \".StartTimes\", currentSystemStartTimes,
+          dp + \".HostNames\", currentSystemHostNames,
+          dp + \".ManNums\", currentSystemManNums);
+    
+    for(int j=1; j<= dynlen(currentSystemHostNames); j++)
+      dynAppend(systems, systemNames[i]);
+          
+    dynAppend(hostNames, currentSystemHostNames);
+    dynAppend(startTimes, currentSystemStartTimes);
+    dynAppend(manNums, currentSystemManNums);
+  }
+
+  display(systems, hostNames, manNums, startTimes);
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

@@ -1,0 +1,483 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 461 520 N "_3DFace" 0
+"main()
+{
+   Initialize();
+}" 0
+ E E E E 1 -1 -1 0  20 14
+""0  1
+E "global dyn_string g_allSystemNames;
+global dyn_uint   g_allSystemIds;
+global dyn_string g_acServers;
+global dyn_string g_managed;
+
+global int g_redrawTableSemaphore=0;
+
+void Initialize()
+{
+getSystemNames(g_allSystemNames,g_allSystemIds);
+
+for (int i=1;i<=dynlen(g_allSystemNames);i++) {
+	g_allSystemNames[i]+=\":\";
+        if (g_allSystemNames[i]==getSystemName()) {
+                    
+                  g_managed[i]=\"SERVER\";
+       }
+}
+string query=\"SELECT '_original.._value' FROM '_fwAccessControlSetup.Integrated.ACServer' REMOTE ALL \";
+int rc=dpQueryConnectAll(\"ClientCB\",TRUE,
+        \"ClientCB\", query);
+}
+
+void ClientCB(string what, dyn_dyn_anytype data)
+{
+	if (dynlen(data)<2) return;
+
+	string src=data[2][1];
+	string acSrv=data[2][2];
+	dyn_string dsrc=strsplit(src,\":\");
+	string sys=dsrc[1]+\":\";
+
+	int idx=dynContains(g_allSystemNames,sys);
+	if (idx<1) {
+		//
+		dynAppend(g_allSystemNames,sys);
+		idx=dynContains(g_allSystemNames,sys);
+		if (idx) {
+			int id=getSystemId(sys);
+			g_allSystemIds[idx]=id;
+		}
+	}
+	if (idx) {
+		g_acServers[idx]=acSrv;
+		g_managed[idx]=\"?\";
+	}
+	Refresh();
+}
+
+
+void EnableAllInPanel(bool enabled)
+{
+
+}
+
+void Refresh()
+{
+
+DebugN(\"Refresh...\");
+
+EnableAllInPanel(FALSE);
+
+
+Clients.deleteAllLines();
+
+dynClear(g_managed);
+Clients.appendLines(dynlen(g_allSystemNames),
+		\"Id\",g_allSystemIds,
+		\"SysName\",g_allSystemNames,
+		\"ACServer\",g_acServers);
+
+
+dyn_string managedHosts;
+bool connected=checkACServerStatus(); 
+if (connected) {
+	managedHosts=_fwAccessControl_sendCommandToServer(\"HOSTLIST\");
+}
+
+Clients.stop(TRUE);
+for (int i=1;i<=dynlen(g_allSystemNames);i++) {
+	if (dynContains(managedHosts,g_allSystemNames[i])){
+		g_managed[i]=\"YES\";
+	}else{
+		g_managed[i]=\"NO\";
+	}
+	if (g_allSystemNames[i]==getSystemName()) g_managed[i]=\"SERVER\";
+Clients.cellValueRC(i-1,\"Managed\",g_managed[i]);
+}
+Clients.stop(FALSE);
+
+
+
+EnableAllInPanel(TRUE);
+}
+
+bool checkACServerStatus()
+{
+ACServerStatus.text=\"CHECKING\";
+ACServerStatus.toolTipText=\"\";
+ACServerStatus.backCol=\"lightgrey\";
+
+dyn_string reply=_fwAccessControl_sendCommandToServer(\"PING\");
+
+if (reply[1]==\"ERROR\") {
+	ACServerStatus.text=\"ERROR\";
+	ACServerStatus.toolTipText=reply[2];
+	ACServerStatus.backCol=\"red\";
+	return FALSE;
+} else if (reply[1]=\"ACK\") {
+	ACServerStatus.text=\"OK\";
+	ACServerStatus.backCol=\"green\";
+	return TRUE;
+}
+
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+25 12
+"Clients"
+""
+1 20 179.265306122449 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ "main()
+{
+int n,k;
+getValue(\"\",\"currentCell\",n,k);
+if (n<0) return; // clicked in table, but on area with no item...
+string serv=g_acServers[n+1];
+string sys=g_allSystemNames[n+1]; 
+int canRelease=1;
+int canAdopt=1;
+
+int answer;
+
+dyn_string menu;
+ if (sys!=getSystemName()){
+	if (serv==getSystemName()) {
+		canAdopt=0;
+	}
+	if (serv==\"\") {
+		canRelease=0;
+	}
+ 	dynAppend(menu, \"PUSH_BUTTON,AC Client \"+sys+\",99,1\");
+ 	dynAppend(menu, \"SEPARATOR\");
+ 	dynAppend(menu, \"CASCADE_BUTTON,Set AC Server,1\");
+ 	dynAppend(menu, \"PUSH_BUTTON,Force sync host,11,1\");
+ 	dynAppend(menu, \"PUSH_BUTTON,Force sync all,12,1\");
+ 	dynAppend(menu, \"Set AC Server\");
+ 	dynAppend(menu, \"PUSH_BUTTON,Adopt   (set to \"+getSystemName()+\"),2,\"+canAdopt);
+ 	dynAppend(menu, \"PUSH_BUTTON,Release (set to empty) ,3,\"+canRelease);
+ 	dynAppend(menu, \"PUSH_BUTTON,Custom,4,1\"); 
+ } else {
+ 	dynAppend(menu, \"PUSH_BUTTON,AC Server,99,1\");
+ 	dynAppend(menu, \"SEPARATOR\");
+ 	dynAppend(menu, \"PUSH_BUTTON,Force sync all,12,1\");
+ }
+
+
+ popupMenu(menu,answer);
+
+
+ string dp=sys+\"_fwAccessControlSetup.Integrated.ACServer\";
+
+ if (answer==2) {
+	dpSetWait(dp,getSystemName());
+ } else if (answer==3) {
+	dpSetWait(dp,\"\");
+ } else if (answer==4) {
+
+	dyn_string ds;
+	dyn_float df;
+    	ChildPanelOnCentralReturn(  \"fwGeneral/fwGeneralReadStringValue.pnl\",
+                                     \"Set custom AC Server\",
+					makeDynString(  \"$sTitle: Set custom AC Server\",
+							\"$sDescription: Please provide AC Server name for system \"+sys),
+                                                        df,ds);
+	if (df[1]!=1) {
+		return;
+        }
+	dpSetWait(dp,ds[1]);
+	
+
+ } else if (answer==11) {
+	DebugN(\"Sync Host \"+sys);
+	dyn_string results=_fwAccessControl_sendCommandToServer(\"SYNC_HOST\",
+			makeDynString(sys));
+	if (results[1]==\"ERROR\"){
+		DebugN(results);
+	}
+	return; 
+
+ } else if (answer==12) { 
+	DebugN(\"Sync All...\");
+	dyn_string results=_fwAccessControl_sendCommandToServer(\"SYNC_ALL\");
+	if (results[1]==\"ERROR\"){
+		DebugN(results);
+	}
+	return; 
+ } else if (answer==0) { 
+	return; 
+ }
+	string ret;
+	dpGet(dp,ret);
+	g_acServers[n+1]=ret;
+	Refresh();
+
+
+
+}" 0
+ E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 20 180 440 452
+"main()
+{
+this.tableMode=TABLE_SELECT_BROWSE ;
+this.selectByClick=TABLE_SELECT_LINE;
+}" 0
+E 1 0 1 4 1 "Id" 3 1 0 "s" 1
+LANG:1 5 SysId
+E
+1
+LANG:1 0 
+
+50 "SysName" 10 1 0 "s" 1
+LANG:1 11 System Name
+E
+1
+LANG:1 0 
+
+120 "ACServer" 10 1 0 "s" 1
+LANG:1 9 AC Server
+E
+1
+LANG:1 21 Right click to change
+
+120 "Managed" 6 1 0 "s" 1
+LANG:1 7 Managed
+E
+1
+LANG:1 0 
+
+80 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 1 1 7
+1 0
+13 5
+"RefreshButton"
+""
+1 20 470 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 20 470 120 501
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+Refresh();
+}" 0
+ E E E
+13 13
+"CloseButton"
+""
+1 340 470 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 340 470 440 500
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+PanelOff();
+}" 0
+ E E E
+1 14 0 "" 0
+0
+14 2
+"LocalHost"
+""
+1 118 63 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 118 63 258 92
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+this.text=getSystemName();
+}" 0
+ E
+14 4
+"ACServerStatus"
+""
+1 118 93 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 118 93 258 122
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+this.text=\"UNKNOWN\";
+}" 0
+ E
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 20 20 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 20 238 45
+0 2 2 "0s" 0 0 0 192 0 0  20 20 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 Access Control Server console
+2 1
+"PRIMITIVE_TEXT2"
+""
+1 40 70 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 40 70 101 90
+0 2 2 "0s" 0 0 0 192 0 0  40 70 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 running on:
+2 3
+"Text1"
+""
+1 40 100 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 40 100 77 120
+0 2 2 "0s" 0 0 0 192 0 0  40 100 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 status:
+2 11
+"Text2"
+""
+1 10 144 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 30 160 126 180
+0 2 2 "0s" 0 0 0 192 0 0  30 160 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 managed clients:
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 4 1 0 1 90 0
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_ServerConsole"
+0

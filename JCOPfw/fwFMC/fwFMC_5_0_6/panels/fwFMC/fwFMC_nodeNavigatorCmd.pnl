@@ -1,0 +1,427 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 137 170 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  fwFMC_getNodes(nodes);
+
+  if(isDollarDefined(\"$sDpName\") && (dpExists($sDpName) && (dpTypeName($sDpName) == \"FwFMCNode\" || dpTypeName($sDpName) == \"FwFMCIpmi\")))
+  {
+    systemName = dpSubStr($sDpName, DPSUB_SYS);
+    dyn_string selectedNodes = getSelectedNodes(); 
+  
+    for(int i =1; i <= dynlen(selectedNodes); i++)
+    {
+      string dp = fwFMC_getNodeDp(selectedNodes[i]);
+      if(dpExists(dp+\"/TaskManager.\"))
+        showTaskManager = true;
+      
+      if(dpExists(dp+\"/Ipmi.\"))
+        showIpmi = true;
+    } 
+  }
+  else
+  {
+    showTaskManager = true;
+    showIpmi = true;
+  }
+  
+//   btReboot.enabled = showTaskManager;
+//   btOn.enabled = showIpmi;
+//   btOff.enabled = showIpmi;
+//   btCycle.enabled = showIpmi;
+  //Access Control:
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyNodeCmdAcCB\", ex);
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+  
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwFMC/fwFMC.ctl\"
+#uses \"fwFMC/fwFMCTaskManager.ctl\"
+#uses \"fwFMC/fwFMC.ctl\"
+    
+dyn_string nodes;
+string ipmiDp;
+string systemName;
+bool showIpmi = false;
+bool showTaskManager = false;
+
+void applyNodeCmdAcCB(string s1, string s2)
+ {
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string domain;
+  fwSysOverview_getACDomain(domain);
+  
+  // at first, disable whatever was enabled to this moment
+  disableAllInNodeCmdPanel();
+  if(domain == \"\") //AC not yet configured. Enable access 
+  {
+    hasExpertPrivilege = true;
+  }
+  else
+  {
+    // check if current user has privilege level \"Control\" in domain \"MyDCS\":
+    fwAccessControl_isGranted(domain + \":admin\", hasExpertPrivilege, exceptionInfo);
+  
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+  }
+  // enable UI elements, depending on the access rights:
+  if (hasExpertPrivilege)
+  {
+    btOff.enabled = showIpmi;
+    btOn.enabled = showIpmi;
+    btReboot.enabled = showTaskManager;
+    btCycle.enabled = showIpmi;
+  }
+}
+
+void disableAllInNodeCmdPanel()
+{
+  btOff.enabled = false;
+  btOn.enabled = false;
+  btReboot.enabled = false;
+  btCycle.enabled = false;
+}
+
+
+dyn_string getSelectedNodes()
+{
+  dyn_string selectedNodes;
+  
+  if(isDollarDefined(\"$sDpName\") && (dpExists($sDpName) && dpTypeName($sDpName) == \"FwFMCNode\" || dpTypeName($sDpName) == \"FwFMCIpmi\"))
+  {
+    selectedNodes = makeDynString(fwFMC_getNodeName($sDpName));
+  }
+  else
+  {
+    dyn_int lines;
+  
+    lines = tblNodes.getSelectedLines();
+
+    if(dynlen(lines) <= 0)
+      return makeDynString();
+    
+    for(int i = 1; i <= dynlen(lines); i++)
+      getValue(\"tblNodes\", \"cellValueRC\", lines[i], \"node\", selectedNodes[i]);
+  }  
+  
+  return selectedNodes;  
+}  
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 2
+"Frame2"
+""
+1 310 180 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.3936693627546647 0 1.695275350090353 -108.0375024539461 -143.5747815081318 0 E 310 90 580 180
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Commands
+13 3
+"btOff"
+""
+1 20.3059244325231 29.9999999999999 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 28 110 58
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  dyn_int lines;
+  dyn_string selectedNodes = getSelectedNodes();
+  dyn_string errorNodes;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", \"Confirmation required\", makeDynString(\"Are you sure you want to switch off this/these computer(s)?\", \"Yes\", \"Cancel\"), df, ds);
+  if(dynlen(df) && df[1] > 0.)
+  {
+    openProgressBar(\"Switch off selected nodes\", \"config_site_24.bmp\", \"Switching off...\", \"Proceeding with first node\", \"Please wait!\", 2);
+    for(int i = 1; i <= dynlen(selectedNodes); i++)
+    {
+        showProgressBar(\"\", \"\", \"Switching off node: \" + selectedNodes[i], i/dynlen(selectedNodes)*100.);
+        if(fwFMCIpmi_switchOff(selectedNodes[i], systemName))
+          dynAppend(errorNodes, selectedNodes[i]);
+
+      }
+    closeProgressBar();
+  }
+  if(dynlen(errorNodes))
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors switching off some nodes:\\n\"+errorNodes ));
+  
+}
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+13 4
+"btOn"
+""
+1 19.795408180133 62.9999999999999 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 61 110 91
+
+T 
+1
+LANG:1 2 ON
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  dyn_int lines;
+  dyn_string errorNodes;
+
+  
+  dyn_string selectedNodes = getSelectedNodes();
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", \"Confirmation required\", makeDynString(\"Are you sure you want to switch on this computer?\", \"Yes\", \"Cancel\"), df, ds);
+  if(dynlen(df) && df[1] > 0.)
+  {
+    openProgressBar(\"Switch on selected nodes\", \"config_site_24.bmp\", \"Switching on...\", \"Proceeding with first node\", \"Please wait!\", 2);
+    for(int i = 1; i <= dynlen(selectedNodes); i++)
+    {
+       showProgressBar(\"\", \"\", \"Switching on node: \" + selectedNodes[i], i/dynlen(selectedNodes)*100.);      
+         if(fwFMCIpmi_switchOn(selectedNodes[i], systemName))
+          dynAppend(errorNodes, selectedNodes[i]);
+
+      }
+    closeProgressBar();
+  }
+  if(dynlen(errorNodes))
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors switching on some nodes:\\n\"+errorNodes ));
+ 
+}
+
+
+
+
+
+
+" 0
+ E E E
+13 5
+"btReboot"
+""
+1 19.98703312191708 129.9999999999999 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 128 110 158
+
+T 
+1
+LANG:1 6 Reboot
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  dyn_int lines;
+  dyn_string errorNodes;
+  
+  dyn_string selectedNodes = getSelectedNodes();
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", \"Confirmation required\", makeDynString(\"Are you sure you want to reboot this computer?\", \"Yes\", \"Cancel\"), df, ds);
+  if(dynlen(df) && df[1] > 0.)
+  {
+    openProgressBar(\"Rebooting selected nodes\", \"config_site_24.bmp\", \"Rebooting...\", \"Proceeding with first node\", \"Please wait!\", 2);
+    for(int i = 1; i <= dynlen(selectedNodes); i++)
+    {
+      showProgressBar(\"\", \"\", \"Rebooting node: \" + selectedNodes[i], i/dynlen(selectedNodes)*100.);      
+      if(fwFMCTaskManager_rebootNode(selectedNodes[i], systemName))
+        dynAppend(errorNodes, selectedNodes[i]);
+        
+    }
+    closeProgressBar();
+  }
+  
+  if(dynlen(errorNodes))
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors rebooting some nodes:\\n\" + errorNodes));
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+13 6
+"btCycle"
+""
+1 19.795408180133 95.9999999999999 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 94 110 124
+
+T 
+1
+LANG:1 11 Power Cycle
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  dyn_int lines;
+  dyn_string errorNodes;
+
+  
+  dyn_string selectedNodes = getSelectedNodes();
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", \"Confirmation required\", makeDynString(\"Are you sure you want to power cycle this computer?\", \"Yes\", \"Cancel\"), df, ds);
+  if(dynlen(df) && df[1] > 0.)
+  {
+    openProgressBar(\"Power cycling selected nodes\", \"config_site_24.bmp\", \"Power cycling...\", \"Proceeding with first node\", \"Please wait!\", 2);
+    for(int i = 1; i <= dynlen(selectedNodes); i++)
+    {
+       showProgressBar(\"\", \"\", \"Power cycling node: \" + selectedNodes[i], i/dynlen(selectedNodes)*100.);      
+         if(fwFMCIpmi_powerCycle(selectedNodes[i], systemName))
+          dynAppend(errorNodes, selectedNodes[i]);
+
+      }
+    closeProgressBar();
+  }
+  if(dynlen(errorNodes))
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors power cycling some nodes:\\n\"+errorNodes ));
+ 
+}
+
+
+
+
+
+
+
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

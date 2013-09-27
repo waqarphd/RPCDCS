@@ -1,0 +1,805 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 525 449 N "_3DFace" 3
+"$hierarchy"
+"$system"
+"$topDevice"
+"main()
+{
+	PopulatePanel();
+}" 0
+ E E E E 1 -1 -1 0  290 354
+""0  1
+E "dyn_string deviceList, allDeviceList;
+dyn_string g_configNames, g_configDescriptions;
+dyn_int g_configIds;// configurations
+int g_deviceConfigs=0;// selected device configs
+
+void PopulatePanel()
+{
+ dyn_string exceptionInfo;
+
+DisableAll();
+
+ fwConfigurationDB_checkInit(exceptionInfo);
+ if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return;}	
+
+if ($hierarchy==\"\") {
+	fwException_raise(exceptionInfo,\"ERROR\",\"Hierarchy was not specified in $hierarchy\",\"\");
+	fwExceptionHandling_display(exceptionInfo); return;
+}
+
+TopDevice.text=$topDevice+\"/*\";
+Hierarchy.text=$hierarchy;
+
+if ($hierarchy==fwDevice_HARDWARE) {
+	SaveOption.enabled=TRUE;
+	SaveOption.selectedPos=2;
+  	g_deviceConfigs=fwConfigurationDB_deviceConfig_ALLDEVPROPS;
+  	RepaintDeviceConfigs();  
+
+} else {
+	SaveOption.visible=FALSE;
+	ConfigSelect1.visible=FALSE;
+	ConfigSelect2.visible=FALSE;
+	ConfigSelect3.visible=FALSE;
+	OptionsFrame.visible=FALSE;
+}
+
+  dynClear(deviceList);
+
+    fwConfigurationDB_getHierarchyFromPVSS($topDevice, $hierarchy,
+                                           allDeviceList,exceptionInfo,$system);
+    if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return FALSE;}	
+  
+  deviceList=allDeviceList;
+
+  RefreshConfigurationsList();
+
+}
+
+void DisableAll()
+{
+DBSaveButton.enabled=FALSE;
+ConfigSelect1.enabled=FALSE;
+ConfigSelect2.enabled=FALSE;
+ConfigSelect3.enabled=FALSE;
+DisableConfigurations();
+}
+
+void DisableConfigurations()
+{
+ConfigurationName.enabled=FALSE;
+ConfigurationDescription.enabled=FALSE;
+ConfigurationId.enabled=FALSE;
+ConfigurationDescription.editable=FALSE;
+ConfigurationName.backCol=\"FwBackground\";
+ConfigurationDescription.backCol=\"FwBackground\";
+ConfigurationDescription.text=\"\";
+ConfigurationId.text=\"\";
+
+}
+
+
+
+
+void RefreshConfigurationsList()
+{
+DisableConfigurations();
+string savConfig=ConfigurationName.text;
+ConfigurationName.text=\"\";
+ConfigurationName.deleteAllItems();
+
+dyn_string configNames, configDescriptions,exceptionInfo;
+dyn_int configIds;
+fwConfigurationDB_getDeviceConfigurations($hierarchy,
+        configNames, configDescriptions, configIds,
+	exceptionInfo);
+
+if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return;}	
+
+ConfigurationName.items=configNames;
+g_configNames=configNames;
+g_configDescriptions=configDescriptions;
+g_configIds=configIds;
+
+ConfigurationName.enabled=TRUE;
+ConfigurationDescription.enabled=TRUE;
+ConfigurationId.enabled=TRUE;
+ConfigurationName.backCol=\"FwBackgroundInputText\";
+
+
+if (dynContains(configNames,savConfig)) {
+ ConfigurationName.text=savConfig;
+ ConfigurationSelected(savConfig);
+} 
+
+}
+
+
+void ConfigurationSelected(string configName)
+{
+
+int idx=dynContains(g_configNames,configName);
+
+if (idx>0) {
+	// means: existing one...
+	ConfigurationDescription.text=g_configDescriptions[idx];
+	ConfigurationId.text=g_configIds[idx];
+	//ConfigurationDescription.editable=FALSE;
+        ConfigurationDescription.editable=TRUE;
+	ConfigurationDescription.backCol=\"FwBackground\";
+	DBSaveButton.text=\"Update in DB\";
+} else {
+	//it's a new one!
+	ConfigurationId.text=\"NEW\";
+	ConfigurationDescription.text=\"(type in a new description)\";
+	ConfigurationDescription.editable=TRUE;
+	ConfigurationDescription.backCol=\"FwBackgroundInputText\";
+	DBSaveButton.text=\"Save to DB\";
+}
+DBSaveButton.enabled=TRUE;
+}
+
+void SaveConfigurationToDB()
+{
+dyn_string exceptionInfo;
+string systemName=$system;
+
+string configurationName=ConfigurationName.text;
+string configDesc=ConfigurationDescription.text;
+if (configDesc==\"(type in a new description)\") configDesc=\"\";
+
+bool saveConfigs=FALSE;
+if (SaveOption.selectedPos==2) saveConfigs=TRUE;
+
+DBSaveButton.enabled=FALSE;
+
+if ($hierarchy==fwDevice_HARDWARE) {
+
+fwConfigurationDB_openProgressDialog(
+	makeDynInt( fwConfigurationDB_OPER_SaveHierarchyToDB,
+		    fwConfigurationDB_OPER_SaveDeviceMetaData,
+		    fwConfigurationDB_OPER_SaveDevicesAndElements,
+		    fwConfigurationDB_OPER_SaveDeviceProperties),
+	makeDynString(	\"Store device hierarchy\",
+			\"Store types and versions info\",
+			\"Store devices and elements\",
+			\"Store device properties\"));
+} else if ($hierarchy==fwDevice_LOGICAL) {
+fwConfigurationDB_openProgressDialog(
+	makeDynInt( fwConfigurationDB_OPER_SaveHierarchyToDB,
+		    fwConfigurationDB_OPER_SaveDeviceMetaData,
+		    fwConfigurationDB_OPER_SaveDeviceReferences),
+	makeDynString(	\"Store device hierarchy\",
+			\"Store types and versions info\",
+			\"Store device references\"));
+
+}
+
+
+fwConfigurationDB_saveDeviceConfigurationInDB(deviceList, $hierarchy,
+    configurationName, g_deviceConfigs, exceptionInfo, $system, configDesc);
+
+
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+fwConfigurationDB_closeProgressDialog();
+RefreshConfigurationsList();
+}
+
+
+void RepaintDeviceConfigs()
+{
+ConfigSelect1.state(0,g_deviceConfigs & fwConfigurationDB_deviceConfig_VALUE);
+ConfigSelect1.state(1,g_deviceConfigs & fwConfigurationDB_deviceConfig_ADDRESS);
+ConfigSelect1.state(2,g_deviceConfigs & fwConfigurationDB_deviceConfig_ALERT);
+
+ConfigSelect2.state(0,g_deviceConfigs & fwConfigurationDB_deviceConfig_ARCHIVING);
+ConfigSelect2.state(1,g_deviceConfigs & fwConfigurationDB_deviceConfig_DPFUNCTION);
+ConfigSelect2.state(2,g_deviceConfigs & fwConfigurationDB_deviceConfig_CONVERSION);
+
+ConfigSelect3.state(0,g_deviceConfigs & fwConfigurationDB_deviceConfig_PVRANGE);
+ConfigSelect3.state(1,g_deviceConfigs & fwConfigurationDB_deviceConfig_SMOOTHING);
+ConfigSelect3.state(2,g_deviceConfigs & fwConfigurationDB_deviceConfig_UNITANDFORMAT);
+
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"CanceButton"
+""
+1 432 406 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 430 404 510 434
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+22 1
+"ConfigurationName"
+""
+1 17.66949152542373 58 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 61 Configuration name (select or type-in a new one, press ENTER)
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 58 297 85
+0
+
+E
+"main()
+{
+DBSaveButton.enabled=FALSE;
+string selected=this.text;
+if (selected!=\"\") ConfigurationSelected(selected);
+}" 0
+
+E
+ 1 0
+13 3
+"ShowDeviceList"
+""
+1 400 169.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 400 169.0000000000001 500 199.0000000000001
+
+T 
+1
+LANG:1 11 Device List
+"main()
+{
+
+	dyn_float df;
+	dyn_string ds;
+
+	string showDpSelector=\"FALSE\";
+	string showAliasSelector=\"FALSE\";
+	if ($hierarchy==fwDevice_HARDWARE) showDpSelector=TRUE;
+	if ($hierarchy==fwDevice_LOGICAL) showAliasSelector=TRUE;
+	
+	ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_SelectionList.pnl\",
+			\"Save devices in DB\",
+			makeDynString(\"$text:Devices in recipe\",
+				\"$DPSelector:\"+showDpSelector,
+				\"$AliasSelector:\"+showAliasSelector,
+				\"$selectMultiple:\"+TRUE,
+				\"$items:\"+allDeviceList,
+				\"$selectedItems:\"+deviceList),
+				//\"$disabledItems:\"+deviceList),
+
+			df,ds);
+	if (dynlen(df)<1) return;
+
+	if (df[1]>0.0) {
+		deviceList=ds;
+		if (deviceList==allDeviceList)
+			TopDevice.text=$topDevice+\"/*\";
+		else
+			TopDevice.text=$topDevice+\"/[SELECTED \"+dynlen(deviceList)+\"/\"+dynlen(allDeviceList)+\"]\";
+	};
+}" 0
+ E E E
+2 4
+"TopDevice"
+""
+1 -8 141.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 90 189.0000000000001 157 204
+0 2 2 "0s" 0 0 0 192 0 0  90 189.0000000000001 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 $topDevice
+2 5
+"Hierarchy"
+""
+1 -46 159.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 90 165.0000000000001 153 180
+0 2 2 "0s" 0 0 0 192 0 0  90 165.0000000000001 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 $hierarchy
+13 6
+"DBSaveButton"
+""
+1 310 404 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 310 404 410 434
+
+T 
+1
+LANG:1 10 Save to DB
+"main()
+{
+	SaveConfigurationToDB();
+}" 0
+ E E E
+14 15
+"ConfigurationDescription"
+""
+1 18.00420168067227 93 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 37 Description of selected configuration
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 93 497.0000000000001 116
+2 "0s" 0 0 0 0 0 -1  E E E
+14 16
+"ConfigurationId"
+""
+1 440 69 E E E 1 E 1 E N "_WindowText" E N "FwBackground" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 35 Identifer of selected configuration
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 438.0000000000001 58 497.0000000000001 81
+2 "0s" 0 0 0 0 0 -1  E E E
+6 17
+"PressEnter"
+""
+1 320 140 E E E 1 E 1 E N "lightgrey" E N "lightgrey" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 57 Remember to press ENTER after you type-in the description
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 35 -14 2  0 1  "pictures/Enter.gif" 13421772 E 260 74 283 97
+30 18
+"FRAME1"
+""
+1 10 10 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+44 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8928571428571429 0 0.8181818181818182 1.071428571428571 31.81818181818182 0 E 10 10 570 120
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 Configuration
+30 19
+"FRAME1"
+""
+1 10 10 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+47 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8928571428571429 0 0.6833255175185904 1.071428571428571 133.1667448248141 0 E 10 10 570 120
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Devices
+2 20
+"PRIMITIVE_TEXT1"
+""
+1 20 165.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 165.0000000000001 77 180
+0 2 2 "0s" 0 0 0 192 0 0  20 165.0000000000001 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 hierarchy:
+2 21
+"PRIMITIVE_TEXT2"
+""
+1 20 189.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 189.0000000000001 73 204
+0 2 2 "0s" 0 0 0 192 0 0  20 189.0000000000001 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 selected:
+30 22
+"OptionsFrame"
+""
+1 10 10 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+51 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8928571428571429 0 1.543485813549507 1.071428571428571 208.5651418645051 0 E 10 10 570 120
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Options
+22 30
+"SaveOption"
+""
+1 20 244 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+124 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 20 244 280 271
+3
+1
+LANG:1 26 Hierarchy information only
+
+1
+1
+LANG:1 25 All properties of devices
+
+0
+1
+LANG:1 19 Selected properties
+
+0
+
+E
+"main()
+{
+	ConfigSelect1.enabled=FALSE;
+	ConfigSelect2.enabled=FALSE;
+	ConfigSelect3.enabled=FALSE;
+
+if (this.selectedText==\"Hierarchy information only\"){
+	g_deviceConfigs=0;
+	RepaintDeviceConfigs();
+} else if (this.selectedText==\"All properties of devices\"){
+	g_deviceConfigs=fwConfigurationDB_deviceConfig_ALLDEVPROPS;
+	RepaintDeviceConfigs();
+} else if (this.selectedText==\"Selected properties\"){
+	ConfigSelect1.enabled=TRUE;
+	ConfigSelect2.enabled=TRUE;
+	ConfigSelect3.enabled=TRUE;
+	RepaintDeviceConfigs();
+}
+
+}" 0
+
+E
+ 0 0
+20 31
+"ConfigSelect2"
+""
+1 190 284 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+110 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 190 294 294 378
+3
+T 
+1
+LANG:1 9 Archiving
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 11 DP Function
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 Conversion
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, int state)
+{
+if (button==0) g_deviceConfigs^=fwConfigurationDB_deviceConfig_ARCHIVING;
+else if (button==1) g_deviceConfigs^=fwConfigurationDB_deviceConfig_DPFUNCTION;
+else if (button==2) g_deviceConfigs^=fwConfigurationDB_deviceConfig_CONVERSION;
+
+}" 0
+20 32
+"ConfigSelect3"
+""
+1 330 284 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+111 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 330 294 459 378
+3
+T 
+1
+LANG:1 8 PV Range
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 9 Smoothing
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 15 Unit and Format
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, int state)
+{
+if (button==0) g_deviceConfigs^=fwConfigurationDB_deviceConfig_PVRANGE;
+else if (button==1) g_deviceConfigs^=fwConfigurationDB_deviceConfig_SMOOTHING;
+else if (button==2) g_deviceConfigs^=fwConfigurationDB_deviceConfig_UNITANDFORMAT;
+
+}" 0
+20 34
+"ConfigSelect1"
+""
+1 60 294 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+131 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 60 294 140 378
+3
+T 
+1
+LANG:1 5 Value
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 7 Address
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 6 Alerts
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, int state)
+{
+if (button==0) g_deviceConfigs^=fwConfigurationDB_deviceConfig_VALUE;
+else if (button==1) g_deviceConfigs^=fwConfigurationDB_deviceConfig_ADDRESS;
+else if (button==2) g_deviceConfigs^=fwConfigurationDB_deviceConfig_ALERT;
+
+}" 0
+1 37 0 "" 0
+0
+2 36
+"PRIMITIVE_TEXT1"
+""
+1 10 20 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+134 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 10 10 187 29
+0 2 2 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 Save device configuration
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 270 20 T 133 1 0 1 212 -8
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_SaveDevicesToDB"
+0

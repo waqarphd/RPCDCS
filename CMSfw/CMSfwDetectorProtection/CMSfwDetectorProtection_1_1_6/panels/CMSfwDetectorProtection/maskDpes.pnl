@@ -1,0 +1,627 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 730 806 N "_3DFace" 2
+"$dpes"
+"$system"
+"main()
+{
+  fwGeneral_stringToDynString($dpes, dpes);
+
+  for (int i=1; i<= dynlen(dpes); i++) {
+      dpes[i] = strsplit(dpes[i],\"=\")[1];
+  }
+  refresh();
+
+
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"CMSfwDetectorProtection/CMSfwDetectorProtection.ctl\"
+
+dyn_string maskedDpes;
+
+int limit = 100;
+int upper = 0;
+
+  dyn_string dpes; dyn_string pureDpes;
+  
+void refresh() {
+
+  string dpMasked = $system + CMSfwDetectorProtection_managerDp + \".mask.maskedDpes\";
+  dynClear(maskedDpes);
+  dyn_string exc;
+  if (! dpExists(dpMasked) ) {
+      fwException_raise(exc, \"DP_NOT_EXISTING\", \"Dp \" + dpMasked + \" does not exist\", \"\");
+      fwExceptionHandling_display(exc);
+      return;
+  }  
+  dpGet(dpMasked, maskedDpes);
+  tbl.deleteAllLines();
+  tblMasked.deleteAllLines();
+  addMaskedToTable();
+  addToTable(1, limit);
+
+
+  
+}
+
+bool isAliasPreferred() {
+    return (cbPrefer.selectedText == \"Prefer Alias\");
+}
+
+  
+  
+string getLabel(string dpe) {
+  string dp = dpSubStr(dpe, DPSUB_SYS_DP);
+  string element = dpe;
+  strreplace(element, dp,\"\");
+  string alias = dpGetAlias(dp + \".\");
+  if ((isAliasPreferred()) && (alias != \"\")) return alias + \" \" + element;
+  string descr = dpGetDescription(dp + \".\");
+  if (descr != dp + \".\") {
+     return descr + \" \" + element; 
+  }
+
+ if (alias != \"\") return alias + \" \" + element;
+  return dpe;
+}
+  
+
+bool addToTable(int from, int to) {
+    bool res = true;
+    if (to >= dynlen(dpes)) {
+        res = false;
+        to = dynlen(dpes);
+    }
+      dyn_string spl; string label;
+      string status;
+      int count = 0;
+      
+  int i = 0;
+  for (i=from; i<= dynlen(dpes); i++) {
+    spl = strsplit(dpes[i], \"=\");
+    label = getLabel(spl[1]);
+    status = dynContains(maskedDpes, spl[1])?\"MASKED\":\"NOT MASKED\";
+    if (txtFilterDpe.text != \"\") {
+      if (! patternMatch(txtFilterDpe.text, spl[1])) {
+          continue;
+      }
+    }
+    
+    if (txtFilterDescription.text != \"\") {
+      if (! patternMatch(txtFilterDescription.text, label) ) {
+          continue;
+      }
+    }
+    tbl.appendLine(\"label\", label, \"dpe\", spl[1], \"status\",status);
+    tbl.cellBackColRC(tbl.lineCount -1,  \"status\", ( status== \"MASKED\")?\"FwStateAttention1\":\"_Window\");
+    count++;
+    if (count > (to-from)) break;
+  }
+  
+  upper = i;
+  btnMore.visible = res;
+  txtCount.text = dynlen(dpes) + \" dpes found (\" + tbl.lineCount + \" shown)\"; 
+ 
+  return res;
+    
+}
+
+addMaskedToTable() {
+  string label, status;
+  for (int i=1; i<= dynlen(maskedDpes); i++) {
+      label =getLabel(maskedDpes[i]);
+      status = dynContains(dpes, maskedDpes[i])?\"MASKED\":\"NOT AFFECTED\";
+      tblMasked.appendLine(\"label\", label,\"dpe\", maskedDpes[i], \"status\", status);
+    tblMasked.cellBackColRC(tblMasked.lineCount -1,  \"status\", ( status== \"MASKED\")?\"FwEquipmentDisabled\":\"FwStateAttention3\");
+  }
+}
+
+
+void mask(string dpe) {
+  if (! dynContains(maskedDpes, dpe) ) {
+    dynAppend(maskedDpes, dpe);
+    writeMasked($system);
+  }
+
+    
+}
+
+void unmask(string dpe) {
+  int index = dynContains(maskedDpes, dpe);
+  if (index>0) {
+      dynRemove(maskedDpes, index);
+      writeMasked($system);
+  }
+}
+
+void writeMasked(string sys) {
+      dynSortAsc(maskedDpes);
+      string dpMasked = sys + CMSfwDetectorProtection_managerDp + \".mask.maskedDpes\";
+      dpSet(  dpMasked, maskedDpes);
+    refresh();
+}
+
+bool promptUser(string msg) {
+  dyn_string result;
+  dyn_float float_result;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageInfo\",(\"information\"),makeDynString(msg,\"Yes\",\"No\"),float_result, result);
+  return result[1]==\"true\";
+
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 510 234 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 510 234 517 241
+0 2 2 "0s" 0 0 0 64 0 0  510 234 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 2
+"PRIMITIVE_TEXT2"
+""
+1 18 2 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"Affected DPEs in system \" + $system;
+}" 0
+ E 0 1 1 2 1 E U  1 E 18 2 462 57
+0 2 2 "0s" 0 0 0 64 0 0  18 2 1
+1
+LANG:1 33 MS Shell Dlg,-1,19,5,75,0,0,0,0,0
+0 1
+LANG:1 24 Affected DPEs in system 
+25 3
+"tbl"
+""
+1 14 76 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  string dpe;
+    dyn_anytype cols;
+  getValue(\"tbl\" ,\"getLineN\",row,cols);
+  
+  dpe = cols[1];
+  
+  string panelname = \"CMSfwDetProt_dpe_info\";
+    if (isPanelOpen(panelname) ) {
+      PanelOffPanel(panelname);
+      delay(1);
+    }
+        
+    ChildPanelOnCentral(\"CMSfwDetectorProtection/dpe_info.pnl\", panelname, makeDynString(\"$sDpe:\" + dpe));
+    
+}" 0
+
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  12 74 656 546
+E"main(int row, string column, string value)
+{
+  
+    
+  dyn_anytype res;
+  getValue(\"\",\"getLineN\", row,res);
+  if (dynlen(res) == 0) return;
+  string dpe = res[1];
+    
+  
+  if (column == \"status\") {
+     if (! CMSfwDetectorProtection_hasRequiredPrivileges($system) ) {
+         int a;
+        popupMenu(makeDynString(\"PUSH_BUTTON,You do not have the required privileges on system \" +$system + \",1,1\" ), a);
+        return;
+      
+    }
+    if (value == \"NOT MASKED\") {
+      if (promptUser(\"Are you sure to mask \" + dpe + \"?\") ){
+          mask(dpe);
+      }
+    } else if (value == \"MASKED\") {
+       if (promptUser(\"Are you sure to unmask \" + dpe + \"?\") ){
+          unmask(dpe);
+      }         
+    }
+  }
+}
+" 0
+ 1 0 1 3 0 "dpe" 6 1 0 "s" 1
+LANG:1 3 Dpe
+E
+1
+LANG:1 0 
+
+250 "label" 6 1 0 "s" 1
+LANG:1 17 Description/Alias
+E
+1
+LANG:1 0 
+
+290 "status" 6 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+70 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 4
+"btnMore"
+""
+1 536 555 E E E 1 E 0 E N "FwStateAttention3" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 34 MS Shell Dlg 2,8,-1,5,75,0,0,0,0,0
+0  534 553 658 580
+
+T 
+1
+LANG:1 7 More...
+"main()
+{
+  addToTable(upper +1, upper + limit);
+}" 0
+ E E E
+13 5
+"PUSH_BUTTON7"
+""
+1 570 767 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  568 765 665 794
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+
+  
+  PanelOff();
+}" 0
+ E E E
+25 6
+"tblMasked"
+""
+1 23 615 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  string dpe;
+    dyn_anytype cols;
+  getValue(\"\" ,\"getLineN\",row,cols);
+  
+  dpe = cols[1];
+  
+  string panelname = \"CMSfwDetProt_dpe_info\";
+    if (isPanelOpen(panelname) ) {
+      PanelOffPanel(panelname);
+      delay(1);
+    }
+        
+    ChildPanelOnCentral(\"CMSfwDetectorProtection/dpe_info.pnl\", panelname, makeDynString(\"$sDpe:\" + dpe));
+    
+}" 0
+
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  21 613 665 736
+E"main(int row, string column, string value)
+{
+  dyn_anytype res;
+  getValue(\"\",\"getLineN\", row,res);
+  if (dynlen(res) == 0) return;
+  string dpe = res[1];
+  
+  if (column == \"status\") {    
+    
+     if (! CMSfwDetectorProtection_hasRequiredPrivileges($system) ) {
+         int a;
+        popupMenu(makeDynString(\"PUSH_BUTTON,You do not have the required privileges on system \" +$system + \",1,1\" ), a);
+        return;
+      
+    }
+       if (promptUser(\"Are you sure to unmask \" + dpe + \"?\") ){
+          unmask(dpe);
+      }             
+  }
+}
+" 0
+ 1 0 1 3 0 "dpe" 6 1 0 "s" 1
+LANG:1 3 Dpe
+E
+1
+LANG:1 0 
+
+250 "label" 6 1 0 "s" 1
+LANG:1 11 Description
+E
+1
+LANG:1 0 
+
+290 "status" 6 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+90 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 7
+"PRIMITIVE_TEXT3"
+""
+1 25 568 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"Masked DPEs in system \" + $system;
+}" 0
+ E 0 1 1 2 1 E U  1 E 25 568 469 623
+0 2 2 "0s" 0 0 0 64 0 0  25 568 1
+1
+LANG:1 33 MS Shell Dlg,-1,19,5,75,0,0,0,0,0
+0 1
+LANG:1 11 Masked DPEs
+14 8
+"txtFilterDpe"
+""
+1 13 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  11 48 250 71
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+  refresh();
+}" 0
+
+14 9
+"txtFilterDescription"
+""
+1 266 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  264 48 503 71
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+  refresh();
+}" 0
+
+13 10
+"btnTcRef"
+""
+1 541.0000000000001 46 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  539 44 597 73
+
+P 
+4294967295
+"pictures/refresh_e.gif"
+1
+LANG:1 7 Refresh
+"main()
+{
+  
+  refresh();
+  
+  
+}" 0
+ E E E
+2 11
+"txtCount"
+""
+1 170 551 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 170 551 527 580
+0 2 2 "0s" 0 0 0 64 0 0  170 551 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Count
+2 12
+"txtCondFilter"
+""
+1 16 30 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 16 30 131 44
+0 2 2 "0s" 0 0 0 192 0 0  16 30 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 21 Filter by DPE (use *)
+2 13
+"PRIMITIVE_TEXT5"
+""
+1 270 31 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 270 31 473 45
+0 2 2 "0s" 0 0 0 192 0 0  270 31 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 37 Filter by Description / ALIAS (use *)
+22 14
+"cbPrefer"
+""
+1 544 11 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  542 9 666 32
+2
+1
+LANG:1 18 Prefer Description
+
+0
+1
+LANG:1 12 Prefer Alias
+
+0
+
+E
+"main()
+{
+  refresh();
+}" 0
+
+E
+ 0 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

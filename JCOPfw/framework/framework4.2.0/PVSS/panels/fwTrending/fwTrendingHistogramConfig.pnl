@@ -1,0 +1,1996 @@
+V 10
+1
+LANG:1 13 PlotConfPanel
+PANEL,-1 -1 730 560 N "_3DFace" 3
+"$Command"
+"$dsShowButtons"
+"$sDpName"
+E "main() 
+{
+	int i;
+}" 0
+ E E E 1 -1 -1 0  0 0
+""0  1
+E "global string plotName, Command;
+int tableRowSelected;
+string customDPSelector;
+dyn_string exceptionInfo;
+
+string g_AccessRightsRequired = \"\";
+
+checkHasSaveRights(string dp, string user)
+{
+  bool isAllowed=TRUE;
+  dyn_string exceptionInfo;
+
+  if(g_AccessRightsRequired!=\"\")
+    fwAccessControl_isGranted(g_AccessRightsRequired, isAllowed, exceptionInfo);
+
+  ButtonOK.enabled = (isAllowed || (Command == \"onlineedit\"));
+  ButtonApply.enabled = isAllowed;
+  saveAsButton.enabled = isAllowed;
+}
+
+fwShowAcOptions(bool shouldShow)
+{
+  acFrame.visible = shouldShow;
+  saveRights.visible = shouldShow;
+  saveRightsText.visible = shouldShow;
+  saveRightsSelect.visible = shouldShow;
+  accessControlOn.visible = shouldShow;
+  accessControlOnText.visible = shouldShow; 
+}
+
+fwEnableAcOptions(bool shouldEnable)
+{
+  saveRights.enabled = shouldEnable;
+  saveRightsSelect.enabled = shouldEnable;
+}
+
+bool lighter(string _color, int _than) {
+	dyn_int colVals;
+	dyn_string colors;
+	int i, j;
+
+	// stupid fallback, in case of named color
+	if(strlen(_color) < 7 || _color[0] != '{')
+		return TRUE;
+		
+	_color = strltrim(_color, \"{\");
+	_color = strrtrim(_color, \"}\");
+	colors = strsplit(_color, \",\");
+	for(i = 1; i <= 3; i++) {
+		for(j = 0; j < strlen(colors[i]); j++) {
+			switch (colors[i][j]) {
+				case '0': colVals[i] = colVals[i] * 10; break;
+				case '1': colVals[i] = colVals[i] * 10 + 1; break;
+				case '2': colVals[i] = colVals[i] * 10 + 2; break;
+				case '3': colVals[i] = colVals[i] * 10 + 3; break;
+				case '4': colVals[i] = colVals[i] * 10 + 4; break;
+				case '5': colVals[i] = colVals[i] * 10 + 5; break;
+				case '6': colVals[i] = colVals[i] * 10 + 6; break;
+				case '7': colVals[i] = colVals[i] * 10 + 7; break;
+				case '8': colVals[i] = colVals[i] * 10 + 8; break;
+				case '9': colVals[i] = colVals[i] * 10 + 9; break;
+			}
+		}
+	}
+	if(colVals[1] + colVals[2] + colVals[3] > _than)
+		return TRUE;
+	else
+		return FALSE;
+}
+
+void dpeTextFieldCommand(int _num) 
+{
+  	string dpe, _dpe, unit, comment;
+  	int archive;
+	bool tempBool;
+  	
+  	getValue(\"DPTextField\" + _num, \"text\", _dpe);
+	fwTrending_getPlotDataDpeData(_dpe, dpe, unit, comment);
+
+	fwTrending_checkCurveName(dpSubStr(dpe, DPSUB_DP), tempBool, exceptionInfo);
+  	if(tempBool)
+	{
+	  	setValue(\"DPTextField\" + _num, \"toolTipText\", dpe);
+	} else {
+		fwException_raise(exceptionInfo, \"ERROR\", \"The entered dpe name is not legal\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+	  	setValue(\"DPTextField\" + _num, \"toolTipText\", \"Illegal dpe name\");	
+	}
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+void dpeButtonClick(int _num) {
+	string dpe = \"\", legend = \"\", rangeMinMax = \"\";
+	float rangeMin, rangeMax;
+	dyn_string ranges;
+	int archive;
+	
+	dpSelector(dpe, FALSE);
+	if(dpe != \"\") {
+	  	setValue(\"DPTextField\" + _num, \"text\", dpe);
+	}
+
+	legendTextFieldCommand(_num);
+}
+
+void legendTextFieldCommand(int _num) 
+{
+	string legend;
+  	getValue(\"LegendTextField\" + _num, \"text\", legend);
+  	setValue(\"LegendTextField\" + _num, \"toolTipText\", legend);
+}
+
+void colorButtonClick(int _num) {
+	dyn_int pos;
+	string color;
+	
+	getValue(\"ColorButton\" + _num, \"backCol\", color);
+
+	colorEditor(color);
+	if(color != \"\") {
+		setValue(\"ColorButton\" + _num, \"backCol\", color);
+	}
+}
+
+void rangeMinTextFieldCommand(int _num) {
+  	autoRangeCheckButtonUpdate(_num);
+}
+
+void rangeMaxTextFieldCommand(int _num) {
+  	autoRangeCheckButtonUpdate(_num);
+}
+
+void autoRangeCheckButtonUpdate(int _num) {
+	string min, max;
+	getValue(\"RangeMinTextField\" + _num, \"text\", min);
+	getValue(\"RangeMaxTextField\" + _num, \"text\", max);
+	if((float)max <= (float)min)
+		setValue(\"AutoRangeCheckButton\" + _num, \"state\", 0, TRUE);
+	else
+		setValue(\"AutoRangeCheckButton\" + _num, \"state\", 0, FALSE);
+}
+
+void autoRangeCheckButtonClick(int _num, bool _state) {
+}
+
+void legendTextFieldFillByDP(int _num) 
+{
+	string dp;
+	getValue(\"DPTextField\" + _num, \"text\", dp);
+	if(dpExists(dp)) 
+	{
+		string legend, comment, legendText;
+		getValue(\"LegendTextField\" + _num, \"text\", legendText);
+		legend = dpGetAlias(dp);
+		legend += \"\" + dpGetComment(dp);
+		if(legendText == \"\") 
+			setValue(\"LegendTextField\" + _num, \"text\", legend);
+		legendTextFieldCommand(_num);
+	}
+}
+
+string CheckInput(dyn_string &exceptionInfo)
+{
+	bool tempBool;
+	string tempString, okStr = \"OK\";
+
+	tempString = TextFieldTitle.text;
+	strreplace(tempString, fwTrending_TEMPLATE_OPEN, \"\");
+	strreplace(tempString, fwTrending_TEMPLATE_CLOSE, \"\");
+
+	if(!_fwTrending_isUnicosEnvironment(exceptionInfo))
+		strreplace(tempString, \" \", \"\");
+
+	tempBool = dpIsLegalName(tempString);
+ 	if((!tempBool) || (tempString == \"\"))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The entered plot title is not legal\", \"\");
+		okStr = \"NoReturn\";
+	}
+	
+	return okStr;
+}
+
+ReadInput(dyn_dyn_string &plotData, dyn_string &exceptionInfo)
+{
+	bool tempBool;
+	string tempString;
+	int i, selectedPos;
+	dyn_string _dpesVal, _legendVal, _colorsVal, _rangeMinVal, _rangeMaxVal, _rangeMinValX, _rangeMaxValX;
+	dyn_bool _axiiVal,_hiddenVal;
+
+	_dpesVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_legendVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_colorsVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_rangeMinVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_rangeMaxVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+
+	tempString = TextFieldTitle.text;
+	plotData[fwTrending_PLOT_OBJECT_MODEL][1] = fwTrending_HISTOGRAM_PLOT_MODEL;
+	plotData[fwTrending_PLOT_OBJECT_TITLE][1] = tempString;
+	plotData[fwTrending_PLOT_OBJECT_BACK_COLOR][1] = ButtonBackgroundColor.backCol;
+	plotData[fwTrending_PLOT_OBJECT_FORE_COLOR][1] = ButtonForegroundColor.backCol;
+
+	getValue(\"LegendCheckButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_LEGEND_ON][1]);
+	plotData[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1] = FALSE;
+	getValue(\"GridButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_GRID][1]);
+        plotData[fwTrending_PLOT_OBJECT_ACCESS_CONTROL_SAVE][1] = accessControlOn.state(0)?saveRights.text:\"\";
+							
+	for( i = 1; i <= 1; i++)
+	{		
+		getValue(\"DPTextField\" + i, \"text\", _dpesVal[i]);
+		getValue(\"LegendTextField\" + i, \"text\", _legendVal[i]);
+		getValue(\"ColorButton\" + i, \"backCol\", _colorsVal[i]);
+		getValue(\"AutoRangeCheckButton\" + i, \"state\", 0, tempBool);
+
+		if(tempBool)
+		{
+			setValue(\"RangeMinTextField\" + i, \"text\", \"0\");
+			setValue(\"RangeMaxTextField\" + i, \"text\", \"0\");
+		}
+		getValue(\"AutoRangeCheckButton\" + (i+1), \"state\", 0, tempBool);
+		if(tempBool)
+		{
+			setValue(\"RangeMinTextField\" + (i+1), \"text\", \"0\");
+			setValue(\"RangeMaxTextField\" + (i+1), \"text\", \"0\");
+		}
+
+		getValue(\"RangeMinTextField\" + i, \"text\", _rangeMinVal[i]);
+		getValue(\"RangeMaxTextField\" + i, \"text\", _rangeMaxVal[i]);
+		plotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE][i] = _rangeMinVal[i] + fwTrending_AXIS_LIMITS_DIVIDER + _rangeMaxVal[i];
+		getValue(\"RangeMinTextField\" + (i+1), \"text\", _rangeMinValX[i]);
+		getValue(\"RangeMaxTextField\" + (i+1), \"text\", _rangeMaxValX[i]);
+		plotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE_X][i] = _rangeMinValX[i] + fwTrending_AXIS_LIMITS_DIVIDER + _rangeMaxValX[i];
+	}
+
+	plotData[fwTrending_PLOT_OBJECT_DPES] = _dpesVal;
+	plotData[fwTrending_PLOT_OBJECT_LEGENDS] = _legendVal;
+	plotData[fwTrending_PLOT_OBJECT_COLORS] = _colorsVal;
+	plotData[fwTrending_PLOT_OBJECT_RANGES_MIN] = _rangeMinVal;
+	plotData[fwTrending_PLOT_OBJECT_RANGES_MAX] = _rangeMaxVal;
+	plotData[fwTrending_PLOT_OBJECT_RANGES_MIN_X] = _rangeMinValX;
+	plotData[fwTrending_PLOT_OBJECT_RANGES_MAX_X] = _rangeMaxValX;
+	
+	plotData[fwTrending_PLOT_OBJECT_IS_TEMPLATE] = FALSE;
+	plotData[fwTrending_PLOT_OBJECT_TEMPLATE_NAME] = \"\";
+	plotData[fwTrending_PLOT_OBJECT_TYPE] = 0;
+	plotData[fwTrending_PLOT_OBJECT_TIME_RANGE] = 0;
+	plotData[fwTrending_PLOT_OBJECT_MARKER_TYPE] = 0;
+}
+
+ApplyCancelOKButtonClick(string button)
+{
+	string okStr = \"OK\";
+	bool granted;
+	dyn_string priviledgeList, domainList, tempPlotData;
+	int i;
+	string tempString, tempString2, sDescription;
+	int tempInt, selectedPos, previousType;
+	bool tempBool, tempBool2, isConnected;
+	dyn_dyn_string plotData;
+	
+	if(button != \"Cancel\")
+	{
+		okStr = CheckInput(exceptionInfo);
+	
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+	}
+						
+	if((button != \"Cancel\") && (okStr != \"NoReturn\"))
+	{
+//DebugN(\"plotName:\",plotName,\"System:\",dpSubStr(plotName,DPSUB_SYS));
+		switch(Command) 
+		{
+			case \"copy\":
+			case \"new\": 
+			{
+				plotName = TextFieldName.text;
+
+				if(plotName == \"\") 
+				{
+					fwException_raise(exceptionInfo, \"ERROR\", \"You did not enter a plot name\", \"\");
+					fwExceptionHandling_display(exceptionInfo);
+					okStr = \"NoReturn\";
+				} 
+				else 
+				{
+					tempBool = dpIsLegalName(plotName);
+					if(tempBool)
+						if(!dpExists(plotName))
+ 						{
+          fwTrending_newPlot(plotName);
+          if(!dpExists(plotName))
+          {
+							  fwException_raise(exceptionInfo, \"ERROR\", \"The plot could not be created\", \"\");
+							  fwExceptionHandling_display(exceptionInfo);
+							  okStr = \"NoReturn\";
+          }
+         }
+						else
+						{
+							fwException_raise(exceptionInfo, \"ERROR\", \"The entered plot name is already in use\", \"\");
+							fwExceptionHandling_display(exceptionInfo);
+							okStr = \"NoReturn\";
+						}						
+					else 
+					{
+						fwException_raise(exceptionInfo, \"ERROR\", \"The entered plot name is not legal\", \"\");
+						tempString = TextFieldTitle.text;
+//						tempBool = dpIsLegalName(tempString);
+						tempBool = TRUE;
+					  	if(!tempBool)
+							fwException_raise(exceptionInfo, \"ERROR\", \"The entered plot title is not legal\", \"\");
+						fwExceptionHandling_display(exceptionInfo);
+						okStr = \"NoReturn\";
+					}
+					if(okStr != \"NoReturn\")
+					{
+//SMS now the device exists, so the fw functions need it WITH system name!
+//						plotName = getSystemName() + plotName;
+					}
+				}
+			}
+			case \"edit\": 
+			case \"onlineedit\": 			
+			if(okStr != \"NoReturn\")
+			{
+				TextFieldName.editable = FALSE;
+				TextFieldName.enabled = FALSE;
+				//change mode to edit once to config has been saved once
+				if(Command == \"new\")
+					Command = \"edit\";
+				
+				if(Command == \"onlineedit\")
+				{
+					plotData = strsplit(getDollarValue(\"$dsPlotData\"), \"|\");
+					for(i=1; i<=fwTrending_SIZE_PLOT_OBJECT; i++)
+					{
+						plotData[i][1] = strltrim(plotData[i][1], \" \");
+						plotData[i][1] = strrtrim(plotData[i][1], \" \");
+						plotData[i] = strsplit(plotData[i][1], fwTrending_CONTENT_DIVIDER);
+					}
+				}
+				else
+					fwTrending_getPlot(plotName, plotData, exceptionInfo);
+
+				ReadInput(plotData, exceptionInfo);
+				if(Command != \"onlineedit\")
+				{
+					_fwTrending_isSystemForDpeConnected(plotName, isConnected, exceptionInfo);
+					if(isConnected)
+                                        {
+                                          bool isAllowed;
+					  if(g_AccessRightsRequired != \"\")
+                                          {
+                                             fwAccessControl_isGranted(g_AccessRightsRequired, isAllowed, exceptionInfo);
+                                             if(!isAllowed)
+                                             {
+                                               fwException_raise(exceptionInfo, \"ERROR\", \"The current access right for saving this page configuration is: \" + g_AccessRightsRequired
+                                                                  + \". You do not have sufficient rights to continue.  Your changes have not been saved\", \"\");
+                                             }
+                                          }
+
+					  if(plotData[fwTrending_PLOT_OBJECT_ACCESS_CONTROL_SAVE] != \"\")
+                                          {
+                                            fwAccessControl_isGranted(plotData[fwTrending_PLOT_OBJECT_ACCESS_CONTROL_SAVE], isAllowed, exceptionInfo);
+                                            if(!isAllowed)
+                                            {
+                                               fwException_raise(exceptionInfo, \"ERROR\", \"The proposed access control settings would mean you could no longer modify this page configuration. \" 
+                                                                  + \"You do not have the \\\"\" + saveRights.text + \"\\\" access right. \"
+                                                                  + \"Please modify your configuration.\", \"\");
+                                            }
+                                          }
+                                          
+                                          if(dynlen(exceptionInfo) == 0)
+                                          {
+                                            g_AccessRightsRequired = plotData[fwTrending_PLOT_OBJECT_ACCESS_CONTROL_SAVE];
+                                            fwTrending_setPlot(plotName, plotData, exceptionInfo);
+                                          }
+                                        }
+                                        else
+						fwException_raise(exceptionInfo, \"ERROR\", \"The configuration can not be saved because \\\"\" + plotName +
+															\"\\\" is from a remote system which is currently unavailable\", \"\");
+				}
+				else
+				{
+					for(i=1; i<=fwTrending_MAX_NUM_CURVES; i++)
+					{
+						if(plotData[fwTrending_PLOT_OBJECT_DPES][i] != \"\")
+						{
+							fwTrending_getPlotDataDpeData(plotData[fwTrending_PLOT_OBJECT_DPES][i], plotData[fwTrending_PLOT_OBJECT_DPES][i], plotData[fwTrending_PLOT_OBJECT_EXT_UNITS][i], sDescription);
+							plotData[fwTrending_PLOT_OBJECT_EXT_TOOLTIPS][i] = plotData[fwTrending_PLOT_OBJECT_DPES][i] + \" [\" + plotData[fwTrending_PLOT_OBJECT_EXT_UNITS][i] + \"] \" + sDescription;
+						}
+					}
+				
+					for(i=1; i<=fwTrending_SIZE_PLOT_OBJECT; i++)
+					{
+						fwTrending_convertDynToString(plotData[i], tempPlotData[i], exceptionInfo);
+						plotData[i] = makeDynString(tempPlotData[i]);
+					}
+				}
+
+			}
+			break;
+		}
+	
+	/* added by Herve */
+		if(button == \"Apply\") {
+			if(isFunctionDefined(\"unTrendTree_deviceConfiguration_postExecution\")) {
+				execScript(\"main()\"+
+										\"{\"+
+										\"		unTrendTree_deviceConfiguration_postExecution();\"+
+										\"}\", makeDynString());
+			}
+		}
+	/* end added by Herve */
+
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+		else
+			if((button == \"OK\") && (okStr != \"NoReturn\"))
+				PanelOffReturn(makeDynFloat(0.0), makeDynString(okStr, TextFieldName.text, plotData));
+	} else
+		if(okStr != \"NoReturn\") 
+			PanelOffReturn(makeDynFloat(0.0), makeDynString(\"Cancel\", TextFieldName.text));
+}" 0
+ 2
+"CBRef" "0"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 10
+"TextTitle"
+""
+1 12 82 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 14 84 64 101
+0 2 0 "0s" 0 0 0 192 0 0  14 84 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Plot Title
+2 1
+"TextName"
+""
+1 12 52 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 14 54 75 71
+0 2 0 "0s" 0 0 0 192 0 0  14 54 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 Plot Name
+2 33
+"Text2"
+""
+1 8 8 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	int iRes, i;
+	dyn_string exceptionInfo;
+
+	string tempString, originalData, sShowButtons;
+	int tempInt, selectedPos, position;
+	bool tempBool, showAcOptions = FALSE, isConnected = TRUE;
+	dyn_string buttons, _dpesVal, _legendVal, _colorsVal, _rangeMinVal, _rangeMaxVal, _rangeMinValX, _rangeMaxValX;
+	dyn_dyn_string plotData;
+	dyn_bool _axiiVal,_hiddenVal;
+	dyn_int curveTypes;
+
+	while(!isFunctionDefined(\"ApplyCancelOKButtonClick\"));
+
+	plotName = $sDpName;
+	
+	if(isDollarDefined(\"$Command\"))
+	{
+		Command = strtolower($Command);
+		if(Command == \"\") Command = \"edit\";
+	}
+	else {
+		if(plotName == \"\")
+			Command = \"new\";
+		else
+			Command = \"edit\";			
+	}
+
+	if(Command==\"new\")
+		plotName = \"\";
+
+	if((Command==\"copy\") && isDollarDefined(\"$sOriginalPlot\"))
+		plotName = getDollarValue(\"$sOriginalPlot\");
+
+	//get configuration from DP
+// added by Herve
+// origanlly
+//	dpGet(\"TrendingConfiguration.customDPSelector:_online.._value\", customDPSelector);	
+// now
+	dpConnect(\"customDpSelectorCB\", \"TrendingConfiguration.customDPSelector\");
+// end added by Herve
+	//get settings from DP and fill them into the fields
+	//en-/disable appropriate functions
+
+	if(isDollarDefined(\"$dsShowButtons\"))
+	{
+		sShowButtons = $dsShowButtons;
+		strreplace(sShowButtons, \" \", \"\");
+		sShowButtons = strtolower(sShowButtons);
+		buttons = strsplit(sShowButtons, \"|\");
+		
+		if(dynContains(buttons, \"all\") > 0)
+		{
+			ButtonOK.visible = TRUE;
+			ButtonApply.visible = TRUE;
+			ButtonCancel.visible = TRUE;
+		}
+		else
+		{
+			if(dynContains(buttons, \"ok\") > 0)
+				ButtonOK.visible = TRUE;
+	
+			if(dynContains(buttons, \"apply\") > 0)
+				ButtonApply.visible = TRUE;
+	
+			if(dynContains(buttons, \"cancel\") > 0)
+				ButtonCancel.visible = TRUE;		
+		}
+	}
+	else
+	{
+		ButtonOK.visible = TRUE;
+		ButtonApply.visible = TRUE;
+		ButtonCancel.visible = TRUE;
+	}
+
+	if((Command == \"edit\") || (Command == \"onlineedit\"))
+	{
+		TextFieldName.text = plotName;
+		TextFieldName.editable = FALSE;
+		TextFieldName.enabled = FALSE;
+		TextFieldTitle.editable = TRUE;
+		TextFieldTitle.enabled = TRUE;
+	}
+	else {
+		TextFieldName.editable = TRUE;
+		TextFieldName.enabled = TRUE;
+		TextFieldTitle.editable = TRUE;
+		TextFieldTitle.enabled = TRUE;
+	}	
+
+        if(Command == \"new\")
+                showAcOptions = TRUE;
+        
+	if((Command == \"edit\") || (Command == \"copy\"))
+	{
+                showAcOptions = TRUE;
+		_fwTrending_isSystemForDpeConnected(plotName, isConnected, exceptionInfo);
+		fwTrending_getPlot(plotName, plotData, exceptionInfo);
+	}
+
+	if(Command == \"onlineedit\")
+	{
+		originalData = getDollarValue(\"$dsPlotData\");
+		strreplace(originalData, \" | \", \"|\");
+		plotData = strsplit(originalData, \"|\");
+		
+		for(i=1; i<=fwTrending_SIZE_PLOT_OBJECT; i++)
+		{
+			fwTrending_convertStringToDyn(plotData[i][1], plotData[i], exceptionInfo);
+		}
+	}
+	
+	if((Command == \"edit\") || (Command == \"onlineedit\") || (Command == \"copy\"))
+	{
+		if(_fwTrending_isUnicosEnvironment(exceptionInfo))
+			strreplace(plotData[fwTrending_PLOT_OBJECT_TITLE][1], \" \", \"\");
+
+		TextFieldTitle.text = plotData[fwTrending_PLOT_OBJECT_TITLE][1];
+		
+		if(plotData[fwTrending_PLOT_OBJECT_TEMPLATE_NAME][1] != \"\")
+		{
+			TextFieldTemplate.text = plotData[fwTrending_PLOT_OBJECT_TEMPLATE_NAME][1];
+			TextFieldTemplate.visible = TRUE;
+			TextTemplate.visible = TRUE;
+		} else {
+			TextFieldTemplate.visible = FALSE;
+			TextTemplate.visible = FALSE;
+		}
+	
+		if(plotData[fwTrending_PLOT_OBJECT_BACK_COLOR][1] == \"\")
+		{
+			ButtonBackgroundColor.backCol = \"FwTrendingTrendBackground\";
+		} else {
+			ButtonBackgroundColor.backCol = plotData[fwTrending_PLOT_OBJECT_BACK_COLOR][1];
+		}
+		
+		if(plotData[fwTrending_PLOT_OBJECT_FORE_COLOR][1] == \"\")
+		{
+			ButtonForegroundColor.backCol = \"FwTrendingTrendForeground\";
+		} else {
+			ButtonForegroundColor.backCol = plotData[fwTrending_PLOT_OBJECT_FORE_COLOR][1];
+		}
+			
+		setValue(\"LegendCheckButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_LEGEND_ON][1]);
+		setValue(\"LogScaleButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1]);
+		setValue(\"GridButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_GRID][1]);
+	
+		g_AccessRightsRequired = plotData[fwTrending_PLOT_OBJECT_ACCESS_CONTROL_SAVE][1];
+		setValue(\"saveRights\", \"text\", g_AccessRightsRequired);
+		setValue(\"accessControlOn\", \"state\", 0, (g_AccessRightsRequired==\"\")?FALSE:TRUE);
+		fwEnableAcOptions(g_AccessRightsRequired!=\"\");
+                
+		_dpesVal = plotData[fwTrending_PLOT_OBJECT_DPES];
+		_legendVal = plotData[fwTrending_PLOT_OBJECT_LEGENDS];
+		_colorsVal = plotData[fwTrending_PLOT_OBJECT_COLORS];
+		_axiiVal = plotData[fwTrending_PLOT_OBJECT_AXII];
+		_hiddenVal = plotData[fwTrending_PLOT_OBJECT_CURVES_HIDDEN];
+		_rangeMinVal = plotData[fwTrending_PLOT_OBJECT_RANGES_MIN];
+		_rangeMaxVal = plotData[fwTrending_PLOT_OBJECT_RANGES_MAX];
+		_rangeMinValX = plotData[fwTrending_PLOT_OBJECT_RANGES_MIN_X];
+		_rangeMaxValX = plotData[fwTrending_PLOT_OBJECT_RANGES_MAX_X];
+		curveTypes = plotData[fwTrending_PLOT_OBJECT_CURVE_TYPES];
+		
+		for( i = 1; (i <= 1) && (i <= dynlen(_dpesVal)); i++)
+		{
+			// dpes
+			if(dynlen(_dpesVal) >= i && _dpesVal[i] != \"\") 
+			{
+				position = strpos(_dpesVal[i], fwTrending_ON_VAL);
+				if(position >= 0)
+					_dpesVal[i] = substr(_dpesVal[i], 0, position);
+				setValue(\"DPTextField\" + i, \"text\", _dpesVal[i]);
+			} else {
+				setValue(\"DPTextField\" + i, \"text\", \"\");
+				_hiddenVal[i] = FALSE;
+			}
+			dpeTextFieldCommand(i);
+			
+			// legend
+			if(dynlen(_legendVal) >= i) 
+				setValue(\"LegendTextField\" + i, \"text\", _legendVal[i]);
+			else
+				setValue(\"LegendTextField\" + i, \"text\", \"\");
+			legendTextFieldCommand(i);
+			
+			// colors
+			if(dynlen(_colorsVal) >= i && _colorsVal[i] != \"\") 
+			{
+				setValue(\"ColorButton\" + i, \"backCol\", _colorsVal[i]);
+				if(lighter(_colorsVal[i], 300))
+					setValue(\"ColorButton\" + i, \"foreCol\", \"{0,0,0}\");
+				else
+					setValue(\"ColorButton\" + i, \"foreCol\", \"{255,255,255}\");
+			}
+			else 
+			{
+				setValue(\"ColorButton\" + i, \"foreCol\", \"{0,0,0}\");
+			}
+							
+			if(dynlen(_rangeMinVal) >= i)
+				setValue(\"RangeMinTextField\" + i, \"text\", _rangeMinVal[i]);
+			else
+				setValue(\"RangeMinTextField\" + i, \"text\", 0);
+			if(dynlen(_rangeMaxVal) >= i)
+				setValue(\"RangeMaxTextField\" + i, \"text\", _rangeMaxVal[i]);
+			else
+				setValue(\"RangeMaxTextField\" + i, \"text\", 0);
+				
+			autoRangeCheckButtonUpdate(i);
+			if(dynlen(_rangeMinValX) >= i)
+				setValue(\"RangeMinTextField\" + (i+1), \"text\", _rangeMinValX[i]);
+			else
+				setValue(\"RangeMinTextField\" + (i+1), \"text\", 0);
+			if(dynlen(_rangeMaxValX) >= i)
+				setValue(\"RangeMaxTextField\" + (i+1), \"text\", _rangeMaxValX[i]);
+			else
+				setValue(\"RangeMaxTextField\" + (i+1), \"text\", 0);
+				
+			autoRangeCheckButtonUpdate((i+1));
+		}
+	}
+
+        if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+          fwShowAcOptions(showAcOptions);
+        
+	if(isConnected)
+	{
+		// Access Control
+		if(isFunctionDefined(\"unGenericDpFunctionsHMI_setCallBack_user\"))
+		{
+			unGenericDpFunctionsHMI_setCallBack_user(\"unGenericButtonFunctionsHMI_TrendingHistogramConfigselectCB\", iRes, exceptionInfo);
+		}
+                else if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+                {
+                  fwAccessControl_setupPanel(\"checkHasSaveRights\", exceptionInfo);
+                }                 
+	}
+	else
+	{
+		ButtonOK.enabled = FALSE;
+		ButtonApply.enabled = FALSE;
+		saveAsButton.enabled = FALSE;
+
+		fwException_raise(exceptionInfo, \"ERROR\", \"The data point \\\"\" + plotName +
+											\"\\\" can not be edited because it is from a remote system which is currently unavailable\", \"\");
+	}
+	
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+// added by Herve
+customDpSelectorCB(string sDpe, string sCustomDpSelector)
+{
+	customDPSelector = sCustomDpSelector;
+}
+// end added by Herve
+" 0
+ E 0 1 1 0 1 E U  0 E 10 10 237 33
+0 2 0 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 23 Histogram Configuration
+2 132
+"Text1"
+""
+1 401 105 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 392 55 495 72
+0 2 0 "0s" 0 0 0 192 0 0  392 55 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Background Color
+2 42
+"Text3"
+""
+1 20 180 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 182 168 199
+0 2 0 "0s" 0 0 0 192 0 0  22 182 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22 Data Source DP Element
+2 43
+"Text4"
+""
+1 328 540 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 327 182 396 199
+0 2 0 "0s" 0 0 0 192 0 0  327 182 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Legend Text
+2 44
+"Text5"
+""
+1 570 900 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 531 182 561 199
+0 2 0 "0s" 0 0 0 192 0 0  531 182 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Color
+2 213
+"TemplateText"
+""
+1 207 576 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 472 90 489
+0 2 0 "0s" 0 0 0 192 0 0  12 472 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 Plot Template
+2 260
+"TextTemplate"
+""
+1 395 105 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+115 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 392 54 447 71
+0 2 0 "0s" 0 0 0 192 0 0  392 54 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Based on
+30 265
+"Frame1"
+""
+1 10 105 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+120 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.22222222222222 0 -7.11111111111111 0 E 10 32 725 105
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 272
+"ApplyToAllText"
+""
+1 1542 1010 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+127 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 372 472 526 506
+0 2 0 "0s" 0 0 0 192 0 0  372 472 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 27 Apply changes to all plots 
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 based on this one.
+2 347
+"Text18"
+""
+1 577 105 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+197 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 572 55 671 72
+0 2 0 "0s" 0 0 0 192 0 0  572 55 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Foreground Color
+30 371
+"Frame2"
+""
+1 10 240 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+213 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.39240506329114 0 -62.7848101265823 0 E 10 160 720 240
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Histogram Data
+20 212
+"LegendCheckButton"
+""
+1 6490 266 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+253 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 388 84 492 108
+1
+T 
+1
+LANG:1 11 Show Legend
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE13 131
+"ButtonBackgroundColor"
+""
+1 633 192 E E E 1 E 1 E N "_3DText" E N "FwTrendingTrendBackground" E E
+ E E
+251 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 498 50 532 74
+
+T 
+1
+LANG:1 0 
+"main() 
+{
+	string color;
+	color = this.backCol;
+	colorEditor(color);
+	this.backCol = color;
+}" 0
+ E E E
+14 3
+"TextFieldTitle"
+""
+1 80 82 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+250 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 78 80 382 107
+3 "0s" 0 0 0 0 0 -1  E E E
+14 2
+"TextFieldName"
+""
+1 80 52 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+249 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 78 50 382 77
+3 "0s" 0 0 0 0 0 -1  E E E
+14 35
+"DPTextField1"
+""
+1 20 204 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+256 0 0 0 0 0
+E "const int NUM = 1;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}
+" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 202 282 229
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 1;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+
+13 38
+"DPEButton1"
+""
+1 520 564 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+257 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 283 202 307 226
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 1;
+
+main() {
+	dpeButtonClick(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E E E
+14 36
+"LegendTextField1"
+""
+1 332 580 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+258 0 0 0 0 0
+E "const int NUM = 1;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 323 202 512 229
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 1;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+
+13 37
+"ColorButton1"
+""
+1 537 204 E E E 1 E 1 E N "_3DText" E N "FwTrendingCurve1" E E
+ E E
+259 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 535 202 559 229
+
+T 
+1
+LANG:1 0 
+"const int NUM = 1;
+
+main() {
+	colorButtonClick(NUM);
+}" 0
+ E E E
+13 0
+"ButtonOK"
+""
+1 430 520 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+270 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 428 518 522 552
+
+T 
+1
+LANG:1 2 OK
+"main() 
+{
+	ApplyCancelOKButtonClick(\"OK\");
+}" 0
+ E E E
+13 22
+"ButtonCancel"
+""
+1 630 520 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+272 0 0 0 27 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 628 518 722 552
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	ApplyCancelOKButtonClick(\"Cancel\");
+}" 0
+ E E E
+20 214
+"TemplateCheckButton"
+""
+1 1100 760 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+273 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 96 -*-Courier New-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,404,0,0,0,0,0,0,0,0,Courier New
+0 ""
+ 98 468 112 492
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	dpSet(plotName + fwTrending_PLOT_IS_TEMPLATE + fwTrending_ORIG_VAL, state);
+}" 0
+14 259
+"TextFieldTemplate"
+""
+1 542 132 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+274 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 50 712 77
+3 "0s" 0 0 0 0 0 -1  E E E
+20 269
+"ApplyToAllCheckButton"
+""
+1 530 470 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+275 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 528 468 542 492
+1
+T 
+1
+LANG:1 12 CheckButton2
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 284
+"LogScaleButton"
+""
+1 636 86 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+255 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 634 84 718 108
+1
+T 
+1
+LANG:1 9 Log scale
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE13 348
+"ButtonForegroundColor"
+""
+1 813 192 E E E 1 E 1 E N "_3DText" E N "FwTrendingTrendForeground" E E
+ E E
+252 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 678 50 712 74
+
+T 
+1
+LANG:1 0 
+"main() 
+{
+	string color;
+	color = this.backCol;
+	colorEditor(color);
+	this.backCol = color;
+}" 0
+ E E E
+13 359
+"ButtonApply"
+""
+1 530 520 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+271 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 528 518 622 552
+
+T 
+1
+LANG:1 5 Apply
+"main() 
+{
+	ApplyCancelOKButtonClick(\"Apply\");
+}" 0
+ E E E
+20 365
+"GridButton"
+""
+1 523 86 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+254 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 521 84 605 108
+1
+T 
+1
+LANG:1 9 Show Grid
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE13 369
+"saveAsButton"
+""
+1 10 520 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+269 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 518 102 552
+
+T 
+1
+LANG:1 10 Save as...
+"main() 
+{
+	bool isFromDp, newDp = FALSE;
+	string proposedName, sDpName;
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	dyn_dyn_string plotData;
+
+	CheckInput(exceptionInfo);
+	if(dynlen(exceptionInfo)>0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	sDpName = TextFieldName.text;
+	proposedName = dpGetAlias(sDpName + \".\");
+	if(proposedName == \"\")
+		proposedName = dpSubStr(sDpName, DPSUB_DP);
+	ChildPanelOnCentralReturn(\"fwTrending/fwTrendingSaveAsSelector.pnl\", \"Save plot settings as...\",
+															makeDynString(\"$sDpType:\" + fwTrending_PLOT, \"$sProposedName:\" + proposedName), df, ds);
+	if(ds[1] == \"ok\")
+	{
+		ReadInput(plotData, exceptionInfo);
+		if(!dpExists(ds[2]))
+		{
+			fwTrending_createPlot(ds[2], exceptionInfo);
+			newDp = TRUE;
+		}
+		fwTrending_setPlot(ds[2], plotData, exceptionInfo);
+
+		isFromDp = !((TextFieldName.enabled) || (TextFieldName.text == \"\"));
+//DebugN(\"Call UNICOS\", newDp, isFromDp);
+
+		if(isFunctionDefined(\"unTrendTree_savePlotAs\"))
+		{
+			unTrendTree_savePlotAs(ds[2], newDp, isFromDp, exceptionInfo);
+		}
+	}
+
+	if(dynlen(exceptionInfo)>0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+}" 0
+ E E E
+1 395 0 "" 0
+0
+14 373
+"acNotAvailable"
+""
+1 480 9 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+277 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 478 7 670 33
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  int x, y;
+  
+  getValue(\"\", \"position\", x, y);
+  
+  if(getPath(PANELS_REL_PATH, \"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl\") != \"\")
+    addSymbol(myModuleName(), myPanelName(), \"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl\", \"currentUser\", makeDynString(), x, y-16, 0, 1, 1);
+  else
+  {
+    this.visible = TRUE;
+    this.text = \"Access Control not available\";
+  }
+}" 0
+ E
+20 374
+"accessControlOn"
+""
+1 30 312 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+266 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 310 52 344
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  fwEnableAcOptions(state);
+}" 0
+2 375
+"accessControlOnText"
+""
+1 50 312 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+219 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 50 312 180 342
+0 2 2 "0s" 0 0 0 64 0 0  50 312 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 21 Protect configuration
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 with access control
+14 376
+"saveRights"
+""
+1 290 318 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+267 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 288 316 472 343
+2 "0s" 0 0 0 0 0 -1  E E E
+13 377
+"saveRightsSelect"
+""
+1 480 314 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+268 0 0 0 27 0
+E E E
+0
+1
+LANG:1 22 Leave filter unchanged
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 478 312 552 346
+
+T 
+1
+LANG:1 6 Choose
+"main()
+{
+  dyn_string privileges, exceptionInfo;
+		
+  privileges[1] = saveRights.text;
+  if(isFunctionDefined(\"fwAccessControl_selectPrivileges\"))
+  {
+    fwAccessControl_selectPrivileges(privileges, \"Please choose access right\");
+    if(dynlen(privileges))
+      saveRights.text = privileges[1];    
+  }
+  else
+  {
+    fwException_raise(exceptionInfo, \"ERROR\", \"The access control component is not installed.\", \"\");
+    fwExceptionHandling_display(exceptionInfo); 
+  }
+}" 0
+ E E E
+2 378
+"saveRightsText"
+""
+1 191 322 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+225 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 191 322 281 342
+0 2 2 "0s" 0 0 0 64 0 0  191 322 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Required Right:
+30 379
+"acFrame"
+""
+1 10 470 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+227 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.4125636672326 0 -307.514431239389 0 E 10 423 725 470
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 Global Settings for this plot
+2 382
+"InstructionsText"
+""
+1 4165 722 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+230 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 472 618 506
+0 2 0 "0s" 0 0 0 192 0 0  12 472 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 95 Template parameters can be defined in the plot title, dp elements and legends using {} brackets
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 105 e.g. System:{datapoint}.value  The template parameter values are passed to the plot when it is displayed.
+2 384
+"Text8"
+""
+1 591 510 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+232 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 590 182 611 199
+0 2 0 "0s" 0 0 0 192 0 0  590 182 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 Min
+2 385
+"Text9"
+""
+1 757 650 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+234 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 640 182 665 199
+0 2 0 "0s" 0 0 0 192 0 0  640 182 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 Max
+2 386
+"Text11"
+""
+1 1527 850 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+236 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 678 182 705 199
+0 2 0 "0s" 0 0 0 192 0 0  678 182 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 Auto
+14 387
+"RangeMinTextField1"
+""
+1 584 204 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+260 0 0 0 0 0
+E "const int NUM = 1;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 582 202 631 229
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 1;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+
+14 388
+"RangeMaxTextField1"
+""
+1 1670 414 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+261 0 0 0 0 0
+E "const int NUM = 1;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 633 202 682 229
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 1;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+
+20 389
+"AutoRangeCheckButton1"
+""
+1 7327 2721 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+262 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 96 -*-Courier New-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,404,0,0,0,0,0,0,0,0,Courier New
+0 ""
+ 685 202 699 225
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"const int NUM = 1;
+main(int button, bool state)
+{
+	autoRangeCheckButtonClick(NUM, state);
+}" 0
+14 390
+"RangeMinTextField2"
+""
+1 584 234 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+263 0 0 0 0 0
+E "const int NUM = 2;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 582 232 631 259
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 2;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+
+14 391
+"RangeMaxTextField2"
+""
+1 1670 440.410256410256 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+264 0 0 0 0 0
+E "const int NUM = 2;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 633 232 682 259
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 2;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+
+20 392
+"AutoRangeCheckButton2"
+""
+1 7327 2707.97435897436 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+265 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 96 -*-Courier New-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,404,0,0,0,0,0,0,0,0,Courier New
+0 ""
+ 685 232 699 255
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"const int NUM = 1;
+main(int button, bool state)
+{
+	autoRangeCheckButtonClick(NUM, state);
+}" 0
+2 393
+"PRIMITIVE_TEXT7"
+""
+1 593 559.2956076155723 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+250 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 572 240.0341880341881 579 256.7435897435898
+0 2 0 "0s" 0 0 0 64 0 0  572 240.0341880341881 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 X
+2 394
+"PRIMITIVE_TEXT8"
+""
+1 572 538 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+252 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 571 210 580 227
+0 2 0 "0s" 0 0 0 192 0 0  571 210 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 Y
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2" 
+"objects\\fwGeneral\\fwHelpButton.pnl" 364 10 T 276 1 0 1 332 -3
+1
+"$sPanelRelativePath""fwTrending/fwTrendingHistogramConfig"
+0

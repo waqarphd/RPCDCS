@@ -1,0 +1,327 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 708 320 N "_3DFace" 1
+"$2"
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "
+dyn_string dpes;
+dyn_dyn_string channelsName;
+string COMPONENT;
+#uses \"CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl\"
+DisableAllInPanel()
+{
+//Table1.enabled = FALSE;
+ }
+enableControl(){
+
+   }
+enableDebug(){
+Table1.enabled = TRUE;
+ 
+  }
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+if (hasControl) enableControl();
+if (hasDebug) enableDebug();
+}
+
+waitForPanel()
+{
+	int i;
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+25 6
+"TABLE1"
+""
+1 10 20 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 18 600 204
+"main()
+{
+  dyn_string systemNumber;
+  dyn_string channels,febId,temp,chid;
+  dyn_string param = makeDynString(\".flowIn\",\".flowOut\"); 
+  fwInstallation_getApplicationSystem(\"CMS_RPCfwHardwareGas\",systemNumber);
+  // DebugN(\"ss\",$2,systemNumber);
+  int pos = strpos($2,\"_W\");
+  this.deleteAllLines();
+  if(dynlen(systemNumber)>0)
+   {
+   string name,search = substr($2,pos+1);
+   dyn_string channels = dpNames(systemNumber+\"*\"+search+\"*\",\"RPCGasChannel\");
+   dyn_string val,times;
+   bool invalid;
+   int pos; 
+   for(int i = 1; i<=dynlen(channels);i++)
+   {
+     name = dpSubStr(channels[i],DPSUB_DP);
+     for(int j = 1; j<=dynlen(param);j++)
+     {
+       dpGet(channels[i]+param[j],val[j]);
+       dpGet(channels[i]+param[j]+\":_original.._stime\",times[j]);
+       dpGet(channels[i]+param[j]+\":_original.._invalid\",invalid);
+       //DebugN(invalid);
+       if(invalid)
+       {
+         TEXT_FIELD1.backCol(\"FwStateAttention2\");
+         TEXT_FIELD1.text = \"Lost Conn.\";
+        }
+       pos = strpos(val[j],\".\");
+       if(pos>0)
+         val[j] = substr(val[j],0,pos+3);
+       dpConnect(\"refresh\",channels[i]+param[j]);     
+     }
+     this.appendLine(\"chamber\",name,\"input\",val[1],\"output\",val[2],\"intime\",times[1],\"outtime\",times[2]);
+     
+          if(val[1]>15)
+       this.cellBackColRC(i-1,\"input\",\"FwStateOKPhysics\");
+     else if(val[1]>10)
+       this.cellBackColRC(i-1,\"input\",\"FwAlarmWarnAck\");
+     else 
+       this.cellBackColRC(i-1,\"input\",\"FwAlarmErrorAck\");
+     
+     
+      if(val[2]>15)
+       this.cellBackColRC(i-1,\"output\",\"FwStateOKPhysics\");
+     else if(val[2]>10)
+       this.cellBackColRC(i-1,\"output\",\"FwAlarmWarnAck\");
+     else 
+       this.cellBackColRC(i-1,\"output\",\"FwAlarmErrorAck\");
+
+     
+     
+     } 
+   }else
+  {
+    DebugN(\"Gas component not found\");
+    this.appendLine(\"chamber\",\"Component\",\"Input\",\"not found\" );
+    this.enabled = false;
+    }
+ }
+refresh(string dpe, string value)
+{
+  string column,val;
+  bool invalid;
+  dyn_string search = makeDynString(\"RB1\",\"RB2\",\"RB3\",\"RB4\",\"RB4L\",\"RB4R\");
+  
+  dyn_string name = strsplit(dpSubStr(dpe,DPSUB_DP),\"_\");
+  
+  if(strpos(dpe,\"In\")>1)
+    column = \"in\";
+  else if(strpos(dpe,\"Out\")>1)
+    column = \"out\";
+  int num = dynContains(search,name[3]);
+  
+  
+dpGet(dpSubStr(dpe,DPSUB_SYS_DP_EL)+\":_original.._stime\",val);
+//int col = dpe[pos+2];
+if(num>4)
+  num--;
+//DebugN(dpe,name,num);
+int pos = strpos(value,\".\");
+       if(pos>0)
+         value = substr(value,0,pos+3);
+       
+this.cellValueRC(num-1,column+\"put\",value);
+  
+this.cellValueRC(num-1,column+\"time\",val);
+
+      if(value>15)
+       this.cellBackColRC(num-1,column+\"put\",\"FwStateOKPhysics\");
+     else if(value>10)
+       this.cellBackColRC(num-1,column+\"put\",\"FwAlarmWarnAck\");
+     else 
+       this.cellBackColRC(num-1,column+\"put\",\"FwAlarmErrorAck\");
+
+  
+dpGet(dpSubStr(dpe,DPSUB_SYS_DP_EL)+\":_original.._invalid\",invalid);
+       //DebugN(invalid);
+       if(invalid)
+       {
+         TEXT_FIELD1.backCol(\"FwStateAttention2\");
+         TEXT_FIELD1.text = \"Lost Conn.\";
+        }
+       
+  }" 0
+E 1 0 1 5 0 "chamber" 12 1 0 "s" 1
+LANG:1 7 Chamber
+E
+1
+LANG:1 0 
+
+140 "input" 5 1 0 "s" 1
+LANG:1 10 Input Flow
+E
+1
+LANG:1 0 
+
+70 "intime" 12 1 0 "s" 1
+LANG:1 9 Timestamp
+E
+1
+LANG:1 0 
+
+150 "output" 5 1 0 "s" 1
+LANG:1 11 Output Flow
+E
+1
+LANG:1 0 
+
+70 "outtime" 12 1 0 "s" 1
+LANG:1 9 Timestamp
+E
+1
+LANG:1 0 
+
+150 
+26 26 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+14 7
+"TEXT_FIELD1"
+""
+1 46.6335637963546 247.272727272727 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 44.6335637963546 245.272727272727 140.559968001829 270.606060606061
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.backCol(\"FwStateOKPhysics\");
+  this.text(\"OK\");
+}" 0
+ E
+30 8
+"FRAME1"
+""
+1 68 189 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+8 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.387640449438202 0 1.04918032786885 -4.35955056179772 25.7049180327869 0 E 68 189 425 251
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 17 Dip Server status
+13 10
+"PUSH_BUTTON1"
+""
+1 448 234 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 446 232 580 266
+
+T 
+1
+LANG:1 8 Trending
+"// SimpleCtrlScriptStart {invalid}
+main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorSectorGasTrend.pnl\",
+      $2,
+      makeDynString(\"$2:\"+$2));
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnCentral}
+// File {CMS_RPCfwSupervisor/CMS_RPCfwSupervisorSectorGasTrend.pnl}
+// Panel {}
+// Parent {}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

@@ -1,0 +1,1357 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 1218 830 N "_3DFace" 1
+"$systemName"
+"main()
+{
+  update();
+
+  while(1)
+  {
+    if(cbAutoRefresh.state(0))
+      update();
+    
+    delay(5);
+  }
+}" 0
+ E E E E 1 -1 -1 0  10 20
+""0  1
+E "//Datapoint Elements for System Statistics
+
+const string Numbers_Of_DPTs = \"_Stat_Configs_event_0.DPTs\";
+const string Numbers_Of_DPs = \"_Stat_Configs_event_0.DPs\";
+const string Numbers_Of_DP_ORIGINAL = \"_Stat_Configs_event_0._original\";
+const string Numbers_Of_DP_FCT = \"_Stat_Configs_event_0._dp_fct\";
+const string Numbers_Of_ALERT_HDL = \"_Stat_Configs_event_0._alert_hdl\";
+const string Numbers_Of_ALERT_CLASS = \"_Stat_Configs_event_0._alert_class\";
+const string Numbers_Of_DP_LOCK = \"_Stat_Configs_event_0._lock\";
+const string Numbers_Of_DP_ARCHIVE = \"_Stat_Configs_data_0._archive\";
+
+const int COUNTER_DPT = 1;
+const int COUNTER_DP = 2;
+const int COUNTER_DP_FCT = 3;
+const int COUNTER_ALERT_HDL = 4;
+const int COUNTER_ALERT_CLASS = 5;
+const int COUNTER_DP_LOCK = 6;
+const int COUNTER_DP_ARCHIVE = 7;
+const int COUNTER_DP_ORIGINAL = 8;
+const int COUNTER_MAX = 8;
+
+//Datapoint Elements for System Drivers Statistics
+const string STAT_CONFIG_DRIVER = \"_Stat_Configs_driver_\";
+const string Numbers_Of_ADDRESS = \"._address\";
+const string Numbers_Of_CMD_CONV = \"._cmd_conv\";
+const string Numbers_Of_MSG_CONV = \"._msg_conv\";
+const string Numbers_Of_SMOOTH = \"._smooth\";
+const int ADDRESS = 1;
+const int COUNTER_CMD_CONV = 2;
+const int COUNTER_MSG_CONV = 3;
+const int COUNTER_SMOOTH = 4;
+const int COUNTER_MAX1 = 4; 
+
+update()
+{
+  string systemName;
+  string status;
+  dyn_mixed counters, countersDrv;
+  dyn_string exceptionInfo;
+  dyn_string systemNames;
+  dyn_string managerNumbers;
+  dyn_uint ids;
+  int numDPT = 0 , numDP = 0, numAlertClass=0, numAlertHdl=0, numDpFct=0, numDpLock=0, numArch=0, numOriginal = 0;
+  int address =0 , cmd_conv = 0, msg_conv = 0, smooth = 0;  
+  int totalNumSystems=0, totalNumDPT = 0 , totalNumDP = 0, totalNumAlertClass=0, totalNumAlertHdl=0, totalNumDpFct=0,
+      totalNumDpLock=0, totalNumArch=0, totalNumOriginal = 0; 
+  int totalNumAddress=0, totalNumCmdConv=0, totalNumMsgConv=0, totalNumSmooth=0;
+  
+  
+  summaryTable.deleteAllLines();
+  summaryDrivers.deleteAllLines();
+  
+    if(!isDollarDefined(\"$systemName\"))
+    {
+      getSystemNames(systemNames, ids);//Find out the systems we are connecting to
+    }
+    else
+    {
+      string str = $systemName;
+      strreplace(str, \" \", \"\"); 
+      dynAppend(systemNames, str);//use the system that is passed
+      systemNames = strsplit(str, \"|\");
+    }
+    
+    for(int i = 1; i <= dynlen(systemNames); i++)
+    {
+      systemName = systemNames[i];
+      
+      if(!patternMatch(\"*:\", systemName))
+        systemName += \":\";
+      
+      getSystemStatistics(systemName, counters , exceptionInfo);
+        
+//      if (dynlen(exceptionInfo) || counters[COUNTER_DPT]==0)
+      if(dynlen(counters) == 0)
+      {
+//        fwExceptionHandling_display(exceptionInfo); 
+        status = \"Not Connected\";
+        continue;
+      }
+      else 
+      {
+        status = \"OK\";
+        
+        managerNumbers = dpNames(systemName+\"_Stat_Configs_driver_*\");
+         
+        for (int j=1; j<=dynlen(managerNumbers); j++)
+        {
+          strreplace(managerNumbers[j], systemName + \"_Stat_Configs_driver_\",\"\");
+          getSystemDriversStatistics(systemName, managerNumbers[j], countersDrv, exceptionInfo);             
+            
+          setValue(\"summaryDrivers\", \"appendLine\", 
+                  \"system\",systemName,
+                  \"sysNum\",getSystemId(systemName),
+                  \"drvNum\",managerNumbers[j],
+                  \"address\",countersDrv[ADDRESS],               
+                  \"cmd_conv\",countersDrv[COUNTER_CMD_CONV],
+                  \"msg_conv\",countersDrv[COUNTER_MSG_CONV],
+                  \"smooth\",countersDrv[COUNTER_SMOOTH]
+                  );
+      
+            totalNumAddress+=countersDrv[ADDRESS];
+            totalNumCmdConv+=countersDrv[COUNTER_CMD_CONV];
+            totalNumMsgConv+=countersDrv[COUNTER_MSG_CONV];
+            totalNumSmooth+=countersDrv[COUNTER_SMOOTH];                     
+        }
+      }
+      
+      setValue(\"summaryTable\", \"appendLine\", 
+              \"system\",systemName,
+              \"sysNum\",getSystemId(systemName),
+              \"status\",status,               
+              \"dpt\", counters[COUNTER_DPT],
+              \"dp\", counters[COUNTER_DP],
+              \"dpFct\",counters[COUNTER_DP_FCT],
+              \"alertHdl\",counters[COUNTER_ALERT_HDL],
+              \"alertClass\",counters[COUNTER_ALERT_CLASS],
+              \"dpLock\",counters[COUNTER_DP_LOCK],
+              \"arch\",counters[COUNTER_DP_ARCHIVE],
+              \"original\",counters[COUNTER_DP_ORIGINAL]);
+      
+     
+      if (status != \"OK\")
+      {
+        summaryTable.cellBackColRC(0, \"status\", \"FwStateAttention2\");
+      }
+      else
+      {
+        summaryTable.cellBackColRC(0, \"status\", \"White\");
+      }
+      
+      totalNumDPT+=counters[COUNTER_DPT];
+      totalNumDP+=counters[COUNTER_DP];
+      totalNumDpFct+=counters[COUNTER_DP_FCT];
+      totalNumAlertHdl+=counters[COUNTER_ALERT_HDL];
+      totalNumAlertClass+=counters[COUNTER_ALERT_CLASS];  
+      totalNumDpLock+=counters[COUNTER_DP_LOCK];
+      totalNumArch+=counters[COUNTER_DP_ARCHIVE];
+      totalNumOriginal+=counters[COUNTER_DP_ORIGINAL];
+      ++totalNumSystems;
+   }//end of loop over systems
+    
+  tfNumberOfSystems.text=totalNumSystems;
+  tfNumberOfDPTs.text=totalNumDPT;
+  tfNumberOfDPs.text=totalNumDP;
+  tfNumberOfLocked.text=totalNumDpLock;
+  tfNumberOfDPFct.text=totalNumDpFct;
+  tfNumberOfAlertClass.text=totalNumAlertClass;
+  tfNumberOfAlertHdl.text=totalNumAlertHdl;
+  tfNumberOfArchive.text=totalNumArch;
+  tfNumberOfOriginal.text=totalNumOriginal;
+  
+  tfNumberOfAddress.text=totalNumAddress;
+  tfNumberOfCmdConv.text=totalNumCmdConv;
+  tfNumberOfMsgConv.text=totalNumMsgConv;
+  tfNumberOfSmooth.text=totalNumSmooth;
+  
+}
+
+void getSystemStatistics(string systemName, dyn_mixed &counters, dyn_string &exceptionInfo)
+
+{
+  counters[COUNTER_DPT] = 0;
+  counters[COUNTER_DP] = 0;
+  counters[COUNTER_DP_FCT] = 0;
+  counters[COUNTER_ALERT_HDL] = 0;
+  counters[COUNTER_ALERT_CLASS] = 0;
+  counters[COUNTER_DP_LOCK] = 0;
+  counters[COUNTER_DP_ARCHIVE] = 0;
+  counters[COUNTER_DP_ORIGINAL] = 0;
+  
+  if(!dpExists(systemName + Numbers_Of_DPs))
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR: System is not connected\", makeDynString(\"$1:System is not availible: \" + systemName));
+//    fwException_raise(exceptionInfo,\"ERROR\",\"fwSysOverview_getSystemStatistics() -> Dp is not available: \" + systemName + Numbers_Of_DPs + \"\\n\" ,\"\");
+    return; 
+  }
+  
+  int result = dpGet (systemName + Numbers_Of_DPTs, counters[COUNTER_DPT],
+                   systemName + Numbers_Of_DPs, counters[COUNTER_DP],
+                   systemName + Numbers_Of_DP_FCT, counters[COUNTER_DP_FCT],
+                   systemName + Numbers_Of_ALERT_HDL, counters[COUNTER_ALERT_HDL],
+                   systemName + Numbers_Of_ALERT_CLASS, counters[COUNTER_ALERT_CLASS],
+                   systemName + Numbers_Of_DP_LOCK, counters[COUNTER_DP_LOCK],
+                   systemName + Numbers_Of_DP_ARCHIVE, counters[COUNTER_DP_ARCHIVE],
+                   systemName + Numbers_Of_DP_ORIGINAL, counters[COUNTER_DP_ORIGINAL]
+                   );
+  
+ if (result!=0) 
+ {
+//  fwException_raise(exceptionInfo,\"ERROR\",\"fwSysOverview_getSystemStatistics() -> Could not extract counters info for system \"+systemName,\"WARNING\");
+   ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR: \", makeDynString(\"$1:Could not extract counters info for system: \" + systemName));
+   return; 
+ }
+ 
+ return;
+}
+
+void getSystemDriversStatistics(string systemName, string managerNumber, dyn_mixed &counters, dyn_string &exceptionInfo)
+{
+  counters[ADDRESS] = 0;
+  counters[COUNTER_CMD_CONV] = 0;
+  counters[COUNTER_MSG_CONV] = 0;
+  counters[COUNTER_SMOOTH] = 0;
+
+  int result = dpGet (systemName +  \"_Stat_Configs_driver_\" + managerNumber + Numbers_Of_ADDRESS,counters[ADDRESS],
+                      systemName +  \"_Stat_Configs_driver_\" + managerNumber + Numbers_Of_CMD_CONV,counters[COUNTER_CMD_CONV],
+                      systemName +  \"_Stat_Configs_driver_\" + managerNumber + Numbers_Of_MSG_CONV,counters[COUNTER_MSG_CONV],
+                      systemName +  \"_Stat_Configs_driver_\" + managerNumber + Numbers_Of_SMOOTH,counters[COUNTER_SMOOTH]
+                      );
+
+  if (result!=0) 
+  {
+   ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR: \", makeDynString(\"$1:Could not extract counters info for system: \" + systemName));
+//    fwException_raise(exceptionInfo,\"ERROR\",\"fwSysOverview_getSystemDriversStatistics()->Could not extract counters info for system \"+systemName,\"\");
+    return; 
+  }
+
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+20 16
+"cbVisibility"
+""
+1 0 42 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 15 Visibility Opt.
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  -2 40 112 314
+7
+T 
+1
+LANG:1 5 #DPTs
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 #DPs
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 8 #_dp_fct
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 11 #_alert_hdl
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 13 #_alert_class
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 9 #_archive
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 6 #_lock
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  int numColumn =0;
+  
+  
+  numColumn = summaryTable.columnCount();
+    
+  
+  for (int i=1; i<=numColumn; i++)
+  {
+    if(cbVisibility.state(i-1) == TRUE)
+    {
+      summaryTable.columnVisibility(i+2) = TRUE;      
+    }
+    
+    else
+    {
+      summaryTable.columnVisibility(i+2) = FALSE;      
+    }
+  }
+  
+  
+}" 0
+25 0
+"summaryTable"
+""
+1 10 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{/*
+  string systemName;
+  int n;
+
+  getValue(\"\", \"lineCount\", n);
+  
+  if (row >= n)
+    return;
+  
+  getValue(\"\",\"cellValueRC\", row, \"system\", systemName); 
+   
+  ChildPanelOnCentral(\"fwSystemStatistics.pnl\", systemName + \"Summary\", makeDynString(\"$systemName:\" + systemName));
+*/
+}
+" 0
+
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  8 28 685 632
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  this.removeSelectLines(0);
+}" 0
+E 1 0 1 11 0 "system" 10 1 0 "s" 1
+LANG:1 6 System
+E
+1
+LANG:1 0 
+
+100 "sysNum" 6 1 0 "s" 1
+LANG:1 9 System Nr
+E
+1
+LANG:1 0 
+
+65 "status" 10 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+100 "dpt" 4 1 0 "s" 1
+LANG:1 5 #DPTs
+E
+1
+LANG:1 0 
+
+45 "dp" 4 1 0 "s" 1
+LANG:1 4 #DPs
+E
+1
+LANG:1 0 
+
+45 "original" 4 1 0 "s" 1
+LANG:1 9 #original
+E
+1
+LANG:1 0 
+
+45 "dpFct" 5 1 0 "s" 1
+LANG:1 8 #_dp_fct
+E
+1
+LANG:1 0 
+
+55 "alertHdl" 6 1 0 "s" 1
+LANG:1 11 #_alert_hdl
+E
+1
+LANG:1 0 
+
+65 "alertClass" 7 1 0 "s" 1
+LANG:1 13 #_alert_class
+E
+1
+LANG:1 0 
+
+75 "arch" 6 1 0 "s" 1
+LANG:1 9 #_archive
+E
+1
+LANG:1 0 
+
+70 "dpLock" 4 1 0 "s" 1
+LANG:1 6 #_lock
+E
+1
+LANG:1 0 
+
+50 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 1
+"txMsg"
+""
+1 99.9999999999999 642 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 99.9999999999999 642 400 662
+0 2 2 "0s" 0 0 0 64 0 0  99.9999999999999 642 2
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 25 (Autorefresh is disabled)
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+20 2
+"cbAutoRefresh"
+""
+1 10 640 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  8 638 92 662
+1
+T 
+1
+LANG:1 12 Auto refresh
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main(int button, int state)
+{
+  if(state)
+  {
+    txMsg.foreCol(\"black\");
+    txMsg.text = \"(Values are refreshed every 10 seconds)\";
+  }
+  
+  else
+  {
+    txMsg.foreCol(\"red\");
+    txMsg.text = \"(Autorefresh is disabled)\";
+  }
+}" 0
+"main(int button, int state)
+{
+  if(state)
+  {
+    txMsg.foreCol(\"black\");
+    txMsg.text = \"(Values are refreshed every 10 seconds)\";
+  }
+  
+  else
+  {
+    txMsg.foreCol(\"red\");
+    txMsg.text = \"(Autorefresh is disabled)\";
+  }
+}" 0
+30 17
+"summary"
+""
+1 20 413 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+32 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.73913043478261 0 0.534759358288769 -34.7826086956522 459.144385026738 0 E 20 413 711 601
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Summary
+2 18
+"PRIMITIVE_TEXT1"
+""
+1 12 712.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 12 712.000000000001 57 726
+0 2 2 "0s" 0 0 0 192 0 0  12 712.000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Systems :
+2 19
+"PRIMITIVE_TEXT2"
+""
+1 12 744.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 12 744.000000000001 69 758
+0 2 2 "0s" 0 0 0 192 0 0  12 744.000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 #DPTypes :
+2 20
+"PRIMITIVE_TEXT3"
+""
+1 482 746.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 482 746.000000000001 515 760
+0 2 2 "0s" 0 0 0 192 0 0  482 746.000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 #DPs :
+2 21
+"PRIMITIVE_TEXT4"
+""
+1 324 745.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 324 745.000000000001 363 759
+0 2 2 "0s" 0 0 0 192 0 0  324 745.000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 8 #_lock :
+2 22
+"PRIMITIVE_TEXT5"
+""
+1 482 712.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 482 712.000000000001 531 726
+0 2 2 "0s" 0 0 0 192 0 0  482 712.000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 #_dp_fct :
+2 23
+"PRIMITIVE_TEXT6"
+""
+1 650 710 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 650 710 719 724
+0 2 2 "0s" 0 0 0 192 0 0  650 710 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 15 #_alert_class :
+2 24
+"PRIMITIVE_TEXT7"
+""
+1 842 713 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 842 713 895 727
+0 2 2 "0s" 0 0 0 192 0 0  842 713 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 11 #_alert_hdl
+2 25
+"PRIMITIVE_TEXT8"
+""
+1 842 745 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 842 745 901 759
+0 2 2 "0s" 0 0 0 192 0 0  842 745 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 12 #_archives :
+14 26
+"tfNumberOfSystems"
+""
+1 80 710 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  78 708 131 731
+2 "0s" 0 0 0 2 0 -1  E E E
+14 27
+"tfNumberOfDPTs"
+""
+1 80 742 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  78 740 131 763
+2 "0s" 0 0 0 2 0 -1  E E E
+14 28
+"tfNumberOfDPs"
+""
+1 550 742 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  548 740 601 763
+2 "0s" 0 0 0 2 0 -1  E E E
+14 29
+"tfNumberOfLocked"
+""
+1 412 742.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  410 740 463 763
+2 "0s" 0 0 0 2 0 -1  E E E
+14 30
+"tfNumberOfDPFct"
+""
+1 550 710 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  548 708 601 731
+2 "0s" 0 0 0 2 0 -1  E E E
+14 31
+"tfNumberOfAlertClass"
+""
+1 740 710 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  738 708 791 731
+2 "0s" 0 0 0 2 0 -1  E E E
+14 32
+"tfNumberOfAlertHdl"
+""
+1 930 710 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  928 708 981 731
+2 "0s" 0 0 0 2 0 -1  E E E
+14 33
+"tfNumberOfArchive"
+""
+1 930 742 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  928 740 982 763
+2 "0s" 0 0 0 2 0 -1  E E E
+13 36
+"btRefresh"
+""
+1 1030 790 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  1028 788 1106 822
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+  update();
+}" 0
+ E E E
+13 37
+"btClose"
+""
+1 1125.625 790 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  1124 788 1202 822
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+   PanelOff();
+}" 0
+ E E E
+25 41
+"summaryDrivers"
+""
+1 700 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  698 28 1204 632
+"main()
+{
+//  this.tableMode(TABLE_SELECT_MULTIPLE);
+//  this.selectByClick(TABLE_SELECT_LINE);
+
+}" 0
+E 1 0 1 7 0 "system" 10 1 0 "s" 1
+LANG:1 6 System
+E
+1
+LANG:1 0 
+
+104 "sysNum" 6 1 0 "s" 1
+LANG:1 9 System Nr
+E
+1
+LANG:1 0 
+
+65 "drvNum" 5 1 0 "s" 1
+LANG:1 9 Driver Nr
+E
+1
+LANG:1 0 
+
+60 "address" 5 1 0 "s" 1
+LANG:1 9 #_address
+E
+1
+LANG:1 0 
+
+60 "cmd_conv" 6 1 0 "s" 1
+LANG:1 10 #_cmd_conv
+E
+1
+LANG:1 0 
+
+70 "msg_conv" 6 1 0 "s" 1
+LANG:1 10 #_msg_conv
+E
+1
+LANG:1 0 
+
+70 "smooth" 6 1 0 "s" 1
+LANG:1 8 #_smooth
+E
+1
+LANG:1 0 
+
+70 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 42
+"PRIMITIVE_TEXT11"
+""
+1 162 713 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 162 713 212 727
+0 2 2 "0s" 0 0 0 192 0 0  162 713 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 #_adress :
+2 43
+"PRIMITIVE_TEXT12"
+""
+1 162 745 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 162 745 231 759
+0 2 2 "0s" 0 0 0 192 0 0  162 745 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 12 #_cmd_conv :
+2 44
+"PRIMITIVE_TEXT13"
+""
+1 652 744 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 652 744 720 758
+0 2 2 "0s" 0 0 0 192 0 0  652 744 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 12 #_msg_conv :
+2 45
+"PRIMITIVE_TEXT14"
+""
+1 322 713 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+82 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 322 713 375 727
+0 2 2 "0s" 0 0 0 192 0 0  322 713 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 #_smooth :
+14 46
+"tfNumberOfAddress"
+""
+1 234 710 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+84 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  232 708 285 731
+2 "0s" 0 0 0 2 0 -1  E E E
+14 47
+"tfNumberOfCmdConv"
+""
+1 234 742 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+86 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  232 740 285 763
+2 "0s" 0 0 0 2 0 -1  E E E
+14 48
+"tfNumberOfMsgConv"
+""
+1 740 737.999999999999 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  738 736 791 759
+2 "0s" 0 0 0 2 0 -1  E E E
+14 49
+"tfNumberOfSmooth"
+""
+1 412 710 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+90 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  410 708 463 731
+2 "0s" 0 0 0 2 0 -1  E E E
+2 50
+"PRIMITIVE_TEXT15"
+""
+1 710 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+92 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 710 10 848 24
+0 2 2 "0s" 0 0 0 192 0 0  710 10 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 23 Drivers Summary Table :
+2 51
+"PRIMITIVE_TEXT16"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+94 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 10 154 24
+0 2 2 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 23 Systems Summary Table :
+2 35
+"PRIMITIVE_TEXT10"
+""
+1 20 12 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 12 79 26
+0 2 2 "0s" 0 0 0 192 0 0  20 12 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Visibility Opt.
+13 53
+"PUSH_BUTTON1"
+""
+1 1120 640 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+96 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  1118 638 1202 672
+
+T 
+1
+LANG:1 14 Write to Files
+"main()
+{
+  string filename = tfFile.text;
+  string driverFilename = filename + \"_drivers\";
+
+  summaryTable.writeToFile(filename, TRUE, \" | \"); 
+  summaryDrivers.writeToFile(driverFilename, TRUE, \" | \"); 
+}" 0
+ E E E
+13 57
+"PUSH_BUTTON2"
+""
+1 1070 640 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+102 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  1068 638 1102 672
+
+P 
+4294967295
+"pictures/file_small_en.gif"
+1
+LANG:1 12 PUSH_BUTTON2
+"main()
+{
+  string filename = \"\";
+  fileSelector(filename, \".\", false, \"*.*\", false);
+  
+  tfFile.text = filename;
+}" 0
+ E E E
+14 58
+"tfFile"
+""
+1 800 640 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+103 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  798 638 1062 661
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  string systemName = getSystemName();
+  
+  strreplace(systemName, \":\", \"\");
+  tfFile.text = \"./\" + systemName + \"_statistics.text\";
+}" 0
+ E
+2 59
+"PRIMITIVE_TEXT17"
+""
+1 1010 710 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+105 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 1010 710 1056 724
+0 2 2 "0s" 0 0 0 192 0 0  1010 710 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 #_original
+14 60
+"tfNumberOfOriginal"
+""
+1 1100 710 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  1098 708 1151 731
+2 "0s" 0 0 0 2 0 -1  E E E
+13 61
+"PUSH_BUTTON3"
+""
+1 1180 0 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+109 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  1178 -2 1206 26
+
+P 
+4294967295
+"pictures/alert_screen_enabled.gif"
+1
+LANG:1 12 PUSH_BUTTON2
+"
+main()
+{
+  string componentName = \"fwConfigs\";
+  string requestedComponentVersion = \"3.2.0\";
+  int result;
+  string systemName;
+  bool beStrict;
+  
+  fwInstallation_componentInstalled(componentName, requestedComponentVersion, result, systemName = \"\", beStrict = false);
+  
+  if (result ==0)
+  {
+   ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR:Panel does not exist\", makeDynString(\"$1: fwAlertConfigAnalysisDetails.pnl - does not exist!\\n Please intall: \\n at least version 3.2.0 of fwConfig component.\"));
+  }
+  else
+  {
+    ChildPanelOnCentralModal(\"fwConfigs/fwAlertConfigAnalysisTool.pnl\", \"fwAlertConfigAnalysisDetails\", makeDynString());
+  }
+}" 0
+ E E E
+2 62
+"PRIMITIVE_TEXT18"
+""
+1 1040 6 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+110 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 1040 10 1170 30
+0 2 2 "0s" 0 0 0 64 0 0  1040 10 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 31 Interested in alarm statistics?
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

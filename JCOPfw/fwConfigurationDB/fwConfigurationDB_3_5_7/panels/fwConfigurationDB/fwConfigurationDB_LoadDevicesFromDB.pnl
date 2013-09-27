@@ -1,0 +1,1025 @@
+V 11
+1
+LANG:1 9 TopDevice
+PANEL,-1 -1 524 584 N "_3DFace" 3
+"$hierarchy"
+"$system"
+"$topDevice"
+"main()
+{
+	PopulatePanel();
+}" 0
+ E E E E 1 -1 -1 0  290 310
+""0  1
+E "dyn_string g_configNames, g_configDescriptions;
+dyn_int g_configIds;
+int g_deviceConfigs=0;// selected device configs
+string g_topDevice=\"\";
+string g_system=\"\";
+string g_hierarchy=\"\";
+dyn_string g_DeviceIds, g_DeviceNames, g_DeviceDpNames;
+
+void PopulatePanel()
+{
+ dyn_string exceptionInfo;
+
+DisableAll();
+
+DeviceTree.selectionMode(\"Extended\");
+
+ fwConfigurationDB_checkInit(exceptionInfo);
+ if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return FALSE;}	  
+
+  RefreshConfigurationsList();
+
+  g_topDevice=$topDevice;  
+  g_system=$system;  
+  g_hierarchy=$hierarchy;
+  
+
+  
+  if (g_hierarchy==fwDevice_HARDWARE) {
+
+	g_deviceConfigs=fwConfigurationDB_deviceConfig_ALLDEVPROPS;
+	RepaintDeviceConfigs();
+  DeviceListMode.visible=true;
+  DeviceListModeFrame.visible=true;
+  } else {
+	ConfigSelect1.visible=FALSE;
+	ConfigSelect2.visible=FALSE;
+	ConfigSelect3.visible=FALSE;
+	ConfigSelectFrame.visible=FALSE;
+	Sel2Frame.visible=FALSE;
+  UseFwDefaults.visible=FALSE;
+  AdoptRemoteDevices.visible=FALSE;
+  ConfigureExistingOnly.visible=FALSE;
+	SelectAllProps.visible=FALSE;
+	SelectNoProps.visible=FALSE;
+  DeviceListMode.visible=FALSE;
+  DeviceListModeFrame.visible=FALSE;
+  }
+  
+  DeviceListMode.number(0);
+  DeviceSelectionMode.number(0);
+  DeviceListModeChanged(0);
+  DeviceSelectionModeChanged(0);
+  
+  ConfigurationName.selectedPos(1);
+  delay(0,100);// just in case...
+  ConfigurationSelected(ConfigurationName.text);
+}
+
+void DisableAll()
+{
+DisableConfigurations();
+}
+
+void DisableConfigurations()
+{
+ConfigurationName.enabled=FALSE;
+ConfigurationDescription.enabled=FALSE;
+ConfigurationId.enabled=FALSE;
+ConfigurationDescription.editable=FALSE;
+ConfigurationName.backCol=\"FwBackground\";
+ConfigurationDescription.backCol=\"FwBackground\";
+ConfigurationDescription.text=\"\";
+ConfigurationId.text=\"\";
+}
+
+
+void RefreshConfigurationsList()
+{
+DisableConfigurations();
+string savConfig=ConfigurationName.text;
+ConfigurationName.text=\"\";
+ConfigurationName.deleteAllItems();
+
+
+
+dyn_string configNames, configDescriptions,exceptionInfo;
+dyn_int configIds;
+fwConfigurationDB_getDeviceConfigurations(g_hierarchy,
+        configNames, configDescriptions, configIds,
+	exceptionInfo);
+
+if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return;}	
+
+dyn_string confNamesWithAll=configNames;
+if (g_hierarchy==fwDevice_HARDWARE) {
+  dynAppend(confNamesWithAll,\"(all devices)\");
+}
+ConfigurationName.items=confNamesWithAll;
+
+if (dynlen(confNamesWithAll)==0) {
+  DisableConfigurations();
+  DBLoadButton.enabled=FALSE;  
+  fwException_raise(exceptionInfo,\"INFO\",\"No configurations available.\",\"\");
+  fwExceptionHandling_display(exceptionInfo);
+  return;
+}
+
+g_configNames=configNames;
+g_configDescriptions=configDescriptions;
+g_configIds=configIds;
+
+ConfigurationName.enabled=TRUE;
+ConfigurationDescription.enabled=TRUE;
+ConfigurationId.enabled=TRUE;
+ConfigurationName.backCol=\"FwBackgroundInputText\";
+
+
+if (dynContains(configNames,savConfig)) {
+ ConfigurationName.text=savConfig;
+ ConfigurationSelected(savConfig);
+} 
+
+
+}
+
+
+void ConfigurationSelected(string configName)
+{
+int idx=dynContains(g_configNames,configName);
+
+if (idx>0) {
+	// means: existing one...
+	ConfigurationDescription.text=g_configDescriptions[idx];
+	ConfigurationId.text=g_configIds[idx];
+	ConfigurationDescription.editable=FALSE;
+	ConfigurationDescription.backCol=\"FwBackground\";
+  if (g_deviceConfigs & fwConfigurationDB_deviceConfig_FW_DEFAULTS)
+    g_deviceConfigs-=fwConfigurationDB_deviceConfig_FW_DEFAULTS;
+  g_deviceConfigs=g_deviceConfigs|fwConfigurationDB_deviceConfig_ALLDEVPROPS;
+  ConfigSelect1.enabled=TRUE;    
+  ConfigSelect2.enabled=TRUE;
+  ConfigSelect3.enabled=TRUE;
+  RepaintDeviceConfigs();
+	DBLoadButton.enabled=TRUE;
+} else {
+    ConfigSelect1.enabled=FALSE;    
+    ConfigSelect2.enabled=FALSE;
+    ConfigSelect3.enabled=FALSE;
+
+  if (configName==\"(all devices)\") {
+    g_deviceConfigs=fwConfigurationDB_deviceConfig_FW_DEFAULTS;
+    DBLoadButton.enabled=TRUE;
+   } else {
+	  DBLoadButton.enabled=FALSE;
+   }
+    RepaintDeviceConfigs();
+ }
+  RefreshDeviceTree();
+}
+
+
+
+
+void LoadConfigurationFromDB()
+{
+dyn_string exceptionInfo;
+string systemName=g_system;
+string configurationName=ConfigurationName.text;
+
+if (configurationName==\"(all devices\") configurationName=\"\";
+
+DBLoadButton.enabled=FALSE;
+
+fwConfigurationDB_openProgressDialog(
+	makeDynInt(	fwConfigurationDB_OPER_LoadDevices),
+	makeDynString(	\"Loading devices from DB\"));
+
+time validOn=0;
+dyn_string deviceList;
+
+if (DeviceSelectionMode.number==0) {
+  // take the selection
+  dyn_string selectedIds=DeviceTree.selectedItems();
+  dyn_string selectedDevices;
+  for (int i=1;i<=dynlen(selectedIds);i++) {
+    int idx=dynContains(g_DeviceIds,selectedIds[i]);
+    if (idx) {
+      string dev=g_DeviceDpNames[idx];
+      dynAppend(selectedDevices,dev);
+    } else {
+      DebugTN(\"Could not identify device with ID \"+selectedIds[i]+\" in the tree\");    
+    }
+  }
+
+ dynUnique(selectedDevices);
+ dynSortAsc(selectedDevices);
+
+ if (dynlen(selectedDevices)==0) {
+   DebugTN(\"No device selected\");
+   return;
+ }
+ deviceList=selectedDevices;
+ 
+}else if (DeviceSelectionMode.number==1){
+  // get all for current system 
+   deviceList=makeDynString(getSystemName());
+} else if (DeviceSelectionMode.number==2) {
+  // all the devices from all systems
+   deviceList=makeDynString(\"*\");
+}
+ 
+ 
+fwConfigurationDB_updateDeviceConfigurationFromDB(configurationName,
+    				g_hierarchy, exceptionInfo, 
+				validOn, deviceList, systemName,
+				g_deviceConfigs);
+
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+fwConfigurationDB_closeProgressDialog();
+PanelOff();
+}
+
+
+
+void RepaintDeviceConfigs()
+{
+
+ConfigSelect1.state(0,g_deviceConfigs & fwConfigurationDB_deviceConfig_VALUE);
+ConfigSelect1.state(1,g_deviceConfigs & fwConfigurationDB_deviceConfig_ADDRESS);
+ConfigSelect1.state(2,g_deviceConfigs & fwConfigurationDB_deviceConfig_ALERT);
+
+ConfigSelect2.state(0,g_deviceConfigs & fwConfigurationDB_deviceConfig_ARCHIVING);
+ConfigSelect2.state(1,g_deviceConfigs & fwConfigurationDB_deviceConfig_DPFUNCTION);
+ConfigSelect2.state(2,g_deviceConfigs & fwConfigurationDB_deviceConfig_CONVERSION);
+
+ConfigSelect3.state(0,g_deviceConfigs & fwConfigurationDB_deviceConfig_PVRANGE);
+ConfigSelect3.state(1,g_deviceConfigs & fwConfigurationDB_deviceConfig_SMOOTHING);
+ConfigSelect3.state(2,g_deviceConfigs & fwConfigurationDB_deviceConfig_UNITANDFORMAT);
+
+UseFwDefaults.state(0,g_deviceConfigs & fwConfigurationDB_deviceConfig_FW_DEFAULTS);
+ConfigureExistingOnly.state(0,g_deviceConfigs & fwConfigurationDB_deviceConfig_NO_DEVICE_CREATE);
+AdoptRemoteDevices.state(0,g_deviceConfigs & fwConfigurationDB_deviceConfig_ADOPT_TO_SYSTEM);
+
+	
+}
+
+
+void DeviceSelectionModeChanged(int mode)
+{
+  if (mode==0) { //selected devices
+    DeviceTree.enabled=true;
+    DeviceListMode.enabled=true;
+  }else if (mode==1){ //all for this system
+    DeviceTree.enabled=false;
+    DeviceListMode.enabled=false;
+    DeviceListMode.number(1);
+  }else if (mode==2){ //all for all systems
+    DeviceTree.enabled=false;
+    DeviceListMode.enabled=false;
+    DeviceListMode.number(2);
+  }
+}
+
+void DeviceListModeChanged(int mode)
+{
+//
+}
+  
+  
+void RefreshDeviceTree()
+{
+
+	dyn_dyn_mixed dbDeviceListObject;
+	dyn_string exceptionInfo;
+	  
+  DeviceTree.clear();
+ 
+	string configurationName=ConfigurationName.text;
+  if (configurationName==\"(all devices)\") configurationName=\"\";
+  
+  string topDevice;
+  int mode=DeviceListMode.number;
+  if (mode==0) topDevice=g_topDevice;
+  else if (mode==1) topDevice=g_system;
+  else topDevice=\"\";
+  
+
+  fwConfigurationDB_getDevicesInConfiguration(configurationName,
+    g_hierarchy,
+    topDevice,
+    dbDeviceListObject,
+    exceptionInfo);
+	  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo); return;}
+
+  
+
+
+    if (dynlen(dbDeviceListObject)==0) return;
+    dynClear(g_DeviceIds);
+    dynClear(g_DeviceNames);
+    dynClear(g_DeviceDpNames);
+  dyn_int allItemIds=dbDeviceListObject[fwConfigurationDB_DLO_ITEMID];
+  for (int i=1;i<=dynlen(dbDeviceListObject[fwConfigurationDB_DLO_DPNAME]);i++) {
+    int parentId=dbDeviceListObject[fwConfigurationDB_DLO_PARENTID][i];
+    int id=dbDeviceListObject[fwConfigurationDB_DLO_ITEMID][i];
+    string sParentId=parentId;
+    string sId=id;
+    string name=dbDeviceListObject[fwConfigurationDB_DLO_NAME][i];
+    if (!dynContains(allItemIds,parentId)) {
+       sParentId=\"\";
+       name=dbDeviceListObject[fwConfigurationDB_DLO_DPNAME][i];
+     }
+    DeviceTree.appendItem(sParentId,sId,name);
+    dynAppend(g_DeviceIds,sId);
+    dynAppend(g_DeviceNames,name);
+    string devdpname=dbDeviceListObject[fwConfigurationDB_DLO_DPNAME][i];
+    dynAppend(g_DeviceDpNames,devdpname);
+  }
+ DeviceTree.setSelectedItems(g_DeviceIds,true); 
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"CancelButton"
+""
+1 430 550 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  428 548 508 578
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+22 1
+"ConfigurationName"
+""
+1 18 58 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+94 0 0 0 0 0
+E E E
+0
+1
+LANG:1 61 Configuration name (select or type-in a new one, press ENTER)
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  18 58 258 85
+0
+
+E
+"main()
+{
+DBLoadButton.enabled=FALSE;
+string selected=this.text;
+if (selected!=\"\") ConfigurationSelected(selected);
+}" 0
+
+E
+ 0 0
+13 6
+"DBLoadButton"
+""
+1 317.5526315789473 548 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  318 548 415 578
+
+T 
+1
+LANG:1 12 Load From DB
+"main()
+{
+	LoadConfigurationFromDB();
+}" 0
+ E E E
+14 15
+"ConfigurationDescription"
+""
+1 18 88 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 37 Description of selected configuration
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  18 88 498 115
+2 "0s" 0 0 0 0 0 -1  E E E
+14 16
+"ConfigurationId"
+""
+1 438 58 E E E 1 E 1 E N "_WindowText" E N "FwBackground" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 35 Identifer of selected configuration
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  438 58 498 85
+2 "0s" 0 0 0 0 0 -1  E E E
+30 18
+"FRAME1"
+""
+1 10 10 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+44 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8928571428571429 0 0.735444330949949 1.071428571428571 32.64555669050051 0 E 10 10 570 120
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Configuration
+2 35
+"PRIMITIVE_TEXT1"
+""
+1 20 15 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 15 199 35
+0 2 2 "0s" 0 0 0 192 0 0  20 15 1
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 25 Load device configuration
+20 37
+"UseFwDefaults"
+""
+1 18 468 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+131 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  18 468 465 496
+1
+T 
+1
+LANG:1 67 Apply framework defaults for devices with no detailed configuration
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+if (button==0) g_deviceConfigs^=fwConfigurationDB_deviceConfig_FW_DEFAULTS;
+}" 0
+20 38
+"ConfigSelect2"
+""
+1 168 358 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+101 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  168 368 272 452
+3
+T 
+1
+LANG:1 9 Archiving
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 11 DP Function
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 Conversion
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, int state)
+{
+if (button==0) g_deviceConfigs^=fwConfigurationDB_deviceConfig_ARCHIVING;
+else if (button==1) g_deviceConfigs^=fwConfigurationDB_deviceConfig_DPFUNCTION;
+else if (button==2) g_deviceConfigs^=fwConfigurationDB_deviceConfig_CONVERSION;
+
+}" 0
+20 39
+"ConfigSelect3"
+""
+1 388 358 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+103 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  288 368 417 452
+3
+T 
+1
+LANG:1 8 PV Range
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 9 Smoothing
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 15 Unit and Format
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, int state)
+{
+if (button==0) g_deviceConfigs^=fwConfigurationDB_deviceConfig_PVRANGE;
+else if (button==1) g_deviceConfigs^=fwConfigurationDB_deviceConfig_SMOOTHING;
+else if (button==2) g_deviceConfigs^=fwConfigurationDB_deviceConfig_UNITANDFORMAT;
+
+}" 0
+20 40
+"ConfigSelect1"
+""
+1 58 368 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+105 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  58 368 138 452
+3
+T 
+1
+LANG:1 5 Value
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 7 Address
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 6 Alerts
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, int state)
+{
+if (button==0) g_deviceConfigs^=fwConfigurationDB_deviceConfig_VALUE;
+else if (button==1) g_deviceConfigs^=fwConfigurationDB_deviceConfig_ADDRESS;
+else if (button==2) g_deviceConfigs^=fwConfigurationDB_deviceConfig_ALERT;
+
+}" 0
+30 42
+"ConfigSelectFrame"
+""
+1 10 10 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+110 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8928571428571429 0 1.839297436781712 1.071428571428571 321.6070256321829 0 E 10 10 570 120
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 23 Properties to configure
+13 44
+"SelectAllProps"
+""
+1 443 373 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+119 0 0 0 0 0
+E E E
+0
+1
+LANG:1 21 Select all properties
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  443 373 473 403
+
+T 
+1
+LANG:1 1 +
+"main()
+{
+	g_deviceConfigs|=fwConfigurationDB_deviceConfig_ALLDEVPROPS;
+  if (	g_deviceConfigs&fwConfigurationDB_deviceConfig_FW_DEFAULTS)
+    g_deviceConfigs-=fwConfigurationDB_deviceConfig_FW_DEFAULTS;
+ 	RepaintDeviceConfigs();
+}" 0
+ E E E
+13 45
+"SelectNoProps"
+""
+1 443 418 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+122 0 0 0 0 0
+E E E
+0
+1
+LANG:1 23 Unselect all properties
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  443 418 473 448
+
+T 
+1
+LANG:1 1 -
+"main()
+{
+	g_deviceConfigs&=(~fwConfigurationDB_deviceConfig_ALLDEVPROPS);
+ 	RepaintDeviceConfigs();
+}" 0
+ E E E
+30 46
+"Sel2Frame"
+""
+1 10 10 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+124 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8214285714285715 0 1.01010101010101 21.78571428571428 339.8989898989899 0 E 10 10 570 120
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+1 58 0 "" 0
+0
+20 48
+"ConfigureExistingOnly"
+""
+1 18 488 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+132 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  18 488 465 516
+1
+T 
+1
+LANG:1 46 Configure only existing devices (don't create)
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+if (button==0) g_deviceConfigs^=fwConfigurationDB_deviceConfig_NO_DEVICE_CREATE;
+}" 0
+30 50
+"FRAME2"
+""
+1 10 152 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+133 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.179775280898876 0 -59.32584269662921 0 E 10 152 511 331
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Device Selection
+19 51
+"DeviceListMode"
+""
+1 370 220 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+134 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  368 218 502 312
+3
+T 
+1
+LANG:1 16 Below top device
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 11 This system
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 11 All systems
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  DeviceListModeChanged(button);
+  RefreshDeviceTree();
+}" 0
+
+29 53
+"DeviceTree"
+""
+1 29.99999999999997 170 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+136 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"selectionMode" "enum 2"
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  30 170 350 320
+10 TreeWidget
+0
+"main()
+{
+  this.addColumn(\"Device\");
+}" 0
+20 55
+"AdoptRemoteDevices"
+""
+1 18 508 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+137 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  18 508 465 536
+1
+T 
+1
+LANG:1 37 Adopt devices with remote system name
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+if (button==0) g_deviceConfigs^=fwConfigurationDB_deviceConfig_ADOPT_TO_SYSTEM;
+}" 0
+19 56
+"DeviceSelectionMode"
+""
+1 20 136 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+138 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  18 134 492 168
+3
+T 
+1
+LANG:1 16 Selected devices
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 19 All for this system
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 20 All in configuration
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  DeviceSelectionModeChanged(button);
+  RefreshDeviceTree();
+}" 0
+
+30 57
+"DeviceListModeFrame"
+""
+1 340 192 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+139 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.9333333333333333 0 1.111111111111111 42.66666666666666 -13.33333333333338 0 E 340 192 491 301
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Device List mode
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "" -1
+"objects/fwGeneral/fwHelpButton.pnl" 270 20 T 126 1 0 1 212 -8
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_LoadDevicesFromDB"
+0

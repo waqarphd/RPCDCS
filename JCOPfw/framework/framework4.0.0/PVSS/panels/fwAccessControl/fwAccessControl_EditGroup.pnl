@@ -1,0 +1,1199 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 580 624 N "_3DFace" 2
+"$groupName"
+"$mode"
+"main()
+{
+  
+//
+// $groupName should contain group name that needs to be edited
+// or empty string if new domain should be defined.
+//
+// optional $mode should contain string \"RO\" for read-only (browse) mode
+//
+
+	string groupName;
+	dyn_string exceptionInfo;
+
+	fwAccessControl_setupPanel(\"AccessControl\",exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		AccessControl(\"\",\"\"); // global \"reject\"
+		fwAccessControl_displayException(exceptionInfo);
+	};
+
+	if (!isDollarDefined(\"$groupName\")) {
+		fwAccessControl_raiseException(exceptionInfo,
+					\"PANEL ERROR\",
+					\"Group name not specified in $groupName\",
+					\"\");
+		setValue(\"OKButton\",\"enabled\",FALSE);
+
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	};
+
+	groupName=$groupName;
+	if (groupName==\"\") {
+		setValue(\"OKButton\",\"text\",\"Create\");
+		setValue(\"ShowMembers\",\"visible\",FALSE);
+		setValue(\"ReviewButton\",\"visible\",FALSE);
+	}
+
+	string q=\"SELECT '_original.._value' FROM '\"+g_fwAccessControl_GroupsDP+\".*'\";
+	int rc=dpQueryConnectAll(\"GroupsChangedCB\",FALSE,\"GroupsChangedCB\",q,1000);
+
+	string q=\"SELECT '_original.._value' FROM '\"+g_fwAccessControl_AreasDP+\".*'\";
+	int rc=dpQueryConnectAll(\"DomainsChangedCB\",FALSE,\"DomainsChangedCB\",q,1000);
+
+	populatePanel();
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "// general-purpose functions
+
+// privileges that are edited
+dyn_string g_GrantedPrivileges;
+
+// original privileges 
+dyn_string g_OriginalPrivileges;
+
+
+dyn_string g_IncludedGroups;
+dyn_string g_OriginalIncludedGroups;
+
+string g_groupName, g_groupFullName, g_groupComment;
+int g_groupId=-99;
+
+void populatePanel()
+    
+{
+
+	string groupName;
+	string groupFullName;
+	string description;
+	int    groupId;
+	dyn_string exceptionInfo;
+		
+	dynClear(g_GrantedPrivileges);
+	dynClear(g_OriginalPrivileges);
+
+	groupName=$groupName;
+
+	if (g_groupId==-99) { // only at initialization...
+		g_groupName=$groupName;
+	}
+
+	groupName=g_groupName;
+
+	setValue(\"Name\",\"text\",groupName);
+
+	if ($groupName!=\"\") {
+		fwAccessControl_getGroup(groupName,
+                        groupFullName,
+                        description,
+                        groupId,
+                        exceptionInfo);
+
+		if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+
+		if (g_groupId==-99) {
+			// only at initialization!
+			g_groupName=groupName;
+			g_groupFullName=groupFullName;
+			g_groupComment=description;
+			g_groupId=groupId;
+		}
+
+                
+                
+
+		// we pass empty domain selector: means all
+		fwAccessControl_getGroupPrivileges(groupName, makeDynString(),
+				g_OriginalPrivileges,exceptionInfo);
+		if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+		g_GrantedPrivileges=g_OriginalPrivileges;
+                
+                
+
+                fwAccessControl_getGroupsInGroup(groupName,g_IncludedGroups,exceptionInfo);
+		if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}                
+                g_OriginalIncludedGroups=g_IncludedGroups;
+                
+		setValue(\"FullName\",\"text\",groupFullName);
+		setValue(\"Comment\",\"text\",description);
+		setValue(\"Id\",\"text\",groupId);
+
+                IncludedGroupsChanged();
+                
+		PrivilegesChanged();
+	}
+	if (isDollarDefined(\"$mode\")) {
+		if ($mode==\"RO\") {
+			setValue(\"Name\",\"editable\",false);
+			setValue(\"FullName\",\"editable\",false);
+			setValue(\"Comment\",\"editable\",false);
+			setValue(\"OKButton\",\"visible\",false);
+			setValue(\"ResetButton\",\"visible\",false);
+			setValue(\"EditButton\",\"visible\",false);
+                        setValue(\"EditIncludedGroups\",\"visible\",false);
+			setValue(\"ReviewButton\",\"visible\",false);
+		}
+	}
+}
+
+
+void PrivilegesChanged()
+{
+bool showSys;
+getValue(\"ShowSystemPrivileges\",\"state\",0,showSys);
+
+	setValue(\"PrivilegesTable\",\"deleteAllLines\");
+	for (int i=1;i<=dynlen(g_GrantedPrivileges);i++) {
+		dyn_string priv=strsplit(g_GrantedPrivileges[i],\":\");
+		if (!showSys) {
+			if ( (priv[1]==g_fwAccessControl_systemDomainName ||
+                            priv[1]==g_fwAccessControl_systemDomainGenericName) &&
+                            substr(priv[2],0,8)==\"[SYSPRIV\"
+                            ) continue;
+		}
+		setValue(\"PrivilegesTable\",\"appendLine\",
+			\"Domain\",priv[1],
+			\"Privilege\",priv[2]);
+	}
+}
+
+
+//__________________________________________________________________________
+
+
+
+void ComparePrivileges(	dyn_string &addedPrivs, dyn_string &removedPrivs)
+{
+
+int i;
+
+
+// look for added privileges:
+for (i=1;i<=dynlen(g_GrantedPrivileges);i++) {
+	if ( !(dynContains(g_OriginalPrivileges,g_GrantedPrivileges[i]))) {
+		dynAppend(addedPrivs,g_GrantedPrivileges[i]);
+	}
+
+}
+
+// look for removed privileges:
+for (i=1;i<=dynlen(g_OriginalPrivileges);i++) {
+	if (!(dynContains(g_GrantedPrivileges,g_OriginalPrivileges[i]))) {
+		dynAppend(removedPrivs,g_OriginalPrivileges[i]);
+	};
+
+}
+
+
+}
+
+
+void CompareGroupsInGroups(	dyn_string &addedGroups, dyn_string &removedGroups)
+{
+
+int i;
+
+// look for added groups:
+for (i=1;i<=dynlen(g_IncludedGroups);i++) {
+	if ( !(dynContains(g_OriginalIncludedGroups,g_IncludedGroups[i]))) {
+		dynAppend(addedGroups,g_IncludedGroups[i]);
+	}
+}
+
+// look for removed groups:
+for (i=1;i<=dynlen(g_OriginalIncludedGroups);i++) {
+	if (!(dynContains(g_IncludedGroups,g_OriginalIncludedGroups[i]))) {
+		dynAppend(removedGroups,g_OriginalIncludedGroups[i]);
+	};
+}
+
+}
+
+
+
+bool CheckApplyChanges()
+{
+
+dyn_string   addedPrivs, removedPrivs, addedGroups, removedGroups, exceptionInfo,ds;
+dyn_float df;
+
+string newGroupName, groupFullName, groupComment;
+string origGroupFullName, origDescription;
+int groupId;
+string changes;
+
+getValue(\"Name\",\"text\",newGroupName);
+getValue(\"FullName\",\"text\",groupFullName);
+getValue(\"Comment\",\"text\",groupComment);
+
+if ($groupName!=\"\") {
+
+	if (newGroupName!=g_groupName) changes=changes+\"\\n * group name\";
+	if (groupFullName!=g_groupFullName) changes=changes+\"\\n * group full name\";
+	if (groupComment!=g_groupComment) changes=changes+\"\\n * group description\";
+
+ComparePrivileges(addedPrivs, removedPrivs);
+CompareGroupsInGroups(addedGroups, removedGroups);
+if ( (changes==\"\") 
+  && (dynlen(addedPrivs)==0) && (dynlen(removedPrivs)==0) 
+  && (dynlen(addedGroups)==0) && (dynlen(removedGroups)==0)
+   ) {
+	return TRUE;
+}
+
+dyn_string added,removed;
+for (int i=1;i<=dynlen(addedPrivs);i++) dynAppend(added, \"Access Right \"+addedPrivs[i]);
+for (int i=1;i<=dynlen(addedGroups);i++) dynAppend(added,\"Subgroup     \"+addedGroups[i]);
+for (int i=1;i<=dynlen(removedPrivs);i++) dynAppend(removed, \"Access Right \"+removedPrivs[i]);
+for (int i=1;i<=dynlen(removedGroups);i++) dynAppend(removed,\"Subgroup     \"+removedGroups[i]);
+
+
+ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_ConfirmChangeGroup.pnl\",
+		\"Confirm group changes\",
+		makeDynString(
+		\"$groupName: \"+g_groupName,
+		\"$changes:\"+changes,
+		\"$addedItems:\"+added,
+		\"$removedItems:\"+removed),
+		df,ds);
+if (dynlen(df)<1) return FALSE;
+if (df[1]==0) return FALSE;
+
+}
+
+//apply changes...
+
+if (g_groupName==\"\") {
+	fwAccessControl_createGroup(newGroupName,
+				groupFullName,
+				groupComment,
+				g_GrantedPrivileges,
+				exceptionInfo);
+} else {
+	fwAccessControl_updateGroup(g_groupName,
+				newGroupName,
+				groupFullName,
+				groupComment,
+				g_GrantedPrivileges,
+				exceptionInfo);
+}	
+
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return FALSE;};
+
+
+
+if (dynlen(addedGroups)!=0 || dynlen(removedGroups)!=0 || (g_groupName==\"\" && dynlen(g_IncludedGroups)>0)) {
+  string groupName=g_groupName;
+  if (g_groupName==\"\") groupName=newGroupName;
+  fwAccessControl_setGroupsInGroup(groupName, g_IncludedGroups, exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return FALSE;};
+}
+
+
+
+// we may finaly return true, confirming that the dialog may be closed
+	return TRUE;
+}
+
+void AccessControl(string dp, string username_from_ui)
+{
+	dyn_string exceptionInfo;
+	bool granted;
+
+	if (dp==\"\") {
+		// means reject mode:
+
+		granted=false;
+	} else {
+		granted=fwAccessControl_HasGroupAdminPrivilege(exceptionInfo,\"\",FALSE);
+	}
+
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		granted=false;
+	}
+
+	// on top of that, honour the \"RO\" mode...
+	bool ReadOnlyMode=false;
+	if (isDollarDefined(\"$mode\")) {
+		if ($mode==\"RO\") ReadOnlyMode=true;
+	}
+
+	
+	if (granted && (!ReadOnlyMode)) {
+		setValue(\"OKButton\",\"visible\",TRUE);
+		setValue(\"Name\",\"editable\",true);
+		setValue(\"Name\",\"backCol\",\"white\");
+		setValue(\"FullName\",\"editable\",true);
+		setValue(\"FullName\",\"backCol\",\"white\");
+		setValue(\"Comment\",\"editable\",true);
+		setValue(\"Comment\",\"backCol\",\"white\");
+		setValue(\"ResetButton\",\"visible\",true);
+		setValue(\"EditButton\",\"visible\",true);
+                setValue(\"EditIncludedGroups\",\"visible\",true);
+		setValue(\"ReviewButton\",\"visible\",true);
+		setValue(\"PrivilegesTable\",\"backCol\",\"white\");
+
+
+	} else {
+		setValue(\"OKButton\",\"visible\",FALSE);
+		setValue(\"Name\",\"editable\",false);
+		setValue(\"Name\",\"backCol\",\"lightgrey\");
+		setValue(\"FullName\",\"editable\",false);
+		setValue(\"FullName\",\"backCol\",\"lightgrey\");
+		setValue(\"Comment\",\"editable\",false);
+		setValue(\"Comment\",\"backCol\",\"lightgrey\");
+		setValue(\"ResetButton\",\"visible\",false);
+		setValue(\"EditButton\",\"visible\",false);
+                setValue(\"EditIncludedGroups\",\"visible\",false);
+		setValue(\"ReviewButton\",\"visible\",false);
+		setValue(\"PrivilegesTable\",\"backCol\",\"lightgrey\");
+	}
+
+}
+
+
+
+
+void GroupsChangedCB(string s1, string s2)
+{  
+  
+dyn_float df;
+dyn_string ds;
+
+if ($groupName==\"\") return; // the mode is \"create\"
+
+// find out if this is the domain we edit, that was changed.
+dyn_int groupIds;
+dyn_string groupNames;
+
+bool isReadOnly=FALSE;
+if (isDollarDefined(\"$mode\")) {
+	if ($mode==\"RO\") isReadOnly=TRUE;
+}
+
+dpGet(g_fwAccessControl_GroupsDP+\".UserName\",groupNames,
+      g_fwAccessControl_GroupsDP+\".UserId\",groupIds);
+
+int idx=dynContains(groupIds,g_groupId);
+if (!idx) {
+	if (isReadOnly) {
+		ChildPanelOnCentralModalReturn(\"vision/MessageWarning\", \"WARNING:AC Data changed\",
+		makeDynString(\"Group has been deleted!\\n I will close the panel.\"),df,ds);
+		PanelOff();
+	} else {
+		ChildPanelOnCentralModalReturn(\"vision/MessageWarning1\",\"WARNING:AC Data changed\",
+		makeDynString(\"Group has been deleted!\\n Do you wish to re-create it?\",
+			\"OK\",\"Cancel\"),df,ds);
+		if (df[1]) {
+			g_groupName=\"\"; // activate the \"create\" mode
+		}
+	}
+return;
+}
+
+
+string groupName=groupNames[idx];
+if (groupName!=g_groupName) {
+	ChildPanelOnCentralModalReturn(\"vision/MessageWarning\",\"WARNING:AC Data changed\",
+	makeDynString(\"The name of the group you edit has been changed!\\n I will update it in the panel.\"),df,ds);
+	g_groupName=groupName;
+	setValue(\"Name\",\"text\",groupName);
+}
+
+
+
+string groupFullName, groupComment;
+int groupId;
+dyn_string exceptionInfo,privileges;
+
+fwAccessControl_getGroup(groupName,
+                        groupFullName,
+                        groupComment,
+                        groupId,
+                        exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+fwAccessControl_getGroupPrivileges(groupName, makeDynString(),
+			privileges,exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+
+
+
+if ( g_groupFullName!=groupFullName ||
+     g_groupComment!=groupComment ||
+     g_GrantedPrivileges!=g_OriginalPrivileges) {
+
+	ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\",\"WARNING:AC Data changed\",
+		makeDynString(\"Group data has changed.\\nDo you want to update the data in the panel?\",\"OK\",\"Cancel\"),df,ds);
+
+	if (df[1]) populatePanel();
+}
+
+  bool recursive;
+  getValue(\"ShowAllIncludedGroups\",\"state\",0,recursive);
+
+  fwAccessControl_getGroupsInGroup($groupName,g_IncludedGroups,exceptionInfo, recursive);
+  if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}                
+
+  IncludedGroupsChanged();
+
+}
+
+
+void DomainsChangedCB(string s1, anytype a2)
+{
+
+dyn_string exceptionInfo,privileges,ds;
+dyn_float df;
+
+if ($groupName==\"\") {
+	// we are in \"create\" mode
+	ChildPanelOnCentralModalReturn(\"vision/MessageWarning\",\"WARNING:AC Data changed\",
+		makeDynString(\"Privilege names have changed.\\nI will reset them.\"),df,ds);
+	g_OriginalPrivileges=makeDynString();
+	g_GrantedPrivileges=makeDynString();
+	PrivilegesChanged();
+	return;
+}
+
+fwAccessControl_getGroupPrivileges(g_groupName, makeDynString(),
+			privileges,exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+
+if ( privileges!=g_OriginalPrivileges) {
+
+	ChildPanelOnCentralModalReturn(\"vision/MessageWarning\",\"WARNING:AC Data changed\",
+		makeDynString(\"Privilege names have changed.\\nI will reset them in the panel\"),df,ds);
+}
+
+g_OriginalPrivileges=privileges;
+g_GrantedPrivileges=privileges;
+	
+PrivilegesChanged();
+IncludedGroupChanged();
+}
+
+
+void IncludedGroupsChanged()
+{
+  
+  bool recursive;
+  getValue(\"ShowAllIncludedGroups\",\"state\",0,recursive);
+  dyn_string exceptionInfo;
+
+  if (recursive)  
+     IncludedGroupsFrame.text=\"All (recursively) included groups\"; 
+  else
+    IncludedGroupsFrame.text=\"Included groups\"; 
+  
+    
+  
+  IncludedGroups.deleteAllLines();                                
+  if (recursive) {
+    dyn_string ggroups;
+    dyn_string includedBy;
+    fwAccessControl_resolveGroupsRecursively(g_IncludedGroups,
+                        ggroups, includedBy, exceptionInfo, TRUE);
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+                    
+    for (int i=1;i<=dynlen(ggroups);i++) {
+      if (includedBy[i]==\"\") {
+        IncludedGroups.appendLine(\"items\",ggroups[i],\"ismain\",TRUE); 
+      } else {
+        IncludedGroups.appendLine(\"items\",
+                                  makeDynAnytype(ggroups[i]+\" (included through \"+includedBy[i]+\")\",
+                                                         \"lightgrey\",
+                                                         \"black\"),
+                                               \"ismain\",FALSE); 
+      }
+    }
+                    
+  } else {
+    dyn_string ggroups=g_IncludedGroups;
+    dyn_int isMainGroup;
+    for (int i=1;i<=dynlen(ggroups);i++) isMainGroup[i]=TRUE;
+    IncludedGroups.appendLines(dynlen(ggroups),\"items\",ggroups); 
+  }  
+
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"CloseButton"
+""
+1 483 588 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 483 588 563 618
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	if (myModuleName()==\"Group Details\") ModuleOff(\"Group Details\");
+
+	dyn_float df;
+	dyn_string ds;
+	
+	df[1]=0;
+	PanelOffReturn(df,ds);
+}" 0
+ E E E
+14 1
+"Name"
+""
+1 203 58 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 203 58 473 87
+3 "0s" 0 0 0 0 0 -1  E E E
+14 2
+"FullName"
+""
+1 203 88 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 203 88 563 117
+3 "0s" 0 0 0 0 0 -1  E E E
+14 3
+"Comment"
+""
+1 203.0056179775282 118 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 70 Free text description, or an int indicating the role's expertise level
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 203 118 562 147
+3 "0s" 0 0 0 0 0 -1  E E E
+25 4
+"PrivilegesTable"
+""
+1 27.84037558685448 173.4408602150538 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E "main(int row, string column)
+{
+  
+dyn_float df;
+dyn_string ds;
+
+
+ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_EditGroupPrivileges.pnl\",
+			\"Edit privileges of group \"+$groupName,
+			makeDynString(\"$groupName:\"+$groupName,
+				      \"$privileges:\"+g_GrantedPrivileges),
+			df,ds);
+if (dynlen(df)<1) return;
+if (df[1]==1.0) {
+	g_GrantedPrivileges=ds;
+	PrivilegesChanged();
+}
+}" 0
+
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 173 491.9999999999998 322
+"main()
+{
+	//setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	//setValue(\"\",\"tableMode\",TABLE_SELECT_BROWSE );
+}" 0
+E 1 0 1 2 1 "Domain" 17 1 0 "s" 1
+LANG:1 6 Domain
+E
+1
+LANG:1 0 
+
+200 "Privilege" 12 1 0 "s" 1
+LANG:1 9 Privilege
+E
+1
+LANG:1 0 
+
+150 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 5
+"EditButton"
+""
+1 493.5526315789474 228 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 17 Modify privileges
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 493 228 552 258
+
+T 
+1
+LANG:1 7 Edit...
+"main()
+{
+dyn_float df;
+dyn_string ds;
+
+ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_EditGroupPrivileges.pnl\",
+			\"Edit privileges of group \"+$groupName,
+			makeDynString(\"$groupName:\"+$groupName,
+				      \"$privileges:\"+g_GrantedPrivileges),
+			df,ds);
+if (dynlen(df)<1) return;
+if (df[1]==1.0) {
+	g_GrantedPrivileges=ds;
+	PrivilegesChanged();
+}
+
+}" 0
+ E E E
+20 6
+"ShowSystemPrivileges"
+""
+1 33 323 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 33 323 211 351
+1
+T 
+1
+LANG:1 26 Show all system privileges
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+PrivilegesChanged();
+}" 0
+25 7
+"IncludedGroups"
+""
+1 22.81690140845073 383.4408602150538 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E "main(int row, string column)
+{
+  dyn_float df;
+dyn_string ds;
+
+
+ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_EditGroupsInGroup.pnl\",
+			\"Edit groups included in \"+$groupName,
+			makeDynString(\"$groupName:\"+$groupName,
+				      \"$includedGroups:\"+g_IncludedGroups),
+			df,ds);
+if (dynlen(df)<1) return;
+if (df[1]==1.0) {
+	g_IncludedGroups=ds;
+	IncludedGroupsChanged();
+}
+
+}" 0
+
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 23 383 491.9999999999998 532
+"main()
+{
+	//setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	//setValue(\"\",\"tableMode\",TABLE_SELECT_BROWSE );
+}" 0
+E 1 0 1 2 1 "items" 40 1 0 "s" 1
+LANG:1 15 Included groups
+E
+1
+LANG:1 0 
+
+450 "ismain" 0 0 0 "s" 1
+LANG:1 0 
+E
+1
+LANG:1 0 
+
+0 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 8
+"EditIncludedGroups"
+""
+1 493.5526315789474 428 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 17 Modify privileges
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 493 428 552 458
+
+T 
+1
+LANG:1 7 Edit...
+"main()
+{
+dyn_float df;
+dyn_string ds;
+
+
+ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_EditGroupsInGroup.pnl\",
+			\"Edit groups included in \"+$groupName,
+			makeDynString(\"$groupName:\"+$groupName,
+				      \"$includedGroups:\"+g_IncludedGroups),
+			df,ds);
+if (dynlen(df)<1) return;
+if (df[1]==1.0) {
+	g_IncludedGroups=ds;
+	IncludedGroupsChanged();
+}
+
+}" 0
+ E E E
+20 9
+"ShowAllIncludedGroups"
+""
+1 25 540 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 23 538 217 562
+1
+T 
+1
+LANG:1 27 Show all groups recursively
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  IncludedGroupsChanged();
+}" 0
+13 10
+"ReviewButton"
+""
+1 23 588 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 28 Review changes in privileges
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 23 588 103 618
+
+T 
+1
+LANG:1 6 Review
+"main()
+{
+
+dyn_string addedPrivs, removedPrivs,addedGroups,removedGroups,added,removed;
+
+ComparePrivileges(addedPrivs, removedPrivs);
+CompareGroupsInGroups(addedGroups,removedGroups);
+
+for (int i=1;i<=dynlen(addedPrivs);i++) dynAppend(added, \"Access Right \"+addedPrivs[i]);
+for (int i=1;i<=dynlen(addedGroups);i++) dynAppend(added,\"Subgroup     \"+addedGroups[i]);
+for (int i=1;i<=dynlen(removedPrivs);i++) dynAppend(removed, \"Access Right \"+removedPrivs[i]);
+for (int i=1;i<=dynlen(removedGroups);i++) dynAppend(removed,\"Subgroup     \"+removedGroups[i]);
+
+ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_ReviewChanges.pnl\",
+		\"Changes in group access rights\",
+		makeDynString(
+		\"$whatText:Changes in group: \"+$groupName,
+		\"$what:access rights and subgroups\",
+		\"$addedItems:\"+added,
+		\"$removedItems:\"+removed
+)
+);
+
+}" 0
+ E E E
+13 11
+"ResetButton"
+""
+1 108 588 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 108 588 198 618
+
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+	populatePanel();
+}" 0
+ E E E
+13 15
+"ShowMembers"
+""
+1 198 588 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 30 Show users affected by changes
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 198 588 288 618
+
+T 
+1
+LANG:1 10 Show Users
+"main()
+{
+
+  ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_UsersInGroupList.pnl\",
+			\"Users in group \"+$groupName,
+			makeDynString(\"$group:\"+$groupName));
+}" 0
+ E E E
+13 16
+"OKButton"
+""
+1 398 588 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 398 588 478 618
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	if (CheckApplyChanges()) {
+		PanelOffReturn(makeDynFloat(1.0),makeDynString());
+	}
+
+}" 0
+ E E E
+1 17 1 "" 0
+0
+14 18
+"Id"
+""
+1 513 58 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 513 58 563 87
+2 "0s" 0 0 0 0 0 -1  E E E
+2 19
+"PRIMITIVE_TEXT1"
+""
+1 18 -58 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 12 325 31
+0 2 2 "0s" 0 0 0 192 0 0  22 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 41 JCOP Framework Access Control: edit group
+2 20
+"PRIMITIVE_TEXT2"
+""
+1 18 79 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 65 93 80
+0 2 2 "0s" 0 0 0 192 0 0  20 65 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Group name:
+2 21
+"Text2"
+""
+1 95 26 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 495 65 506 80
+0 2 2 "0s" 0 0 0 192 0 0  495 65 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 id:
+2 22
+"Text1"
+""
+1 16 87 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 95 113 110
+0 2 2 "0s" 0 0 0 192 0 0  20 95 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Group full name:
+2 23
+"Text3"
+""
+1 -2 -1 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 125 174 140
+0 2 2 "0s" 0 0 0 192 0 0  20 125 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 28 Description/expertise level:
+30 24
+"FRAME1"
+""
+1 20 180 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+47 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.162046908315565 0 0.7722007722007724 -8.240938166311297 16.00386100386097 0 E 20 180 490 440
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22 Granted access rights:
+30 25
+"IncludedGroupsFrame"
+""
+1 20 180 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+49 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.162046908315565 0 0.8108108108108113 -8.240938166311297 214.0540540540539 0 E 20 180 490 440
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Included groups
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 1 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 33 1 0 1 208 -11
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_EditGroup"
+0

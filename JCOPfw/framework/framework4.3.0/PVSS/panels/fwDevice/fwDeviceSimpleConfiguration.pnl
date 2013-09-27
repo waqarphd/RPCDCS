@@ -1,0 +1,1161 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,526 124 577 511 N "_3DFace" 1
+"$sDpName"
+"main()
+{	
+	int i;
+	string syst, sDpName;
+	dyn_string 	opcServers, opcGroups, addressTypes, addressParameters,
+				exceptionInfo;
+
+	// get list of devices from $sDpName
+	sDpName = $sDpName;
+	strreplace(sDpName, \" \", \"\");
+	devices = strsplit(sDpName, \"|\");
+	//DebugN(\"devices \" + devices);
+	
+	// Initialize device name text
+	if(dynlen(devices) == 1)
+	{
+		TextField1.text = devices[1];
+		fwDevice_getDefaultConfigurationExpertPanels(dpTypeName(devices[1]), expertPanel, exceptionInfo);
+		if(expertPanel == \"\")
+			advancedButton.enabled(FALSE);
+	}
+	else
+	{
+		TextField1.text = \"Multiple devices selected\";		
+		advancedButton.enabled(FALSE);
+	}
+
+/*	// Initial set up of OPC lists
+	// OPC server
+  	opcServers = dpNames(\"*\", \"_OPCServer\"); 
+  	syst = getSystemName(); 
+  	for (i = 1; i <= dynlen(opcServers); i++)  
+      	strreplace(opcServers[i], syst + \"_\", \"\"); 
+      	
+    opcServer.items(opcServers);
+	opcServer.selectedPos(1);
+
+	// OPC group
+  	opcGroups = dpNames(\"*\", \"_OPCGroup\"); 
+  	for (i = 1; i <= dynlen(opcGroups); i++)  
+		strreplace(opcGroups[i], syst + \"_\", \"\"); 
+    opcGroupIn.items(opcGroups);
+    opcGroupOut.items(opcGroups);
+	opcGroupIn.selectedPos(1);
+	opcGroupOut.selectedPos(1);
+
+	if(isDollarDefined(\"$dsAddressParams\"))
+	{
+		stringToDynString($dsAddressParams, addressParameters);
+		switch(addressParameters[fwDevice_ADDRESS_TYPE])
+		{
+			case fwDevice_ADDRESS_OPC:
+				if(addressParameters[fwDevice_ADDRESS_DRIVER_NUMBER] != \"\")
+				{
+					drvNr.text = addressParameters[fwDevice_ADDRESS_DRIVER_NUMBER];
+					drvNr.enabled = FALSE;
+				}
+				if(addressParameters[fwDevice_ADDRESS_ROOT_NAME] != \"\")
+				{
+					opcCrate.text = addressParameters[fwDevice_ADDRESS_ROOT_NAME];
+					opcCrate.enabled = FALSE;
+				}				
+				if(addressParameters[fwDevice_ADDRESS_OPC_SERVER_NAME] != \"\")
+				{
+					opcServer.text = addressParameters[fwDevice_ADDRESS_OPC_SERVER_NAME];
+					opcServer.enabled = FALSE;
+				}
+				if(addressParameters[fwDevice_ADDRESS_OPC_GROUP_IN] != \"\")
+				{
+					opcGroupIn.text = addressParameters[fwDevice_ADDRESS_OPC_GROUP_IN];
+					opcGroupIn.enabled = FALSE;
+				}
+				if(addressParameters[fwDevice_ADDRESS_OPC_GROUP_OUT] != \"\")
+				{
+					opcGroupOut.text = addressParameters[fwDevice_ADDRESS_OPC_GROUP_OUT];
+					opcGroupOut.enabled = FALSE;
+				}
+				break;
+			default:
+				break;
+		}
+	}
+	*/
+	applyToAllButton.enabled = TRUE;
+}" 0
+"main()
+{
+	int i;
+}" 0
+E E E 1 -1 -1 0  0 0
+"" 0 1
+E"// Constants used in the panel
+
+string 	USER_CHOICE_LEAVE = \"Don't Modify\",
+		USER_CHOICE_HARDWARE_CONNECTION_NO = \"No Hardware Connection\",
+		USER_CHOICE_ARCHIVING_NO = \"No Archiving\",
+		USER_CHOICE_ALARMS_NO = \"No Alarms\",
+		USER_CHOICE_CONFIGURE = \"Set Defaults\";
+		
+string expertPanel;
+
+dyn_string devices;
+
+applySelectedSettings()
+{
+	bool regularIntervals;
+	int timeInterval, pos;
+	dyn_string exceptionInfo, addressParameters;
+
+	enableControls(FALSE);
+
+	for(int i = 1; i <= dynlen(devices); i++)
+	{
+		switch(periphAddress.text)
+		{
+/*			case fwDevice_ADDRESS_OPC:
+				fwDevice_createOPCAddress(	drvNr.text, opcCrate.text, opcServer.text,
+											opcGroupIn.text, opcGroupOut.text, addressParameters);
+						
+				fwDevice_setAddressRecursively($sDpName, addressParameters, exceptionInfo);
+				break;
+			case fwDevice_ADDRESS_DIM:
+				regularIntervals = mode.state(0);
+				if(regularIntervals)
+					timeInterval = regTime.text;
+				else
+					timeInterval = 0;
+				
+				fwDevice_createDIMAddress(	drvNr.text, dimName.text, \"\", timeInterval, 
+											tStamp.state(0), addressParameters);
+			
+				fwDevice_setAddressRecursively($sDpName, addressParameters, exceptionInfo);	
+				break;
+*/			
+			case USER_CHOICE_CONFIGURE:
+				fwDevice_setAddressRecursively(devices[i], makeDynString(fwDevice_ADDRESS_DEFAULT), exceptionInfo);
+				break;
+			case USER_CHOICE_HARDWARE_CONNECTION_NO:
+				fwDevice_setAddressRecursively(devices[i], makeDynString(fwDevice_ADDRESS_NONE), exceptionInfo);	
+				break;
+			case USER_CHOICE_LEAVE:	
+				break;
+			default:
+				break;
+		}
+	
+		switch(archiveActive.text)
+		{
+			case USER_CHOICE_CONFIGURE:
+			{
+				dyn_string archiveClasses;
+				archiveClasses = archiveClassList.items();
+				pos = archiveClassList.selectedPos();
+				fwDevice_setArchiveRecursively(devices[i], archiveClasses[pos], fwDevice_ARCHIVE_SET, exceptionInfo);
+				break;
+			}
+			case USER_CHOICE_ARCHIVING_NO:
+				fwDevice_setArchiveRecursively(devices[i], \"\", fwDevice_ARCHIVE_UNSET, exceptionInfo);
+				break;
+			case USER_CHOICE_LEAVE:
+				break;
+			default:
+				break;
+		}
+	
+		switch(alertActive.text)
+		{
+			case USER_CHOICE_CONFIGURE:
+				fwDevice_setAlertRecursively(devices[i], fwDevice_ALERT_SET, exceptionInfo);
+				break;
+			case USER_CHOICE_ALARMS_NO:
+				fwDevice_setAlertRecursively(devices[i], fwDevice_ALERT_UNSET, exceptionInfo);
+				break;
+			case USER_CHOICE_LEAVE:
+				break;
+			default:
+				break;
+		}
+	}
+		
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+
+	enableControls(TRUE);
+}
+
+enableControls(bool enabled)
+{
+	applyToAllButton.enabled(enabled);
+	okButton.enabled(enabled);
+	closeButton.enabled(enabled);
+	applyToCrate.enabled(enabled);
+}
+
+thisPanel_allInvisible()
+{
+	text5.visible(FALSE);
+	text11.visible(FALSE);
+	opcGroupIn.visible(FALSE);
+	opcGroupOut.visible(FALSE);
+	opcGroupInText.visible(FALSE);
+	opcGroupOutText.visible(FALSE);
+	opcCrate.visible(FALSE);
+	opcServer.visible(FALSE);
+	tStamp.visible(FALSE);
+	onChange.visible(FALSE);
+	mode.visible(FALSE);
+	regTime.visible(FALSE);
+	regText.visible(FALSE);
+	drvNr.visible(FALSE);
+	drvNrText.visible(FALSE);
+	dimName.visible(FALSE);
+	dimLabel.visible(FALSE);			
+}
+
+thisPanel_OPCVisible()
+{
+	text5.visible(TRUE);
+	text11.visible(TRUE);
+	opcGroupIn.visible(TRUE);
+	opcGroupOut.visible(TRUE);
+	opcGroupInText.visible(TRUE);
+	opcGroupOutText.visible(TRUE);
+	opcCrate.visible(TRUE);
+	opcServer.visible(TRUE);
+	dimName.visible(FALSE);
+	dimLabel.visible(FALSE);				
+	tStamp.visible(FALSE);
+	onChange.visible(FALSE);
+	mode.visible(FALSE);
+	regTime.visible(FALSE);
+	regText.visible(FALSE);
+	drvNr.visible(TRUE);
+	drvNrText.visible(TRUE);
+}
+
+thisPanel_DIMVisible()
+{
+	text5.visible(FALSE);
+	text11.visible(FALSE);
+	opcGroupIn.visible(FALSE);
+	opcGroupOut.visible(FALSE);
+	opcGroupInText.visible(FALSE);
+	opcGroupOutText.visible(FALSE);
+	opcCrate.visible(FALSE);
+	opcServer.visible(FALSE);
+	tStamp.visible(TRUE);
+	onChange.visible(TRUE);
+	mode.visible(TRUE);
+	regTime.visible(TRUE);
+	regText.visible(TRUE);
+	dimName.visible(TRUE);
+	dimLabel.visible(TRUE);		
+	drvNr.visible(TRUE);
+	drvNrText.visible(TRUE);
+}" 0
+ 2
+"CBRef""0"
+"EClose""main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 100
+"title"
+""
+1 13 18 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 252 34
+0 2 0 "s" 0 0 0 192 0 0  12 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 27 Device Simple Configuration
+2 110
+"drvNrText"
+""
+1 335 643 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 148 141 233 157
+0 2 2 "s" 0 0 0 192 0 0  148 141
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 14 Driver Number:
+2 122
+"text11"
+""
+1 244 407 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 148 178 220 194
+0 2 2 "s" 0 0 0 192 0 0  148 178
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 11 OPC Server:
+2 126
+"opcGroupInText"
+""
+1 297 792 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 148 251 229 267
+0 2 2 "s" 0 0 0 192 0 0  148 251
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 12 OPC GroupIn:
+2 154
+"opcGroupOutText"
+""
+1 375 1001 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 148 293 240 309
+0 2 2 "s" 0 0 0 192 0 0  148 293
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 13 OPC GroupOut:
+2 172
+"dimLabel"
+""
+0 300 135 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 209 177 270 193
+0 2 2 "s" 0 0 0 194 0 0  209 177
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 8 DIM Name
+2 179
+"regText"
+""
+1 1708 899 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 498 219 528 235
+0 2 2 "s" 0 0 0 192 0 0  498 219
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 4 Secs
+2 217
+"archiveClassText"
+""
+1 540 1186 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+21 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 236 364 319 380
+0 2 2 "s" 0 0 0 192 0 0  236 364
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 14 Archive Class:
+2 223
+"Text4"
+""
+1 18 44 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 46 561 82
+1 2 0 "s" 0 0 0 64 0 0  20 46
+ 2
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 91 This panel allows you to configure the selected device and all the devices below it in the 
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 88 hierarchy with the default set of values for connecting to hardware, archive and alarms.
+30 226
+"Frame1"
+""
+1 20 397 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+27 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 20 337 568 397
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 7 Archive
+30 227
+"Frame3"
+""
+1 20 465 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+28 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 20 406 568 465
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 6 Alarms
+30 229
+"Frame2"
+""
+1 20 328 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+30 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+"main()
+{
+
+}" 0
+ E 0 1 1 0 1 E U  0 E 20 127 568 328
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 19 Hardware Connection
+2 121
+"text5"
+""
+1 260 537 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 148 216 249 232
+0 2 2 "s" 0 0 0 192 0 0  148 216
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 14 OPC Root Name:
+2 232
+"Text2"
+""
+1 31 441 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+32 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 28 96 70 112
+0 2 2 "s" 0 0 0 192 0 0  28 96
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 7 Device:
+14 173
+"dimName"
+""
+1 1406 628 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+278 170 542 197
+3 "s" 0 0 0 0 0 0 
+E
+E
+E
+20 174
+"tStamp"
+""
+1 986 770 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+144 244 258 266
+1
+T 
+1
+LANG:1 10 Time Stamp
+ 0
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+1
+E E 
+EE21 175
+"regTime"
+""
+1 1685 877 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+427 208 491 235
+0
+E
+E
+E
+
+N 1 100 1 30 1 1
+20 176
+"mode"
+""
+1 527 383 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+278 210 421 237
+1
+T 
+1
+LANG:1 20 At Regular Intervals
+ 0
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+1
+E E 
+EE20 177
+"onChange"
+""
+1 537 447 E E E 0 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+144 210 258 232
+1
+T 
+1
+LANG:1 9 On Change
+ 1
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+1
+E E 
+EE13 29
+"applyToAllButton"
+""
+1 406 475 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+404 473 484 502
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	applySelectedSettings();
+}" 0
+ E E E
+21 120
+"drvNr"
+""
+1 615 634 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+278 134 330 161
+0
+E
+E
+E
+
+N 1 255 1 1 1 1
+22 123
+"opcServer"
+""
+1 574 394 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+7 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+278 170 521 197
+0
+E
+"main(){}" 0
+
+E
+ 0 0
+22 127
+"opcGroupIn"
+""
+1 732 781 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+278 244 472 271
+0
+E
+E
+E
+ 0 0
+22 153
+"opcGroupOut"
+""
+1 920 992 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+10 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+278 289 472 316
+0
+E
+E
+E
+ 0 0
+14 167
+"opcCrate"
+""
+1 280 210 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+278 208 472 235
+3 "s" 0 0 0 0 0 0 
+E
+E
+E
+13 216
+"applyToCrate"
+""
+1 174 475 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+172 473 279 502
+T 
+1
+LANG:1 15 Apply to device
+"main()
+{
+	bool regularIntervals;
+	int pos;
+	dyn_string exceptionInfo, addressParameters, archiveClasses;
+
+	applyToAllButton.enabled(FALSE);
+	applyToCrate.enabled(FALSE);
+	
+	// Set the addresses & dp functions
+	switch(periphAddress.text)
+	{
+		case fwDevice_ADDRESS_OPC:
+			fwDevice_createOPCAddress(	drvNr.text, opcCrate.text, opcServer.text,
+										opcGroupIn.text, opcGroupOut.text, addressParameters);	
+			
+			fwDevice_setAddress($sDpName, addressParameters, exceptionInfo);
+			break;
+		case fwDevice_ADDRESS_DIM:
+			regularIntervals = mode.state(0);
+			if(regularIntervals)
+				timeInterval = regTime.text;
+			else
+				timeInterval = 0;
+				
+			fwDevice_createDIMAddress(	drvNr.text, dimName.text, \"\", timeInterval, 
+										tStamp.state(0), addressParameters);
+							
+			fwDevice_setAddress($sDpName, addressParameters, exceptionInfo);
+			break;
+		case USER_CHOICE_HARDWARE_CONNECTION_NO:
+			//		fwCaen_removeCrateAddressesRecursively($sDpName);
+			fwDevice_removeAddress($sDpName, exceptionInfo);
+			break;
+		case USER_CHOICE_LEAVE:
+			break;		
+		default:
+			break;
+	}
+
+	// Set the archiving
+	archiveClasses = archiveClassList.items();
+	pos = archiveClassList.selectedPos();
+	if(archiveActive.text == USER_CHOICE_CONFIGURE)
+		fwDevice_setArchive($sDpName, archiveClasses[pos], \"SET\", exceptionInfo);
+	else
+		fwDevice_setArchive($sDpName, archiveClasses[pos], \"DEL\", exceptionInfo);
+
+	// Set the alerts
+	if(alertActive.text == USER_CHOICE_CONFIGURE)
+		fwDevice_setAlert($sDpName, TRUE, exceptionInfo);
+	else
+		fwDevice_setAlert($sDpName, FALSE, exceptionInfo);
+
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+
+	applyToAllButton.enabled(TRUE);
+	applyToCrate.enabled(TRUE);
+}" 0
+ E E E
+22 218
+"archiveClassList"
+""
+1 334 362 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+332 360 550 387
+0
+"main()
+{
+	int iMaxDP, i;
+	string archiveClass;
+	dyn_int di;
+	dyn_string exceptionInfo, archiveClassDpList, archiveClasses, archiveClassDpName;
+//	string sArchiveClassDpName;
+
+	archiveClassDpList = dpNames(\"*\", \"_ValueArchive\");
+
+	for(i = 1; i <= (dynlen(archiveClassDpList)); i++)
+	{
+		if(!isReduDp(archiveClassDpList[i])) 
+		{
+			dpGet(archiveClassDpList[i] + \".general.arName:_online.._value\", archiveClass);
+			archiveClasses[dynlen(archiveClasses) + 1] = archiveClass;
+//			archiveClassDpName[dynlen(archiveClassDpName) + 1] = archiveClassDpList[i];
+		}
+	}
+//	dynUnique(archiveClasses);
+
+	archiveClassList.items(archiveClasses);
+	archiveClassList.selectedPos(1);
+}" 0
+
+E
+E
+ 0 0
+13 221
+"closeButton"
+""
+1 491 475 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+489 473 569 502
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOff();
+}
+" 0
+ E E "main()
+{
+/*	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if($bHierarchyBrowser)
+			this.visible = FALSE;
+		else 
+			this.visible = TRUE;
+	}*/
+}" 0
+
+22 224
+"periphAddress"
+""
+1 30 155 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+25 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+28 153 152 180
+0
+"main()
+{	
+	this.items = makeDynString(	USER_CHOICE_LEAVE,
+								USER_CHOICE_HARDWARE_CONNECTION_NO,
+								USER_CHOICE_CONFIGURE);
+	this.selectedPos(1);
+}" 0
+
+"main()
+{
+	applyToAllButton.enabled = TRUE;
+	switch(this.text)
+	{
+		case USER_CHOICE_HARDWARE_CONNECTION_NO:
+		case USER_CHOICE_LEAVE:
+			thisPanel_allInvisible();
+			break;
+
+		case fwDevice_ADDRESS_OPC:
+			thisPanel_OPCVisible();
+			break;
+
+		case fwDevice_ADDRESS_DIM:
+			thisPanel_DIMVisible();
+			break;
+		default:
+			break;
+	}
+}" 0
+
+E
+ 0 0
+22 225
+"archiveActive"
+""
+1 30 362 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+28 360 142 387
+0
+"main()
+{
+	this.items = makeDynString(	USER_CHOICE_LEAVE,
+								USER_CHOICE_ARCHIVING_NO,
+								USER_CHOICE_CONFIGURE);
+	this.selectedPos(1);
+}" 0
+
+E
+E
+ 0 0
+22 228
+"alertActive"
+""
+1 30 428 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+28 426 142 453
+0
+"main()
+{
+	this.items = makeDynString(	USER_CHOICE_LEAVE,
+								USER_CHOICE_ALARMS_NO,
+								USER_CHOICE_CONFIGURE);
+	this.selectedPos(1);
+}" 0
+
+E
+E
+ 0 0
+13 230
+"okButton"
+""
+1 321 475 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+31 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+319 473 399 502
+T 
+1
+LANG:1 2 Ok
+"main()
+{
+	applySelectedSettings();
+	PanelOff();
+}" 0
+ E E E
+13 231
+"advancedButton"
+""
+1 20 475 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+31 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+18 473 98 502
+T 
+1
+LANG:1 8 Advanced
+"main()
+{
+	ChildPanelOnCentralModal(	expertPanel + \".pnl\",
+			     				\"Advanced Configuration \",
+			      				makeDynString(	\"$bHierarchyBrowser:\" + FALSE,
+			      								\"$sDpName:\" + $sDpName));
+}" 0
+ E E E
+14 233
+"TextField1"
+""
+1 80 95 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+78 93 562 120
+2 "s" 0 0 0 0 0 0 
+E
+"main()
+{
+	this.text= $sDpName;
+}" 0
+
+E
+1 234 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 490 20 T 33 1 0 1  50 -10  
+1
+"$sPanelRelativePath""fwDevice/fwDeviceSimpleConfiguration"
+0

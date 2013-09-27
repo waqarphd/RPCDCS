@@ -1,0 +1,581 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,540 284 600 440 N "_3DFace" 6
+"$bEdit"
+"$bForceQuery"
+"$bHierarchyBrowser"
+"$sDpName"
+"$sParentReference"
+"$sView"
+"main() {
+	if(isDollarDefined(\"$bForceQuery\") && $bForceQuery == \"TRUE\")
+		inHierarchy = false;
+	else if(isDollarDefined(\"$bHierarchyBrowser\") && $bHierarchyBrowser == \"TRUE\")
+		inHierarchy = true;
+	else
+		inHierarchy = false;
+	if(isDollarDefined(\"$sView\") && isDollarDefined(\"$bForceQuery\") && $bForceQuery == \"TRUE\") {
+//		DebugN(\"sView: \" + $sView);
+		switch($sView) {
+			case \"Standard\":
+				Button2.visible = false;
+				break;
+			case \"Custom\":
+				Button5.visible = false;
+				Button3.visible = false;
+				Button7.visible = false;
+				Button4.visible = false;
+				break;
+		}
+	}
+}" 0
+EE E E 1 -1 -1 0  0 0
+"" 0 1
+E"bool inHierarchy = true;
+
+void refreshChildrenTable() {
+	dyn_string children;
+	dyn_string excInfo, context;
+	int i, line, col;
+	
+	getValue(\"Table1\", \"currentCell\", line, col);
+
+	if(inHierarchy) {
+		string parentLabel, label, dpName;
+		dyn_dyn_string children2;
+//		DebugN(\"refreshing fwDevice_getChildren\");
+		fwGenericDpFunctions_getLabel($sDpName, $sParentReference, parentLabel, excInfo);
+		fwGenericDpFunctions_splitLabel(parentLabel, label, dpName, excInfo);		
+		
+		// To be used with new fwCore
+//		context = makeDynString($sDpName, label, \"-1\");
+//		DebugN(\"getting children for context \" + context);		
+//		fwDevice_getContextChildrenWithLabels(context, children, excInfo);
+
+		fwGenericDpFunctions_getChildren($sDpName, children, excInfo);
+		for(i = 1; i <= dynlen(children); i++)
+		{
+			fwGenericDpFunctions_splitReference(children[i], label, dpName, excInfo);
+			children[i] = dpName;
+		}
+	
+		Table1.deleteAllLines();
+		for(i = 1; i <= dynlen(children); i++) 
+		{
+			if(dpTypeName(children[i]) == fwTrending_PLOT) 
+			{
+				string title;
+				if(dpExists(children[i] + fwTrending_PLOT_TITLE + fwTrending_ON_VAL))
+				{
+					dpGet(children[i] + fwTrending_PLOT_TITLE + fwTrending_ON_VAL, title);
+				}
+				else 
+				{
+					title = \"\";
+				}
+				Table1.appendLine(\"name\", dpSubStr(children[i], DPSUB_SYS_DP), \"title\", title);
+			}
+		}
+		if(dynlen(children2) > 0) 
+		{
+//			DebugN(line, dynlen(children));
+			Table1.selectLineN(line < dynlen(children) - 1 ? line : dynlen(children) - 1);
+			Table1.currentCell(line < dynlen(children) - 1 ? line : dynlen(children) - 1, 0);
+		}
+	} 
+	else 
+	{
+		dyn_dyn_anytype resultSet;
+//		DebugN(\"refreshing by query\");
+		dpQuery(\"SELECT '\"
+				+ fwTrending_PLOT_TITLE + fwTrending_ON_VAL
+				+ \"' FROM '*' WHERE _DPT==\\\"\" + fwTrending_PLOT+\"\\\"\",
+				resultSet);
+		Table1.deleteAllLines();
+		for(i = 2; i <= dynlen(resultSet); i++)
+		{
+			Table1.appendLine(\"name\", dpSubStr(resultSet[i][1], DPSUB_SYS_DP), \"title\", resultSet[i][2]);
+		}
+		if(dynlen(resultSet) > 1) 
+		{
+			Table1.selectLineN(line < dynlen(resultSet) - 2 ? line : dynlen(resultSet) - 2);
+			Table1.currentCell(line < dynlen(resultSet) - 2 ? line : dynlen(resultSet) - 2, 0);
+		}
+	}
+}" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+13 0
+"Button3"
+""
+1 500 90 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+498 88 592 122
+T 
+1
+LANG:1 9 Edit Plot
+"main() {
+	dyn_string ds; dyn_float df; dyn_int di;
+	string val, workPlotName;
+	
+	//DebugN(\"Edit plot button\");
+	getValue(\"Table1\", \"getSelectedLines\", di);
+	if(dynlen(di) <= 0)
+		return;
+	// this is necessary, otherwise it'd possible to try to get data from 
+	// datapoint with name of page title.
+	Table1.currentColumn(\"name\");
+	getValue(\"Table1\", \"cellValue\", val);
+
+	fwTrending_copyPlot(val, workPlotName);
+	ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfPanel.pnl\",\"Plot Configuration\",
+		makeDynString(\"$Command:edit\", \"$PlotName:\" + val, \"$WorkPlotName:\"+workPlotName),0,0, df, ds);
+	if(ds[1] == \"OK\") {
+		string oldTitle, newTitle, parentLabel, label, dpName; dyn_string exceptionInfo, context;
+		dpGet(val + fwTrending_PLOT_TITLE + fwTrending_ON_VAL, oldTitle);
+		dpGet(workPlotName + fwTrending_PLOT_TITLE + fwTrending_ON_VAL, newTitle);
+		fwTrending_copyPlotData(workPlotName, val);
+// we don't update the label anymore - anyway, it was updated only in the current context, which was not very nice
+/*		if(newTitle != oldTitle) {
+//			DebugN(\"will try to modify Labels\");
+//			DebugN($sDpName, $sParentReference);
+
+			fwGenericDpFunctions_getLabel($sDpName, $sParentReference, parentLabel, exceptionInfo);
+//			Debug(\"parentLabel\"); DebugN(parentLabel);
+			fwGenericDpFunctions_splitLabel(parentLabel, label, dpName, exceptionInfo);		
+			context[1] = $sDpName;
+			context[2] = label;
+			
+//			Debug(\"context\");
+//			DebugN(context);
+//			Debug(\"Trying to modify the label\"); DebugN($sDpName, label, val, oldTitle, newTitle, exceptionInfo);
+			fwGenericDpFunctions_modifyLabel($sDpName, label, val, oldTitle, newTitle, exceptionInfo);
+		}*/
+		dpDelete(workPlotName);
+		refreshChildrenTable();
+	} else if(ds[1] == \"OK_ALL\") {
+		string oldTitle, newTitle, parentLabel, label, dpName; dyn_string exceptionInfo, context;
+		dpGet(val + fwTrending_PLOT_TITLE + fwTrending_ON_VAL, oldTitle);
+		dpGet(workPlotName + fwTrending_PLOT_TITLE + fwTrending_ON_VAL, newTitle);
+		fwTrending_copyPlotData(workPlotName, val);
+/*		if(newTitle != oldTitle) {
+
+			fwGenericDpFunctions_getLabel($sDpName, $sParentReference, parentLabel, exceptionInfo);
+			fwGenericDpFunctions_splitLabel(parentLabel, label, dpName, exceptionInfo);		
+			context[1] = $sDpName;
+			context[2] = label;
+			
+			fwGenericDpFunctions_modifyLabel($sDpName, label, val, oldTitle, newTitle, exceptionInfo);
+		}*/
+		fwTrending_reapplyPlotSettingsToAll(val);
+	} else {
+		dpDelete(workPlotName);
+	}
+}" 0
+ E E "main() {
+	if($bEdit == \"FALSE\")
+		this.visible = false;
+}" 0
+
+13 1
+"Button4"
+""
+1 500 170 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+498 168 592 202
+T 
+1
+LANG:1 11 Delete Plot
+"main() 
+{
+	int col, row;
+	string val;
+	dyn_int di;
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	
+	getValue(\"Table1\", \"getSelectedLines\", di);
+	if(dynlen(di) <= 0)
+		return;
+		
+	getValue(\"Table1\", \"currentCell\", row, col);
+	Table1.currentColumn(\"name\");
+	getValue(\"Table1\", \"cellValue\", val);
+	ChildPanelOnModalReturn(\"fwTrending/fwTrendingPageDeletingConfirm.pnl\",
+							\"Plot Deleting\",
+							makeDynString(	\"$Command:DelPlot\", 
+											\"$Name:\" + val),
+							0, 0, df, ds);
+	if(ds[1] == \"OK\") 
+	{	
+		fwDevice_delete(val, exceptionInfo);
+//		Table1.deleteLineN(row);
+		refreshChildrenTable();
+	}
+}" 0
+ E E "main()
+{
+	if($bEdit == \"FALSE\")
+	{
+		this.visible = false;
+	}
+}" 0
+
+13 2
+"Button5"
+""
+1 500 50 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+498 48 592 82
+T 
+1
+LANG:1 8 New Plot
+"main() {
+	dyn_float df; dyn_string ds;
+	string workPlotName = \"ThisIsAWorkPlot\";
+	
+	//DebugN(\"Add plot button\");
+//	fwTrendingWorkCopies_CreateNewPlotWorkCopy(workPlotName);
+	fwTrending_newPlot(workPlotName);
+	ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfPanel.pnl\",\"Plot Configuration\",
+		makeDynString(\"$Command:new\", \"$WorkPlotName:\"+workPlotName),0,0, df, ds);
+	if(ds[1] == \"OK\" && ds[2] != \"\") {
+		int i, j;
+		dyn_dyn_anytype resultSet;
+		dyn_string exceptionInfo, context;
+		string parentLabel, label, dpName;
+
+		if(inHierarchy) {
+			fwGenericDpFunctions_getLabel($sDpName, $sParentReference, parentLabel, exceptionInfo);
+			Debug(\"parentLabel\"); DebugN(parentLabel);
+			fwGenericDpFunctions_splitLabel(parentLabel, label, dpName, exceptionInfo);		
+			context[1] = $sDpName;
+			context[2] = label;
+			context[3] = \"-1\";
+		} else {
+			context = makeDynString();
+		}
+
+		fwTrending_storePlot(workPlotName, ds[2], context, exceptionInfo);
+		if(isDollarDefined(\"$sView\") && $sView == \"Custom\") {
+			string title;
+			dpGet(ds[2] + fwTrending_PLOT_TITLE + fwTrending_ON_VAL, title);
+			fwDevice_addToContext(getSystemName() + ds[2], title + \"_\", context, makeDynString(\"fwTrending/fwTrendingCustomViewEditor\"), 
+				makeDynString(\"fwTrending/fwTrendingCustomViewNavigator\"), exceptionInfo);
+		}
+		refreshChildrenTable();
+	} else {
+		dpDelete(workPlotName);
+	}
+}" 0
+ E E "main() {
+	if($bEdit == \"FALSE\")
+		this.visible = false;
+}" 0
+
+25 3
+"Table1"
+""
+1 -10 -56 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+8 8 492 432
+"main() {
+	dyn_dyn_anytype res;
+	//DebugN(\"PlotChoose Table1_EventInitialize\");
+	setValue(\"\", 
+		\"selectByClick\", TABLE_SELECT_LINE,
+		\"selectColors\", \"[0,0,0]\", \"[100,100,100]\",
+		\"tableMode\", TABLE_SELECT_BROWSE,
+		\"sortOnClick\", TRUE,
+		\"sort\", \"name\");
+//	if(isDollarDefined(\"$bHierarchyBrowser\") && $bHierarchyBrowser == \"TRUE\")
+		refreshChildrenTable();
+//	else
+//		registerQuery();
+}
+
+void registerQuery() {
+	int error;
+	dyn_errClass err;
+	
+	//DebugN(\"PlotChoose Table1 registerQuery\");
+	error = dpQueryConnectAll(\"queryFunction\", 1, \"plotChoose\",
+		\"SELECT '\"
+		+ fwTrending_PLOT_TITLE + fwTrending_ON_VAL
+		+ \"' FROM '*' WHERE _DPT==\\\"\"+fwTrending_PLOT+\"\\\"\");
+	if(error == -1) {
+		err = getLastError();
+		DebugN(\"Error occured: \" + err);
+	}
+}
+
+void queryFunction(string _id, dyn_dyn_anytype _val) {
+	int i, j;
+	//DebugN(\"PlotChoose Table1 queryFunction\");
+	dpQuery(\"SELECT '\"
+		+ fwTrending_PLOT_TITLE + fwTrending_ON_VAL
+		+ \"' FROM '*' WHERE _DPT==\\\"\"+fwTrending_PLOT+\"\\\"\",
+		_val);
+	this.deleteAllLines();
+/*	for(i = 1; i <= dynlen(_val); i++)
+		for(j = 1; j <= dynlen(_val[i]); j++)
+			DebugN(\"\" + i + \",\" + j + \"=\" + _val[i][j]);*/
+	for(i = 2; i <= dynlen(_val); i++)
+		this.appendLine(\"name\", dpSubStr(_val[i][1], DPSUB_SYS_DP, \"title\", _val[i][2])
+		/*_fwTrendingWorkCopies_StripSystemName(_val[i][1])*/,
+			\"title\", _val[i][2]);
+	if(dynlen(_val) > 1) {
+		this.selectLineN(0);
+		this.currentCell(0,0);
+	}
+}" 0
+ E 1 0 1 2 1 "name" 0 1 0 "s" 1
+LANG:1 4 Name
+E1
+LANG:1 0 
+ 160 "title" 0 1 0 "s" 1
+LANG:1 5 Title
+E1
+LANG:1 0 
+ 300 26 26 "" 1 1
+LANG:1 2 #1
+8 30 1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 3 0
+1 0
+13 4
+"Button7"
+""
+1 1000 220 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+498 128 592 162
+T 
+1
+LANG:1 9 Copy Plot
+"main() {
+	dyn_string ds; dyn_float df; dyn_int di;
+	string val, workPlotName;
+	
+	//DebugN(\"Edit plot button\");
+	getValue(\"Table1\", \"getSelectedLines\", di);
+	if(dynlen(di) <= 0)
+		return;
+	// this is necessary, otherwise it'd possible to try to get data from 
+	// datapoint with name of page title.
+	Table1.currentColumn(\"name\");
+	getValue(\"Table1\", \"cellValue\", val);
+
+	fwTrending_copyPlot(val, workPlotName);
+	dpSet(workPlotName + fwTrending_PLOT_TEMPLATE_NAME + fwTrending_ORIG_VAL, val);
+	ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfPanel.pnl\",\"Plot Configuration\",
+		makeDynString(\"$Command:copy\", \"$PlotName:\" + val, \"$WorkPlotName:\"+workPlotName),0,0, df, ds);
+	if(ds[1] == \"OK\" && ds[2] != \"\") {
+		int i, j;
+		dyn_dyn_anytype resultSet;
+		dyn_string exceptionInfo, context;
+		string parentLabel, label, dpName;
+
+		if(inHierarchy) {
+			fwGenericDpFunctions_getLabel($sDpName, $sParentReference, parentLabel, exceptionInfo);
+	//		Debug(\"parentLabel\"); DebugN(parentLabel);
+			fwGenericDpFunctions_splitLabel(parentLabel, label, dpName, exceptionInfo);		
+			context[1] = $sDpName;
+			context[2] = label;
+			context[3] = \"-1\";
+		}
+
+		fwTrending_storePlot(workPlotName, ds[2], makeDynString()/*context*/, exceptionInfo);
+		if(isDollarDefined(\"$sView\") && $sView == \"Custom\") {
+			string title;
+			dpGet(ds[2] + fwTrending_PLOT_TITLE + fwTrending_ON_VAL, title);
+			fwDevice_addToContext(getSystemName() + ds[2], title + \"_\", context, makeDynString(\"fwTrending/fwTrendingCustomViewEditor\"), 
+				makeDynString(\"fwTrending/fwTrendingCustomViewNavigator\"), exceptionInfo);
+		}
+		refreshChildrenTable();
+	} else {
+		dpDelete(workPlotName);
+	}
+}" 0
+ E E "main() {
+	if($bEdit == \"FALSE\")
+		this.visible = false;
+}" 0
+
+13 5
+"Button1"
+""
+1 496 0 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+498 8 592 42
+T 
+1
+LANG:1 9 View Plot
+"main() {
+	dyn_string ds; dyn_float df; dyn_int di;
+	string val;
+	dyn_string exceptionInfo;
+	
+	getValue(\"Table1\", \"getSelectedLines\", di);
+	if(dynlen(di) <= 0)
+		return;
+	Table1.currentColumn(\"name\");
+	getValue(\"Table1\", \"cellValue\", val);
+	
+	ChildPanelOn(\"fwTrending/fwTrendingTrendZoom.pnl\", \"Single Trend\", 
+		makeDynString(\"$PageName:\" + \"\", \"$OpenPageName:\" + \"\", \"$PlotName:\" + val, \"$bEdit:\" + $bEdit),0,0);
+}" 0
+ E E E
+13 6
+"Button2"
+""
+1 1000 220 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+498 208 592 242
+T 
+1
+LANG:1 12 To hierarchy
+"main() 
+{
+	dyn_string ds; dyn_float df; dyn_int di;
+	int i, j;
+	dyn_dyn_anytype resultSet;
+	dyn_string exceptionInfo, context;
+	string parentLabel, label, dpName;
+	string plotName, plotTitle;
+
+	getValue(\"Table1\", \"getSelectedLines\", di);
+	if(dynlen(di) <= 0)
+		return;
+	
+	Table1.currentColumn(\"name\");
+	getValue(\"Table1\", \"cellValue\", plotName);
+	
+	//DebugN(\"plotName: \" + plotName);
+	
+	dpGet(plotName + fwTrending_PLOT_TITLE + fwTrending_ON_VAL, plotTitle);
+
+	if(isDollarDefined(\"$bHierarchyBrowser\") && $bHierarchyBrowser == \"TRUE\") {
+		fwGenericDpFunctions_getLabel($sDpName, $sParentReference, parentLabel, exceptionInfo);
+//		Debug(\"parentLabel\"); DebugN(parentLabel);
+		fwGenericDpFunctions_splitLabel(parentLabel, label, dpName, exceptionInfo);		
+		context = makeDynString($sDpName, label, \"-1\");
+		
+		//Debug(\"context: \"); DebugN(context);				
+		fwDevice_addToContext(	plotName, 
+								plotTitle + \"_\", 
+								context, 
+								makeDynString(\"fwTrending/fwTrendingCustomViewEditor\"),
+								makeDynString(\"fwTrending/fwTrendingCustomViewNavigator\"), 
+								exceptionInfo);		
+		
+		refreshChildrenTable();
+	}
+}" 0
+ E E "main() {
+	if(isDollarDefined(\"$bEdit\") && $bEdit == \"TRUE\" && isDollarDefined(\"$bForceQuery\") && $bForceQuery == \"TRUE\"
+		&& isDollarDefined(\"$sView\") && $sView != \"Standard\")
+		this.visible = true;
+}" 0
+
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

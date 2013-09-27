@@ -1,0 +1,41 @@
+main()
+{
+  dyn_float df;
+  dyn_string ds;
+  string user = "", pwd = "";
+  string options;
+  int port = pmonPort();
+  string host = strtoupper(fwInstallation_getHostname());
+  string dimDnsNodeStr = " -dim_dns_node ";
+  string dimDnsNode = "";
+  fwInstallation_getPmonInfo(user, pwd);  
+  
+  //check if the FMC managers are already in the project console:
+  dyn_mixed managerInfo;
+  fwInstallationManager_getProperties("PVSS00ctrl", "-f fwFMC/fwFMC.lst", managerInfo, host, port, user, pwd);
+  if(managerInfo[FW_INSTALLATION_MANAGER_PMON_IDX] != -1)
+  {
+    DebugN("INFO: FMC Manager already in project console. Skipping this installation step.");
+    return 0;
+  }
+  
+  ChildPanelOnCentralModalReturn("vision/MessageInput", "FMC DIM DNS NODE", 
+                                 makeDynString("DIM DNS Node to be used by the FMC processes", "[,,,,]", host), 
+                                 df, ds);  
+  dimDnsNodeStr += ds[1]; 
+                
+  options = "-f fwFMC/fwFMC.lst";
+  fwInstallationManager_add("PVSS00ctrl", "always", 30, 5, 2, options, host, port, user, pwd);  
+  options = "-num 17 -dim_dp_config FMCContinuousMonitoring" + dimDnsNodeStr;
+  fwInstallationManager_add("PVSS00dim", "always", 30, 5, 2, options, host, port, user, pwd);  
+  options = "-num 18 -dim_dp_config FMCTemporaryMonitoring" + dimDnsNodeStr;
+  fwInstallationManager_add("PVSS00dim", "always", 30, 5, 2, options, host, port, user, pwd);  
+  options = "-num 19 -dim_dp_config FMCTmLogger" + dimDnsNodeStr;
+  fwInstallationManager_add("PVSS00dim", "always", 30, 5, 2, options, host, port, user, pwd);  
+  options = "-num 20 -dim_dp_config FMCIpmi" + dimDnsNodeStr;
+  fwInstallationManager_add("PVSS00dim", "always", 30, 5, 2, options, host, port, user, pwd);  
+  options = "-num 21 -dim_dp_config FMCProcesses" + dimDnsNodeStr;
+  fwInstallationManager_add("PVSS00dim", "always", 30, 5, 2, options, host, port, user, pwd);  
+  
+  return 0;
+}

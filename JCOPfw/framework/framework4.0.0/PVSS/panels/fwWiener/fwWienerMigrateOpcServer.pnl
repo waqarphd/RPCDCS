@@ -1,0 +1,961 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 860 818 N "_3DFace" 0
+"main()
+{
+  fwDevice_initialize();
+  
+  LayerOff(3);
+  LayerOn(2);
+  
+  fwOpenProgressBar(\"Searching for devices\", \"Searching...\", 1);
+  showDevices();
+  fwCloseProgressBar(\"Search complete\");
+}" 0
+ E E E E 1 -1 -1 0  10 10
+""0  1
+E "#uses \"fwWiener/fwWiener.ctl\"
+
+findDevices(string krakowDevices, dyn_string &devices, dyn_string &models, dyn_string &exceptionInfo)
+{
+  dyn_string searchModels, devicesFound, modelsFound;
+  
+  dynClear(devices);
+  dynClear(models);
+
+  if(krakowDevices == \"Krakow\")
+    searchModels = makeDynString(\"Wiener CAN Bus\", \"VME 6021\", \"Wiener Marathon (CAN)\");
+  else if(krakowDevices == \"UpdatedKrakow\")
+    searchModels = makeDynString(\"CAN Bus\", \"VME Crate v6 (CAN)\", \"VME Crate v4,v5 (CAN)\", \"PL508 Crate (CAN)\", \"PL508-DO Crate (CAN)\");
+  else if(krakowDevices == \"NonKrakow\")
+    searchModels = makeDynString(\"PL512 Crate (TCP/IP)\", \"RCM Crate (TCP/IP)\");
+  
+  for(int i=1; i<=dynlen(searchModels); i++)
+  {
+    queryModel(searchModels[i], devicesFound, modelsFound, exceptionInfo);
+    dynAppend(devices, devicesFound);
+    dynAppend(models, modelsFound);
+  }
+}
+
+
+queryModel(string model, dyn_string &devices, dyn_string &models, dyn_string &exceptionInfo)
+{
+  dyn_dyn_anytype results;
+  
+  dynClear(devices);
+  dynClear(models);
+  
+  dpQuery(\"SELECT '_original.._value' FROM 'Wiener*.model' WHERE '_original.._value' LIKE \\\"\" + model + \"\\\"\", results);
+//DebugN(results);
+  for(int i=2; i<=dynlen(results); i++)
+  {
+    string name = dpSubStr(results[i][1], DPSUB_DP);
+    strreplace(name, \"Wiener/\", \"\");
+    
+    dynAppend(devices, name);
+    dynAppend(models, results[i][2]);
+  }
+}
+
+showDevices()
+{
+  dyn_string devices, models, exceptionInfo;
+  
+  findDevices(\"Krakow\", devices, models, exceptionInfo);
+//DebugN(devices);
+  krakowTable.deleteAllLines();
+  krakowTable.appendLines(dynlen(devices), \"devices\", devices, \"models\", models);
+  
+  findDevices(\"UpdatedKrakow\", devices, models, exceptionInfo);
+//DebugN(devices);
+  unifiedTable.deleteAllLines();
+  unifiedTable.appendLines(dynlen(devices), \"devices\", devices, \"models\", models);
+
+  findDevices(\"NonKrakow\", devices, models, exceptionInfo);
+//DebugN(devices);
+  versionTwoTable.deleteAllLines();
+  versionTwoTable.appendLines(dynlen(devices), \"devices\", devices, \"models\", models);
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"title"
+""
+1 23 25 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 10 202 33
+0 2 0 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 20 Wiener Upgrade Panel
+30 1
+"FRAME1"
+""
+1 10 33 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+27 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.0375 0 1.41732283464567 -0.375000000000001 -6.77165354330708 0 E 10 33 811 161
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 Upgrade Information
+29 2
+"TEXT_EDIT1"
+""
+1 20 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+ 20 60 821 211
+15 PVSS.TextEdit.1
+5
+0 "TextChanged" "()"
+""
+0 "ReturnPressed" "()"
+""
+0 "ModificationChanged" "(bool mod)"
+""
+0 "Clicked" "(int para, int pos)"
+""
+0 "CursorPositionChanged" "(int para, int pos)"
+""
+"main()
+{
+  this.readOnly = TRUE;
+  this.textFormat = \"RichText\";
+  this.text = \"This panel is used to upgrade from the <b>Krakow OPC server (v1)</b> and <b>Ethernet OPC server (v2)</b> to the <b>Unified OPC server (v3)</b>.<br>\" +
+              \"Make sure that you update the devices that you have in PVSS for both v1 (CAN) and v2 (Ethernet) of the OPC servers.<br><br>\" +
+              \"CAN based <b>Wiener Crates</b> are transferred to new VME Crate models.  There are two possible models to choose from.<br>\" +
+              \"<b>Version 6</b> crates include the VoltageFineAdjust setting on the channels and <b>Version 4/5</b> crates do not.<br>\" +
+              \"CAN based <b>PL508 Power Supplies</b> are transferred to new PL508 models.  There are two possible models to choose from.<br>\" + 
+              \"<b>PL508-DO</b> includes digital output registers and the basic <b>PL508</b> does not include these.<br>\" + 
+              \"Ensure that you select the correct models before using the migration buttons.<br><br>\" + 
+              \"Be sure to select your required <b>alarm upgrading</b> mode from the list below.  The default option will <b>delete all existing alerts</b> on your devices.\";
+}" 0
+13 3
+"Button8"
+""
+1 760 780 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 758 778 842 812
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+30 4
+"FRAME2"
+""
+1 10 33 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+34 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.0375 0 0.453591143440725 -0.375000000000001 215.031492266456 0 E 10 33 811 161
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Alarm Upgrading
+22 5
+"alarmOptions"
+""
+1 19.9999999999999 253 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 17.9999999999999 251 322 279
+3
+1
+LANG:1 45 Delete existing alarms and apply new defaults
+
+0
+1
+LANG:1 43 Keep existing alarms and apply new defaults
+
+0
+1
+LANG:1 20 Do not modify alarms
+
+0
+
+E
+"main()
+{
+  alarmWarning.visible = (this.selectedPos != 1);
+}" 0
+
+E
+ 0 0
+2 6
+"alarmWarning"
+""
+1 342 257 E E E 1 E 0 E N "FwAlarmFatalAck" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 342 257 775 293
+0 2 2 "0s" 0 0 0 192 0 0  342 257 2
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 68 CAUTION: You must check that your existing alarms are still relevant
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+30 54
+"FRAME4"
+""
+1 10 293 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+85 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.05145413870246 0 -8.076062639821 0 E 10 293 841 741
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Devices to Update
+22 55
+"COMBO_BOX1"
+""
+1 250 324 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+86 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 248 322 462 350.193548387097
+2
+1
+LANG:1 23 Server v1 Devices (CAN)
+
+0
+1
+LANG:1 28 Server v2 Devices (Ethernet)
+
+0
+
+E
+"main()
+{
+  if(this.selectedPos == 1)
+  {
+    LayerOff(3);
+    LayerOn(2);
+  }
+  else
+  {
+    LayerOff(2);
+    LayerOn(3);
+  }
+}" 0
+
+E
+ 0 0
+2 56
+"PRIMITIVE_TEXT8"
+""
+1 22 328 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 328 246 364
+0 2 2 "0s" 0 0 0 192 0 0  22 328 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 37 Please choose the devices to upgrade:
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+0
+LAYER, 1 
+1
+LANG:1 0 
+25 13
+"krakowTable"
+""
+1 20 361 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 359 346 763
+"main()
+{
+  this.tableMode = TABLE_SELECT_MULTIPLE;
+  this.selectByClick = TABLE_SELECT_LINE;
+}" 0
+E 1 0 1 2 0 "devices" 12 1 0 "s" 1
+LANG:1 20 Devices (Krakow OPC)
+E
+1
+LANG:1 0 
+
+150 "models" 12 1 0 "s" 1
+LANG:1 5 Model
+E
+1
+LANG:1 0 
+
+150 
+16 16 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 14
+"PUSH_BUTTON1"
+""
+1 370 582 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 368 580 472 624
+
+P 
+4294967295
+"pictures/arrow_right.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  mapping conversion, childConversion;
+  dyn_int rows;
+  dyn_string devices, models, exceptionInfo;
+ 
+  fwOpenProgressBar(\"Converting devices\", \"Converting...\", 1);
+
+  rows = krakowTable.getSelectedLines;  
+  for(int i=1; i<=dynlen(rows); i++)
+  {
+    devices[i] = krakowTable.cellValueRC(rows[i], \"devices\");
+    models[i] = krakowTable.cellValueRC(rows[i], \"models\");
+  }
+
+  conversion[\"Wiener CAN Bus\"] = \"CAN Bus\";
+  
+  if(crateModelSelector.text == \"VME Crate v6\")
+  {
+    conversion[\"VME 6021\"] = \"VME Crate v6 (CAN)\";
+    childConversion[\"VME 6021\"] = \"VME Crate Channel v6\";
+  }
+  else
+  {
+    conversion[\"VME 6021\"] = \"VME Crate v4,v5 (CAN)\";
+    childConversion[\"VME 6021\"] = \"VME Crate Channel v4,v5\";
+  }
+  
+  childConversion[\"Wiener Marathon (CAN)\"] = \"PL508 Channel (CAN)\";
+  if(psModelSelector.text == \"PL508\")
+    conversion[\"Wiener Marathon (CAN)\"] = \"PL508 Crate (CAN)\";
+  else
+    conversion[\"Wiener Marathon (CAN)\"] = \"PL508-DO Crate (CAN)\";   
+  
+  for(int i=1; i<=dynlen(devices); i++)
+  {
+    dyn_string addressParameters, children;
+        
+    fwShowProgressBar(devices[i]);
+    
+    switch(models[i])
+    {
+      case \"Wiener CAN Bus\":
+        addressParameters[fwDevice_ADDRESS_TYPE] = fwDevice_ADDRESS_NONE;
+        fwDevice_setAddress(\"Wiener/\" + devices[i], addressParameters, exceptionInfo);      
+        if(alarmOptions.selectedPos == 1)
+          fwDevice_setAlert(\"Wiener/\" + devices[i], fwDevice_ALERT_UNSET, exceptionInfo);
+        
+        fwDevice_setModel(\"Wiener/\" + devices[i], conversion[models[i]], exceptionInfo);
+        
+        addressParameters[fwDevice_ADDRESS_TYPE] = fwDevice_ADDRESS_DEFAULT;
+        fwDevice_setAddress(\"Wiener/\" + devices[i], addressParameters, exceptionInfo);
+
+        if(alarmOptions.selectedPos != 3)
+          fwDevice_setAlert(\"Wiener/\" + devices[i], fwDevice_ALERT_SET, exceptionInfo);
+        break;
+      case \"Wiener Marathon (CAN)\":
+        fwWiener_deleteKrakowMarathonCustomisation(\"Wiener/\" + devices[i], exceptionInfo);
+      case \"VME 6021\":
+        addressParameters[fwDevice_ADDRESS_TYPE] = fwDevice_ADDRESS_NONE;
+        fwDevice_setAddressRecursively(\"Wiener/\" + devices[i], addressParameters, exceptionInfo);
+        if(alarmOptions.selectedPos == 1)
+          fwDevice_setAlertRecursively(\"Wiener/\" + devices[i], fwDevice_ALERT_UNSET, exceptionInfo);
+        
+        fwDevice_setModel(\"Wiener/\" + devices[i], conversion[models[i]], exceptionInfo);
+        fwDevice_getChildren(\"Wiener/\" + devices[i], fwDevice_HARDWARE, children, exceptionInfo);
+        for(int j=1; j<=dynlen(children); j++)
+          fwDevice_setModel(children[j], childConversion[models[i]], exceptionInfo);        
+
+        addressParameters[fwDevice_ADDRESS_TYPE] = fwDevice_ADDRESS_DEFAULT;
+        fwDevice_setAddressRecursively(\"Wiener/\" + devices[i], addressParameters, exceptionInfo);
+        if(alarmOptions.selectedPos != 3)
+          fwDevice_setAlertRecursively(\"Wiener/\" + devices[i], fwDevice_ALERT_SET, exceptionInfo);
+        break;
+    }
+  }
+  
+  showDevices();
+  fwCloseProgressBar(\"Conversion complete\");
+  
+  if(dynlen(exceptionInfo)>0)
+    fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E E
+13 15
+"PUSH_BUTTON2"
+""
+1 370 716 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 368 714 472 758
+
+P 
+4294967295
+"pictures/arrow_left.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  mapping conversion, childConversion;
+  dyn_int rows;
+  dyn_string devices, models, exceptionInfo;
+    
+  fwOpenProgressBar(\"Converting devices\", \"Converting...\", 1);
+
+  rows = unifiedTable.getSelectedLines;
+  for(int i=1; i<=dynlen(rows); i++)
+  {
+    devices[i] = unifiedTable.cellValueRC(rows[i], \"devices\");
+    models[i] = unifiedTable.cellValueRC(rows[i], \"models\");
+  }
+  
+  conversion[\"CAN Bus\"] = \"Wiener CAN Bus\";
+  conversion[\"VME Crate v6 (CAN)\"] = \"VME 6021\";
+  conversion[\"VME Crate v4,v5 (CAN)\"] = \"VME 6021\";
+  conversion[\"PL508 Crate (CAN)\"] = \"Wiener Marathon (CAN)\";
+  conversion[\"PL508-DO Crate (CAN)\"] = \"Wiener Marathon (CAN)\";
+  
+  childConversion[\"VME Crate v6 (CAN)\"] = \"Wiener Crate Channel\";
+  childConversion[\"VME Crate v4,v5 (CAN)\"] = \"Wiener Crate Channel\";
+  childConversion[\"PL508 Crate (CAN)\"] = \"Marathon Channel (CAN)\";
+  childConversion[\"PL508-DO Crate (CAN)\"] = \"Marathon Channel (CAN)\";
+    
+  for(int i=1; i<=dynlen(devices); i++)
+  {
+    dyn_string addressParameters, children;
+        
+    fwShowProgressBar(devices[i]);
+
+    switch(models[i])
+    {
+      case \"CAN Bus\":
+        addressParameters[fwDevice_ADDRESS_TYPE] = fwDevice_ADDRESS_NONE;
+        fwDevice_setAddress(\"Wiener/\" + devices[i], addressParameters, exceptionInfo);
+        if(alarmOptions.selectedPos == 1)
+          fwDevice_setAlert(\"Wiener/\" + devices[i], fwDevice_ALERT_UNSET, exceptionInfo);
+        
+        fwDevice_setModel(\"Wiener/\" + devices[i], conversion[models[i]], exceptionInfo);
+        
+        addressParameters[fwDevice_ADDRESS_TYPE] = fwDevice_ADDRESS_DEFAULT;
+        fwDevice_setAddress(\"Wiener/\" + devices[i], addressParameters, exceptionInfo);
+        if(alarmOptions.selectedPos != 3)
+          fwDevice_setAlert(\"Wiener/\" + devices[i], fwDevice_ALERT_SET, exceptionInfo);
+        break;
+      case \"PL508 Crate (CAN)\":
+      case \"PL508-DO Crate (CAN)\":
+      case \"VME Crate v6 (CAN)\":
+      case \"VME Crate v4,v5 (CAN)\":
+        addressParameters[fwDevice_ADDRESS_TYPE] = fwDevice_ADDRESS_NONE;
+        fwDevice_setAddressRecursively(\"Wiener/\" + devices[i], addressParameters, exceptionInfo);
+        if(alarmOptions.selectedPos == 1)
+          fwDevice_setAlertRecursively(\"Wiener/\" + devices[i], fwDevice_ALERT_UNSET, exceptionInfo);
+        
+        fwDevice_setModel(\"Wiener/\" + devices[i], conversion[models[i]], exceptionInfo);
+        fwDevice_getChildren(\"Wiener/\" + devices[i], fwDevice_HARDWARE, children, exceptionInfo);
+        for(int j=1; j<=dynlen(children); j++)
+          fwDevice_setModel(children[j], childConversion[models[i]], exceptionInfo);        
+
+        addressParameters[fwDevice_ADDRESS_TYPE] = fwDevice_ADDRESS_DEFAULT;
+        fwDevice_setAddressRecursively(\"Wiener/\" + devices[i], addressParameters, exceptionInfo);
+        if(alarmOptions.selectedPos != 3)
+          fwDevice_setAlertRecursively(\"Wiener/\" + devices[i], fwDevice_ALERT_SET, exceptionInfo);
+        if(conversion[models[i]] == \"Wiener Marathon (CAN)\")
+          fwWiener_setKrakowMarathonCustomisation(\"Wiener/\" + devices[i], exceptionInfo);
+        break;
+    }
+  }
+
+  showDevices();
+  fwCloseProgressBar(\"Conversion complete\");
+  
+  if(dynlen(exceptionInfo)>0)
+    fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E E
+2 16
+"PRIMITIVE_TEXT3"
+""
+1 360 362 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 360 362 485 402
+0 2 2 "0s" 0 0 0 64 0 0  360 362 2
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Upgrade to
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Unified OPC Server
+2 17
+"PRIMITIVE_TEXT4"
+""
+1 362 414 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 362 414 482 454
+0 2 2 "0s" 0 0 0 64 0 0  362 414 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Change CAN based
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Maraton to:
+22 18
+"psModelSelector"
+""
+1 362 454 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 360 452 484 480
+2
+1
+LANG:1 5 PL508
+
+0
+1
+LANG:1 8 PL508-DO
+
+0
+
+E
+E
+E
+ 0 0
+2 19
+"PRIMITIVE_TEXT5"
+""
+1 362 494 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 362 494 482 534
+0 2 2 "0s" 0 0 0 64 0 0  362 494 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Change CAN based
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 VME Crate to:
+22 20
+"crateModelSelector"
+""
+1 362 534 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 360 532 484 560
+2
+1
+LANG:1 12 VME Crate v6
+
+0
+1
+LANG:1 15 VME Crate v4/v5
+
+0
+
+E
+E
+E
+ 0 0
+2 21
+"PRIMITIVE_TEXT6"
+""
+1 360 666 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 360 666 485 706
+0 2 2 "0s" 0 0 0 64 0 0  360 666 2
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 Revert to
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Krakow OPC Server
+25 22
+"unifiedTable"
+""
+1 500 361 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 498 359 826 763
+"main()
+{
+  this.tableMode = TABLE_SELECT_MULTIPLE;
+  this.selectByClick = TABLE_SELECT_LINE;
+}" 0
+E 1 0 1 2 0 "devices" 12 1 0 "s" 1
+LANG:1 21 Devices (Unified OPC)
+E
+1
+LANG:1 0 
+
+150 "models" 12 1 0 "s" 1
+LANG:1 5 Model
+E
+1
+LANG:1 0 
+
+150 
+16 16 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+0
+LAYER, 2 
+1
+LANG:1 0 
+25 23
+"versionTwoTable"
+""
+1 20 361 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 359 346 763
+"main()
+{
+  this.tableMode = TABLE_SELECT_MULTIPLE;
+  this.selectByClick = TABLE_SELECT_LINE;
+}" 0
+E 1 0 1 2 0 "devices" 12 1 0 "s" 1
+LANG:1 7 Devices
+E
+1
+LANG:1 0 
+
+150 "models" 12 1 0 "s" 1
+LANG:1 5 Model
+E
+1
+LANG:1 0 
+
+150 
+16 16 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 24
+"PUSH_BUTTON3"
+""
+1 370 410 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 368 408 472 452
+
+P 
+4294967295
+"pictures/dpeMon_open.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  mapping conversion, childConversion;
+  dyn_int rows;
+  dyn_string devices, models, exceptionInfo;
+ 
+  fwOpenProgressBar(\"Converting devices\", \"Converting...\", 1);
+
+  rows = versionTwoTable.getSelectedLines;  
+  for(int i=1; i<=dynlen(rows); i++)
+  {
+    devices[i] = versionTwoTable.cellValueRC(rows[i], \"devices\");
+    models[i] = versionTwoTable.cellValueRC(rows[i], \"models\");
+  }
+  
+  for(int i=1; i<=dynlen(devices); i++)
+  {
+    dyn_string addressParameters, children;
+        
+    fwShowProgressBar(devices[i]);
+    
+    addressParameters[fwDevice_ADDRESS_TYPE] = fwDevice_ADDRESS_NONE;
+    fwDevice_setAddressRecursively(\"Wiener/\" + devices[i], addressParameters, exceptionInfo);
+    if(alarmOptions.selectedPos == 1)
+      fwDevice_setAlertRecursively(\"Wiener/\" + devices[i], fwDevice_ALERT_UNSET, exceptionInfo);
+        
+    addressParameters[fwDevice_ADDRESS_TYPE] = fwDevice_ADDRESS_DEFAULT;
+    fwDevice_setAddressRecursively(\"Wiener/\" + devices[i], addressParameters, exceptionInfo);
+    if(alarmOptions.selectedPos != 3)
+      fwDevice_setAlertRecursively(\"Wiener/\" + devices[i], fwDevice_ALERT_SET, exceptionInfo);
+  }
+  
+  showDevices();
+  fwCloseProgressBar(\"Conversion complete\");
+  
+  if(dynlen(exceptionInfo)>0)
+    fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E E
+2 25
+"PRIMITIVE_TEXT7"
+""
+1 360 362 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 360 362 485 402
+0 2 2 "0s" 0 0 0 64 0 0  360 362 2
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Upgrade to
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Unified OPC Server
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

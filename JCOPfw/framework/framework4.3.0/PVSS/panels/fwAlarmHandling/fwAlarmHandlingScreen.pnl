@@ -1,0 +1,2266 @@
+V 11
+1
+LANG:1 17 JCOP Alarm Screen
+PANEL,-1 -1 1040 875 N "_3DFace" 9
+"$bShowErrors"
+"$bShowFatals"
+"$bShowWarnings"
+"$dsSystemNames"
+"$sAlertTextFilter"
+"$sDeviceAliasFilter"
+"$sDeviceDescriptionFilter"
+"$sDeviceNameFilter"
+"$sDeviceTypeFilter"
+"main()
+{	
+	int result, pos, updateRate, idleTimeout;
+	shape aesTable;
+	dyn_bool columnsVisible;
+	dyn_int columnsWidth;
+	dyn_string exceptionInfo, columnsName;
+	dyn_anytype aesMode;
+	dyn_dyn_anytype aesFilter;
+	
+        if(getPath(PANELS_REL_PATH, \"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl\") != \"\")
+          addSymbol(myModuleName(), myPanelName(), \"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl\",
+                    \"currentUser\", makeDynString(), 780, -4, 0, 1, 1);
+        else
+          acNotAvailable.visible = TRUE;
+
+        g_sPvssPropertiesDp = aes_getPropDpName(AES_DPTYPE_PROPERTIES, TRUE, AESTAB_TOP, FALSE, FALSE); 
+	g_sTable=AES_TABLENAME_TOP;
+	
+	g_dsColumnsName = makeDynString();
+	g_diColumnsWidth = makeDynInt();
+
+	aesTable = getShape(g_sTable);
+	
+        g_progressTitle = \"Alarm Screen Initialisation\";
+        g_progressText = \"Initialising display...\";
+
+	while(!dpExists(g_sPvssPropertiesDp))
+	{
+//DebugN(\"NO DP YET\");
+		delay(0, 100);	
+	}
+
+	delay(0, 200);
+
+	connectToBusy();
+        connectToRunning();
+        fwAlarmHandlingScreen_getDistSystemDisplayOption(g_showDistDetails, exceptionInfo);
+        connectToDisplayedSystems();
+        connectToAvailableSystems();
+        
+	while(!reg_main.visible)
+	{
+//DebugN(\"NO TABLE YET\");
+		delay(0, 100);	
+	}
+	reg_main.visible = FALSE;
+
+	while(!aesTable.visible)
+	{
+//DebugN(\"NO TABLE YET\");
+		delay(0, 100);	
+	}
+
+	_fwInitFields(aesMode, aesFilter, exceptionInfo);
+
+	fwAlarmHandlingScreen_applyMode(g_sPvssPropertiesDp, aesMode, exceptionInfo, FALSE);
+	fwAlarmHandlingScreen_applyFilter(g_sPvssPropertiesDp, aesFilter, exceptionInfo);
+
+	aes_doStart(g_sPvssPropertiesDp);
+	
+	_fwGetDeviceTypeList();
+	fwAlarmHandlingScreen_showMode(aesMode, exceptionInfo);
+	fwAlarmHandlingScreen_showFilter(aesFilter, exceptionInfo);
+
+	g_bInit = FALSE;
+	acknowledgeButton.enabled = TRUE;
+	printButton.enabled = TRUE;
+	closeButton.enabled = TRUE;
+        unselectRow.enabled = TRUE;
+	
+        if(!dpExists(\"_FwAlarmScreenPlot\"))
+          _fwAlarmHandling_createPlotDp(\"_FwAlarmScreenPlot\");
+        
+	result = startThread(\"countRows\");
+	if(result < 0)
+		alarmTableLines.text = \"N/A\";
+        
+        if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+          fwAccessControl_setupPanel(\"accessControlCB\", exceptionInfo);
+        else
+          accessControlCB(\"\", getUserName());
+
+        pos = 0;
+	while(pos < 1)
+	{
+	  fwAlarmHandlingScreen_getColumnWidths(columnsName, columnsVisible, columnsWidth, exceptionInfo);
+	  pos = dynContains(columnsName, fwAlarmHandlingScreen_COLUMN_ALERT_VALUE);
+	  delay(0,200);
+	}
+
+	pos = dynContains(columnsName, fwAlarmHandlingScreen_COLUMN_DP_NAME);
+	g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_DP_NAME] = (columnsWidth[pos] == 0)?\"FALSE\":\"TRUE\";
+
+	pos = dynContains(columnsName, fwAlarmHandlingScreen_COLUMN_LOGICAL_NAME);
+	g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_LOGICAL_NAME] = (columnsWidth[pos] == 0)?\"FALSE\":\"TRUE\";
+
+	pos = dynContains(columnsName, fwAlarmHandlingScreen_COLUMN_DESCRIPTION);
+	g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_DESCRIPTION] = (columnsWidth[pos] == 0)?\"FALSE\":\"TRUE\";
+        
+	pos = dynContains(columnsName, fwAlarmHandlingScreen_COLUMN_ONLINE_VALUE);
+	g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_ONLINE_VALUE] = (columnsWidth[pos] == 0)?\"FALSE\":\"TRUE\";
+
+	pos = dynContains(columnsName, fwAlarmHandlingScreen_COLUMN_ALERT_VALUE);
+	g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_ALERT_VALUE] = (columnsWidth[pos] == 0)?\"FALSE\":\"TRUE\";
+
+	pos = dynContains(columnsName, fwAlarmHandlingScreen_COLUMN_TIME_STANDARD);
+	g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_TIME_STANDARD] = (columnsWidth[pos] == 0)?\"FALSE\":\"TRUE\";
+
+ 	pos = dynContains(columnsName, fwAlarmHandlingScreen_COLUMN_TIME_CAME);
+	g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_TIME_CAME] = (columnsWidth[pos] == 0)?\"FALSE\":\"TRUE\";
+
+  
+        fwAlarmHandlingScreen_getIdleTimeout(idleTimeout, exceptionInfo);
+        idleTimeoutValue.text = idleTimeout;
+        startThread(\"idleCheck\");
+
+        fwAlarmHandlingScreen_getOnlineValueUpdateRate(updateRate, exceptionInfo);
+        onlineUpdateRate.text = updateRate;
+        startThread(\"updateOnlineValues\");
+//DebugN(\"End\");
+}
+" 0
+ "// main()
+// {
+// 	int i;
+// }" 0
+ E E E 1 0 0 0  0 0
+""0  1
+E "bool g_bInit = TRUE, g_bActionInProgress = FALSE, g_InClosedMode=FALSE;
+const bool g_alertRow=FALSE;  
+string g_sPvssPropertiesDp, g_sTable, g_progressTitle, g_progressText;
+dyn_string g_dsColumnsShown, g_monitoredSystems, g_missingSystems;
+dyn_bool g_dbColumnsVisible;
+dyn_string g_dsColumnsName;
+dyn_int g_diColumnsWidth;
+bool g_watchUser = TRUE, g_showDistDetails;
+int g_currentUser = -1, g_stoppedTimeThread = -1, g_idleCounter = 0;
+string g_shapeWithFocus;
+dyn_anytype g_idleCheck;
+
+_fwInitFields(dyn_anytype &aesMode, dyn_dyn_anytype &aesFilter, dyn_string &exceptionInfo)
+{
+	time startTime, endTime;
+	dyn_uint sysIds;
+	dyn_string sysNames;
+  
+  string sFilterName;
+  bool isQuickFilter;
+  string ac;
+	
+	_fwAlarmHandlingScreen_getDefaultMode(aesMode, exceptionInfo);
+	_fwAlarmHandlingScreen_getDefaultFilter(aesFilter, exceptionInfo);
+
+	if(isDollarDefined(\"$sDeviceNameFilter\"))
+		aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_DP_NAME] = $sDeviceNameFilter;
+	if(isDollarDefined(\"$sDeviceAliasFilter\"))
+		aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_DP_ALIAS] = $sDeviceAliasFilter;
+	if(isDollarDefined(\"$sDeviceTypeFilter\"))
+		aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_DP_TYPE] = $sDeviceTypeFilter;
+	if(isDollarDefined(\"$sDeviceDescriptionFilter\"))
+		aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_DESCRIPTION] = $sDeviceDescriptionFilter;
+	if(isDollarDefined(\"$sAlertTextFilter\"))
+		aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_ALERT_TEXT] = $sAlertTextFilter;
+	if(isDollarDefined(\"$dsSystemNames\"))
+		fwGeneral_stringToDynString($dsSystemNames, aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_SYSTEM], \"|\", TRUE);
+	if(isDollarDefined(\"$bShowWarnings\"))
+		aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_SEVERITY][fwAlarmHandlingScreen_SEVERITY_FILTER_OBJECT_WARNING] = (bool)$bShowWarnings;
+	if(isDollarDefined(\"$bShowErrors\"))
+		aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_SEVERITY][fwAlarmHandlingScreen_SEVERITY_FILTER_OBJECT_ERROR] = (bool)$bShowErrors;
+	if(isDollarDefined(\"$bShowFatals\"))
+		aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_SEVERITY][fwAlarmHandlingScreen_SEVERITY_FILTER_OBJECT_FATAL] = (bool)$bShowFatals;
+	if(isDollarDefined(\"$sFilterName\"))//if a quick filter was loaded, show it on the box
+  {
+    sFilterName = getDollarValue(\"$sFilterName\");
+    fwAlarmHandlingScreen_loadQuickFilterOptions(sFilterName, isQuickFilter, ac, exceptionInfo);
+    if(isQuickFilter)
+    {
+      strreplace(sFilterName,fwAlarmHandlingScreen_FILTER_DP_PREFIX,\"\");
+      quickFilterList.text = sFilterName;
+    }
+  }
+  
+	endTime = getCurrentTime();
+	startTime = endTime - 3600;
+	startHistoricalTime.text = formatTime(fwAlarmHandlingScreen_HISTORICAL_TIME_FORMAT, startTime);
+	endHistoricalTime.text = formatTime(fwAlarmHandlingScreen_HISTORICAL_TIME_FORMAT, endTime);
+}
+
+loadAndApplyFilter()
+{
+	string filterName;  
+	dyn_dyn_anytype aesFilter;
+	dyn_string exceptionInfo;
+
+  g_progressTitle = \"Quick Filter\";
+  g_progressText = \"Changing alarm screen filter...\";
+        
+	filterName = quickFilterList.text;
+	fwAlarmHandlingScreen_getColumnWidths(g_dsColumnsName, g_dbColumnsVisible, g_diColumnsWidth, exceptionInfo);
+        
+  if(filterName != \"\")
+	  fwAlarmHandlingScreen_loadFilter(fwAlarmHandlingScreen_FILTER_DP_PREFIX + filterName, aesFilter, exceptionInfo);
+  else
+	  _fwAlarmHandlingScreen_getDefaultFilter(aesFilter, exceptionInfo);
+          
+	fwAlarmHandlingScreen_showFilter(aesFilter, exceptionInfo);
+	currentFilter.text = filterName;
+	fwAlarmHandlingScreen_applyFilter(g_sPvssPropertiesDp, aesFilter, exceptionInfo, !g_InClosedMode);
+        applyQuickFilter.backCol = \"_3DFace\";
+}
+
+_fwGetDeviceTypeList()
+{
+	string type;
+	dyn_string exceptionInfo;
+	dyn_dyn_string types;
+
+	fwDevice_getAllTypes(types, exceptionInfo);
+
+	type = deviceType.text;
+	dynInsertAt(types[1], \"*\", 1);
+	dynInsertAt(types[2], \"*\", 1);
+	deviceType.items = types[1];
+	if(strpos(type, \"Loading\") == 0)
+		deviceType.selectedPos = 1;
+	dpTypeList.items = types[2];
+}
+
+
+connectToBusy()
+{
+   while(!dpExists(g_sPvssPropertiesDp))
+   {
+      delay(0,100);
+   }
+   dpConnect(\"busyStateCB\", TRUE, g_sPvssPropertiesDp + \".Settings.BusyTrigger\" + AES_ORIVAL);     
+}
+
+busyStateCB(string dpe, int busyState)
+{
+//  DebugN(\"CB: \" + busyState);
+
+  if(busyState == AES_BUSY_START)
+  {
+    g_watchUser = FALSE;
+    removeGlobal(\"g_busyThread\");
+    fwOpenProgressBar(g_progressTitle, g_progressText, 1);
+  }
+  if(busyState == AES_BUSY_STOP)
+  {
+    g_watchUser = TRUE;
+    finishDisplay();
+  }
+}
+
+connectToRunning()
+{
+  dpConnect(\"runningStateCB\", TRUE, g_sPvssPropertiesDp + \".Settings.RunMode\" + AES_ONLVAL);     
+}
+
+connectToDisplayedSystems()
+{
+  dpConnect(\"displayedSystemsCB\", TRUE, g_sPvssPropertiesDp + \".Both.Systems.Selections\" + AES_ONLVAL);     
+}
+
+connectToAvailableSystems()
+{
+  //check for new dist system connection. digest it every 20000ms
+  dpQueryConnectSingle(\"checkIfNewSystem\",FALSE,\"idChk\",\"SELECT '_online.._value', '_original.._value', '_original.._stime' FROM '_DistConnections.Dist.ManNums'\",20000);
+}
+
+checkIfNewSystem(string idChk, dyn_dyn_anytype var)
+{
+  dyn_string sysNames;
+  string localSysName=getSystemName();
+  dyn_uint ids;
+  dyn_dyn_anytype aesFilter;
+  dyn_string exceptionInfo;
+  bool newConnection=false;
+  int i;
+  
+  delay(10);//to be sure the list of system names is up to date
+  getSystemNames(sysNames,ids);
+  strreplace(localSysName,\":\",\"\");
+  fwAlarmHandlingScreen_readFilter(aesFilter, exceptionInfo);
+//   DebugTN(\"aesFilter: \" +aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_SYSTEM]);
+//   DebugTN(\"connected systems: \" + sysNames);
+  /*there is a new system if:
+    - the name is not included in the list of g_monitoredSystems
+    - the filter configuration includes all available systems (*)
+   */
+  if(aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_SYSTEM] == \"*\")
+  {
+    for(i=1 ; i<=dynlen(sysNames) ; i++)
+      newConnection = newConnection || (localSysName!=sysNames[i] && !dynContains(g_monitoredSystems,sysNames[i]));
+    if(newConnection)
+    {
+      //reload
+      fwAlarmHandlingScreen_readFilter(aesFilter, exceptionInfo);
+      fwAlarmHandlingScreen_applyFilter(g_sPvssPropertiesDp, aesFilter, exceptionInfo, !g_InClosedMode);
+    }
+  }
+//   DebugTN(\"newConnection: \"+newConnection);
+}
+
+checkIfNewSystemForDpConnect(string dpe, dyn_int systemNos)
+{
+  /*there is a new system if:
+    - the name is not included in the list of g_monitoredSystems
+    - the filter configuration includes all available systems
+    */
+  dyn_string sysNames;
+  string localSysName=getSystemName();
+  dyn_uint ids;
+  dyn_dyn_anytype aesFilter;
+  dyn_string exceptionInfo;
+  bool newConnection=false;
+  int i;
+  
+  delay(10);
+  getSystemNames(sysNames,ids);
+  strreplace(localSysName,\":\",\"\");
+  fwAlarmHandlingScreen_readFilter(aesFilter, exceptionInfo);
+//   DebugTN(\"aesFilter: \" +aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_SYSTEM]);
+//   DebugTN(\"connected systems: \" + sysNames);
+  if(aesFilter[fwAlarmHandlingScreen_CONFIG_OBJECT_FILTER_SYSTEM] == \"*\")
+  {
+    for(i=1 ; i<=dynlen(sysNames) ; i++)
+      newConnection = newConnection || (localSysName!=sysNames[i] && !dynContains(g_monitoredSystems,sysNames[i]));
+    if(newConnection)
+    {
+       	loadAndApplyFilter();
+    }
+  }
+//   DebugTN(\"newConnection: \"+newConnection);
+}
+
+synchronized displayedSystemsCB(string dpe, dyn_string systems)
+{
+  bool result, isConnected;
+  int missing;
+  dyn_string exceptionInfo;
+
+//DebugN(\"Should show details:\", g_showDistDetails);
+  systemsProblems.visible = g_showDistDetails;
+  systemsState.visible = g_showDistDetails;
+    
+  if(!g_showDistDetails)
+    systems = makeDynString();
+  
+// DebugN(\"Systems\", systems, \"Current Monitored:\", g_monitoredSystems);  
+  //disconnect from systems no longer being displayed
+  for(int i=1; i<=dynlen(g_monitoredSystems); i++)
+  {
+    if(dynContains(systems, g_monitoredSystems[i]) <= 0)
+    {
+      string systemName = g_monitoredSystems[i];
+      dynRemove(g_monitoredSystems, i);
+//DebugN(\"Removing: \" + systemName);  
+      unDistributedControl_deregister(\"updateSystemStateCB\", result, isConnected, systemName, exceptionInfo);
+      
+      missing = dynContains(g_missingSystems, systemName);
+      if(missing > 0)
+        dynRemove(g_missingSystems, missing);
+      i--;
+      delay(1);
+    }
+  }
+  updateMissingSystemDisplay();
+
+  //connect to systems which are newly being displayed
+  for(int i=1; i<=dynlen(systems); i++)
+  {
+    bool isRemote;
+    unDistributedControl_isRemote(isRemote, systems[i] + \":\");
+    if(isRemote)
+    {    
+      if(dynContains(g_monitoredSystems, systems[i]) <= 0)
+      {
+//DebugN(\"Adding: \" + systems[i]);  
+        dynAppend(g_monitoredSystems, systems[i]);
+        unDistributedControl_register(\"updateSystemStateCB\", result, isConnected, systems[i], exceptionInfo);
+      }
+    }
+  }
+}
+
+synchronized updateSystemStateCB(string dpe, bool isConnected)
+{
+  int missing;
+  string systemName;
+  
+  systemName = dpSubStr(dpe, DPSUB_DP);
+  strreplace(systemName, c_unDistributedControl_dpName, \"\");
+// DebugN(systemName, isConnected);  
+  if(!isConnected)
+  {
+    dynAppend(g_missingSystems, systemName);
+    dynUnique(g_missingSystems);
+  }
+  else
+  {
+    missing = dynContains(g_missingSystems, systemName);
+    if(missing > 0)
+      dynRemove(g_missingSystems, missing);
+  }
+  updateMissingSystemDisplay();
+}
+
+updateMissingSystemDisplay()
+{
+//DebugN(g_missingSystems);
+  if(dynlen(g_missingSystems) > 0)
+  {
+    systemsState.backCol = \"FwAlarmFatalUnack\";
+    systemsProblems.text = \"Missing systems: \" + g_missingSystems;
+    systemsProblems.toolTipText = \"Missing systems: \" + g_missingSystems;
+  }
+  else
+  {
+    systemsState.backCol = \"FwStateOKPhysics\";
+    systemsProblems.text = \"All displayed systems are connected\";
+    systemsProblems.toolTipText = \"\";
+  }    
+}
+
+countDownToShowStopped()
+{
+  dyn_string exceptionInfo;
+  
+  for(int i=1; i<=8; i++)
+  {//DebugN(\"Counting: \" + i);
+    delay(1);
+  }
+//   systemsProblems.visible = FALSE;
+//   systemsState.visible = FALSE;
+//   restartButton.backCol = fwAlarmHandlingScreen_COLOUR_BUTTON_NEEDS_PRESSING;
+//   restartWarning.visible = TRUE;
+//   restartButton.visible = TRUE;
+//   runningState.visible = TRUE;
+//   runningState.backCol = \"FwAlarmFatalUnack\";
+//   
+//   restartWarning.visible = TRUE;
+//   restartButton.visible = TRUE;
+  
+  g_stoppedTimeThread = -1;
+  
+  //if the screen was stopped, restart it
+  fwException_raise(exceptionInfo, \"INFO\", \"The alarm screen stopped. Restarting it...\", \"\");  
+  aes_doStart(g_sPvssPropertiesDp);
+  //sometimes the first startup is not successful...
+  delay(0,200);
+  aes_doStart(g_sPvssPropertiesDp);
+}
+
+runningStateCB(string dpe, unsigned runMode)
+{
+  bool timerExpired;
+  dyn_anytype returnValues;
+  
+  if(runMode == AES_RUNMODE_STOPPED)
+  {
+    if(g_stoppedTimeThread == -1)
+      g_stoppedTimeThread = startThread(\"countDownToShowStopped\");
+  }
+  else
+  {
+    if(g_stoppedTimeThread != -1)
+    {
+      stopThread(g_stoppedTimeThread);
+      g_stoppedTimeThread = -1;
+    }
+    
+//     systemsProblems.visible = g_showDistDetails;
+//     systemsState.visible = g_showDistDetails;
+//     restartButton.backCol = \"_3DFace\";
+//     restartWarning.visible = FALSE;
+//     restartButton.visible = FALSE;
+//     runningState.visible = FALSE;
+//     runningState.backCol = \"FwStateOKPhysics\";
+// 
+//     restartWarning.visible = FALSE;
+//     restartButton.visible = FALSE;
+    
+  }
+}
+
+finishDisplay()
+{
+	dyn_string exceptionInfo;
+
+  delay(1);
+	if(dynlen(g_dsColumnsName) > 0)
+		fwAlarmHandlingScreen_setColumnWidths(g_dsColumnsName, g_dbColumnsVisible, g_diColumnsWidth, exceptionInfo);
+//DebugN(\"Delaying...\");
+  delay(0,500);
+        
+	fwCloseProgressBar(\"Action complete\");	
+}
+
+countRows()
+{
+	int rows, i, ackable;
+	shape aesTable;
+	string sAck;
+	
+	while(1)
+	{
+		ackable = 0;
+		aesTable = getShape(g_sTable);
+		rows = aesTable.lineCount;
+
+		for(i=0; i<rows; i++)
+		{
+			getValue(aesTable, \"cellValueRC\", i, \"acknowledge\", sAck);
+			
+			if (sAck == \" !!! \")	// Could be acknowledged
+				ackable++;	
+		}
+	
+		alarmTableLines.text = rows;
+		unackedAlarms.text = ackable;
+		delay(fwAlarmHandlingScreen_DATA_UPDATE_RATE);
+	}
+}
+
+updateOnlineValues()
+{
+  bool isVisible, doUpdate;
+  int onlineValueColumn, timer, previousStartRow = -1;
+  
+  timer = onlineUpdateRate.text;
+  
+  //locate online value column in table
+  getValue(AES_TABLENAME_TOP, \"nameToColumn\", fwAlarmHandlingScreen_COLUMN_ONLINE_VALUE, onlineValueColumn);
+  while(1)
+  {
+    if(onlineUpdateRate.text == \"0\")
+    {
+      delay(1);
+      continue;
+    }
+    
+    //if column is invisible, just wait again, in case it becomes visible
+    getValue(AES_TABLENAME_TOP, \"columnVisibility\", onlineValueColumn, isVisible);
+    if(isVisible)
+    {
+      //if column is visible, get visible rows
+      int startRow, endRow;
+      getValue(AES_TABLENAME_TOP, \"lineRangeVisible\", startRow, endRow);
+      doUpdate = TRUE;
+      if(startRow == previousStartRow)
+      {
+        timer--;
+        if(timer > 0)
+          doUpdate = FALSE;
+        else
+          timer = onlineUpdateRate.text;
+      }
+      
+      if(doUpdate)
+        setValue(AES_TABLENAME_TOP, \"stop\", TRUE);
+      
+//DebugN(timer, doUpdate, \"Updates rows: \" + startRow + \" to \" + endRow);
+      for(int i=startRow; doUpdate && (i<=endRow); i++)
+      {
+        int alertType;
+        anytype onlineValue;
+        string dpAttribute, checkDpAttribute, dpeName;
+    
+        //for each row, read the dp name
+        getValue(AES_TABLENAME_TOP, \"cellValueRC\", i, _DPID_, dpAttribute);
+        if(dpAttribute == \"\")
+          break;
+        if(!dpExists(dpAttribute))
+          continue;
+        
+        dpeName = dpSubStr(dpAttribute, DPSUB_SYS_DP_EL);
+
+        //check the alert type, if summary then skip to next for loop iteration
+        dpGet(dpeName+\":_alert_hdl.._type\", alertType);
+        if(alertType == DPCONFIG_SUM_ALERT)
+          continue;
+        
+        //if not summary, then get the value and write it to the cell               
+        dpGet(dpeName+\":_online.._value\", onlineValue);
+        getValue(AES_TABLENAME_TOP, \"cellValueRC\", i, _DPID_, checkDpAttribute);
+        if(dpAttribute != checkDpAttribute)
+          break;
+          
+        setValue(AES_TABLENAME_TOP, \"cellValueRC\", i, fwAlarmHandlingScreen_COLUMN_ONLINE_VALUE, dpValToString(dpeName, onlineValue));
+//DebugN(\"New value for: \" + dpeName, onlineValue);
+      }
+      
+      if(doUpdate)
+        setValue(AES_TABLENAME_TOP, \"stop\", FALSE);
+      previousStartRow = startRow;
+    }
+    //never run update faster than once a second
+    delay(1);
+  }
+}
+
+accessControlCB(string dp, string value)
+{
+  string manageDisplayRight, filterRight;
+  dyn_string filters, exceptionInfo;
+  
+  if(g_currentUser == -1)
+    g_currentUser = getUserId();
+  
+  if(g_currentUser != getUserId())
+  {
+    if(g_watchUser)
+      returnToDefaultView();
+//    DebugN(\"new user:\" + getUserId());  
+  }
+  
+  getQuickFilterList(filters, exceptionInfo);
+  if(dynlen(filters) == 0)
+  {
+    quickFilterList.items = makeDynString(\"None available\");
+    quickFilterList.enabled = FALSE;
+    applyQuickFilter.enabled = FALSE;
+  }
+  else
+  {
+    dynInsertAt(filters, \"\", 1);
+    quickFilterList.items = filters;
+    quickFilterList.enabled = TRUE;
+    currentFilter.text = quickFilterList.text;
+    applyQuickFilter.enabled = TRUE;
+  }
+  
+  limitButtonAccess();
+  
+  g_currentUser = getUserId();
+}
+
+limitButtonAccess()
+{
+  bool isGranted;
+  dyn_string accessRights, exceptionInfo;
+  
+  if(isFunctionDefined(\"fwAccessControl_isGranted\"))
+  {
+    fwAlarmHandlingScreen_getAccessControlOptions(accessRights, exceptionInfo);
+
+    if(accessRights[fwAlarmHandlingScreen_ACCESS_MANAGE_DISPLAY] != \"\")
+      fwAccessControl_isGranted(accessRights[fwAlarmHandlingScreen_ACCESS_MANAGE_DISPLAY], isGranted, exceptionInfo);
+    else
+      isGranted = TRUE;
+    
+    manageDisplayButton.enabled = isGranted;
+
+    if(accessRights[fwAlarmHandlingScreen_ACCESS_FILTER] != \"\")
+      fwAccessControl_isGranted(accessRights[fwAlarmHandlingScreen_ACCESS_FILTER], isGranted, exceptionInfo);
+    else
+      isGranted = TRUE;
+    
+    applyFilter.enabled = isGranted;
+    aesModeSelector.enabled = isGranted;
+    applyMode.enabled = isGranted;
+    clearFilter.enabled = isGranted;
+    
+    if(accessRights[fwAlarmHandlingScreen_ACCESS_ACKNOWLEDGE] != \"\")
+      fwAccessControl_isGranted(accessRights[fwAlarmHandlingScreen_ACCESS_ACKNOWLEDGE], isGranted, exceptionInfo);
+    else
+      isGranted = TRUE;
+    
+    acknowledgeButton.enabled = isGranted;
+  }
+  else
+  {
+    manageDisplayButton.enabled = TRUE;
+    applyFilter.enabled = TRUE;
+    aesModeSelector.enabled = TRUE;
+    applyMode.enabled = TRUE;
+    clearFilter.enabled = TRUE;
+    acknowledgeButton.enabled = TRUE;
+  } 
+}
+
+getQuickFilterList(dyn_string &filtersToShow, dyn_string &exceptionInfo)
+{
+  bool granted;
+  string accessRight;
+  dyn_dyn_anytype queryResults;
+
+  dpQuery(\"SELECT '_online.._value' FROM '\" + fwAlarmHandlingScreen_FILTER_DP_PREFIX + 
+          \"*\" + fwAlarmHandlingScreen_CONFIG_DP_FILTER_QUICK_FILTER + \"' WHERE '_online.._value' == 1\", queryResults);
+  if(dynlen(queryResults) <= 1)
+  {
+    filtersToShow = makeDynString();
+    return;
+  }
+
+  if(isFunctionDefined(\"fwAccessControl_isGranted\"))
+  {
+    for(int i=2; i<=dynlen(queryResults); i++)
+    {
+      string dpName = dpSubStr(queryResults[i][1], DPSUB_DP);
+      strreplace(dpName, fwAlarmHandlingScreen_FILTER_DP_PREFIX, \"\");
+
+      dpGet(dpSubStr(queryResults[i][1], DPSUB_DP) + fwAlarmHandlingScreen_CONFIG_DP_FILTER_ACCESS_RIGHT, accessRight);
+      if(accessRight == \"\")
+        dynAppend(filtersToShow, dpName);
+      else
+      {
+        fwAccessControl_isGranted(accessRight, granted, exceptionInfo);
+        if(granted)
+          dynAppend(filtersToShow, dpName);
+      }        
+    }
+  }
+  else
+  {
+    for(int i=2; i<=dynlen(queryResults); i++)
+    {
+      string dpName = dpSubStr(queryResults[i][1], DPSUB_DP);
+      strreplace(dpName, fwAlarmHandlingScreen_FILTER_DP_PREFIX, \"\");
+      dynAppend(filtersToShow, dpName);
+    }
+  }
+}
+
+returnToDefaultView()
+{
+  bool needToReset = FALSE;
+  dyn_string exceptionInfo;
+  dyn_dyn_anytype aesFilter, visibleFilter;
+  dyn_anytype aesMode, visibleMode;
+
+  _fwAlarmHandlingScreen_getDefaultFilter(aesFilter, exceptionInfo);
+  _fwAlarmHandlingScreen_getDefaultMode(aesMode, exceptionInfo);
+  
+  fwAlarmHandlingScreen_readMode(visibleMode, exceptionInfo);
+  fwAlarmHandlingScreen_readFilter(visibleFilter, exceptionInfo);  
+    
+  if((visibleMode[fwAlarmHandlingScreen_CONFIG_OBJECT_MODE_TYPE] == AES_MODE_CURRENT)
+      && (applyMode.backCol == fwAlarmHandlingScreen_COLOUR_BUTTON_NEEDS_PRESSING))
+    needToReset = TRUE;
+
+  if(visibleMode[fwAlarmHandlingScreen_CONFIG_OBJECT_MODE_TYPE] == AES_MODE_CLOSED)
+    needToReset = TRUE;
+    
+  if((visibleFilter != aesFilter))
+    needToReset = TRUE;
+    
+  fwAlarmHandlingScreen_getColumnWidths(g_dsColumnsName, g_dbColumnsVisible, g_diColumnsWidth, exceptionInfo);
+  fwAlarmHandlingScreen_showMode(aesMode, exceptionInfo);
+  fwAlarmHandlingScreen_showFilter(aesFilter, exceptionInfo);
+  startHistoricalTime.visible = FALSE;
+  endHistoricalTime.visible = FALSE;
+  selectHistoricalTimes.enabled = FALSE;
+
+  if(needToReset)
+  {
+//DebugN(\"Clearing filters & modes\");
+    g_progressTitle = \"Re-initialisation\";
+    g_progressText = \"Clearing alarm filter...\";
+
+    aes_doStop(g_sPvssPropertiesDp);
+    fwAlarmHandlingScreen_applyMode(g_sPvssPropertiesDp, aesMode, exceptionInfo, FALSE);
+    fwAlarmHandlingScreen_applyFilter(g_sPvssPropertiesDp, aesFilter, exceptionInfo, FALSE);
+    aes_doStart(g_sPvssPropertiesDp);
+  }
+//  else
+//DebugN(\"No need for Clearing filters & modes\");
+  
+  g_InClosedMode = aesMode[fwAlarmHandlingScreen_CONFIG_OBJECT_MODE_TYPE] == AES_MODE_CLOSED;
+  currentMode.text = aesModeSelector.number;
+  applyMode.backCol = \"_3DFace\";
+
+  if(quickFilterList.text != \"None available\")
+    quickFilterList.text = \"\";
+  currentFilter.text = \"\";
+  applyQuickFilter.backCol = \"_3DFace\";
+}
+
+idleCheck()
+{
+  int row, column, xPos, yPos, timerIncrement = 5;
+  dyn_anytype currentState;
+  
+  while(1)
+  {
+    if(idleTimeoutValue.text != 0)
+    {
+      getCursorPosition(xPos, yPos);
+      getValue(AES_TABLENAME_TOP, \"currentCell\", row, column);
+      currentState = makeDynAnytype(xPos, yPos, row, column, g_shapeWithFocus);
+      if(currentState == g_idleCheck)
+        g_idleCounter += timerIncrement;
+      else
+      {
+        g_idleCounter = 0;
+        g_idleCheck = currentState;
+      }
+    }
+    else
+      g_idleCounter = 0;
+
+//DebugN(g_idleCounter);    
+    if(g_idleCounter > (60*(int)idleTimeoutValue.text))
+    {
+//      DebugN(\"TIMEOUT OCCURED\");
+      returnToDefaultView();
+      g_idleCounter = 0;
+    }
+    delay(timerIncrement); 
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" "// main()
+// {
+// 	int i;
+// }
+" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+1 509 1 "" 11
+0
+1 510 1 "" 24
+2 "visible" 0 0 0
+0
+1 511 1 "" 26
+0
+1 512 1 "" 27
+0
+1 513 1 "" 0
+0
+1 514 1 "" 1
+1 "rightClick" 1 1 "main()
+{
+  _fwAlarmHandlingScreen_rightClickFunction(g_propDpNameTop, AESTAB_TOP, this.name);
+}" 0
+ 
+0
+1 515 1 "" 15
+0
+1 516 1 "" 16
+0
+1 517 1 "" 12
+0
+1 518 1 "" 14
+0
+1 519 1 "" 17
+0
+1 520 1 "" 19
+2 "visible" 0 0 0
+0
+1 521 1 "" 20
+2 "visible" 0 0 0
+0
+1 522 1 "" 21
+2 "visible" 0 0 0
+0
+1 523 1 "" 25
+0
+14 417
+"systemsState"
+""
+1 380 840 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+83 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  378 838 412 865
+2 "0s" 0 0 0 0 0 -1  E E E
+14 415
+"systemsProblems"
+""
+1 410 840 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+80 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  408 838 649 864
+2 "0s" 0 0 0 0 0 -1  E E E
+14 418
+"runningState"
+""
+1 380 840 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+85 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  378 838 412 865
+2 "0s" 0 0 0 0 0 -1  E E E
+30 76
+"Frame1"
+""
+1 10 193 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 90 1020 195
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 13 Alarm Filters
+30 77
+"Frame2"
+""
+1 465 85 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.00980392156863 0 1 -4.55882352941176 0 0 E 465 10 975 85
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 4 Mode
+2 82
+"startHistoricalTime"
+""
+1 769 43 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 771 45 917 61
+0 2 0 "0s" 0 0 0 64 0 0  771 45 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 0 
+2 83
+"endHistoricalTime"
+""
+1 769 63 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 771 65 917 81
+0 2 0 "0s" 0 0 0 64 0 0  771 65 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 0 
+2 107
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 138 38
+0 2 0 "0s" 0 0 0 64 0 0  12 12 1
+1
+LANG:1 26 Arial,-1,19,5,40,0,0,0,0,0
+0 1
+LANG:1 12 Alarm Screen
+30 108
+"Frame3"
+""
+1 155 85 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+34 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 155 10 455 85
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 15 Acknowledgement
+2 112
+"Text9"
+""
+1 278 27 E E E 1 E 1 E N {255,0,0} E N {255,255,255} E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 280 29 306 45
+0 2 0 "0s" 0 0 0 65 0 0  280 29 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 3 !!!
+2 113
+"Text10"
+""
+1 278 54 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 280 56 306 72
+1 2 0 "0s" 0 0 0 65 0 0  280 56 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 x
+2 114
+"Text11"
+""
+1 313 54 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 315 56 341 72
+1 2 0 "0s" 0 0 0 65 0 0  315 56 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 3 xxx
+6 115
+"Border3"
+""
+1 278 47 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 278 27 308 47
+2 116
+"Text12"
+""
+1 348 27 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 350 29 455 45
+0 2 0 "0s" 0 0 0 64 0 0  350 29 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 14 Unacknowledged
+2 117
+"Text13"
+""
+1 348 158.6439405348455 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.00845665961945 0 2.619450317124732 0 E 350 47 455 85
+0 2 0 "0s" 0 0 0 64 0 0  350 47 2
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 16 Individual/Group
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 0 
+1 525 3 "" 2
+0
+1 526 3 "" 3
+0
+1 527 3 "" 4
+0
+1 528 3 "" 5
+0
+1 529 3 "" 6
+0
+1 530 3 "" 7
+0
+1 531 3 "" 21
+0
+1 532 3 "" 22
+0
+1 533 3 "" 25
+0
+1 554 3 "" 35
+0
+1 534 3 "" 23
+0
+1 535 3 "" 17
+0
+1 536 3 "" 16
+0
+1 537 3 "" 15
+0
+1 538 3 "" 20
+0
+1 539 3 "" 14
+0
+1 540 3 "" 13
+0
+1 541 3 "" 12
+0
+1 542 3 "" 11
+0
+1 543 3 "" 10
+0
+1 544 3 "" 9
+0
+1 545 3 "" 19
+0
+1 546 3 "" 24
+2 "visible" 0 0 0
+0
+1 547 3 "" 0
+0
+1 548 3 "" 1
+0
+1 549 3 "" 8
+0
+1 550 3 "0" 0
+0
+1 551 3 "" 27
+0
+1 552 3 "" 29
+0
+1 553 3 "" 34
+0
+2 158
+"Text2"
+""
+1 10 50 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 52 118 78
+0 2 0 "0s" 0 0 0 64 0 0  12 52 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 13 Print alarms:
+2 166
+"Text3"
+""
+1 20 842 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 844 128 861
+0 2 0 "0s" 0 0 0 192 0 0  22 844 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 17 Alarms Displayed:
+2 167
+"Text4"
+""
+1 190 842 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 192 844 294 861
+0 2 0 "0s" 0 0 0 192 0 0  192 844 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 15 Unacknowledged:
+19 80
+"aesModeSelector"
+""
+1 485 30 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  483 28 612 82
+2
+T 
+1
+LANG:1 14 Current Alarms
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 Historical Alarms
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  if(button == 0)
+  {
+    selectHistoricalTimes.enabled = FALSE;
+    startHistoricalTime.visible = FALSE;
+    endHistoricalTime.visible = FALSE;
+  }
+  else
+  {
+    selectHistoricalTimes.enabled = TRUE;
+    startHistoricalTime.visible = TRUE;
+    endHistoricalTime.visible = TRUE;
+  }
+        
+  if(button != currentMode.text)
+    applyMode.backCol = fwAlarmHandlingScreen_COLOUR_BUTTON_NEEDS_PRESSING;
+  else
+    applyMode.backCol = \"_3DFace\";
+}" 0
+
+13 81
+"selectHistoricalTimes"
+""
+1 615 48 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  613 46 757 80
+
+T 
+1
+LANG:1 20 Select Time Range...
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+	time startTime, endTime;
+	
+  ChildPanelOnCentralModalReturn(\"fwGeneral/fwGetTimes.pnl\", \"Specify time range...\", 
+      makeDynString(\"\"), df, ds);
+
+	if(ds[1] == \"cancel\")
+		return;
+		
+	startTime = ds[1];
+	endTime = ds[2];
+
+        if((hiddenStartTime.text != startTime) || (hiddenEndTime.text != endTime))
+        {
+          currentMode.text = -1;
+          applyMode.backCol = fwAlarmHandlingScreen_COLOUR_BUTTON_NEEDS_PRESSING;
+        }
+        
+	hiddenStartTime.text = startTime;
+	hiddenEndTime.text = endTime;
+
+	startHistoricalTime.text = formatTime(fwAlarmHandlingScreen_HISTORICAL_TIME_FORMAT, startTime);
+	endHistoricalTime.text = formatTime(fwAlarmHandlingScreen_HISTORICAL_TIME_FORMAT, endTime);
+}" 0
+ E E E
+13 89
+"applyMode"
+""
+1 934 44 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 16 Set display mode
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  932 42 971 81
+
+P 
+12632256
+"pictures/apply_en.gif"
+1
+LANG:1 0 
+"main()
+{
+	dyn_anytype aesMode;
+	dyn_string exceptionInfo;
+
+        g_progressTitle = \"Mode\";
+        g_progressText = \"Changing alarm screen mode...\";
+
+	fwAlarmHandlingScreen_getColumnWidths(g_dsColumnsName, g_dbColumnsVisible, g_diColumnsWidth, exceptionInfo);
+	fwAlarmHandlingScreen_readMode(aesMode, exceptionInfo);
+	
+        currentMode.text = aesModeSelector.number;
+	fwAlarmHandlingScreen_applyMode(g_sPvssPropertiesDp, aesMode, exceptionInfo, !g_InClosedMode);
+        g_InClosedMode = aesMode[fwAlarmHandlingScreen_CONFIG_OBJECT_MODE_TYPE] == AES_MODE_CLOSED;
+        this.backCol = \"_3DFace\";
+}" 0
+ E E E
+14 103
+"hiddenStartTime"
+""
+1 550 10 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  548 8 632 35
+3 "0s" 0 0 0 0 0 -1  E E E
+14 104
+"hiddenEndTime"
+""
+1 640 10 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  638 8 722 35
+3 "0s" 0 0 0 0 0 -1  E E E
+13 106
+"closeButton"
+""
+1 930 835 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  928 833 1012 867
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  aes_doStop(g_sPvssPropertiesDp);
+	PanelOff();
+}
+" 0
+ E E E
+1 524 2 "" 0
+0
+26 157
+"acknowledgeButton"
+""
+1 168 37 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  166 35 265 69
+ 0 1
+LANG:1 11 Acknowledge
+"" 0 0 0 0 0
+ 2 1 1
+LANG:1 18 All Visible Alarms
+"ackAllVisible" 0 0 0 0 0
+ 1 1
+LANG:1 19 All Alarms in Table
+"ackAll" 0 0 0 0 0
+ "main()
+{
+//	this.enableItem(\"0\", FALSE);
+//	this.enableItem(\"1\", FALSE);
+//	this.enableItem(\"2\", FALSE);
+}" 0
+ "main(string id)
+{
+  mapping m;
+
+  switch(id)
+  {
+    case \"ackAllVisible\":
+      aes_prepareForTableAcknowledge(AES_CHANGED_ACKALLVIS, AESTAB_TOP, m);
+      aes_changedAcknowledgeWithRowData(AES_CHANGED_ACKALLVIS, AESTAB_TOP, m);
+      break;
+    case \"ackAll\":
+      aes_prepareForTableAcknowledge(AES_CHANGED_ACKALL, AESTAB_TOP, m);
+      aes_changedAcknowledgeWithRowData(AES_CHANGED_ACKALL, AESTAB_TOP, m);
+      break;
+  }
+}
+" 0
+0 
+13 159
+"printButton"
+""
+1 90 40 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 17 Print alarm table
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  88 38 127 77
+
+P 
+4022845
+"pictures/printer_en.gif"
+1
+LANG:1 0 
+"main()
+{
+	aes_as_printTable(g_sPvssPropertiesDp, g_sTable, true);
+}" 0
+ E E E
+13 160
+"applyFilter"
+""
+1 934 153 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 13 Modify filter
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  932 151 971 190
+
+P 
+14215660
+"pictures/properties.xpm"
+1
+LANG:1 0 
+"main()
+{
+	string dollarValue;
+	dyn_float df;
+	dyn_string ds, filters, exceptionInfo;
+	dyn_dyn_anytype aesFilter;
+
+	fwAlarmHandlingScreen_readFilter(aesFilter, exceptionInfo);
+	_fwAlarmHandlingScreen_convertFilterToDollar(aesFilter, dollarValue, exceptionInfo);
+
+	//needed to clear problem with embedded childpanelreturns after first execution
+	dpSetWait(\"_Ui_\" + myManNum() + \".ReturnValue.Float\", makeDynFloat(),
+						\"_Ui_\" + myManNum() + \".ReturnValue.Text\", makeDynString());
+
+	ChildPanelOnReturn(\"fwAlarmHandling/fwAlarmHandlingFilter.pnl\",
+				\"Alarm Filter\",
+				makeDynString(\"$bEditFilter:\" + TRUE,
+						\"$dsDeviceTypes:\" + deviceType.items,
+						\"$dsDpTypes:\" + dpTypeList.items,
+						\"$sCurrentFilter:\" + dollarValue),
+				0, 0, df, ds);
+        
+  getQuickFilterList(filters, exceptionInfo);
+  if(dynlen(filters) == 0)
+  {
+    applyQuickFilter.backCol = \"_3DFace\";      
+    quickFilterList.items = makeDynString(\"None available\");
+    quickFilterList.enabled = FALSE;
+    applyQuickFilter.enabled = FALSE;
+  }
+  else
+  {
+    dynInsertAt(filters, \"\", 1);
+    quickFilterList.items = filters;
+    quickFilterList.enabled = TRUE;
+    currentFilter.text = quickFilterList.text;
+    applyQuickFilter.enabled = TRUE;
+  }
+        
+        
+	if(df[1] > 0.5)
+	{
+		_fwAlarmHandlingScreen_convertDollarToFilter(ds[1], aesFilter, exceptionInfo);
+
+                g_progressTitle = \"Filter\";
+                g_progressText = \"Performing alarm filter...\";
+	
+		fwAlarmHandlingScreen_getColumnWidths(g_dsColumnsName, g_dbColumnsVisible, g_diColumnsWidth, exceptionInfo);
+		fwAlarmHandlingScreen_showFilter(aesFilter, exceptionInfo);
+		fwAlarmHandlingScreen_applyFilter(g_sPvssPropertiesDp, aesFilter, exceptionInfo, !g_InClosedMode);
+                
+                if(quickFilterList.text != \"None available\")
+        	  quickFilterList.text = \"\";
+        	currentFilter.text = \"\";
+        	applyQuickFilter.backCol = \"_3DFace\";
+	}
+}" 0
+ E E E
+13 163
+"clearFilter"
+""
+1 974 153 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+47 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 12 Clear filter
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  972 151 1011 190
+
+P 
+13421721
+"pictures/del_en.gif"
+1
+LANG:1 0 
+"main()
+{
+	dyn_string exceptionInfo;
+	dyn_dyn_anytype aesFilter;
+
+	_fwAlarmHandlingScreen_getDefaultFilter(aesFilter, exceptionInfo);
+	
+        g_progressTitle = \"Alarm Screen Update\";
+        g_progressText = \"Clearing alarm filter...\";
+
+ 	fwAlarmHandlingScreen_getColumnWidths(g_dsColumnsName, g_dbColumnsVisible, g_diColumnsWidth, exceptionInfo);
+	fwAlarmHandlingScreen_showFilter(aesFilter, exceptionInfo);
+	fwAlarmHandlingScreen_applyFilter(g_sPvssPropertiesDp, aesFilter, exceptionInfo, !g_InClosedMode);
+        if(quickFilterList.text != \"None available\")
+          quickFilterList.text = \"\";
+        currentFilter.text = \"\";
+        applyQuickFilter.backCol = \"_3DFace\";
+}
+" 0
+ E E E
+14 164
+"alarmTableLines"
+""
+1 130 840 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+48 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  128 838 182 865
+2 "0s" 0 0 0 2 0 -1  E E E
+14 165
+"unackedAlarms"
+""
+1 298 840 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+49 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  296 838 350 865
+2 "0s" 0 0 0 2 0 -1  E E E
+13 169
+"manageDisplayButton"
+""
+1 790 835 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+51 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 49 Manage Display - Only in Current Alarms displayed
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  788 833 832 867
+
+P 
+4294967295
+"pictures/SysMgm/16x16/SysMgmSettings.png"
+1
+LANG:1 17 Manage Display...
+"dyn_string g_dsPreviousColumns;
+
+main()
+{
+  int reductionMode;
+  bool someColumnWasChanged;
+	string dollarValue;
+	dyn_float df;
+	dyn_string ds, exceptionInfo, systems;
+	dyn_dyn_anytype aesFilter;
+	dyn_anytype aesMode;
+  
+	g_dsPreviousColumns = g_dsColumnsShown;
+ fwAlarmHandlingScreen_getReductionMode(g_sPvssPropertiesDp, reductionMode, exceptionInfo);
+ fwAlarmHandlingScreen_getColumnWidths(g_dsColumnsName, g_dbColumnsVisible, g_diColumnsWidth, exceptionInfo);
+
+ 	ChildPanelOnModalReturn(\"fwAlarmHandling/fwAlarmHandlingScreenOptions.pnl\",
+					\"Display Options\",
+					makeDynString(\"$dsColumnsVisible:\" + g_dsColumnsShown,
+                      \"$iOnlineValueUpdateRate:\" + onlineUpdateRate.text,
+                      \"$bShowDistDetails:\" + g_showDistDetails,
+                      \"$iSummariesMode:\" + reductionMode,
+                      \"$iIdleTimeout:\" + idleTimeoutValue.text,
+                      \"$dsAllColumnsName:\" + g_dsColumnsName,
+                      \"$dbAllColumnsVisible:\" + g_dbColumnsVisible,
+                      \"$diAllColumnsWidth:\" + g_diColumnsWidth
+                      ),
+					0, 0, df, ds);
+ //must check access control, even if pressed cancel, settings may have changed
+ limitButtonAccess();
+
+	if(df[1] > 0.5)
+	{	
+    g_progressTitle = \"Columns\";
+    g_progressText = \"Altering visible columns...\";
+
+    onlineUpdateRate.text = df[2];
+    idleTimeoutValue.text = (int)df[5];
+    g_showDistDetails = (bool)df[3];
+     
+    //apply new reduction mode only if it was changed
+    if(reductionMode!=(int)df[4])
+    {
+   	  fwAlarmHandlingScreen_setReductionMode(g_sPvssPropertiesDp, (int)df[4], exceptionInfo);
+  		}
+    
+    //modify columns shown only if some were modified
+    if(g_dsColumnsShown != ds || reductionMode!=(int)df[4])
+    {
+    		g_dsColumnsShown = ds;
+    		checkKeepWidthSettings(fwAlarmHandlingScreen_COLUMN_ID_DP_NAME, fwAlarmHandlingScreen_COLUMN_DP_NAME);
+    		checkKeepWidthSettings(fwAlarmHandlingScreen_COLUMN_ID_LOGICAL_NAME, fwAlarmHandlingScreen_COLUMN_LOGICAL_NAME);
+    		checkKeepWidthSettings(fwAlarmHandlingScreen_COLUMN_ID_DESCRIPTION, fwAlarmHandlingScreen_COLUMN_DESCRIPTION);
+    		checkKeepWidthSettings(fwAlarmHandlingScreen_COLUMN_ID_ALERT_VALUE, fwAlarmHandlingScreen_COLUMN_ALERT_VALUE);
+    		checkKeepWidthSettings(fwAlarmHandlingScreen_COLUMN_ID_ONLINE_VALUE, fwAlarmHandlingScreen_COLUMN_ONLINE_VALUE);
+    		checkKeepWidthSettings(fwAlarmHandlingScreen_COLUMN_ID_TIME_STANDARD, fwAlarmHandlingScreen_COLUMN_TIME_STANDARD);
+    		checkKeepWidthSettings(fwAlarmHandlingScreen_COLUMN_ID_TIME_CAME, fwAlarmHandlingScreen_COLUMN_TIME_CAME);   
+    
+       _fwAlarmHandlingScreen_showHideColumns(g_sPvssPropertiesDp,
+    							makeDynString(fwAlarmHandlingScreen_COLUMN_DP_NAME,
+                  							fwAlarmHandlingScreen_COLUMN_LOGICAL_NAME,
+                  						 fwAlarmHandlingScreen_COLUMN_DESCRIPTION,
+                  							fwAlarmHandlingScreen_COLUMN_ALERT_VALUE,
+                  							fwAlarmHandlingScreen_COLUMN_ONLINE_VALUE,
+                  							fwAlarmHandlingScreen_COLUMN_TIME_STANDARD,
+                   							fwAlarmHandlingScreen_COLUMN_TIME_CAME),                           
+    							makeDynString(g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_DP_NAME],
+                            g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_LOGICAL_NAME],
+                              g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_DESCRIPTION],
+                              g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_ALERT_VALUE],
+                              g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_ONLINE_VALUE],
+                              g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_TIME_STANDARD], 
+                              g_dsColumnsShown[fwAlarmHandlingScreen_COLUMN_ID_TIME_CAME]),
+                              exceptionInfo, TRUE);   
+   }
+	}
+	fwAlarmHandlingScreen_readMode(aesMode, exceptionInfo);
+	fwAlarmHandlingScreen_applyMode(g_sPvssPropertiesDp, aesMode, exceptionInfo, g_InClosedMode);  
+}
+
+checkKeepWidthSettings(int index, string columnName)
+{
+	int pos;
+
+//in the AS, invisible columns are actually just reduced to width = 0
+//if the column is changing from visible -> invisible or invisible -> visible, then we need to forget the previous width
+//so if the XOR of the current state and previous state equals TRUE, then delete the width stored for the column
+
+//DebugN(g_dsColumnsShown, g_dsPreviousColumns);
+//DebugN(g_dsColumnsShown[index], g_dsPreviousColumns[index], (g_dsColumnsShown[index] == \"TRUE\") ^ (g_dsPreviousColumns[index] == \"TRUE\"));
+
+	if((g_dsColumnsShown[index] == \"TRUE\") ^ (g_dsPreviousColumns[index] == \"TRUE\"))
+	{
+//DebugN(\"Remove settings for: \" + columnName);
+		pos = dynContains(g_dsColumnsName, columnName);
+		dynRemove(g_dsColumnsName, pos);
+		dynRemove(g_dbColumnsVisible, pos);
+		dynRemove(g_diColumnsWidth, pos);
+	}
+}
+" 0
+ E E E
+14 213
+"onlineUpdateRate"
+""
+1 770 80 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  768 78 932 105
+2 "0s" 0 0 0 2 0 -1  E E E
+14 257
+"restartWarning"
+""
+1 410 840 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+55 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  408 838 569 865
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = \"Alarm Screen Stopped!!!\";
+}" 0
+ E
+13 258
+"restartButton"
+""
+1 580 835 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+57 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,75,0,0,0,0,0
+0  578 833 652 867
+
+T 
+1
+LANG:1 7 Restart
+"main()
+{
+  aes_doStart(g_sPvssPropertiesDp);
+}" 0
+ E E E
+2 260
+"PRIMITIVE_TEXT1"
+""
+1 718 146 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 720 148 798 165
+0 2 0 "0s" 0 0 0 192 0 0  720 148 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 14 Quick Filters:
+22 261
+"quickFilterList"
+""
+1 720.9999999999999 164 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+63 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  719 162 862 189
+0
+
+E
+"main()
+{
+  if(currentFilter.text != quickFilterList.text)
+    applyQuickFilter.backCol = fwAlarmHandlingScreen_COLOUR_BUTTON_NEEDS_PRESSING;
+  else
+    applyQuickFilter.backCol = \"_3DFace\";
+}" 0
+
+E
+ 0 0
+13 262
+"applyQuickFilter"
+""
+1 894 153 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+65 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 16 Set quick filter
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  892 151 931 190
+
+P 
+12632256
+"pictures/apply_en.gif"
+1
+LANG:1 0 
+"main()
+{
+  loadAndApplyFilter();
+}" 0
+ E E E
+6 316
+"RECTANGLE2"
+""
+1 580 10 E E E 1 E 1 E N "_Transparent" E N "_3DFace" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 2 1 E 0.481003533401874 0 1.52380952380952 501.017950626913 -5.23809523809524 1 E 580 10 1000 30
+4 318
+"LINE2"
+""
+1 780 19 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_ButtonShadow"
+E E 0 1 1 2 1 E  780 19 780 41
+4 319
+"LINE3"
+""
+1 780 40 E E E 1 E 1 E N "_ButtonShadow" E N {255,255,255} E E
+ E E
+72 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E  780 40 978 40
+14 320
+"currentFilter"
+""
+1 740 100 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  738 98 822 125
+3 "0s" 0 0 0 0 0 -1  E E E
+14 368
+"currentMode"
+""
+1 390 10 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  388 8 472 35
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = aesModeSelector.number;
+}" 0
+ E
+14 369
+"acNotAvailable"
+""
+1 790 11 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+77 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  788 9 980 35
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = \"Access Control not available\";
+}" 0
+ E
+13 370
+"unselectRow"
+""
+1 680 835 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+79 0 0 0 0 0
+"main()
+{
+  g_shapeWithFocus = this.name;
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  678 833 782 867
+
+T 
+1
+LANG:1 13 Deselect Rows
+"main()
+{
+  dyn_int lines;
+  
+  getValue(g_sTable, \"getSelectedLines\", lines);
+  setValue(g_sTable, \"removeSelectLines\", lines);
+}" 0
+ E E E
+14 463
+"idleTimeoutValue"
+""
+1 190 90 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+86 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  188 88 312 114
+3 "0s" 0 0 0 0 0 -1  E E E
+2 508
+"PRIMITIVE_TEXT2"
+""
+1 348 208.8845552978501 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+87 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.00845665961945 0 3.492600422832981 0 E 350 60 455 76
+0 2 0 "0s" 0 0 0 64 0 0  350 60 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 12 acknowledged
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 1 "" -1
+"vision\\aes\\AEScreen.pnl" 10 100 T 30 1 0 1 78 1334
+3
+"$ACTION""AES_ACTION_INTERACT"
+"$FILENAME""fwAES"
+"$SCREENTYPE""fwAES"
+3 2 "Group3" -1
+"objects\\fwGeneral\\fwHelpButton.pnl" 604 10 T 42 1 0 1 391 0
+1
+"$sPanelRelativePath""fwAlarmHandling/fwAlarmHandlingScreen"
+3 3 "" -1
+"fwAlarmHandling\\fwAlarmHandlingFilter.pnl" 227 120 T 42 1 0 1 443 -16
+4
+"$bEditFilter""FALSE"
+"$dsDeviceTypes""\"Loading device types...\""
+"$dsDpTypes"""
+"$sCurrentFilter"""
+0

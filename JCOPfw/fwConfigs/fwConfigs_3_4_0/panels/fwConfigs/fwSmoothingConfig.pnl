@@ -1,0 +1,1604 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 641 391 N "_3DFace" 3
+"$bHierarchyBrowser"
+"$sDpe"
+"$sDpeConfigObjectVarName"
+"main()
+{
+	bool isSmoothed;
+	int length, i, elementType, smoothProcedure, configType;	
+	float deadband, timeInterval;
+	string dpe, errorString;
+	shape optionsList;
+	dyn_string systems, exceptionInfo;
+	
+	if(isDollarDefined(\"$sDpe\"))
+	{
+		dpe = $sDpe;
+		strreplace(dpe, \" \", \"\");
+	    DPE_LIST = strsplit(dpe, \"|\");
+	}
+    
+	elementNameField.editable(FALSE);
+
+	switch(dynlen(DPE_LIST))
+	{
+			case 0:				
+				if(isDollarDefined(\"$sDpeConfigObjectVarName\"))	// object passed to the panel
+				{
+					if(getGlobalType($sDpeConfigObjectVarName) != DYN_DYN_ANYTYPE_VAR)
+					{
+						elementNameField.text(\"Wrong config object name\");
+						smoothingSwitch.enabled = FALSE;
+						applyButton.enabled = FALSE;
+						okButton.enabled = FALSE;
+						fwException_raise(exceptionInfo, 
+															\"WARNING\", \"The config object \" + $sDpeConfigObjectVarName + 
+															\" doesn't exists or hasn't got the proper format.\", 
+															\"\");
+						fwExceptionHandling_display(exceptionInfo);					
+						return;
+					}					
+					
+					panelMode = OBJECT;					
+					fwGeneral_getGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+					//DebugN(\\\"fwAlertConfigPanel: \\\", dpeAlertConfigObject);
+					
+					// read from config object
+					DPE_LIST[1] = dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_NAME][1];						
+					DPE_TYPE		= dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_TYPE][1];
+					configType	= dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1];
+					smoothProcedure	= dpeConfigObject[fwSmoothing_DPE_OBJECT_PROCEDURE][1];
+					deadband				= dpeConfigObject[fwSmoothing_DPE_OBJECT_DEADBAND][1];
+					timeInterval		= dpeConfigObject[fwSmoothing_DPE_OBJECT_TIME_INTERVAL][1];
+					
+					if(configType == DPCONFIG_NONE)
+						isSmoothed = FALSE;
+					else
+						isSmoothed = TRUE;
+					
+					elementNameField.text(DPE_LIST[1]);
+					DPES_OK = TRUE;
+				}
+				else // neither dpes nor object passed, nothing to do in the panel
+				{
+					elementNameField.text(\"No Data Point Elements\");
+					smoothingSwitch.enabled = FALSE;
+					applyButton.enabled = FALSE;
+					okButton.enabled = FALSE;
+					fwException_raise(exceptionInfo, \"WARNING\", getCatStr(\"fwConfigs\", \"PANEL_NODATAPOINTSTOCONFIG\"), \"\");
+					fwExceptionHandling_display(exceptionInfo);					
+					return;
+				}
+				break;
+				
+			case 1:		// single dpe passed to the panel
+				panelMode = SINGLE_DPE;
+				dpe = DPE_LIST[1];
+				elementNameField.text(dpe);
+				DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_SMOOTH, DPE_TYPE, exceptionInfo, errorString);
+				if(!DPES_OK)
+					fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+				else
+				{
+					// read config (extra checking necessary because it is stored in the driver)		
+					fwSmoothing_get(DPE_LIST[1], isSmoothed, smoothProcedure, deadband, timeInterval, exceptionInfo);
+				}
+				
+				if(dynlen(exceptionInfo) > 0)
+				{
+					if(exceptionInfo[dynlen(exceptionInfo)] != \"\")
+					{
+						driverProblem.text = \"The current state of this config is unknown.\\nThe config can not be modified.\\nThe config can not be accessed because\\ndriver number \"
+																	+ exceptionInfo[dynlen(exceptionInfo)] + \" is not running.\";
+						driverProblem.visible = TRUE;
+						smoothingSwitch.enabled = FALSE;
+						okButton.enabled = FALSE;
+						applyButton.enabled = FALSE;
+						exceptionInfo = makeDynString();
+					}
+					else
+						fwExceptionHandling_display(exceptionInfo);
+				}
+				break;
+			default:	// multiple dpes passed to the panel
+				panelMode = MULTIPLE_DPES;
+				dpe = DPE_LIST[1];
+
+				_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+				
+				if(dynlen(systems) == 1)
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+
+				DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_SMOOTH, DPE_TYPE, exceptionInfo, errorString);
+				if(!DPES_OK)
+					fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+
+				dpeDetails.visible = TRUE;
+				isSmoothed = FALSE;
+				break;
+	}
+
+	fwSetTimeFieldsFormat(exceptionInfo);
+	applyButton.enabled = DPES_OK;
+	okButton.enabled = DPES_OK;
+
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	_fwInitOptionsMapping();
+
+	if(isSmoothed)
+	{
+		smoothingSwitch.state(0, TRUE);
+		
+		_fwConfigs_getConfigOptionsForDpeType(DPE_TYPE, fwConfigs_PVSS_SMOOTH, elementType, exceptionInfo);		
+		switch(elementType)
+		{
+				case fwConfigs_ANALOG_OPTIONS:
+					optionsList = getShape(\"smoothingOptions\");
+					if(mappingHasKey(ANALOG_OPTIONS, smoothProcedure))
+						optionsList.number = ANALOG_OPTIONS[smoothProcedure];
+					else
+						optionsList.number = 0;
+					break;
+				default:
+					optionsList = getShape(\"digitalSmoothingOptions\");
+					if(mappingHasKey(DIGITAL_OPTIONS, smoothProcedure))
+						optionsList.number = DIGITAL_OPTIONS[smoothProcedure];
+					else
+						optionsList.number = 0;
+					break;
+		}
+
+		_fwDisplayTime(timeInterval);
+		_fwDisplayDeadband(smoothProcedure, deadband);
+		_fwShowSmoothingItems(optionsList.number);
+		optionsList.visible(TRUE);
+	}
+	else
+	{
+		_fwHideSmoothingItems();
+		smoothingSwitch.state(0,FALSE);
+		_fwDisplayTime(timeInterval);
+		_fwDisplayDeadband(DPCONFIG_NONE, deadband);
+	}
+
+	fwSetDeadbandFieldFormat(relativeSelector.state(0), exceptionInfo);
+	smoothingSwitch.visible(TRUE);
+}
+
+_fwDisplayDeadband(int smoothProcedure, float deadband)
+{
+	switch(smoothProcedure)
+	{
+		case DPATTR_VALUE_REL_SMOOTH:
+		case DPATTR_TIME_AND_VALUE_REL_SMOOTH:
+		case DPATTR_TIME_OR_VALUE_REL_SMOOTH:
+			relativeSelector.state(0) = TRUE;
+			break;
+		default:
+			relativeSelector.state(0) = FALSE;
+			break;
+	}
+	
+	deadbandValue.text(deadband);
+}
+
+_fwDisplayTime(float timeInterval)
+{
+	int actualDay,actualHour,actualMinute,actualSecond,actualMilli,timeInSeconds;
+	time interval;
+	
+	interval = timeInterval;
+	timeInSeconds = period(interval);
+	actualMilli = milliSecond(interval);
+
+	actualDay=timeInSeconds/86400;
+	timeInSeconds=timeInSeconds-(actualDay*86400);
+
+	actualHour=timeInSeconds/3600;
+	timeInSeconds=timeInSeconds-(actualHour*3600);
+
+	actualMinute=timeInSeconds/60;
+	timeInSeconds=timeInSeconds-(actualMinute*60);
+
+	actualSecond=timeInSeconds;	
+
+	day.text(actualDay);
+	hour.text(actualHour);
+	minute.text(actualMinute);
+	second.text(actualSecond);
+	milli.text(actualMilli);
+
+	secondsOnly.state(0,FALSE);
+}" 0
+ E E E E 1 -1 -1 0  211 534
+""0  1
+E "const int RELATIVE_DEADBAND = 10;
+
+dyn_string DPE_LIST;
+int DPE_TYPE;
+bool DPES_OK;
+mapping DIGITAL_OPTIONS;
+mapping ANALOG_OPTIONS;
+mapping DIGITAL_PROCEDURES;
+mapping ANALOG_PROCEDURES;
+
+// mode in which the panel is used
+int panelMode;
+const int OBJECT	= 1;
+const int SINGLE_DPE		= 2;
+const int MULTIPLE_DPES	= 3;
+
+dyn_dyn_anytype dpeConfigObject;
+
+fwSetTimeFieldsFormat(dyn_string &exceptionInfo)
+{
+	string formatString;
+
+	fwConfigs_getBestFormatForDpeType(DPEL_INT, formatString, exceptionInfo);
+	fwConfigs_setTextFieldsFormat(makeDynString(\"day\", \"hour\", \"minute\", \"second\", \"milli\"), formatString,
+									makeDynBool(FALSE), exceptionInfo);
+}
+
+fwSetDeadbandFieldFormat(bool isRelative, dyn_string &exceptionInfo)
+{
+	string formatString;
+
+	if(isRelative)
+		fwConfigs_getBestFormatForDpeType(DPEL_FLOAT, formatString, exceptionInfo);
+	else
+		fwConfigs_getBestFormatForDpeList(DPE_LIST, formatString, exceptionInfo);
+	
+	fwConfigs_setTextFieldsFormat(makeDynString(\"deadbandValue\"), formatString,
+									makeDynBool(FALSE), exceptionInfo);
+}
+
+_fwInitOptionsMapping()
+{
+	DIGITAL_OPTIONS[DPATTR_TIME_SMOOTH] = 0;
+	DIGITAL_OPTIONS[DPATTR_COMPARE_OLD_NEW] = 1;
+	DIGITAL_OPTIONS[DPATTR_OLD_NEW_AND_TIME_SMOOTH] = 2;
+	DIGITAL_OPTIONS[DPATTR_OLD_NEW_OR_TIME_SMOOTH] = 3;
+
+	ANALOG_OPTIONS[DPATTR_VALUE_SMOOTH] = 0;
+	ANALOG_OPTIONS[DPATTR_VALUE_REL_SMOOTH] = 0;
+	ANALOG_OPTIONS[DPATTR_TIME_SMOOTH] = 1;
+	ANALOG_OPTIONS[DPATTR_TIME_AND_VALUE_SMOOTH] = 2;
+	ANALOG_OPTIONS[DPATTR_TIME_AND_VALUE_REL_SMOOTH] = 2;
+	ANALOG_OPTIONS[DPATTR_TIME_OR_VALUE_SMOOTH] = 3;
+	ANALOG_OPTIONS[DPATTR_TIME_OR_VALUE_REL_SMOOTH] = 3;
+	ANALOG_OPTIONS[DPATTR_COMPARE_OLD_NEW] = 4;
+	ANALOG_OPTIONS[DPATTR_OLD_NEW_AND_TIME_SMOOTH] = 5;
+	ANALOG_OPTIONS[DPATTR_OLD_NEW_OR_TIME_SMOOTH] = 6;
+
+	DIGITAL_PROCEDURES[0] = DPATTR_TIME_SMOOTH;
+	DIGITAL_PROCEDURES[1] = DPATTR_COMPARE_OLD_NEW;
+	DIGITAL_PROCEDURES[2] = DPATTR_OLD_NEW_AND_TIME_SMOOTH;
+	DIGITAL_PROCEDURES[3] = DPATTR_OLD_NEW_OR_TIME_SMOOTH;
+
+	ANALOG_PROCEDURES[0] = DPATTR_VALUE_SMOOTH;
+	ANALOG_PROCEDURES[0 + RELATIVE_DEADBAND] = DPATTR_VALUE_REL_SMOOTH;
+	ANALOG_PROCEDURES[1] = DPATTR_TIME_SMOOTH;
+	ANALOG_PROCEDURES[1 + RELATIVE_DEADBAND] = DPATTR_TIME_SMOOTH;
+	ANALOG_PROCEDURES[2] = DPATTR_TIME_AND_VALUE_SMOOTH;
+	ANALOG_PROCEDURES[2 + RELATIVE_DEADBAND] = DPATTR_TIME_AND_VALUE_REL_SMOOTH;
+	ANALOG_PROCEDURES[3] = DPATTR_TIME_OR_VALUE_SMOOTH;
+	ANALOG_PROCEDURES[3 + RELATIVE_DEADBAND] = DPATTR_TIME_OR_VALUE_REL_SMOOTH;
+	ANALOG_PROCEDURES[4] = DPATTR_COMPARE_OLD_NEW;
+	ANALOG_PROCEDURES[4 + RELATIVE_DEADBAND] = DPATTR_COMPARE_OLD_NEW;
+	ANALOG_PROCEDURES[5] = DPATTR_OLD_NEW_AND_TIME_SMOOTH;
+	ANALOG_PROCEDURES[5 + RELATIVE_DEADBAND] = DPATTR_OLD_NEW_AND_TIME_SMOOTH;
+	ANALOG_PROCEDURES[6] = DPATTR_OLD_NEW_OR_TIME_SMOOTH;
+	ANALOG_PROCEDURES[6 + RELATIVE_DEADBAND] = DPATTR_OLD_NEW_OR_TIME_SMOOTH;
+}
+
+_fwShowSmoothingItems(int selectedOption)
+{
+	bool timeInSecondsOnly, relativeDeadband, timeIntervalStatus, deadbandStatus, canShowDeadband;
+	int elementType, smoothProcedure;
+	dyn_string exceptionInfo;
+
+	driverProblem.visible = FALSE;
+
+	timeInSecondsOnly = secondsOnly.state(0);	
+	relativeDeadband = relativeSelector.state(0);	
+
+	if(relativeDeadband)
+		selectedOption += RELATIVE_DEADBAND;
+
+	_fwConfigs_getConfigOptionsForDpeType(DPE_TYPE, fwConfigs_PVSS_ARCHIVE, elementType, exceptionInfo);		
+	switch(elementType)
+	{
+		case fwConfigs_ANALOG_OPTIONS:
+			canShowDeadband = TRUE;
+			if(mappingHasKey(ANALOG_PROCEDURES, selectedOption))
+				smoothProcedure = ANALOG_PROCEDURES[selectedOption];
+			else
+				smoothProcedure = -1;
+			break;
+		default:
+			canShowDeadband = FALSE;
+			if(mappingHasKey(DIGITAL_PROCEDURES, selectedOption))
+				smoothProcedure = DIGITAL_PROCEDURES[selectedOption];
+			else
+				smoothProcedure = -1;
+			break;
+	}
+	
+	switch(smoothProcedure)
+	{
+		case DPATTR_VALUE_SMOOTH:
+		case DPATTR_VALUE_REL_SMOOTH:
+			deadbandStatus=canShowDeadband;
+			timeIntervalStatus=FALSE;
+			break;
+		case DPATTR_TIME_SMOOTH:
+			deadbandStatus=FALSE;
+			timeIntervalStatus=TRUE;
+			break;
+		case DPATTR_TIME_AND_VALUE_SMOOTH:
+		case DPATTR_TIME_AND_VALUE_REL_SMOOTH:
+		case DPATTR_TIME_OR_VALUE_SMOOTH:
+		case DPATTR_TIME_OR_VALUE_REL_SMOOTH:
+			deadbandStatus=canShowDeadband;
+			timeIntervalStatus=TRUE;
+			break;
+		case DPATTR_COMPARE_OLD_NEW:
+			deadbandStatus=FALSE;
+			timeIntervalStatus=FALSE;
+			break;
+		case DPATTR_OLD_NEW_AND_TIME_SMOOTH:
+		case DPATTR_OLD_NEW_OR_TIME_SMOOTH:
+			deadbandStatus=FALSE;
+			timeIntervalStatus=TRUE;
+			break;
+		default:
+			deadbandStatus=FALSE;
+			timeIntervalStatus=FALSE;
+			break;
+	}
+
+	timeText.visible(timeIntervalStatus);
+	day.visible(timeIntervalStatus &! timeInSecondsOnly);
+	hour.visible(timeIntervalStatus &! timeInSecondsOnly);
+	minute.visible(timeIntervalStatus &! timeInSecondsOnly);
+	second.visible(timeIntervalStatus);
+	milli.visible(timeIntervalStatus);
+	dayTitle.visible(timeIntervalStatus &! timeInSecondsOnly);
+	hourTitle.visible(timeIntervalStatus &! timeInSecondsOnly);
+	minuteTitle.visible(timeIntervalStatus &! timeInSecondsOnly);
+	secondTitle.visible(timeIntervalStatus);
+	milliTitle.visible(timeIntervalStatus);
+	secondsOnly.visible(timeIntervalStatus);
+
+	relativeUnit.visible(deadbandStatus && relativeDeadband);
+	relativeSelector.visible(deadbandStatus);
+	deadbandText.visible(deadbandStatus);
+	deadbandValue.visible(deadbandStatus);
+}
+
+_fwHideSmoothingItems()
+{
+	timeText.visible(FALSE);
+	day.visible(FALSE);
+	hour.visible(FALSE);
+	minute.visible(FALSE);
+	second.visible(FALSE);
+	milli.visible(FALSE);
+	dayTitle.visible(FALSE);
+	hourTitle.visible(FALSE);
+	minuteTitle.visible(FALSE);
+	secondTitle.visible(FALSE);
+	milliTitle.visible(FALSE);
+	secondsOnly.visible(FALSE);
+
+	deadbandText.visible(FALSE);
+	deadbandValue.visible(FALSE);
+	relativeUnit.visible(FALSE);
+	relativeSelector.visible(FALSE);
+
+	smoothingOptions.visible(FALSE);
+	digitalSmoothingOptions.visible(FALSE);
+}
+
+saveSettings(dyn_string &exceptionInfo)
+{
+	bool relativeDeadband;
+	int newDay = 0, newHour = 0, newMinute = 0, newSecond = 0, newMilli = 0, smoothProcedure, elementType;
+	float newTime, deadband;
+	time interval;
+	string temp;
+	bool isGood;
+	shape optionsList;
+
+ 	if(!DPES_OK)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", getCatStr(\"fwConfigs\", \"PANEL_MIXEDORBADDPETYPES\"), \"\");
+		return;		
+	}
+
+	okButton.enabled = FALSE;
+	applyButton.enabled = FALSE;
+	closeButton.enabled = FALSE;
+	if(panelMode == MULTIPLE_DPES)
+		fwOpenProgressBar(\"Configuration panel\", \"Saving configuration...\", 1);
+	
+	if(smoothingSwitch.state(0))
+	{
+		relativeDeadband = relativeSelector.state(0);
+		
+		_fwConfigs_getConfigOptionsForDpeType(DPE_TYPE, fwConfigs_PVSS_ARCHIVE, elementType, exceptionInfo);		
+		switch(elementType)
+		{
+			case fwConfigs_ANALOG_OPTIONS:
+				optionsList = getShape(\"smoothingOptions\");
+				smoothProcedure = optionsList.number();
+
+				if(relativeDeadband)
+					smoothProcedure += RELATIVE_DEADBAND;
+
+				if(mappingHasKey(ANALOG_PROCEDURES, smoothProcedure))
+					smoothProcedure = ANALOG_PROCEDURES[smoothProcedure];
+				else
+					smoothProcedure = -1;
+				break;
+			default:
+				optionsList = getShape(\"digitalSmoothingOptions\");
+				smoothProcedure = optionsList.number();
+
+				if(relativeDeadband)
+					smoothProcedure += RELATIVE_DEADBAND;
+
+				if(mappingHasKey(DIGITAL_PROCEDURES, smoothProcedure))
+					smoothProcedure = DIGITAL_PROCEDURES[smoothProcedure];
+				else
+					smoothProcedure = -1;
+				break;
+		}
+
+		if(day.visible)
+		{
+			temp = day.text();
+			fwConfigs_checkStringFormat(temp, DPEL_INT, isGood, exceptionInfo);
+			if(isGood)
+				newDay = temp;
+			else
+				fwException_raise(exceptionInfo, \"ERROR\", \"Day value of time interval is not valid\", \"\");
+
+			temp = hour.text();
+			fwConfigs_checkStringFormat(temp, DPEL_INT, isGood, exceptionInfo);
+			if(isGood)
+				newHour = temp;
+			else
+				fwException_raise(exceptionInfo, \"ERROR\", \"Hour value of time interval is not valid\", \"\");
+
+			temp = minute.text();
+			fwConfigs_checkStringFormat(temp, DPEL_INT, isGood, exceptionInfo);
+			if(isGood)
+				newMinute = temp;
+			else
+				fwException_raise(exceptionInfo, \"ERROR\", \"Minute value of time interval is not valid\", \"\");
+		}
+		
+		if(second.visible)
+                {
+                  temp = second.text();
+		  fwConfigs_checkStringFormat(temp, DPEL_INT, isGood, exceptionInfo);
+		  if(isGood)
+		  	  newSecond = temp;
+		  else
+			  fwException_raise(exceptionInfo, \"ERROR\", \"Second value of time interval is not valid\", \"\");
+
+		  temp = milli.text();
+		  fwConfigs_checkStringFormat(temp, DPEL_INT, isGood, exceptionInfo);
+		  if(isGood)
+			  newMilli = temp;
+		  else
+			  fwException_raise(exceptionInfo, \"ERROR\", \"Millisecond value of time interval is not valid\", \"\");
+					
+		  newSecond = newDay*86400 + newHour*3600 + newMinute*60 + newSecond;
+
+		  setPeriod(interval, newSecond, newMilli);  
+		  newTime = interval;
+                }
+                
+                if(deadbandValue.visible)
+                {
+ 		  temp = deadbandValue.text();
+		  if(relativeDeadband)
+			  fwConfigs_checkStringFormat(temp, DPEL_FLOAT, isGood, exceptionInfo);
+		  else
+			  fwConfigs_checkStringFormat(temp, DPE_TYPE, isGood, exceptionInfo);
+		  if(isGood)
+			  deadband = temp;
+		  else
+			  fwException_raise(exceptionInfo, \"ERROR\", \"Deadband value is not valid\", \"\");
+                }
+                		
+		if(dynlen(exceptionInfo)>0)
+		{
+			okButton.enabled = TRUE;
+			applyButton.enabled = TRUE;
+			closeButton.enabled = TRUE;
+			if(panelMode == MULTIPLE_DPES)
+				fwCloseProgressBar(\"Configuration failed\");
+			return;
+		}
+		
+		if(panelMode != OBJECT)
+		{
+			fwSmoothing_setMultiple(DPE_LIST, smoothProcedure, deadband, newTime, exceptionInfo, TRUE);
+		}
+		else
+		{
+			dpeConfigObject[fwSmoothing_DPE_OBJECT_PROCEDURE][1]			= smoothProcedure;
+			dpeConfigObject[fwSmoothing_DPE_OBJECT_DEADBAND][1] 			= deadband;
+			dpeConfigObject[fwSmoothing_DPE_OBJECT_TIME_INTERVAL][1]	= newTime;
+			
+			fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//			DebugN(\"Modified \", dpeConfigObject);
+		}
+	}
+	else
+	{
+		if(panelMode != OBJECT)
+		{
+			fwSmoothing_deleteMultiple(DPE_LIST, exceptionInfo, TRUE);
+		}
+		else
+		{
+			dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1]	= DPCONFIG_NONE;
+			dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1] = FALSE;
+			
+			dpeConfigObject[fwSmoothing_DPE_OBJECT_PROCEDURE][1]			= 0;
+			dpeConfigObject[fwSmoothing_DPE_OBJECT_DEADBAND][1] 			= 0;
+			dpeConfigObject[fwSmoothing_DPE_OBJECT_TIME_INTERVAL][1]	= 0;
+			
+			fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//			DebugN(\"Modified \", dpeConfigObject);
+		}
+	}
+	
+	okButton.enabled = TRUE;
+	applyButton.enabled = TRUE;
+	closeButton.enabled = TRUE;
+	if(panelMode == MULTIPLE_DPES)
+		fwCloseProgressBar(\"Configuration complete\");
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 20
+"dayTitle"
+""
+1 153 448 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 115 291 145 308
+0 2 2 "0s" 0 0 0 192 0 0  115 291 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 Days
+2 21
+"hourTitle"
+""
+1 266 448 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 185 291 219 308
+0 2 2 "0s" 0 0 0 192 0 0  185 291 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Hours
+2 22
+"minuteTitle"
+""
+1 379 448 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 251 291 297 308
+0 2 2 "0s" 0 0 0 192 0 0  251 291 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Minutes
+2 23
+"secondTitle"
+""
+1 485 448 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 317 291 368 308
+0 2 2 "0s" 0 0 0 192 0 0  317 291 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Seconds
+2 24
+"milliTitle"
+""
+1 604 448 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 387 291 438 308
+0 2 2 "0s" 0 0 0 192 0 0  387 291 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 Millisecs
+2 39
+"title"
+""
+1 21 26 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 220 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 23 Smoothing Configuration
+2 47
+"Text3"
+""
+1 167 113 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 55 86 72
+0 2 0 "0s" 0 0 0 192 0 0  12 55 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 DP Element:
+30 53
+"timeText"
+""
+1 90 341 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+23 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 90 257 453 341
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 Time
+30 54
+"deadbandText"
+""
+1 460 341 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 460 257 590 341
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Deadband
+2 55
+"relativeUnit"
+""
+1 567 311 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 569 313 585 329
+0 2 0 "0s" 0 0 0 64 0 0  569 313 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 1 %
+2 59
+"driverProblem"
+""
+1 140 130 E E E 1 E 0 E N {255,0,0} E N "_Window" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 146 136 424 204
+1 6 0 "0s" 0 0 0 65 0 0  146 136 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Driver problem
+14 49
+"elementNameField"
+""
+1 347 103 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 88 48 632 75
+3 "0s" 0 0 0 0 0 -1  E E E
+13 51
+"dpeDetails"
+""
+1 460 10 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 8 582 42
+
+T 
+1
+LANG:1 15 Select Elements
+"main()
+{
+	string errorString;
+	dyn_string returnedDpeList, systems, exceptionInfo;
+	dyn_float cancelOrOk;
+
+	ChildPanelOnCentralModalReturn(\"fwConfigs/fwDpeSelector.pnl\", \"Choose Data Point Elements\",
+									makeDynString(\"$dsAllDpes:\"+$sDpe, \"$dsIncludedDpes:\"+DPE_LIST, \"$sConfigType:\"+fwConfigs_PVSS_SMOOTH),
+									cancelOrOk, returnedDpeList);
+
+	if(cancelOrOk[1] > 0.5)
+	{
+		if(DPE_LIST != returnedDpeList)
+		{
+			DPE_LIST = returnedDpeList;
+			DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_SMOOTH, DPE_TYPE, exceptionInfo, errorString);
+			if(!DPES_OK)
+				fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+
+			_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+
+			if(dynlen(DPE_LIST)== 1)
+				elementNameField.text(DPE_LIST[1]);
+			else
+			{
+				if(dynlen(systems) == 1)
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+			}
+
+			fwSetDeadbandFieldFormat(relativeSelector.state(0), exceptionInfo);
+
+			applyButton.enabled = DPES_OK;
+			okButton.enabled = DPES_OK;
+
+			smoothingSwitch.state(0) = FALSE;
+			_fwHideSmoothingItems();
+		}
+	}	
+}" 0
+ E E E
+20 42
+"smoothingSwitch"
+""
+1 10 90 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 88 152 117
+1
+T 
+1
+LANG:1 16 Smoothing ON/OFF
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main()
+{
+	bool newState;
+	int elementType;
+	shape optionsList;
+	dyn_string exceptionInfo;
+
+	if(!DPES_OK)
+	{
+		this.state(0) = FALSE;
+		
+		fwException_raise(exceptionInfo, \"ERROR\", getCatStr(\"fwConfigs\", \"PANEL_MIXEDORBADDPETYPES\"), \"\");
+		if(dynlen(exceptionInfo)>0)
+			fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	_fwConfigs_getConfigOptionsForDpeType(DPE_TYPE, fwConfigs_PVSS_SMOOTH, elementType, exceptionInfo);		
+	switch(elementType)
+	{
+		case fwConfigs_ANALOG_OPTIONS:
+			optionsList = getShape(\"smoothingOptions\");
+			break;
+		default:
+			optionsList = getShape(\"digitalSmoothingOptions\");
+			break;
+	}
+
+	newState = this.state(0);
+
+	if(newState)
+	{ 
+		_fwShowSmoothingItems(optionsList.number);
+		optionsList.visible(TRUE);
+	}
+	else
+	{
+		_fwHideSmoothingItems();
+	}
+}" 0
+19 56
+"smoothingOptions"
+""
+1 791 221 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 88 400 252
+7
+T 
+1
+LANG:1 8 Deadband
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 Time
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 Deadband AND Time
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 16 Deadband OR Time
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 18 Old-New Comparison
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 27 Old-New Comparison AND Time
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 26 Old-New Comparison OR Time
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main()
+{
+	_fwShowSmoothingItems(this.number);
+}" 0
+
+19 57
+"digitalSmoothingOptions"
+""
+1 555 252 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 88 400 202
+4
+T 
+1
+LANG:1 4 Time
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 18 Old-New Comparison
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 27 Old-New Comparison AND Time
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 26 Old-New Comparison OR Time
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main()
+{
+	_fwShowSmoothingItems(this.number);
+}" 0
+
+20 46
+"secondsOnly"
+""
+1 334 322 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 323 268 444 292
+1
+T 
+1
+LANG:1 15 Time in Seconds
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main()
+{
+	int actualDay,actualHour,actualMinute,actualSecond,actualMilli, timeInSeconds;
+	bool checkState;
+
+	checkState = this.state(0);
+
+	if(checkState)
+	{
+		actualDay = day.text();
+		actualHour = hour.text();
+		actualMinute = minute.text();
+		actualSecond = second.text();
+
+		timeInSeconds=(actualDay*86400+actualHour*3600+actualMinute*60+actualSecond);
+
+		day.text(0);
+		hour.text(0);
+		minute.text(0);
+		second.text(timeInSeconds);
+
+		day.visible(FALSE);
+		hour.visible(FALSE);
+		minute.visible(FALSE);
+		dayTitle.visible(FALSE);
+		hourTitle.visible(FALSE);
+		minuteTitle.visible(FALSE);
+		second.scale(1.5,1);
+	}
+	else
+	{
+		timeInSeconds = second.text();
+	
+		actualDay=timeInSeconds/86400;
+		timeInSeconds=timeInSeconds-(actualDay*86400);
+
+		actualHour=timeInSeconds/3600;
+		timeInSeconds=timeInSeconds-(actualHour*3600);
+
+		actualMinute=timeInSeconds/60;
+		timeInSeconds=timeInSeconds-(actualMinute*60);
+
+		actualSecond=timeInSeconds;
+		day.text(actualDay);
+		hour.text(actualHour);
+		minute.text(actualMinute);
+		second.text(actualSecond);
+
+		day.visible(TRUE);
+		hour.visible(TRUE);
+		minute.visible(TRUE);
+		dayTitle.visible(TRUE);
+		hourTitle.visible(TRUE);
+		minuteTitle.visible(TRUE);
+		second.scale(1,1);
+	}
+}" 0
+14 34
+"day"
+""
+1 139 484 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 98 307 162 334
+3 "0s" 0 0 0 2 0 -1  E E E
+14 28
+"hour"
+""
+1 263 484 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 307 232 334
+3 "0s" 0 0 0 2 0 -1  E E E
+14 29
+"minute"
+""
+1 391 484 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 240 307 304 334
+3 "0s" 0 0 0 2 0 -1  E E E
+14 30
+"second"
+""
+1 372 332 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 310 307 374 334
+3 "0s" 0 0 0 2 0 -1  E E E
+14 31
+"milli"
+""
+1 643 484 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 380 307 444 334
+3 "0s" 0 0 0 2 0 -1  E E E
+20 52
+"relativeSelector"
+""
+1 470 273 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 468 271 572 295
+1
+T 
+1
+LANG:1 14 Relative value
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	dyn_string exceptionInfo;
+	
+	fwSetDeadbandFieldFormat(relativeSelector.state(0), exceptionInfo);
+
+	if(button == 0)
+	{
+		if(state)
+			relativeUnit.visible = TRUE;
+		else
+			relativeUnit.visible = FALSE;
+	}
+}" 0
+14 35
+"deadbandValue"
+""
+1 652 540 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 468 307 562 334
+3 "0s" 0 0 0 2 0 -1  E E E
+13 38
+"applyButton"
+""
+1 0 0 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 348 542 382
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E "main()
+{
+	int x, y;
+
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			closeButton.visible = TRUE;
+		else
+		{
+			getValue(\"\", \"position\", x, y);
+			this.position(x + 90,y);	
+		}
+	}
+	else
+		closeButton.visible = TRUE;
+		
+	this.visible = TRUE;	
+}" 0
+
+13 58
+"closeButton"
+""
+1 1492 929 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 548 348 632 382
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+13 60
+"okButton"
+""
+1 0 0 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 368 348 452 382
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		PanelOff();
+}" 0
+ E E "main()
+{
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			this.visible = TRUE;
+	}
+	else
+		this.visible = TRUE;	
+}" 0
+
+1 61 0 "" 0
+1 "message" 1 1 "main()
+{
+	time rootPanelPathTime, childPanelPathTime;
+	unsigned managerNumber = myManNum();
+	string rootPanelPath, childPanelPath, rootPanelName, childPanelName, panelName;
+	
+	
+	if(isDollarDefined(\"$sPanelRelativePath\"))
+	{
+		panelPath = $sPanelRelativePath;
+	}
+	
+	if(panelPath == \"\")
+	{
+		dpGet(	\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName\", rootPanelPath,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName:_original.._stime\", rootPanelPathTime,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.PanelName\", rootPanelName,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName\", childPanelPath,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName:_original.._stime\", childPanelPathTime,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.PanelName\", childPanelName);
+	
+
+		//	DebugN(rootPanelPath, rootPanelPathTime, childPanelPath, childPanelPathTime);
+	
+		if(rootPanelPathTime > childPanelPathTime)
+		{
+			panelPath = rootPanelPath;
+			panelName = rootPanelName;
+		}
+		else
+		{
+			panelPath = childPanelPath;
+			panelName = childPanelName;
+		}
+	
+		if(myPanelName() == panelName)
+		{
+			goodPanelName = TRUE;
+//			DebugN(\"Correct panel name\");
+		}
+		else
+		{
+			goodPanelName = FALSE;
+//			DebugN(\"Wrong panel name\");
+		}	
+	}
+//	DebugN(\"The good path is \" + panelPath);
+}" 0
+ 
+1 "leftClick" 1 1 "main()
+{
+	int replaced;
+	string 	componentName, path, tempPanelPath, helpFile, browserCommand;
+	dyn_string aux, exceptionInfo;
+	
+//	DebugN(\"The good path is \" + panelPath);
+	
+	if(!goodPanelName)
+	{
+		fwException_raise(	exceptionInfo,
+							\"ERROR\",
+							\"Open panel name doesn't match with PVSS database. Try opening the panel again.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Get component name. We assume panels are inside a directory
+	// named after the component name
+	strreplace(panelPath, \"\\\\\", \"/\");
+	aux = strsplit(panelPath, \"/\");
+	componentName = aux[1];
+//	DebugN(panelPath, componentName);
+	
+	// Remove extension if given
+	if(strpos(panelPath, \".pnl\") >= 0)
+	{
+		tempPanelPath = substr(panelPath, 0, strpos(panelPath, \".pnl\"));
+	}
+	else
+	{
+		tempPanelPath = panelPath;
+	}
+	
+	// try to find the help file associated with the panel
+	helpFile = tempPanelPath + \".html\";
+//	DebugN(\"helpFile \" + helpFile + \" tempPanelPath \" + tempPanelPath + \" componentName \" + componentName);
+	path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+	if(path == \"\")
+	{		
+		helpFile = tempPanelPath + \".htm\";
+//		DebugN(\"helpFile \" + helpFile);
+		path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+//	DebugN(componentName + \"/panels/\" + helpFile);
+		if(path == \"\")
+		{
+			fwException_raise(	exceptionInfo,
+								\"ERROR\",
+								\"Could not find the help file associated with the current panel\",
+								\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	
+//	DebugN(\"Final help path \" + path);
+	
+	fwOpenProgressBar(\"Help\", \"Opening help file...\", 1);
+	// If there were no exceptions, then display the help
+	if(_WIN32)
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandWindows\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+//		system(\"start iexplore \" + path + \" &\");
+		system(browserCommand);
+	}
+	else
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandLinux\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+		system(browserCommand);
+//		system(\"start iexplore \" + path + \" &\");
+	}
+	fwCloseProgressBar();
+}	" 0
+ 
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 604 10 T 26 U 
+1
+"$sPanelRelativePath""fwConfigs/fwSmoothingConfig"
+0

@@ -1,0 +1,1285 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 642 812 N "_3DFace" 2
+"$hostname"
+"$project"
+"main()
+{
+  dyn_mixed projectProperties;
+  dyn_dyn_mixed managersInfo;
+  dyn_dyn_mixed processesInfo;
+  dyn_string projectPaths; 
+  string pvssVersion;
+  string os;
+  int projectId;
+    
+  dynClear(projectPaths); 
+  tbManagers.deleteAllLines();
+  
+  if(fwInstallationDB_connect() != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Connection failed.\\nPlease check DB connection parameters\"));
+  
+  }
+  
+  if(isDollarDefined(\"$project\") && isDollarDefined(\"$hostname\"))
+  {    
+//    if(fwInstallationDB_getProjectProperties($project, $hostname, pvssVersion, projectDir, systemName, systemNumber, pPort, pmonUsername, pmonPassword, projectPaths, toolVersion, centrallyManaged) != 0)
+    if(fwInstallationDB_getProjectProperties($project, $hostname, projectProperties, projectId) != 0)
+    {
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Connection failed.\\nPlease check DB connection parameters\"));
+      
+    }else{
+      tfProject.text = $project;
+      enablePanel(false);
+      
+      tfHostname.text = $hostname;
+      
+      tfPvssVersion.text = pvssVersion;
+            
+      tfProjectDir.text = projectProperties[FW_INSTALLATION_DB_PROJECT_DIR];
+      tfSystemName.text = projectProperties[FW_INSTALLATION_DB_PROJECT_SYSTEM_NAME];
+      tfSystemNumber.text = projectProperties[FW_INSTALLATION_DB_PROJECT_SYSTEM_NUMBER];
+      tfPmonPort.text = projectProperties[FW_INSTALLATION_DB_PROJECT_PMON_PORT];
+      tfPmonUsername.text = projectProperties[FW_INSTALLATION_DB_PROJECT_PMON_USER];
+      tfPmonPassword.text = projectProperties[FW_INSTALLATION_DB_PROJECT_PMON_PWD];
+      tfTool.text = projectProperties[FW_INSTALLATION_DB_PROJECT_TOOL_VER];
+      //tfReduNr.text = projectProperties[FW_INSTALLATION_DB_PROJECT_REDU_NR];
+      tfReduNr.text = 1; //Don't deal with Redundant systems yet
+      
+      if(projectProperties[FW_INSTALLATION_DB_PROJECT_SYSTEM_OVERVIEW] > 0)        
+        cbSystemOverview.state(0) = true;
+      else
+        cbSystemOverview.state(0) = false;
+        
+      if(projectProperties[FW_INSTALLATION_DB_PROJECT_CENTRALLY_MANAGED] == 1)
+        setValue(\"rbManagement\",\"number\", 0);
+      else
+        setValue(\"rbManagement\",\"number\", 1);
+      //PVSS version and OS:
+      if(fwInstallationDB_getProjectPvssVersion($project, $hostname, pvssVersion, os) != 0){
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Could not retrieve project PVSS version from DB\"));
+      }else{
+        tfPvssVersion.text = pvssVersion;
+        tfOs.text = os;
+      }    
+      //Project paths:    
+      if(fwInstallationDB_getProjectPaths($project, $hostname, projectPaths) != 0){
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Could not retrieve project paths from DB\"));
+      }else{          
+        slProjectPaths.deleteAllItems();
+        slProjectPaths.items = projectPaths;   
+      }
+      //Project Managers:
+      if(fwInstallationDB_getProjectManagers(managersInfo, $project, $hostname) != 0){
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Could not retrieve project managers from DB\"));
+      }else{ 
+        for(int i = 1; i <=dynlen(managersInfo); i++)  
+        tbManagers.appendLine(\"type\", managersInfo[i][FW_INSTALLATION_DB_MANAGER_NAME_IDX], \"start\", managersInfo[i][FW_INSTALLATION_DB_MANAGER_START_IDX], \"restart\", managersInfo[i][FW_INSTALLATION_DB_MANAGER_RESTART_IDX], \"reset\", managersInfo[i][FW_INSTALLATION_DB_MANAGER_RESETMIN_IDX], \"seckill\", managersInfo[i][FW_INSTALLATION_DB_MANAGER_SECKILL_IDX], \"command\", managersInfo[i][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX]);
+       
+      }
+      
+      //Project External Processes:
+      if(fwInstallationDB_getProjectExternalProcesses(processesInfo, $project, $hostname) != 0){
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Could not retrieve project managers from DB\"));
+      }else{ 
+        for(int i = 1; i <=dynlen(processesInfo); i++)  
+        tbExtProcesses.appendLine(\"name\", processesInfo[i][FW_INSTALLATION_DB_EXT_PROCESS_NAME_IDX], \"path\", processesInfo[i][FW_INSTALLATION_DB_EXT_PROCESS_PATH_IDX], \"options\", processesInfo[i][FW_INSTALLATION_DB_EXT_PROCESS_OPTIONS_IDX]);
+      }
+
+    }
+  }
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "exportToDB()
+{
+  string project = tfProject.text;
+  string pvssVersion = tfPvssVersion.text;
+  string projectDir = tfProjectDir.text;
+  string hostname = tfHostname.text;
+  string pvssSystemName = tfSystemName.text;
+  int pvssSystemNumber = tfSystemNumber.text;
+  int pmonPortNr = tfPmonPort.text;
+  string pmonUsername = tfPmonUsername.text;
+  string pmonPassword = tfPmonPassword.text;
+  string toolVersion = tfTool.text;
+
+  int distPort = tfDistPort.text;
+  int dataPortNr = tfDataPort.text;
+  int eventPortNr = tfEventPort.text;
+  int centrallyManaged = 0;
+
+  dyn_anytype line;
+  dyn_mixed managerInfo;
+  dyn_mixed processInfo;
+  dyn_mixed projectProperties;
+     
+  dyn_string projectPaths = slProjectPaths.items;
+
+  if(rbManagement.number() == 0)
+   centrallyManaged = 1; 
+
+  if(hostname == \"\"){
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: Empty hostname\", makeDynString(\"$1:Please enter a valid hostname.\"));
+    return; 
+  }
+  if(project == \"\"){
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: Empty project name\", makeDynString(\"$1:Please enter a valid project name.\"));
+    return; 
+  }
+  
+//  if(fwInstallationDB_registerProject(project, hostname, pmonPortNr, pmonUsername, pmonPassword, projectDir, pvssSystemName, pvssSystemNumber, dataPortNr, eventPortNr, distPort, centrallyManaged) != 0){
+//    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Access\", makeDynString(\"$1:Could not register the project: \"+ project + \"  in DB.\\nPlease check the connection parameters\"));
+//    return;
+//  }
+  
+//  if(fwInstallationDB_setProjectProperties(project, hostname, pvssVersion, projectDir, pvssSystemName, pvssSystemNumber, pmonPortNr, pmonUsername, pmonPassword, projectPaths, toolVersion, centrallyManaged) != 0){
+  projectProperties[FW_INSTALLATION_DB_PROJECT_NAME] = project;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_HOST] = hostname;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_DIR] = projectDir;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_SYSTEM_NAME] = pvssSystemName;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_SYSTEM_NUMBER] = pvssSystemNumber;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_PMON_PORT] = pmonPortNr;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_PMON_USER] = pmonUsername;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_PMON_PWD] = pmonPassword;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_TOOL_VER] = toolVersion;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_CENTRALLY_MANAGED] = centrallyManaged;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_PVSS_VER] = tfPvssVersion.text;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_DATA] = tfDataPort.text;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_EVENT] = tfEventPort.text;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_DIST] = tfDistPort.text;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_REDU_NR] = tfReduNr.text;
+  projectProperties[FW_INSTALLATION_DB_PROJECT_OS] = tfOs.text;
+  
+  if(cbSystemOverview.state(0))
+    projectProperties[FW_INSTALLATION_DB_PROJECT_SYSTEM_OVERVIEW] = 1;
+  else
+    projectProperties[FW_INSTALLATION_DB_PROJECT_SYSTEM_OVERVIEW] = 0;
+
+  
+  if(fwInstallationDB_setProjectProperties(project, hostname, projectProperties) != 0){
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Access\", makeDynString(\"$1:Could not set properties to project: \"+ project + \"  in DB.\\nPlease check the connection parameters\"));
+    return;
+  } 
+  
+  //PVSS Managers:
+  for(int i = 1; i <= tbManagers.lineCount(); i++){
+    line = tbManagers.getLineN(i-1);
+    
+    managerInfo[FW_INSTALLATION_DB_MANAGER_NAME_IDX] = line[1];
+    managerInfo[FW_INSTALLATION_DB_MANAGER_START_IDX] = line[2];
+    managerInfo[FW_INSTALLATION_DB_MANAGER_RESTART_IDX] = line[3];
+    managerInfo[FW_INSTALLATION_DB_MANAGER_RESETMIN_IDX] = line[4];
+    managerInfo[FW_INSTALLATION_DB_MANAGER_SECKILL_IDX] = line[5];
+    managerInfo[FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX] = line[6];
+   
+    if(fwInstallationDB_setPvssManagerProperties(managerInfo, project, hostname) != 0)
+    {
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Access\", makeDynString(\"$1:Could not set manager properties in DB:\\n\" + managerInfo));
+    }
+  }
+
+  //External Processes:
+  for(int i = 1; i <= tbExtProcesses.lineCount(); i++){
+    line = tbExtProcesses.getLineN(i-1);
+    
+    processInfo[FW_INSTALLATION_DB_EXT_PROCESS_NAME_IDX] = line[1];
+    processInfo[FW_INSTALLATION_DB_EXT_PROCESS_PATH_IDX] = line[2];
+    processInfo[FW_INSTALLATION_DB_EXT_PROCESS_OPTIONS_IDX] = line[3];
+   
+    if(fwInstallationDB_setExternalProcessProperties(processInfo, project, hostname) != 0)
+    {
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Access\", makeDynString(\"$1:Could not set external process properties in DB:\\n\" + processInfo));
+    }
+  }
+}
+
+
+enablePanel(bool val)
+{
+  tfProjectDir.editable(val);
+  tfProject.editable(val);
+  tfHostname.editable(val);
+  tfOs.editable(val);
+  tfPvssVersion.editable(val);
+  tfSystemName.editable(val);
+  tfSystemNumber.editable(val);
+  tfDataPort.editable(val);
+  tfEventPort.editable(val);
+  tfDistPort.editable(val);
+  tfTool.editable(val);
+  tfReduNr.editable(val);
+
+  if(!val){
+    tfProjectDir.backCol = \"_3DFace\";
+    tfReduNr.backCol = \"_3DFace\";
+    tfProject.backCol = \"_3DFace\";
+    tfHostname.backCol = \"_3DFace\";
+    tfOs.backCol = \"_3DFace\";
+    tfPvssVersion.backCol = \"_3DFace\";
+    tfSystemName.backCol = \"_3DFace\";
+    tfSystemNumber.backCol = \"_3DFace\";
+    tfDataPort.backCol = \"_3DFace\";
+    tfEventPort.backCol = \"_3DFace\";
+    tfDistPort.backCol = \"_3DFace\";
+    tfTool.backCol = \"_3DFace\";
+  }
+
+  
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"PUSH_BUTTON1"
+""
+1 282 782 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 280 780 392 808
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  exportToDB();
+  PanelOffReturn(makeDynFloat(1.), makeDynString(\"OK\"));
+}" 0
+ E E E
+13 1
+"PUSH_BUTTON2"
+""
+1 522 782 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 520 780 632 808
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOffReturn(makeDynFloat(0.), makeDynString(\"Cancel\"));
+}" 0
+ E E E
+13 2
+"PUSH_BUTTON3"
+""
+1 400 782 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 398 780 510 808
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  exportToDB();
+}" 0
+ E E E
+2 3
+"PRIMITIVE_TEXT1"
+""
+1 31.943661971831 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.971830985915493 0 1 2.78873239436619 0 1 E 30 42 104 56
+0 2 2 "0s" 0 0 0 192 0 0  30 42 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 15 * Project Name:
+2 4
+"PRIMITIVE_TEXT2"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 72 98 86
+0 2 2 "0s" 0 0 0 192 0 0  30 72 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 13 PVSS version:
+2 5
+"PRIMITIVE_TEXT3"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 98 118 112
+0 2 2 "0s" 0 0 0 192 0 0  30 98 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 20 * Project Directory:
+2 6
+"PRIMITIVE_TEXT4"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 124 81 138
+0 2 2 "0s" 0 0 0 192 0 0  30 124 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 9 Hostname:
+2 7
+"PRIMITIVE_TEXT5"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 50 203.999999999999 88 218
+0 2 2 "0s" 0 0 0 192 0 0  50 203.999999999999 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 7 * Name:
+2 8
+"PRIMITIVE_TEXT6"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 50 229.999999999999 97 244
+0 2 2 "0s" 0 0 0 192 0 0  50 229.999999999999 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 9 * Number:
+2 9
+"PRIMITIVE_TEXT7"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 52 344 74 358
+0 2 2 "0s" 0 0 0 192 0 0  52 344 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 5 Port:
+2 10
+"PRIMITIVE_TEXT8"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 202 344 253 358
+0 2 2 "0s" 0 0 0 192 0 0  202 344 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 9 Username:
+2 11
+"PRIMITIVE_TEXT9"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 422 344 471 358
+0 2 2 "0s" 0 0 0 192 0 0  422 344 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 9 Password:
+2 12
+"PRIMITIVE_TEXT10"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 340 160 405 174
+0 2 2 "0s" 0 0 0 192 0 0  340 160 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 14 Project paths:
+14 13
+"tfProject"
+""
+1 116 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 114 38 326 59
+3 "0s" 0 0 0 0 0 -1  E E E
+14 14
+"tfPvssVersion"
+""
+1 116 72 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverfclr" "N \"_Transparent\""
+"acceptDrops" ""
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 114 70 326 91
+3 "0s" 0 0 0 0 0 -1  E E E
+14 15
+"tfProjectDir"
+""
+1 116 96 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 114 94 326 115
+3 "0s" 0 0 0 0 0 -1  E E E
+14 16
+"tfHostname"
+""
+1 116 126 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 114 124 326 145
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = $hostname;
+}" 0
+ E
+14 17
+"tfSystemName"
+""
+1 98 201.999999999999 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverfclr" "N \"_Transparent\""
+"acceptDrops" ""
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 96 199.999999999999 308 220.999999999999
+3 "0s" 0 0 0 0 0 -1  E E E
+14 18
+"tfSystemNumber"
+""
+1 98 227.999999999999 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverfclr" "N \"_Transparent\""
+"acceptDrops" ""
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 96 225.999999999999 172 246.999999999999
+3 "0s" 0 0 0 0 0 -1  E E E
+14 19
+"tfPmonUsername"
+""
+1 258 342 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 256 340 402 361
+3 "0s" 0 0 0 0 0 -1  E E E
+14 20
+"tfPmonPort"
+""
+1 80 342 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 78 340 160 361
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = 4999;
+}" 0
+ E
+14 21
+"tfPmonPassword"
+""
+1 478 342 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 476 340 602 361
+3 "0s" 0 0 0 0 0 -1  E E E
+17 22
+"slProjectPaths"
+""
+1 340 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 338 178 620 312
+0
+
+E
+E
+E
+
+0 0
+30 23
+"FRAME1"
+""
+1 18 15 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+43 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 2.25806451612903 2 -23.8709677419355 0 E 18 15 635 357
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 12 Project Info
+30 24
+"FRAME2"
+""
+1 22 185 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+44 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.59036144578313 18 -114.216867469879 0 E 22 185 301 269
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 16 PVSS System Info
+30 25
+"FRAME3"
+""
+1 22 185 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+46 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 2.08633093525181 0 0.698795180722891 -5.89928057553974 190.722891566265 0 E 22 185 301 269
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 9 Pmon Info
+2 26
+"txDistPort"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 48 255.999999999999 96 270
+0 2 2 "0s" 0 0 0 192 0 0  48 255.999999999999 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 10 Data Port:
+14 27
+"tfDataPort"
+""
+1 98 255.999999999999 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverfclr" "N \"_Transparent\""
+"acceptDrops" ""
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 96 253.999999999999 170 274.999999999999
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = 4897;
+}" 0
+ E
+2 28
+"PRIMITIVE_TEXT12"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 188 257.999999999999 241 272
+0 2 2 "0s" 0 0 0 192 0 0  188 257.999999999999 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 11 Event Port:
+14 29
+"tfEventPort"
+""
+1 242 257.999999999999 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverfclr" "N \"_Transparent\""
+"acceptDrops" ""
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 240 255.999999999999 314 276.999999999999
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = 4998;
+}" 0
+ E
+2 30
+"PRIMITIVE_TEXT13"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 48 281.999999999999 91 296
+0 2 2 "0s" 0 0 0 192 0 0  48 281.999999999999 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 10 Dist Port:
+14 31
+"tfDistPort"
+""
+1 100 281.999999999999 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverfclr" "N \"_Transparent\""
+"acceptDrops" ""
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 98 279.999999999999 172 300.999999999999
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = 4777;
+}" 0
+ E
+2 32
+"PRIMITIVE_TEXT14"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 154 94 168
+0 2 2 "0s" 0 0 0 192 0 0  30 154 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 13 FW Inst. Tool
+14 33
+"tfTool"
+""
+1 118 156 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverfclr" "N \"_Transparent\""
+"acceptDrops" ""
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 116 154 172 175
+2 "0s" 0 0 0 0 0 -1  E E E
+19 34
+"rbManagement"
+""
+1 362 52.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 360 50.0000000000001 584 108
+2
+T 
+1
+LANG:1 36 Centrally managed (DB is the master)
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 36 Locally managed (PVSS is the master)
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+30 35
+"FRAME4"
+""
+1 354 31 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+66 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.16666666666667 0 1.58441558441558 -81 -21.1168831168829 0 E 354 31 595 109
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 18 Project Management
+2 36
+"PRIMITIVE_TEXT15"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 208 158 226 172
+0 2 2 "0s" 0 0 0 192 0 0  208 158 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 3 OS:
+14 37
+"tfOs"
+""
+1 232 158 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverfclr" "N \"_Transparent\""
+"acceptDrops" ""
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 230 156 326 177
+3 "0s" 0 0 0 0 0 -1  E E E
+30 38
+"FRAME5"
+""
+1 34 337 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+71 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 2.10791366906475 0 0.844357976653697 -35.6690647482014 94.4513618677043 0 E 34 337 313 595
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 8 Managers
+30 39
+"FRAME6"
+""
+1 34 337 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+73 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 2.09352517985612 0 0.622568093385214 -35.1798561151079 392.194552529183 0 E 34 337 313 595
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 18 External Processes
+25 40
+"tbManagers"
+""
+1 40 406 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 38 404 614 586
+EE 1 0 1 6 0 "type" 13 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+128 "start" 5 1 1 "s" 1
+LANG:1 10 Start Mode
+E
+1
+LANG:1 0 
+
+60 "restart" 5 1 1 "s" 1
+LANG:1 8 Restart#
+E
+1
+LANG:1 0 
+
+60 "reset" 6 1 1 "s" 1
+LANG:1 9 Reset Min
+E
+1
+LANG:1 0 
+
+67 "seckill" 5 1 1 "s" 1
+LANG:1 8 Sec Kill
+E
+1
+LANG:1 0 
+
+60 "command" 56 1 1 "s" 1
+LANG:1 12 Command Line
+E
+1
+LANG:1 0 
+
+512 
+16 16 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+25 41
+"tbExtProcesses"
+""
+1 40 624 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 38 622 614 754
+EE 1 0 1 3 0 "name" 13 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+128 "path" 27 1 1 "s" 1
+LANG:1 4 Path
+E
+1
+LANG:1 0 
+
+256 "options" 27 1 1 "s" 1
+LANG:1 7 Options
+E
+1
+LANG:1 0 
+
+256 
+16 16 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+2 42
+"PRIMITIVE_TEXT16"
+""
+1 30 42 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 188 281.999999999999 231 296
+0 2 2 "0s" 0 0 0 192 0 0  188 281.999999999999 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 8 Redu Nr:
+14 43
+"tfReduNr"
+""
+1 242 281.999999999999 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverfclr" "N \"_Transparent\""
+"acceptDrops" ""
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 240 279.999999999999 314 300.999999999999
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = 1;
+}" 0
+ E
+2 44
+"PRIMITIVE_TEXT17"
+""
+1 20 740 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+81 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 782 242 812
+0 2 2 "0s" 0 0 0 64 0 0  22 782 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 18 * Mandatory fields
+20 45
+"cbSystemOverview"
+""
+1 360 120 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+82 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 358 118 592 142
+1
+T 
+1
+LANG:1 36 Monitored by FW System Overview Tool
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

@@ -1,0 +1,1428 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 710 714 N "_3DFace" 0
+"main()
+{
+ 
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyAcCB\", ex);
+  initSoTrees();
+  update();  
+
+  enable(false);
+
+}
+void applyAcCB(string s1, string s2)
+{
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string domain;
+  fwSysOverview_getACDomain(domain);
+  
+  btnApplyAppConfig.enabled = false;
+  btnApplyGeneralConfig.enabled = false;
+  //btnGo.enabled  =false;
+  
+  if(domain == \"\") //AC not yet configured. Enable access 
+  {
+    hasExpertPrivilege = true;
+  }
+  else
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(1);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, hasExpertPrivilege, exceptionInfo);
+  
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+  }
+  // enable UI elements, depending on the access rights:
+  if (hasExpertPrivilege)
+  {
+    btnApplyGeneralConfig.enabled = true;
+    //btnGo.enabled = true;
+  }
+}
+
+
+
+" 0
+ E E E E 1 -1 -1 0  30 60
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverviewReport.ctl\"
+#uses \"fwSystemOverview/fwSystemOverviewFsm.ctl\"
+#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+string notificationsConfigDp = \"fwSystemOverviewAlarmNotificationConfig\";
+
+void initSoTrees()
+{
+  dyn_string soTrees;
+  fwSystemOverviewFsm_getTrees(soTrees);  
+  cmbTrees.items = soTrees;
+}
+void update()
+{
+
+  dyn_int types;
+  string fsmTree = cmbTrees.selectedText();
+  dyn_string applications = fwCU_getChildren(types, fsmTree);
+  dyn_string items;
+  getValue(\"slApps\", \"items\", items);
+  if (dynlen(items) > 1)//just keep the overview
+  {
+    string tmp = items[1];
+    dynClear(items);
+    dynAppend(items, tmp);
+    dynAppend(items, applications);
+  }
+  else
+    dynAppend(items, applications);    
+  slApps.items = items;
+  slApps.selectedPos = 1;
+  changeSelectedApplication();
+}
+
+save()
+{
+  string dp = getDp();
+  dyn_string recipients = slRecipients.items;
+  string recipientsStr;
+  fwGeneral_dynStringToString(recipients, recipientsStr, \";\");
+  string patternsStr;
+  string inhibitDatesStr;
+  int lineCount = tblPatterns.lineCount();
+  for (int i=0; i< lineCount; i++)
+  {
+    dyn_string ds = tblPatterns.getLineN(i);
+    patternsStr += ds[1] + \";\";
+    inhibitDatesStr += ds[2] + \";\";
+  }
+ 
+  dpSet(dp + \".recipients\", recipientsStr,
+        dp + \".inhibitPatterns\", patternsStr,
+        dp + \".inhibitUntil\", inhibitDatesStr,
+        dp + \".active\",   cbEnableNotifications.state(0),
+        dp + \".includeInOverview\",   cbIncludeInOverview.state(0)
+        );
+  
+  string description = myPanelName() + \": Updating dp: \" + dp + \". Recipients: \" + recipientsStr + \" inhibit patterns: \" + patternsStr + 
+                       \" inhibit until: \" + inhibitDatesStr + \" active: \" + cbEnableNotifications.state(0) + \" includeInOverview: \" + cbIncludeInOverview.state(0);
+
+  fwConfigurationDBSystemInformation_logAction(description);
+}
+
+string getDp()
+{
+  string dp;
+  if (slApps.selectedPos  > 1)
+    dp = \"fwSystemOverviewSmsConfig_\" + strtoupper(slApps.selectedText);
+  else
+    dp = \"fwSystemOverviewSmsConfig_OVERVIEW_\" +strtoupper(cmbTrees.selectedText); 
+  return dp;  
+}
+    
+loadConfiguration()
+{
+  int alarmActivePeriod, alarmRenotificationPeriod, alarmOccurrancesLimit, alarmOccurrancesPeriod, alarmOccurrancesRenotificationPeriod;
+  dpGet(notificationsConfigDp + \".alarmActivePeriod\", alarmActivePeriod,
+        notificationsConfigDp + \".alarmRenotificationPeriod\", alarmRenotificationPeriod,
+        notificationsConfigDp + \".alarmOccurrancesLimit\", alarmOccurrancesLimit,
+        notificationsConfigDp + \".alarmOccurrancesPeriod\", alarmOccurrancesPeriod,
+        notificationsConfigDp + \".alarmOccurrancesRenotificationPeriod\", alarmOccurrancesRenotificationPeriod);
+  txAlarmActivePeriod.text = alarmActivePeriod/60;
+  txAlarmRenotificationPeriod.text = alarmRenotificationPeriod/60;
+  txAlarmOccurrancesLimit.text = alarmOccurrancesLimit;
+  txAlarmOccurrancesPeriod.text = alarmOccurrancesPeriod/60;
+  txAlarmOccurrancesRenotificationPeriod.text = alarmOccurrancesRenotificationPeriod/60;  
+}
+saveConfiguration()
+{
+  dpSet(notificationsConfigDp + \".alarmActivePeriod\",  txAlarmActivePeriod.text*60,
+        notificationsConfigDp + \".alarmRenotificationPeriod\", txAlarmRenotificationPeriod.text*60,
+        notificationsConfigDp + \".alarmOccurrancesLimit\", txAlarmOccurrancesLimit.text,
+        notificationsConfigDp + \".alarmOccurrancesPeriod\", txAlarmOccurrancesPeriod.text*60,
+        notificationsConfigDp + \".alarmOccurrancesRenotificationPeriod\",  txAlarmOccurrancesRenotificationPeriod.text*60);
+  string description = myPanelName() + \": Changing notifications general configuration. Alarm active period: \" +txAlarmActivePeriod.text*60 +
+                       \". Alarm renotification period: \" + txAlarmRenotificationPeriod.text*60 +
+                       \". Alarm occurrances limit: \" + txAlarmOccurrancesLimit.text +
+                       \". Alarm occurrances period: \" + txAlarmOccurrancesLimit.text +
+                       \". Alarm occrurrances renotification period: \" +  txAlarmOccurrancesRenotificationPeriod.text*60; 
+
+  fwConfigurationDBSystemInformation_logAction(description);
+}
+
+colorLine(int lineIndex, string validDateText)
+{
+  string color;
+  if ((time)validDateText > getCurrentTime())
+    color = \"green\";
+  else
+    color = \"red\";
+    
+  tblPatterns.cellBackColRC(lineIndex, \"validDate\") = color;
+}
+
+enable(bool val)
+{
+  tblPatterns.enabled = val;
+  txPattern.enabled = val;  
+  txTo.editable = val;
+  pb_calenderFrom.enabled = val;
+  //btnAddPattern.enabled = val;
+  btnClearAllPatterns.enabled = val;
+  btnClearPattern.enabled = val;
+  btnAdd.enabled = val;
+  //btnGo.enabled = val;
+  cbIncludeInOverview.enabled = val;
+  btnAddManager.enabled = val;
+}
+changeSelectedApplication()
+{
+  btnApplyAppConfig.backCol = \"_Button\";
+  string application = slApps.selectedText;
+  
+  string dp = getDp();
+  if(!dpExists(dp))
+  {
+    dpCreate(dp, \"_FwSystemOverviewSmsConfig\");
+    while(!dpExists(dp))
+      delay(0,100);
+    
+    dpSet(dp + \".application\", application);
+  }
+  
+  string recipients, inhibitPatternsStr;
+  string inhibitUntilStr;
+  bool active, includeInOverview;
+  dpGet(dp + \".recipients\", recipients, 
+        dp + \".inhibitPatterns\", inhibitPatternsStr,
+        dp +\".inhibitUntil\", inhibitUntilStr,
+        dp + \".active\", active,
+        dp + \".includeInOverview\", includeInOverview);
+  cbEnableNotifications.state(0, active);
+  cbIncludeInOverview.state(0, includeInOverview);
+  dyn_string ds = strsplit(recipients, \";\");
+  slRecipients.items(ds);
+  tblPatterns.deleteAllLines();  
+  if (application != \"OVERVIEW\")
+  {
+    enable(true);
+    dyn_string inhibitPatterns = strsplit(inhibitPatternsStr, \";\");
+    dyn_string inhibitDates = strsplit(inhibitUntilStr, \";\");
+    for(int i=1; i<=dynlen(inhibitPatterns); i++)
+    {
+      tblPatterns.appendLine(\"pattern\", inhibitPatterns[i], \"validDate\", inhibitDates[i] );
+      if (inhibitDates[i] != \"\")
+        colorLine(i-1, inhibitDates[i]);
+    }
+    tblPatterns.deleteSelection();
+   
+  }
+  else
+  {
+    enable(false);
+  }
+  
+  applyAC(application);
+}
+
+void applyAC(string application)
+{
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string domain;
+  if (application == \"OVERVIEW\")
+  {
+    fwSysOverview_getACDomain(domain);   
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(1); 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, hasExpertPrivilege, exceptionInfo);
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+    btnApplyAppConfig.enabled = hasExpertPrivilege;
+    cbEnableNotifications.enabled = hasExpertPrivilege;
+    btnDeleteRecipient.enabled = hasExpertPrivilege;
+    btnDeleteRecipients.enabled = hasExpertPrivilege;
+    btnClearAllPatterns.enabled = hasExpertPrivilege;
+    btnClearPattern.enabled = hasExpertPrivilege;
+    btnAddPattern.enabled = hasExpertPrivilege;
+    btnAddRecipient.enabled = hasExpertPrivilege;
+    btnAddManager.enabled = hasExpertPrivilege;
+  }
+  else
+  {
+    fwSysOverview_getACDomain(domain, \"\", application);
+    if(domain == \"\") //AC not yet configured. Enable access 
+    {
+      hasExpertPrivilege = true;
+    }
+    else
+    {
+      string expertPrivilege;
+      expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+      string thirdLevelPrivilege = fwSysOverview_getExpertPrivilege(3);
+      // check the current  privilege level 
+      if (expertPrivilege == \"\")
+      {
+        DebugN(\"No expert privilege defined!\");
+        return;
+      }
+      fwAccessControl_isGranted(domain + \":\" + expertPrivilege, hasExpertPrivilege, exceptionInfo);
+      bool hasThirdLevelPrivilege;
+      fwAccessControl_isGranted(domain + \":\" + thirdLevelPrivilege, hasThirdLevelPrivilege, exceptionInfo);  
+      // check and handle exceptions that might have been thrown by the function above
+      if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+      
+      btnApplyAppConfig.enabled = hasExpertPrivilege || hasThirdLevelPrivilege;
+      cbEnableNotifications.enabled = hasExpertPrivilege;
+      cbIncludeInOverview.enabled = hasExpertPrivilege;
+      btnDeleteRecipient.enabled = hasExpertPrivilege;
+      btnDeleteRecipients.enabled = hasExpertPrivilege;
+      btnClearAllPatterns.enabled = hasExpertPrivilege||hasThirdLevelPrivilege;
+      btnClearPattern.enabled = hasExpertPrivilege||hasThirdLevelPrivilege;
+      btnAddPattern.enabled = hasExpertPrivilege||hasThirdLevelPrivilege;
+      btnAddRecipient.enabled = hasExpertPrivilege;
+      btnAddManager.enabled = hasExpertPrivilege;
+    }
+  }
+ 
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+    PanelOff();
+  
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+17 0
+"slApps"
+""
+1 42 88 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  40 86 264 472
+1
+1
+LANG:1 8 OVERVIEW
+
+0
+
+E
+"main()
+{
+  changeSelectedApplication();
+}
+
+
+
+
+
+
+
+
+" 0
+
+E
+
+0 0
+17 1
+"slRecipients"
+""
+1 302 138 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  300 136 634 230
+0
+
+E
+E
+E
+
+0 0
+14 2
+"tfNewRecipient"
+""
+1 382 238 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  380 236 634 259
+3 "0s" 0 0 0 0 0 -1  E E E
+2 5
+"PRIMITIVE_TEXT3"
+""
+1 302 238 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 302 238 369 253
+0 2 2 "0s" 0 0 0 192 0 0  302 238 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 New recipient
+13 6
+"btnAddRecipient"
+""
+1 642 228 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  640 226 674 260
+
+P 
+4294967295
+"pictures/append.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  dyn_string recipients = slRecipients.items;
+  dynAppend(recipients, tfNewRecipient.text);
+  slRecipients.items = recipients;
+    btnApplyAppConfig.backCol = \"green\";
+}
+
+
+" 0
+ E E E
+13 7
+"btnDeleteRecipient"
+""
+1 642 188 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  640 186 674 220
+
+P 
+4294967295
+"pictures/del_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+E E "main()
+{
+  int pos = slRecipients.selectedPos;
+  slRecipients.deletePos(pos);
+  btnApplyAppConfig.backCol = \"green\";
+}
+
+
+
+" 0
+ E
+13 8
+"btnDeleteRecipients"
+""
+1 642 148 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  640 146 674 180
+
+P 
+4294967295
+"pictures/delAll_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  slRecipients.deleteAllItems();
+  btnApplyAppConfig.backCol = \"green\";
+}
+" 0
+ E E E
+13 15
+"btnApplyAppConfig"
+""
+1 590 480 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  588 478 682 512
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  save();
+  btnApplyAppConfig.backCol = \"_Button\";
+}" 0
+ E E E
+30 18
+"frame1"
+""
+1 20 342 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  loadConfiguration();
+}" 0
+ E 0 0 1 0 1 E 1 0 1.216216216216216 2.844946500601964e-016 112.0540540540541 0 E 20 342 701 491
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 21 General Configuration
+2 20
+"PRIMITIVE_TEXT5"
+""
+1 42.00000000000006 553.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42.00000000000006 553.0000000000001 333 568
+0 2 2 "0s" 0 0 0 192 0 0  42.00000000000006 553.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 59 Send notification when alarm has been active for more than:
+21 21
+"txAlarmActivePeriod"
+""
+1 340.0000000000001 550.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  338 548 392 572
+0
+
+E
+E
+E
+
+N 0 100 1 0 1 1
+2 22
+"PRIMITIVE_TEXT6"
+""
+1 403.0000000000002 553.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 403.0000000000002 553.0000000000001 440 568
+0 2 2 "0s" 0 0 0 192 0 0  403.0000000000002 553.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 minutes
+2 23
+"PRIMITIVE_TEXT7"
+""
+1 42.00000000000006 607.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42.00000000000006 607.0000000000001 297 622
+0 2 2 "0s" 0 0 0 192 0 0  42.00000000000006 607.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 50 Send notification when alarm has occured more than
+2 25
+"PRIMITIVE_TEXT8"
+""
+1 403.0000000000002 610.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 403.0000000000002 610.0000000000001 461 625
+0 2 2 "0s" 0 0 0 192 0 0  403.0000000000002 610.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 12 times during
+2 27
+"PRIMITIVE_TEXT9"
+""
+1 537 610.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 537 610.0000000000001 574 625
+0 2 2 "0s" 0 0 0 192 0 0  537 610.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 minutes
+2 28
+"PRIMITIVE_TEXT10"
+""
+1 42.00000000000006 580.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42.00000000000006 580.0000000000001 266 595
+0 2 2 "0s" 0 0 0 192 0 0  42.00000000000006 580.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 49 Send a reminder that alarm is still active every 
+21 29
+"txAlarmRenotificationPeriod"
+""
+1 340.0000000000001 581.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  338 579 392 603
+0
+
+E
+E
+E
+
+N 0 1000000 60 0 1 1
+2 30
+"PRIMITIVE_TEXT11"
+""
+1 403.0000000000002 583.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 403.0000000000002 583.0000000000001 440 598
+0 2 2 "0s" 0 0 0 192 0 0  403.0000000000002 583.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 minutes
+21 31
+"txAlarmOccurrancesLimit"
+""
+1 340.0000000000001 610.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  338 608 392 632
+0
+
+E
+E
+E
+
+N 0 100 1 0 1 1
+21 32
+"txAlarmOccurrancesPeriod"
+""
+1 371.0000000000001 562.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  479 606 533 630
+0
+
+E
+E
+E
+
+N 0 100000 60 0 1 1
+2 33
+"PRIMITIVE_TEXT12"
+""
+1 42.00000000000006 634.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42.00000000000006 634.0000000000001 463 649
+0 2 2 "0s" 0 0 0 192 0 0  42.00000000000006 634.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 85 Minimum period between notifications for the occurances of an alarm for the same dpe:
+21 34
+"txAlarmOccurrancesRenotificationPeriod"
+""
+1 480 630.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  478 628 532 652
+0
+
+E
+E
+E
+
+N 0 100000 60 0 1 1
+13 35
+"btnApplyGeneralConfig"
+""
+1 600 668.0000000000001 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  598 666 692 700
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+    saveConfiguration();
+}" 0
+ E E E
+2 36
+"PRIMITIVE_TEXT13"
+""
+1 536 632.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 536 632.0000000000001 573 647
+0 2 2 "0s" 0 0 0 192 0 0  536 632.0000000000001 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 minutes
+13 40
+"pb_calenderFrom"
+""
+1 602 435 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+2
+LANG:1 21 Open date time picker
+LANG:0 23 Date Time Picker öffnen
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  600 434 634 463
+
+P 
+13421721
+"pictures/calender_en.gif"
+2
+LANG:1 0 
+LANG:0 0 
+"main()
+{
+
+  
+  time tOut;
+  string old = txTo.text; 
+  if (old == \"\")
+    old = formatTime(\"%Y.%m.%d %H:%M\", getCurrentTime());
+  dateTimePicker(old, tOut, true, true, FALSE, FALSE);
+
+  txTo.text(formatTime(\"%Y.%m.%d %H:%M\", tOut));
+  
+}
+
+
+" 0
+ E E E
+14 41
+"txTo"
+""
+1 380 440 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"textChangedCB" "main(string newText)
+{
+  bool dateCorrect = false;
+  int timeInterval = txTo.text - getCurrentTime();
+  dateCorrect = timeInterval < 4*60;//less than 4 hours
+  btnAddPattern.enabled == strlen(txPattern.text) > 0 && dateCorrect;
+}"
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  378 438 581 461
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = formatTime(\"%Y.%m.%d %H:%M\", getCurrentTime() + 60*60);
+}" 0
+ E
+2 42
+"PRIMITIVE_TEXT16"
+""
+1 302 442 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 302 442 351 457
+0 2 2 "0s" 0 0 0 192 0 0  302 442 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Inhibit until
+14 44
+"txPattern"
+""
+1 382.507614213198 405 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"textChangedCB" "main(string newText)
+{
+  bool dateCorrect = false;
+  int timeInterval = (int)txTo.text - (int)getCurrentTime();
+  dateCorrect = timeInterval < 4*60*60;//less than 4 hours
+  btnAddPattern.enabled = strlen(txPattern.text) > 0 && dateCorrect;
+}"
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  381 403 583 426
+3 "0s" 0 0 0 0 0 -1  E E E
+2 45
+"PRIMITIVE_TEXT17"
+""
+1 304 408 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 304 408 364 423
+0 2 2 "0s" 0 0 0 192 0 0  304 408 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 New pattern
+13 46
+"btnAddPattern"
+""
+1 642 418 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  640 416 674 450
+
+P 
+4294967295
+"pictures/append.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  if (txPattern.text != \"\")
+  {
+    dyn_string patterns = strsplit(txPattern.text, \";\");
+    dyn_string dates;
+    for (int i=1; i<=dynlen(patterns); i++)
+      dynAppend(dates, txTo.text);
+    tblPatterns.appendLines(dynlen(patterns), \"pattern\", patterns, \"validDate\", dates);
+  }
+  if (txTo.text != \"\")
+  {
+    int linesCount = tblPatterns.lineCount();
+    for(int i=0; i<linesCount; i++)
+      colorLine(i, txTo.text);
+    
+  }
+  txTo.text = \"\";
+  tblPatterns.deleteSelection();
+  btnApplyAppConfig.backCol = \"green\";
+}
+
+
+
+" 0
+ E E E
+13 47
+"btnClearPattern"
+""
+1 644 358 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  642 356 676 390
+
+P 
+4294967295
+"pictures/del_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+E E "main()
+{
+  dyn_int lines = tblPatterns.getSelectedLines();
+  if (dynlen(lines) > 0)
+  {
+    tblPatterns.deleteLineN(lines[1]);
+    tblPatterns.deleteSelection();
+    btnApplyAppConfig.backCol = \"green\";
+  }
+}
+
+
+
+
+" 0
+ E
+13 48
+"btnClearAllPatterns"
+""
+1 644 320 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  642 318 676 352
+
+P 
+4294967295
+"pictures/delAll_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  tblPatterns.deleteAllLines();
+  tblPatterns.deleteSelection();
+  btnApplyAppConfig.backCol = \"green\";
+}
+
+" 0
+ E E E
+30 49
+"FRAME1"
+""
+1 320 42 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+49 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 -30 76 0 E 320 42 711 201
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Recipients
+30 50
+"FRAME2"
+""
+1 320 42 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+50 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.139240506329114 -30 242.1518987341772 0 E 320 42 711 201
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Inhibit Alarms
+30 51
+"FRAME3"
+""
+1 20 2 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+51 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.9999999999999999 0 38.00000000000004 0 E 20 2 701 481
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 25 Application Configuration
+20 53
+"cbEnableNotifications"
+""
+1 290 88 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  288 86 462 120
+1
+T 
+1
+LANG:1 24 Enable SMS notifications
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+EE25 56
+"tblPatterns"
+""
+1 160 250 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  298 308 632 402
+"main()
+{
+   setValue(\"tblPatterns\", \"tableMode\", 1);
+   setValue(\"tblPatterns\", \"selectByClick\", TABLE_SELECT_LINE);
+ 
+}" 0
+E 1 0 1 2 0 "pattern" 18 1 0 "s" 1
+LANG:1 7 Pattern
+E
+1
+LANG:1 0 
+
+157 "validDate" 20 1 0 "s" 1
+LANG:1 5 Valid
+E
+1
+LANG:1 0 
+
+170 
+16 16 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 57
+"PUSH_BUTTON4"
+""
+1 670 10 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 17 Sent messages log
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  668 8 702 42
+
+P 
+4294967295
+"pictures/logviewer_e.png"
+1
+LANG:1 17 Sent messages log
+"main()
+{
+  ChildPanelOnCentralModal(\"fwSystemOverview/fwSystemOverview_sentSmsLog.pnl\", 
+                    \"sentSmsLog\",
+                    makeDynString());
+}" 0
+ E E E
+13 58
+"btnAdd"
+""
+1 640 90 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 15 Define patterns
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  598 400 632 429
+
+T 
+1
+LANG:1 3 Add
+"main()
+{
+  dyn_float resultFloat;
+  dyn_string resultText;
+  ChildPanelOnModuleModalReturn(\"fwSystemOverview/fwSystemOverview_patternsDefinition.pnl\", 
+                    \"patternsAdd\",
+                    myModuleName(),
+                    makeDynString(\"$application:\" + slApps.selectedText()),
+                    0,0, resultFloat, resultText);
+  string patterns;
+  fwGeneral_dynStringToString(resultText, patterns, \";\");
+  txPattern.text = patterns;
+}
+
+
+
+" 0
+ E E E
+2 61
+"PRIMITIVE_TEXT19"
+""
+1 42 62 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42 62 64 77
+0 2 2 "0s" 0 0 0 192 0 0  42 62 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 Tree
+22 62
+"cmbTrees"
+""
+1 80 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  78 58 261 81
+0
+
+E
+"main()
+{
+  update();
+}" 0
+
+E
+ 0 0
+20 63
+"cbIncludeInOverview"
+""
+1 480 90 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  478 88 682 122
+1
+T 
+1
+LANG:1 27 Include in the overview SMS
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+EE13 64
+"btnAddManager"
+""
+1 521 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  529 58 682 85
+
+T 
+1
+LANG:1 22 Add Manager to Console
+"main()
+{
+  string ctrlManType = \"PVSS00ctrl\";
+  if (fwInstallation_checkToolVersion(\"6.2.0\") > 0)
+  {
+    ctrlManType = fwInstallation_getWCCOAExecutable(\"ctrl\");
+  }
+
+  //Add the notifications to the console
+  fwInstallationManager_append(0, \"\", ctrlManType, \"always\", 30, 3, 2, \"fwSystemOverview/fwSystemOverviewNotifications.ctl\");
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

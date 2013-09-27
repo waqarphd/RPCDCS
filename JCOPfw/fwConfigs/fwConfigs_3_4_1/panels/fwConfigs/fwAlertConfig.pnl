@@ -1,0 +1,2186 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 641 391 N "_3DFace" 4
+"$bHierarchyBrowser"
+"$sDpe"
+"$sDpeConfigObjectVarName"
+"$sSummaryDpe"
+"main()
+{
+	bool singleDpe, isActive, configExists, valid;
+	int length, i, j, k, ranges, elementType;
+	dyn_string exceptionInfo;
+	
+	int alertHandlingType, pos, classIndex;
+	string alertPanel, alertHelp, dpe, errorString;
+	shape alertTextBox, alertLimitBox, alertClassBox, signal;
+	dyn_string alertLimits;
+	dyn_string alertTexts, alertClasses, summaryDpeList, alertPanelParameters, systems, classes;
+
+ dyn_mixed alertConfigObject;
+ dyn_dyn_mixed ddmAlertParam, ddmAlertLimit;  
+  	
+	if(isDollarDefined(\"$sDpe\"))
+	{
+		dpe = $sDpe;
+		strreplace(dpe, \" \", \"\");
+	    DPE_LIST = strsplit(dpe, \"|\");
+	}
+		
+	limitTypes.items = makeDynString(LIMITS_ABSOLUTE, LIMITS_PLUSMINUS_ABSOLUTE, LIMITS_PLUSMINUS_PERCENTAGE, LIMITS_DISCRETE);
+	limitTypes.selectedPos = 1;
+		
+	elementNameField.editable(FALSE);
+
+	length = dynlen(DPE_LIST);
+	
+	// check whether a dpe, a list of dpes or an object was passed to the panel
+	switch(length)
+	{
+			case 0:
+				if(isDollarDefined(\"$sDpeConfigObjectVarName\"))	// object passed to the panel
+				{
+					if(getGlobalType($sDpeConfigObjectVarName) != DYN_DYN_ANYTYPE_VAR)
+					{
+						elementNameField.text(\"Wrong alarm object name\");
+						alertOnOff.enabled = FALSE;
+						applyButton.enabled = FALSE;
+						okButton.enabled = FALSE;
+						fwException_raise(exceptionInfo, 
+															\"WARNING\", \"The alarm object \" + $sDpeConfigObjectVarName + 
+															\" doesn't exists or hasn't got the proper format.\", 
+															\"\");
+						fwExceptionHandling_display(exceptionInfo);					
+						return;
+					}					
+					
+					panelMode = OBJECT;					
+					fwGeneral_getGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+					//DebugN(\"fwAlertConfigPanel: \", dpeConfigObject);
+					
+					_fwAlertConfig_readDpeAlertConfigObject(dpeConfigObject, DPE_LIST[1], alertHandlingType,	isActive, 
+																								alertLimits, alertClasses, alertTexts, alertPanel,alertPanelParameters, 
+																								alertHelp, exceptionInfo, DPE_TYPE);					
+					elementType = DPE_TYPE;
+					
+					if(alertHandlingType == DPCONFIG_NONE)
+						configExists = FALSE;
+					else
+						configExists = TRUE;
+					//					summaryDpeList 					
+					
+					_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+					elementNameField.text(DPE_LIST[1]);
+					DPES_OK = TRUE;
+				}
+				else // neither dpes nor object passed, nothing to do in the panel
+				{
+					elementNameField.text(\"No Data Point Elements\");
+					alertOnOff.enabled = FALSE;
+					applyButton.enabled = FALSE;
+					okButton.enabled = FALSE;
+					fwException_raise(exceptionInfo, \"WARNING\", getCatStr(\"fwConfigs\", \"PANEL_NODATAPOINTSTOCONFIG\"), \"\");
+					fwExceptionHandling_display(exceptionInfo);					
+					return;
+				}
+				break;
+			case 1:		// single dpe
+			
+				elementNameField.text(DPE_LIST[1]);
+				
+				DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_ALERT_HDL, DPE_TYPE, exceptionInfo, errorString);
+				if(!DPES_OK)
+					fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+				else
+				{
+
+					_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+// 					fwAlertConfig_get(DPE_LIST[1], configExists, alertHandlingType, alertTexts, alertLimits, 
+//                             alertClasses, summaryDpeList, alertPanel, alertPanelParameters, 
+//                             alertHelp, isActive, exceptionInfo);
+         
+         //using the new functions fwAlertConfig_object...       
+         fwAlertConfig_objectGet(DPE_LIST[1], alertConfigObject, exceptionInfo);
+         ddmAlertParam = alertConfigObject[fwAlertConfig_ALERT_PARAM];
+         ddmAlertLimit = alertConfigObject[fwAlertConfig_ALERT_LIMIT];
+         configExists = (ddmAlertParam[fwAlertConfig_ALERT_PARAM_TYPE][1]!=DPCONFIG_NONE);
+         alertHandlingType = ddmAlertParam[fwAlertConfig_ALERT_PARAM_TYPE][1];
+         isActive = ddmAlertParam[fwAlertConfig_ALERT_PARAM_ACTIVE][1];
+         ranges = ddmAlertParam[fwAlertConfig_ALERT_PARAM_RANGES][1];         
+         if(!ddmAlertParam[fwAlertConfig_ALERT_PARAM_DISCRETE][1])
+				   fwSetTextFieldsFormat(exceptionInfo);
+         for(i=1 ; i<=ranges ; i++)
+         {
+           alertTexts[i] = ddmAlertLimit[i][fwAlertConfig_ALERT_LIMIT_TEXT];
+           alertClasses[i] = ddmAlertLimit[i][fwAlertConfig_ALERT_LIMIT_CLASS];    
+           if(ddmAlertParam[fwAlertConfig_ALERT_PARAM_DISCRETE][1])
+             alertLimits[i] = ddmAlertLimit[i][fwAlertConfig_ALERT_LIMIT_VALUE_MATCH];
+           else
+             alertLimits[i] = ddmAlertLimit[i][fwAlertConfig_ALERT_LIMIT_VALUE];
+         }
+         //first limit is always 0
+         dynRemove(alertLimits,1);
+         if(ddmAlertParam[fwAlertConfig_ALERT_PARAM_DISCRETE][1]) 
+           limitTypes.text = LIMITS_DISCRETE;
+//          fwShowLimitsType();
+ 
+					elementType = dpElementType(DPE_LIST[1]);
+				}				
+				panelMode = SINGLE_DPE;
+				break;
+			default:
+				dpeDetails.visible = TRUE;
+
+				_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+
+				if(dynlen(systems) == 1)
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+
+				DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_ALERT_HDL, DPE_TYPE, exceptionInfo, errorString);
+				if(!DPES_OK)
+					fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+
+				fwSetTextFieldsFormat(exceptionInfo);
+				
+				elementType = dpElementType(DPE_LIST[1]);
+				
+				configExists = FALSE;	
+				panelMode = MULTIPLE_DPES;
+				break;
+	}
+
+	okButton.enabled = DPES_OK;
+	applyButton.enabled = DPES_OK;
+        if((panelMode == SINGLE_DPE) || (panelMode == MULTIPLE_DPES))
+        {
+          if(getPath(PANELS_REL_PATH, \"fwAlarmHandling/fwAlarmHandlingHelpConfig.pnl\") != \"\")
+            alarmHelpButton.visible = TRUE;
+        }
+        alarmHelpButton.enabled = DPES_OK;
+
+	fwFindAlarmClasses(systems, classes, exceptionInfo);
+	fwShowAlarmClasses(classes, exceptionInfo);
+
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+        
+	
+	if(!configExists)
+	{
+		limNum1.text = 0;
+		limNum2.text = 0;
+		limNum3.text = 0;
+		limNum4.text = 0;
+		_fwHideAllItems(panelMode != OBJECT);
+		return;
+	}
+
+	alertActive.visible = TRUE;
+	alertActive.state(0) = isActive;
+	alertOnOff.state(0) = TRUE;
+	
+	_fwConfigs_getConfigOptionsForDpeType(elementType, fwConfigs_PVSS_ALERT_HDL, elementType, exceptionInfo);
+	
+	switch(elementType)
+	{
+		case fwConfigs_ANALOG_OPTIONS:
+			ranges = dynlen(alertTexts);
+			
+     fwShowLimitsType();
+			rangeCombo.text = ranges;
+//DebugN(alertClasses);	
+			for (j = 1; j <= ranges; j++)
+			{  
+			    alertTextBox = getShape(\"alText\" + j);
+			    alertClassBox = getShape(\"alClass\" + j);
+			    
+                            //remove . from end of string
+			    alertClasses[j] = strrtrim(alertClasses[j], \".\");
+
+                            //see if string contains system name : => if so, remove it			    
+                            pos = strpos(alertClasses[j], \":\");
+			    if(pos >= 0)
+			    	alertClasses[j] = substr(alertClasses[j], pos + 1);
+
+                            //see if string contains _XX priority suffix => if so, remove it			    
+                            if(patternMatch(fwAlertConfig_FW_ALERT_CLASS_ALTERNATIVE_PATTERN, alertClasses[j]))
+                            {
+                                alertClasses[j] = strrtrim(alertClasses[j], \"1234567890\");
+                                alertClasses[j] = strrtrim(alertClasses[j], \"_\");
+                            }
+                            
+                            alertClassBox.selectedPos = dynContains(alertClassBox.items, alertClasses[j]);
+			    alertTextBox.text = alertTexts[j];		    
+			    
+			    CLASS_POSITIONS[alertClassBox.name] = alertClassBox.selectedPos;
+
+			    alertTextBox.visible = TRUE;
+			    alertClassBox.visible = TRUE;
+			} // for j
+//DebugN(alertClasses);	
+			    
+			for (k = 1; k < ranges ; k++)
+			{
+				alertLimitBox = getShape(\"limNum\" + k);
+				alertLimitBox.visible = TRUE;
+	
+			  alertLimitBox.text = alertLimits[k];		    
+	
+				signal = getShape(\"sign\" + k);
+				signal.visible = TRUE;
+			} // for k 
+			  
+			Text1.visible = TRUE;
+			Text2.visible = TRUE;
+			Text3.visible = TRUE;
+			Text12.visible = TRUE;
+			rangeCombo.visible = TRUE;
+			
+			limitTypes.visible = (panelMode != OBJECT);
+			if(panelMode == SINGLE_DPE)
+			{
+				dpConnect(\"fwShowValue\", TRUE, $sDpe + \":_original.._value\");
+			}
+			break;
+			
+		case fwConfigs_BINARY_OPTIONS:	
+			alText6.visible = TRUE;
+			alText7.visible = TRUE;
+			alClass3.visible = TRUE;
+			Text1.visible = TRUE;
+			Text2.visible = TRUE;
+			Text6.visible = TRUE;
+			Text7.visible = TRUE;
+			Text8.visible = TRUE;
+			radio1.visible = TRUE;
+			
+			pos = dynContains(alertClasses, \"\");
+				
+			if(pos == 1)
+			{
+				classIndex = 2;
+				valid = FALSE;
+			}
+			else
+			{
+				classIndex = 1;
+				valid = TRUE;
+			}
+	
+	 		alertClasses[classIndex] = strrtrim(alertClasses[classIndex], \".\");
+			pos = strpos(alertClasses[classIndex], \":\");
+			    
+			if(pos >= 0)
+			{
+				alertClasses[classIndex] = substr(alertClasses[classIndex], pos + 1);
+			}
+					
+			alClass3.selectedPos = dynContains(alClass3.items, alertClasses[classIndex]);
+			CLASS_POSITIONS[alClass3.name] = alClass3.selectedPos;
+	
+			alText7.text = alertTexts[1];
+			alText6.text = alertTexts[2];
+				
+			radio1.number = !valid;
+			break;
+		
+		default:
+			okButton.enabled = FALSE;
+			applyButton.enabled = FALSE;
+			sumAlertWarning.visible = TRUE;
+			break;
+	}		
+}
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  394 53
+""0  1
+E "dyn_string DPE_LIST;
+int DPE_TYPE;
+bool DPES_OK;
+mapping CLASS_POSITIONS;
+
+// mode in which the panel is used
+int panelMode;
+const int OBJECT	= 1;
+const int SINGLE_DPE		= 2;
+const int MULTIPLE_DPES	= 3;
+
+dyn_dyn_anytype dpeConfigObject;
+
+const string ALERTCLASSTYPEDIVIDER = \"-----------\";
+
+const string LIMITS_ABSOLUTE	= \"Absolute Limit Values\";
+const string LIMITS_PLUSMINUS_ABSOLUTE		= \"Current Value +/- Limit\";
+const string LIMITS_PLUSMINUS_PERCENTAGE	= \"Current Value +/- Percentage\";
+const string LIMITS_DISCRETE	= \"Discrete values match\";
+
+fwSetTextFieldsFormat(dyn_string &exceptionInfo)
+{
+	string formatString; 
+	
+	fwConfigs_getBestFormatForDpeList(DPE_LIST,	formatString, exceptionInfo);
+  if(limitTypes.text == LIMITS_DISCRETE) 
+    formatString = \"%s\";
+	fwConfigs_setTextFieldsFormat(makeDynString(\"limNum1\", \"limNum2\", \"limNum3\", \"limNum4\"), formatString,
+									makeDynBool(FALSE), exceptionInfo);
+}
+
+_fwHideAllItems(bool withWarning)
+{
+	alertActive.visible = FALSE;
+    alClass1.visible = FALSE;
+    alClass2.visible = FALSE;
+    alClass3.visible = FALSE;
+    alClass4.visible = FALSE;
+    alClass5.visible = FALSE;
+    alText1.visible = FALSE;
+    alText2.visible = FALSE;
+    alText3.visible = FALSE;
+    alText4.visible = FALSE;
+    alText5.visible = FALSE;
+    limNum1.visible = FALSE;
+    limNum2.visible = FALSE;
+    limNum3.visible = FALSE;
+    limNum4.visible = FALSE;
+    sign1.visible = FALSE;
+    sign2.visible = FALSE;
+    sign3.visible = FALSE;
+    sign4.visible = FALSE;
+	rangeCombo.visible = FALSE;
+	
+	alText6.visible = FALSE;
+	alText7.visible = FALSE;
+	alClass3.visible = FALSE;
+	Text1.visible = FALSE;
+	Text2.visible = FALSE;
+	Text3.visible = FALSE;
+	Text6.visible = FALSE;
+	Text7.visible = FALSE;
+	Text8.visible = FALSE;
+	Text12.visible = FALSE;
+	radio1.visible = FALSE;
+	limitTypes.visible = FALSE;
+	limitTypesTitle.visible = FALSE;
+    Text5.visible = withWarning;
+    
+ 	lim1Percent.visible = FALSE;
+ 	lim2Percent.visible = FALSE;
+ 	lim3Percent.visible = FALSE;
+ 	lim4Percent.visible = FALSE;
+	currentOriginalValue.visible = FALSE;
+	currentOriginalValueTitle.visible = FALSE;
+  lblGoodRange.visible = FALSE;
+}
+
+saveSettings(dyn_string &exceptionInfo)
+{
+	bool isGood;
+	int i, j, numberOfDpes, requestedRanges, alertType, configType, limitsType;
+	string dpe, mode, tempLimit, summaryDpe;
+	dyn_float limits = makeDynFloat();
+	dyn_dyn_mixed allLimits;
+	dyn_string alertClass, alertText, systems, dynEmpty;
+	dyn_int dynAlertType;
+	dyn_dyn_string dynAlertClass, dynAlertText, dynDynEmpty;
+ dyn_bool dynDiscrete;
+	dyn_string dsLimits = makeDynString();
+
+	mode = limitTypes.text;
+      
+ 	if(!DPES_OK)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", getCatStr(\"fwConfigs\", \"PANEL_MIXEDORBADDPETYPES\"), \"\");
+		return;		
+	}
+
+	if(isDollarDefined(\"$sSummaryDpe\"))
+		summaryDpe = $sSummaryDpe;
+	else
+		summaryDpe = \"\";
+  
+//DebugN(summaryDpe);
+
+	okButton.enabled = FALSE;
+	applyButton.enabled = FALSE;
+	closeButton.enabled = FALSE;
+	if(panelMode == MULTIPLE_DPES)
+		fwOpenProgressBar(\"Configuration panel\", \"Saving configuration...\", 1);
+	
+	if(alertOnOff.state(0))
+	{
+		// read input data from the panel depending on the dpe type
+		_fwConfigs_getConfigOptionsForDpeType(DPE_TYPE, fwConfigs_PVSS_ALERT_HDL, configType, exceptionInfo);
+		switch(configType)
+		{
+			case fwConfigs_ANALOG_OPTIONS:
+				alertType = DPCONFIG_ALERT_NONBINARYSIGNAL;
+				requestedRanges = rangeCombo.text;
+			
+				for (i = 1; i <= requestedRanges; i++)
+				{ 
+					getValue(\"alText\" + i, \"text\", alertText[i]);
+					getValue(\"alClass\" + i, \"text\", alertClass[i]);
+					if (alertClass[i] != \"\")
+						alertClass[i] = alertClass[i] + \".\";
+				}
+							
+				// put the limits in a dyn_float 
+				for (i = 1; i < requestedRanges; i++)
+				{
+//				getValue(\"limNum\" + i, \"text\", limits[i]);
+        if(mode!=LIMITS_DISCRETE)
+        {
+  					getValue(\"limNum\" + i, \"text\", tempLimit);
+  					fwConfigs_checkStringFormat(tempLimit, DPE_TYPE, isGood, exceptionInfo);
+  					if(isGood)
+  						limits[i] = tempLimit;
+  					else
+  					{
+  						fwException_raise(exceptionInfo, \"ERROR\", \"Limit \" + i + \" is not valid\", \"\");
+  						okButton.enabled = TRUE;
+  						applyButton.enabled = TRUE;
+  						closeButton.enabled = TRUE;
+  						if(panelMode == MULTIPLE_DPES)
+  							fwCloseProgressBar(\"Configuration failed\");
+  						return;
+  					}
+        }
+        else
+        {
+  					getValue(\"limNum\" + i, \"text\", dsLimits[i]);
+        }
+				}
+//DebugN(limits, alertClass);
+      if(mode!=LIMITS_DISCRETE)
+      {
+  				_fwAlertConfig_checkLimits(limits, isGood, exceptionInfo);
+  				if(!isGood)
+  				{
+  					okButton.enabled = TRUE;
+  				  applyButton.enabled = TRUE;
+  					closeButton.enabled = TRUE;
+  					if(panelMode == MULTIPLE_DPES)
+  						fwCloseProgressBar(\"Configuration failed\");
+  					return;
+  				}
+      }
+				_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+				_fwAlertConfig_checkClassPriorities(systems, alertClass, isGood, exceptionInfo, TRUE);
+				if(!isGood)
+				{
+			    okButton.enabled = TRUE;
+			    applyButton.enabled = TRUE;
+					closeButton.enabled = TRUE;
+					if(panelMode == MULTIPLE_DPES)
+						fwCloseProgressBar(\"Configuration failed\");
+					return;
+				}
+				break;
+				
+			case fwConfigs_BINARY_OPTIONS:	
+				alertType = DPCONFIG_ALERT_BINARYSIGNAL;
+				if(alClass3.text == \"\")
+				{
+					fwException_raise(exceptionInfo, \"ERROR\", \"You must specify an alarm class for the invalid range.\", \"\");
+					okButton.enabled = TRUE;
+				  applyButton.enabled = TRUE;
+					closeButton.enabled = TRUE;
+					if(panelMode == MULTIPLE_DPES)
+						fwCloseProgressBar(\"Configuration failed\");
+					return;
+				}
+				
+				alertText = makeDynString(alText7.text, alText6.text);
+	  	    
+		 		// create alarm class list with valid range
+				if (radio1.number == 1)
+					alertClass = makeDynString(\"\", alClass3.text + \".\");
+				else if (radio1.number == 0)
+					alertClass = makeDynString(alClass3.text + \".\", \"\"); 
+				break;
+			default:
+				break;
+		}
+
+		if((panelMode == SINGLE_DPE) || (panelMode == MULTIPLE_DPES))
+		{
+			fwAlertConfig_deactivateMultiple(DPE_LIST, exceptionInfo);
+			if(dynlen(exceptionInfo) > 0)
+			{
+				okButton.enabled = TRUE;
+				applyButton.enabled = TRUE;
+				closeButton.enabled = TRUE;
+				if(panelMode == MULTIPLE_DPES)
+					fwCloseProgressBar(\"Configuration failed\");
+				return;
+			}
+			
+			numberOfDpes = dynlen(DPE_LIST);
+      
+    if(mode != LIMITS_DISCRETE)
+    {
+  			switch(mode)
+  			{
+  				case LIMITS_ABSOLUTE:
+  					limitsType = fwConfigs_ALERT_LIMITS_ABSOLUTE;
+  					break;
+  				case LIMITS_PLUSMINUS_ABSOLUTE:
+  					limitsType = fwConfigs_ALERT_LIMITS_RELATIVE;
+  					break;
+  				case LIMITS_PLUSMINUS_PERCENTAGE:
+  					limitsType = fwConfigs_ALERT_LIMITS_RELATIVE_PERCENTAGE;
+  					break;
+  			}
+			
+  			fwAlertConfig_generateAbsoluteLimitsMultiple(DPE_LIST, limitsType, limits, allLimits, exceptionInfo);
+    	}					
+    else
+    {      
+  			for(j=1; j<=numberOfDpes; j++)
+  			{
+          allLimits[j] = limits;
+  			}
+    }																	
+			if(dynlen(exceptionInfo) > 0)
+			{
+				okButton.enabled = TRUE;
+				applyButton.enabled = TRUE;
+				closeButton.enabled = TRUE;
+				if(panelMode == MULTIPLE_DPES)
+					fwCloseProgressBar(\"Configuration failed\");
+				return;
+			}
+
+			for(j=1; j<=numberOfDpes; j++)
+			{
+				dynAlertType[j] = alertType;
+				dynAlertText[j] = alertText;
+				dynAlertClass[j] = alertClass;
+				dynDiscrete[j] = (mode==LIMITS_DISCRETE);
+				dynEmpty[j] = \"\";
+				dynDynEmpty[j] = makeDynString();
+			}
+//DebugN(dynAlertClass);			
+      		
+///////////////////////////////////////////////////////
+// between these markers, new code using the fwAlertConfig_object... functions
+      
+    dyn_dyn_mixed alarmObjects;
+    dyn_mixed alarmObject;
+    dyn_dyn_anytype alarmLimits, alarmParams;
+  
+      if(requestedRanges==0)//binary alarm
+      { 
+        requestedRanges=2;
+        limits=makeDynFloat(0);
+      }
+      //initialize the params object
+      fwAlertConfig_objectInitialize( alarmObject,requestedRanges);
+      //extract the limits parameters of the object
+      alarmLimits = alarmObject[fwAlertConfig_ALERT_LIMIT];
+			for (i = 1; i <= requestedRanges; i++)
+			{
+        alarmLimits[i][fwAlertConfig_ALERT_LIMIT_TEXT] = alertText[i];
+        alarmLimits[i][fwAlertConfig_ALERT_LIMIT_CLASS] = alertClass[i];
+      }       
+      if( mode!=LIMITS_DISCRETE)
+      {
+  			for (i = 2; i <= requestedRanges; i++)
+  			{
+          alarmLimits[i][fwAlertConfig_ALERT_LIMIT_VALUE] = limits[i-1];
+        }
+        alarmLimits[1][fwAlertConfig_ALERT_LIMIT_VALUE] = 0.0;
+      }
+      else
+      {
+        alarmLimits[1][fwAlertConfig_ALERT_LIMIT_VALUE_MATCH] = \"*\";
+  			for (i = 2; i <= requestedRanges; i++)
+  			{
+          alarmLimits[i][fwAlertConfig_ALERT_LIMIT_VALUE_MATCH] = dsLimits[i-1];
+        }
+      }
+      //store the limits parameters back to the object
+      alarmObject[fwAlertConfig_ALERT_LIMIT] = alarmLimits;
+      
+      //extract the general parameters of the object
+      alarmParams = alarmObject[fwAlertConfig_ALERT_PARAM];
+    
+      //set the general parameters
+      alarmParams[fwAlertConfig_ALERT_PARAM_TYPE][1] = alertType;
+      alarmParams[fwAlertConfig_ALERT_PARAM_ADD_DPE_TO_SUMMARY][1] = summaryDpe;
+      alarmParams[fwAlertConfig_ALERT_PARAM_FALLBACK_TO_SET][1] = TRUE;
+      alarmParams[fwAlertConfig_ALERT_PARAM_STORE_IN_HISTORY][1] = TRUE;
+      alarmParams[fwAlertConfig_ALERT_PARAM_DISCRETE][1] = (mode==LIMITS_DISCRETE);
+// Debug(\"alarmLimits:\");DebugN(alarmLimits);
+      //store the general parameters back to the object
+      alarmObject[fwAlertConfig_ALERT_PARAM] = alarmParams;
+      
+      //add to objects array
+      alarmObjects[1] = alarmObject;
+// Debug(\"alarmObject:\");DebugN(alarmObject);DebugN(\"requestedRanges:\"+requestedRanges);
+     fwAlertConfig_objectSetMany(DPE_LIST,alarmObjects,exceptionInfo);
+//////////////////////////////////////////////////////////////////////////
+    
+      
+// 		 	fwAlertConfig_setMany(DPE_LIST, dynAlertType, dynAlertText, allLimits, dynAlertClass,
+// 	 															dynDynEmpty, dynEmpty, dynDynEmpty, dynEmpty, exceptionInfo, 
+//                         FALSE, TRUE, summaryDpe, TRUE, dynDiscrete);
+ 
+			if(dynlen(exceptionInfo) > 0)
+			{
+				okButton.enabled = TRUE;
+				applyButton.enabled = TRUE;
+				closeButton.enabled = TRUE;
+				if(panelMode == MULTIPLE_DPES)
+					fwCloseProgressBar(\"Configuration failed\");
+				return;
+			}
+
+			if(alertActive.state(0))
+				fwAlertConfig_activateMultiple(DPE_LIST, exceptionInfo);
+		}
+		else		// object mode
+		{
+			dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1]			= alertType;
+			dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1]		= alertActive.state(0);
+			dpeConfigObject[fwAlertConfig_DPE_OBJECT_LIMITS]	= limits;
+			dpeConfigObject[fwAlertConfig_DPE_OBJECT_CLASSES]	= alertClass;
+			dpeConfigObject[fwAlertConfig_DPE_OBJECT_TEXTS]		= alertText;
+	
+			fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+				
+//			DebugN(\"Modified \", dpeConfigObject);
+		}
+	}
+	else
+	{
+		if((panelMode == SINGLE_DPE) || (panelMode == MULTIPLE_DPES))
+		{
+	 		fwAlertConfig_deleteMultiple(DPE_LIST, exceptionInfo, summaryDpe);
+	 	}
+	 	else		// object mode
+	 	{
+			dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1]			= DPCONFIG_NONE;
+			dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1]		= FALSE;
+			dpeConfigObject[fwAlertConfig_DPE_OBJECT_LIMITS]	= makeDynFloat();
+			dpeConfigObject[fwAlertConfig_DPE_OBJECT_CLASSES]	= makeDynString();
+			dpeConfigObject[fwAlertConfig_DPE_OBJECT_TEXTS]		= makeDynString();
+	
+			fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+				
+//			DebugN(\"Modified \", dpeConfigObject);
+	 	}
+	}
+
+	okButton.enabled = TRUE;
+	applyButton.enabled = TRUE;
+	closeButton.enabled = TRUE;
+	if(panelMode == MULTIPLE_DPES)
+		fwCloseProgressBar(\"Configuration complete\");
+}
+
+fwFindGlobalAlarmClasses(dyn_string systems, dyn_string &classesFound)
+{
+  dyn_string globalClasses = makeDynString(\"_fwWarningAck_50\", \"_fwWarningNack_50\",
+                                           \"_fwErrorAck_70\", \"_fwErrorNack_70\",
+                                           \"_fwFatalAck_90\", \"_fwFatalNack_90\");
+  classesFound = globalClasses;
+  
+  for(int i=1; i<=dynlen(globalClasses); i++)
+  {
+    for(int j=1; j<=dynlen(systems); j++)
+    {
+//DebugN(systems[j] + globalClasses[i]);
+      if(!dpExists(systems[j] + globalClasses[i]))
+      {
+        dynRemove(classesFound, dynContains(classesFound, globalClasses[i]));
+        break;
+      }
+    }
+  }
+}
+
+fwFindAlarmClasses(dyn_string systems, dyn_string &classes, dyn_string &exceptionInfo)
+{
+	int pos, i, length;
+	dyn_int ackType, priorities;
+	dyn_string rawClasses, standardClasses, globalClasses;
+	
+	classes = makeDynString(\"\");
+	
+	standardClasses = makeDynString(\"_fwWarningAck\", \"_fwWarningNack\",
+					\"_fwErrorAck\", \"_fwErrorNack\",
+					\"_fwFatalAck\", \"_fwFatalNack\");
+	
+	fwAlertConfig_getAlertClasses(systems, rawClasses, ackType, priorities, exceptionInfo);
+
+	length = dynlen(standardClasses);
+	for(i=1; i<=length; i++)
+	{
+		pos = dynContains(rawClasses, standardClasses[i]);
+		if(pos > 0)
+		{
+			dynRemove(rawClasses, pos);
+			dynAppend(classes, standardClasses[i]);
+		}
+	}
+  
+  fwFindGlobalAlarmClasses(systems, globalClasses);
+  if(dynlen(globalClasses) > 0)
+  {
+    dynAppend(classes, ALERTCLASSTYPEDIVIDER);
+    dynAppend(classes, globalClasses);    
+  }
+
+	length = dynlen(rawClasses);
+	if(length > 0)
+		dynAppend(classes, ALERTCLASSTYPEDIVIDER);
+	
+	for(i=1; i<=length; i++)
+		dynAppend(classes, rawClasses[i]);
+}
+
+fwShowAlarmClasses(dyn_string classes, dyn_string &exceptionInfo)
+{
+	int i;
+	shape classSelector;
+	
+	for(i=1; i<=5; i++)
+	{
+		classSelector = getShape(\"alClass\" + i);
+		classSelector.items = classes;
+		classSelector.selectedPos = 2;
+		CLASS_POSITIONS[classSelector.name] = 2;
+	}
+}
+
+fwShowLimitsType()
+{
+	bool showPercents, showCurrentValue;
+	int i, numberOfRanges;
+	string mode;
+	shape percent;
+ string sign, valuesText;
+ const string SIGN_EQUAL = \"=\";
+ const string SIGN_MINOR = \"<\";
+ const string VALUETEXT_LIMIT = \"Limit Values\";
+ const string VALUETEXT_MATCH = \"Match Values\";
+ shape lblSign, alText, limNum;
+ int x,y,xNum,yNum,xSign,ySign,yOffset;
+ 
+ yOffset=20;
+	mode = limitTypes.text;
+	switch(mode)
+	{
+		case LIMITS_ABSOLUTE:
+			showPercents = FALSE;
+			showCurrentValue = FALSE;
+			sign = SIGN_MINOR;
+    valuesText = VALUETEXT_LIMIT;
+			break;
+		case LIMITS_PLUSMINUS_ABSOLUTE:
+			showPercents = FALSE;
+			showCurrentValue = TRUE;
+			sign = SIGN_MINOR;
+    valuesText = VALUETEXT_LIMIT;
+			break;
+		case LIMITS_PLUSMINUS_PERCENTAGE:
+			showPercents = TRUE;
+			showCurrentValue = TRUE;
+			sign = SIGN_MINOR;
+    valuesText = VALUETEXT_LIMIT;
+			break;
+		case LIMITS_DISCRETE:
+			showPercents = FALSE;
+			showCurrentValue = FALSE;
+			sign = SIGN_EQUAL;
+    yOffset = 0;
+    valuesText = VALUETEXT_MATCH;
+			break;
+	}
+	
+//	DebugN(mode, showPercents, showCurrentValue);
+	
+	numberOfRanges = rangeCombo.text;
+	for(i=1; i<=(numberOfRanges-1); i++)
+	{
+   if(mode==LIMITS_DISCRETE)
+     getValue(\"alText\"+(i+1),\"position\",x,y);
+   else
+     getValue(\"lim\"+i+\"Percent\",\"position\",x,y);
+   getValue(\"sign\"+i,\"position\",xSign,ySign);
+   getValue(\"limNum\"+i,\"position\",xNum,yNum);
+   
+   setMultiValue(\"lim\"+i+\"Percent\",\"visible\",showPercents,
+                 \"sign\"+i,\"text\",sign,
+                 \"limNum\"+i,\"position\",xNum,y,
+                 \"sign\"+i,\"position\",xSign,(y+5));
+	}
+ setValue(\"Text3\",\"text\",valuesText);
+	for(i=numberOfRanges; i<=4; i++)
+	{
+		percent = getShape(\"lim\" + i + \"Percent\");
+		percent.visible = FALSE;	
+	}
+ lblGoodRange.visible = (mode==LIMITS_DISCRETE);
+ alClass1.text = \"\";
+ alClass1.visible = (mode!=LIMITS_DISCRETE);
+	currentOriginalValue.visible = showCurrentValue && (panelMode == SINGLE_DPE);
+	currentOriginalValueTitle.visible = showCurrentValue && (panelMode == SINGLE_DPE);
+}
+
+fwShowValue(string dpe, mixed value)
+{
+	currentOriginalValue.text = value;
+}
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 173
+"Text5"
+""
+1 230 293 E E E 1 E 0 E N {255,0,51} E N {255,255,255} E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 172 182 489 248
+1 2 0 "0s" 0 0 0 65 0 0  172 182 4
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 41 Pressing the Apply button now will delete
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 44 the alert handling config(s) ONLY if another
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 46 user is not currently viewing the dpe(s) with 
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 16 the Para module.
+2 142
+"Text3"
+""
+1 366 130 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.9866666666666667 0 1 4.879999999999991 0 1 E 368 132 439 149
+0 2 0 "0s" 0 0 0 192 0 0  368 132 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 12 Limit Values
+2 153
+"Text6"
+""
+1 358 130 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 360 132 429 149
+0 2 0 "0s" 0 0 0 192 0 0  360 132 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 11 Valid Range
+2 140
+"Text1"
+""
+1 485 130 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 487 132 558 149
+0 2 0 "0s" 0 0 0 192 0 0  487 132 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 11 Alarm Class
+2 141
+"Text2"
+""
+1 160 130 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 162 132 216 149
+0 2 0 "0s" 0 0 0 192 0 0  162 132 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 10 Alert Text
+2 159
+"Text7"
+""
+1 165 185 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 167 187 213 213
+0 2 0 "0s" 0 0 0 64 0 0  167 187 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 ON (1)
+2 160
+"Text8"
+""
+1 191 359 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 164 251 210 277
+0 2 0 "0s" 0 0 0 64 0 0  164 251 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 OFF(0)
+2 161
+"sign4"
+""
+1 346 176 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 346 176 354 193
+0 2 0 "0s" 0 0 0 192 0 0  346 176 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 <
+2 162
+"sign3"
+""
+1 346 208 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 346 208 354 225
+0 2 0 "0s" 0 0 0 192 0 0  346 208 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 <
+2 163
+"sign2"
+""
+1 346 240 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 346 240 354 257
+0 2 0 "0s" 0 0 0 192 0 0  346 240 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 <
+2 164
+"sign1"
+""
+1 346 272 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 346 272 354 289
+0 2 0 "0s" 0 0 0 192 0 0  346 272 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 <
+2 167
+"Text12"
+""
+1 160 92 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 162 94 210 111
+0 2 0 "0s" 0 0 0 192 0 0  162 94 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Ranges:
+2 170
+"title"
+""
+1 21 26 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 12 168 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 26 Arial,-1,19,5,40,0,0,0,0,0
+0 1
+LANG:1 19 Alert Configuration
+2 171
+"Text10"
+""
+1 174 151 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 55 86 72
+0 2 0 "0s" 0 0 0 192 0 0  12 55 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 11 DP Element:
+2 181
+"sumAlertWarning"
+""
+1 230 292 E E E 1 E 0 E N {255,0,51} E N {255,255,255} E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 172 182 489 248
+1 2 0 "0s" 0 0 0 65 0 0  172 182 4
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 46 This panel can not display or configure alerts
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 33 for this data point element type.
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 27 For summary alerts, use the
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 35 specifc summary alert config panel.
+2 186
+"currentOriginalValueTitle"
+""
+1 229 318 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 231 320 361 337
+0 2 0 "0s" 0 0 0 192 0 0  231 320 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 23 Current Original Value:
+2 187
+"lim4Percent"
+""
+1 454 172 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 456 174 468 191
+0 2 0 "0s" 0 0 0 192 0 0  456 174 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 %
+2 188
+"lim3Percent"
+""
+1 454 204 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 456 206 468 223
+0 2 0 "0s" 0 0 0 192 0 0  456 206 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 %
+2 189
+"lim2Percent"
+""
+1 454 236 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 456 238 468 255
+0 2 0 "0s" 0 0 0 192 0 0  456 238 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 %
+2 190
+"lim1Percent"
+""
+1 454 268 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 456 270 468 287
+0 2 0 "0s" 0 0 0 192 0 0  456 270 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 %
+2 192
+"limitTypesTitle"
+""
+1 290 92 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 292 94 362 111
+0 2 0 "0s" 0 0 0 192 0 0  292 94 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 12 Limits Type:
+14 115
+"alText5"
+""
+1 160 155 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  158 153 331 180
+3 "0s" 0 0 0 0 0 -1  E E E
+14 121
+"alText4"
+""
+1 160 187 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  158 185 331 212
+3 "0s" 0 0 0 0 0 -1  E E E
+14 122
+"alText3"
+""
+1 160 219 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  158 217 331 244
+3 "0s" 0 0 0 0 0 -1  E E E
+14 123
+"alText2"
+""
+1 160 251 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  158 249 331 276
+3 "0s" 0 0 0 0 0 -1  E E E
+14 124
+"alText1"
+""
+1 160 280 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  158 278 331 305
+3 "0s" 0 0 0 0 0 -1  E E E
+14 157
+"alText6"
+""
+1 218 187 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  216 185 330 212
+3 "0s" 0 0 0 0 0 -1  E E E
+14 158
+"alText7"
+""
+1 218 251 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  216 249 330 276
+3 "0s" 0 0 0 0 0 -1  E E E
+14 125
+"limNum4"
+""
+1 366 170 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  364 168 453 195
+3 "0s" 0 0 0 2 0 -1  E E E
+14 126
+"limNum3"
+""
+1 366 202 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  364 200 453 227
+3 "0s" 0 0 0 2 0 -1  E E E
+14 127
+"limNum2"
+""
+1 366 234 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  364 232 453 259
+3 "0s" 0 0 0 2 0 -1  E E E
+14 128
+"limNum1"
+""
+1 366 266 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  364 264 453 291
+3 "0s" 0 0 0 2 0 -1  E E E
+19 151
+"radio1"
+""
+1 200 90 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  384 162 418 307
+2
+T 
+1
+LANG:1 1  
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 1  
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+22 130
+"alClass5"
+""
+1 485 155 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  483 153 634 180
+0
+
+E
+"main()
+{
+	if(this.text == ALERTCLASSTYPEDIVIDER)
+		this.selectedPos = CLASS_POSITIONS[this.name];
+	else
+		CLASS_POSITIONS[this.name] = this.selectedPos;
+}" 0
+
+E
+ 0 0
+22 131
+"alClass4"
+""
+1 844 260 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  483 185 634 212
+0
+
+E
+"main()
+{
+	if(this.text == ALERTCLASSTYPEDIVIDER)
+		this.selectedPos = CLASS_POSITIONS[this.name];
+	else
+		CLASS_POSITIONS[this.name] = this.selectedPos;
+}" 0
+
+E
+ 0 0
+22 132
+"alClass3"
+""
+1 844 292 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  483 217 634 244
+0
+
+E
+"main()
+{
+	if(this.text == ALERTCLASSTYPEDIVIDER)
+		this.selectedPos = CLASS_POSITIONS[this.name];
+	else
+		CLASS_POSITIONS[this.name] = this.selectedPos;
+}" 0
+
+E
+ 0 0
+22 133
+"alClass2"
+""
+1 844 324 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  483 249 634 276
+0
+
+E
+"main()
+{
+	if(this.text == ALERTCLASSTYPEDIVIDER)
+		this.selectedPos = CLASS_POSITIONS[this.name];
+	else
+		CLASS_POSITIONS[this.name] = this.selectedPos;
+}" 0
+
+E
+ 0 0
+22 134
+"alClass1"
+""
+1 844 358 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  483 283 634 310
+0
+
+E
+"main()
+{
+	if(this.text == ALERTCLASSTYPEDIVIDER)
+		this.selectedPos = CLASS_POSITIONS[this.name];
+	else
+		CLASS_POSITIONS[this.name] = this.selectedPos;
+}" 0
+
+E
+ 0 0
+13 165
+"applyButton"
+""
+1 0 0 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  458 348 542 382
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E "main()
+{
+	int x, y;
+
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			closeButton.visible = TRUE;
+		else
+		{
+			getValue(\"\", \"position\", x, y);
+			this.position(x + 90,y);	
+		}
+	}
+	else
+		closeButton.visible = TRUE;
+		
+	this.visible = TRUE;	
+}" 0
+
+13 177
+"closeButton"
+""
+1 1492 929 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  548 348 632 382
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+22 166
+"rangeCombo"
+""
+1 215 90 E E E 1 E 0 E N "FwForegroundInputText" E N "FwBackgroundInputText" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  213 88 267 115
+4
+1
+LANG:1 1 5
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 2
+
+0
+
+E
+"main()
+  {
+    int i,j,k,l,m;
+    shape alertTextBox, alertClassBox, alertLimitBox, signal;
+    i = this.text;
+    //DebugN(\"i\",i);
+    
+    for (l=5;l>0;l--)
+      {
+        alertTextBox = getShape(\"alText\"+l);
+        alertClassBox = getShape(\"alClass\"+l);
+        alertTextBox.visible = 0;
+        alertClassBox.visible = 0;
+      }
+    for (m=4;m>0;m--)
+      {
+        signal = getShape(\"sign\"+m);
+			  alertLimitBox = getShape(\"limNum\"+m);
+        signal.visible = 0;
+        alertLimitBox.visible = 0;  
+      }  
+    
+    for (j=1;j<=i;j++)
+      {
+	      alertTextBox = getShape(\"alText\"+j);
+	    	alertClassBox = getShape(\"alClass\"+j);
+	    	alertTextBox.visible = 1;
+	    	alertClassBox.visible = 1;
+			}
+    for (k=1;k<i;k++)
+      {	    
+		    signal = getShape(\"sign\"+k);
+		    alertLimitBox = getShape(\"limNum\"+k);
+        signal.visible = 1;
+        alertLimitBox.visible = 1;
+      }
+
+		fwShowLimitsType();
+  }" 0
+
+E
+ 0 0
+20 113
+"alertOnOff"
+""
+1 10 92 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  9 90 93 114
+1
+T 
+1
+LANG:1 9 Configure
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main()
+{
+    // get state of checkbox
+    bool b, valid, radio;
+	int elementType, i, j, k, l, m, ranges, configType;
+	string type, alC1, alT1, alT2, dpe;
+	dyn_string tempSplit, alClassList, alClass, alT, uLimit, exceptionInfo;
+	shape alertTextBox, alertLimitBox, alertClassBox, signal;
+	
+	if(!DPES_OK)
+	{
+		this.state(0) = FALSE;
+		
+		fwException_raise(exceptionInfo, \"ERROR\", getCatStr(\"fwConfigs\", \"PANEL_MIXEDORBADDPETYPES\"), \"\");
+		if(dynlen(exceptionInfo)>0)
+			fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+    //set b to the state
+	b = this.state(0);
+
+    //check DpT, if Di then 1, if Ai then 2
+	_fwConfigs_getConfigOptionsForDpeType(DPE_TYPE, fwConfigs_PVSS_ALERT_HDL, configType, exceptionInfo);
+	switch(configType)
+	{
+		case fwConfigs_ANALOG_OPTIONS:
+			elementType = 2;
+			break;
+		case fwConfigs_BINARY_OPTIONS:	
+			elementType = 1;
+			break;
+		default:
+			_fwHideAllItems((!b) && panelMode != OBJECT);
+			sumAlertWarning.visible = b;
+			okButton.enabled = !b;
+			applyButton.enabled = !b;	 
+			return;   
+			break;
+	}
+	
+	alertActive.visible = b;
+	
+    // if Ai
+	if (elementType == 2) 
+	{
+	   	// find number of ranges
+		ranges = rangeCombo.text;
+
+		for (j = 1; j <= ranges; j++)
+		{
+			alertTextBox = getShape(\"alText\"+j);
+			alertClassBox = getShape(\"alClass\"+j);
+		    
+		    // hide surplus display boxes		    
+		    alertTextBox.visible = b;
+		    alertClassBox.visible = b;
+		} // for j
+		    
+		for (k=1;k<ranges;k++)
+		{
+			// get the alarm limits		  
+			alertLimitBox = getShape(\"limNum\"+k);
+		    alertLimitBox.visible = b;
+		    signal = getShape(\"sign\"+k);
+		    signal.visible = b;
+		} // for k 
+		  
+		rangeCombo.visible = b;
+		Text1.visible = b;
+		Text2.visible = b;
+		Text3.visible = b;
+		Text12.visible = b;
+		limitTypes.visible = (panelMode != OBJECT);
+		limitTypesTitle.visible = (panelMode != OBJECT);
+		fwShowLimitsType();
+    lblGoodRange.visible = (b && (limitTypes.text == LIMITS_DISCRETE));
+	}
+	//if Di
+	else if (elementType != 2)  	
+	{
+		alText6.visible = b;
+		alText7.visible = b;
+		alClass3.visible = b;
+		Text1.visible = b;
+		Text2.visible = b;
+		Text6.visible = b;
+		Text7.visible = b;
+		Text8.visible = b;
+		radio1.visible = b;
+				
+	} // else
+		
+	m = (b+1);
+	if (m>1)
+	{
+	    Text5.visible = 0;
+	}
+	else 
+	{
+		_fwHideAllItems(panelMode != OBJECT);	    
+	} 
+} // main" 0
+13 176
+"dpeDetails"
+""
+1 460 10 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  458 8 582 42
+
+T 
+1
+LANG:1 15 Select Elements
+"main()
+{
+	string errorString;
+	dyn_string returnedDpeList, exceptionInfo, systems, classes;
+	dyn_float cancelOrOk;
+
+	ChildPanelOnCentralModalReturn(\"fwConfigs/fwDpeSelector.pnl\", \"Choose Data Point Elements\",
+									makeDynString(\"$dsAllDpes:\"+$sDpe, \"$dsIncludedDpes:\"+DPE_LIST, \"$sConfigType:\"+fwConfigs_PVSS_ALERT_HDL),
+									cancelOrOk, returnedDpeList);
+	if(cancelOrOk[1] > 0.5)
+	{
+		if(DPE_LIST != returnedDpeList)
+		{
+			DPE_LIST = returnedDpeList;
+			
+			DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_ALERT_HDL, DPE_TYPE, exceptionInfo, errorString);
+			if(!DPES_OK)
+				fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+
+			_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+			fwFindAlarmClasses(systems, classes, exceptionInfo);
+			fwShowAlarmClasses(classes, exceptionInfo);
+
+			if(dynlen(DPE_LIST)== 1)
+				elementNameField.text(DPE_LIST[1]);
+			else
+			{
+				if(dynlen(systems) == 1)
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+			}
+
+			fwSetTextFieldsFormat(exceptionInfo);
+			
+			alertOnOff.state(0) = FALSE;
+			_fwHideAllItems(DPES_OK);
+			
+			applyButton.enabled = DPES_OK;
+			okButton.enabled = DPES_OK;
+                        alarmHelpButton.enabled = DPES_OK;
+		}
+	}	
+}" 0
+ E E E
+14 174
+"elementNameField"
+""
+1 344 103 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  88 48 632 75
+3 "0s" 0 0 0 0 0 -1  E E E
+13 178
+"okButton"
+""
+1 0 0 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  368 348 452 382
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		PanelOff();
+}" 0
+ E E "main()
+{
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			this.visible = TRUE;
+	}
+	else
+		this.visible = TRUE;	
+}" 0
+
+20 179
+"alertActive"
+""
+1 11 130 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  9 128 143 152
+1
+T 
+1
+LANG:1 17 Alert Handling ON
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE1 202 0 "" 0
+0
+14 185
+"currentOriginalValue"
+""
+1 1386 528 E E E 1 E 0 E N "FwForegroundInputText" E N "_3DFace" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  364 313 453 340
+2 "0s" 0 0 0 2 0 -1  E E E
+22 191
+"limitTypes"
+""
+1 366 90 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  364 88 568 115
+0
+
+E
+"main()
+{
+  dyn_string exc;
+	fwShowLimitsType();
+  fwSetTextFieldsFormat(exc);
+}" 0
+
+E
+ 0 0
+13 194
+"alarmHelpButton"
+""
+1 170 350 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  168 348 292 382
+
+T 
+1
+LANG:1 13 Alarm Help...
+"main()
+{
+  ChildPanelOnCentralModal(\"fwAlarmHandling/fwAlarmHandlingHelpConfig.pnl\", \"Alarm Help Configuration\", \"$sDpe:\" + DPE_LIST);
+}" 0
+ E E E
+2 201
+"lblGoodRange"
+""
+1 344 282 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 346 284 527 301
+0 2 0 "0s" 0 0 0 192 0 0  346 284 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 31 =   good range (no alarm class)
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2" -1
+"objects\\fwGeneral\\fwHelpButton.pnl" 563 10 T 38 1 0 1 41 0
+1
+"$sPanelRelativePath""fwConfigs/fwAlertConfig"
+0

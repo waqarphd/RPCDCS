@@ -1,0 +1,246 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 673 364 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+       dyn_string exceptionInfo;
+       bool configExists;    
+       bool isActive;      // not used
+       dyn_anytype config; // not used
+       dyn_int rowsToUpdate;
+       dyn_string ppvCycleParams;
+       
+       ppvCycleParams = dpNames($sDpName+\".Actual.PPVCycle.*\");
+       
+       if(dynlen(ppvCycleParams)==0)
+         return;
+       
+       
+       for(int i=1; i<=dynlen(ppvCycleParams); i++)
+       {
+          fwPeriphAddress_get(ppvCycleParams[i], configExists, config, isActive, exceptionInfo);
+          if(dynlen(exceptionInfo)>0)
+	  {
+		fwExceptionHandling_display(exceptionInfo);
+                continue;
+	  }
+          
+          if(configExists)
+          {
+               float dpVal;
+               time dpUpdated;
+               string dpe = dpGetAlias(ppvCycleParams[i]);
+               if(strlen(dpe)==0)
+                 dpe = ppvCycleParams[i];
+               string dpOrgVal = ppvCycleParams[i] + \":_original.._stime\";
+               dpGet(ppvCycleParams[i], dpVal, dpOrgVal, dpUpdated);
+               ppvCycles.appendLine(\"dpe\",dpe,
+                                    \"value\",dpVal,
+                                    \"time\",dpUpdated);
+               
+               dynAppend(rowsToUpdate, i);
+          }
+              
+       }
+       
+       for(int i=1; i<=dynlen(rowsToUpdate); i++)
+           dpConnect(\"update_table\",ppvCycleParams[rowsToUpdate[i]]); 
+       
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "
+update_table(string dpe, float dpeVal)
+{
+      string alias = dpGetAlias(dpe);
+      strreplace(dpe,\":_online.._value\",\"\");
+      if(strlen(alias)==0)
+      {
+          alias = dpe;
+      }
+      
+      int rows; 
+      getValue(\"ppvCycles\",\"lineCount\",rows);
+      for(int i=0; i<rows; i++)
+      {
+          string rcVal;
+          getValue(\"ppvCycles\",\"cellValueRC\",i,\"dpe\",rcVal);
+          
+          if(alias==rcVal)
+          {
+                time rcTime;
+                dpGet(dpe+\":_original.._stime\",rcTime);
+                ppvCycles.cellValueRC(i, \"value\", dpeVal);
+                ppvCycles.cellValueRC(i, \"time\", rcTime);
+          }
+      }
+    
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 228 38
+0 2 0 "0s" 0 0 0 64 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 PPV Cycles
+13 1
+"Close"
+""
+1 570 333 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 568 331 652 359
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}
+" 0
+ E E E
+25 2
+"ppvCycles"
+""
+1 20 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 78 652 324
+EE 1 0 1 3 0 "dpe" 25 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+290 "value" 11 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+130 "time" 15 1 0 "s" 1
+LANG:1 12 Last updated
+E
+1
+LANG:1 0 
+
+180 
+22 22 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+2 3
+"Text4"
+""
+1 30 44 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 46 68 62
+0 2 0 "0s" 0 0 0 64 0 0  22 46 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Plant Name:
+14 4
+"modelText"
+""
+1 101 44 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 99 42 652 69
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = $sDpName;
+}" 0
+ E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

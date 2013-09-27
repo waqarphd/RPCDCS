@@ -1,0 +1,322 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 681 476 N "_3DFace" 1
+"$userName"
+"main()
+{
+
+//
+// $userName should contain user name 
+
+	string userName;
+	dyn_string exceptionInfo;
+
+	if (!isDollarDefined(\"$userName\")) {
+		fwAccessControl_raiseException(exceptionInfo,
+					\"PANEL ERROR\",
+					\"User name not specified in $userName\",
+					\"\");
+		setValue(\"ApplyButton\",\"enabled\",FALSE);
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	};
+
+
+	setValue(\"ShowSystemPrivileges\",\"state\",0,FALSE);
+
+	populatePanel();
+
+}" 0
+ E E E E 1 -1 -1 0  20 80
+""0  1
+E "void populatePanel()
+{
+	string userName;
+	string userFullName;
+	string description;
+	int    userId;
+	bool   enabled;
+	bool showSysPrivs;
+	dyn_string groupNames, exceptionInfo;
+		
+	getValue(\"ShowSystemPrivileges\",\"state\",0,showSysPrivs);
+
+	userName=$userName;
+	setValue(\"UserName\",\"text\",userName);
+
+	setValue(\"Table\",\"deleteAllLines\");
+
+	dyn_string exceptionInfo;
+
+	dyn_string groupNames;
+	string userFullName;
+	string description;
+        dyn_string privList; // will store \"Domain:Privilege\"
+        dyn_string fromList; // will store group name
+	int    userId;
+	bool   enabled;
+	int	i,j;
+	fwAccessControl_getUser( $userName,
+			userFullName,
+			description,
+			userId,
+			enabled,
+			groupNames,
+			exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	}
+	
+	for (i=1;i<=dynlen(groupNames);i++) {
+	  dyn_string privileges;
+	  fwAccessControl_getGroupPrivileges(groupNames[i], 
+					   makeDynString(),
+					   privileges,exceptionInfo,TRUE);
+	  if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	  }
+          for (j=1;j<=dynlen(privileges);j++) {
+		int idx=dynContains(privList,privileges[j]);
+		if (idx) {
+		  fromList[idx]=fromList[idx]+\";\"+groupNames[i];
+		} else {
+		  dynAppend(privList,privileges[j]);
+		  dynAppend(fromList,groupNames[i]);
+		}
+	  }
+	}
+
+	for (i=1;i<=dynlen(privList);i++) {
+		dyn_string privs=strsplit(privList[i],\":\");
+
+		if ( (!showSysPrivs) && 
+                     ( (privs[1]==g_fwAccessControl_systemDomainName) ||
+                       (privs[1]==g_fwAccessControl_systemDomainGenericName)
+                     ) && substr(privs[2],0,8)==\"[SYSPRIV\") continue;
+
+		setValue(\"Table\",\"appendLine\",
+			\"Domain\",privs[1],
+			\"Privilege\",privs[2],
+			\"From\",fromList[i]);
+	}
+
+	
+	setValue(\"Table\",\"lineVisible\",0);
+	setValue(\"Table\",\"selectLineN\",0);
+
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+20 33
+"ShowSystemPrivileges"
+""
+1 19.68421052631579 430 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 20 430 222 458
+1
+T 
+1
+LANG:1 26 Show all system privileges
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+	populatePanel();
+}" 0
+1 36 1 "" 0
+0
+25 31
+"Table"
+""
+1 10 100 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 10 100 660 420
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_BROWSE );
+}" 0
+E 1 0 1 3 1 "Domain" 22 1 0 "s" 1
+LANG:1 6 Domain
+E
+1
+LANG:1 0 
+
+250 "Privilege" 10 1 0 "s" 1
+LANG:1 9 Privilege
+E
+1
+LANG:1 0 
+
+120 "From" 22 1 0 "s" 1
+LANG:1 13 From Group(s)
+E
+1
+LANG:1 0 
+
+250 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 2 1 7
+1 0
+14 30
+"UserName"
+""
+1 152.6931818181818 50 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 153 50 360 79
+2 "0s" 0 0 0 0 0 -1  E E E
+2 29
+"PRIMITIVE_TEXT1"
+""
+1 20 55 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 55 144 70
+0 2 2 "0s" 0 0 0 192 0 0  20 55 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22 Access rights of user:
+2 35
+"Text1"
+""
+1 -318 -114 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 10 248 29
+0 2 2 "0s" 0 0 0 192 0 0  20 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 JCOP Framework Access Control
+13 1
+"CloseButton"
+""
+1 580 430 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 580 430 660 460
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+	
+	df[1]=0;
+	PanelOffReturn(df,ds);
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 1 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 3 1 0 1 300 0
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_ShowUserPrivileges"
+0

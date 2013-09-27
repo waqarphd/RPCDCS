@@ -1,0 +1,906 @@
+V 11
+1
+LANG:1 23 FW_SYSTEM_OVERVIEW_TOOL
+PANEL,-1 -1 1164 847 N "_3DFace" 1
+"$embedded"
+"mapping fsmNodeToTabName; //key => the fsmDP, value => the tab name, e.g. #2
+main()
+{
+  dyn_string exceptionInfo;
+
+  if(fwSysOverview_isUpgradeRequired())
+    fwSysOverview_cleanDps();
+ 
+  //check if the alarm configuration is up-to-date:
+  dyn_string ds;
+  dyn_float df;
+  bool requiresUpgrade = false;
+  fwSysOverview_checkAlarmConfiguration(requiresUpgrade);
+  dyn_string ex;
+  if(requiresUpgrade)
+  {
+    ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", \"Update Alarms\", makeDynString(\"The project alarm configuration out-dated. Would you like to updated now?\", \"Yes\", \"No\"), df, ds);    
+    if(dynlen(df) && df[1] == 1.)
+    {
+      openProgressBar(\"Updaing Alarm config\", \"copy.gif\", \"Updating alarm configuration\", \"This may take a while\", \"Please, wait...\", 1);
+      fwSysOverview_applyDefaultAlertConfig(ex);  
+      closeProgressBar();
+      if(dynlen(ex))
+        fwExceptionHandling_display(ex);
+    }
+  }  
+  
+  //Set widget visibility:
+  if(isDollarDefined(\"$embedded\"))
+  {
+    btConfiguration.visible = false;
+    btFilter.visible = false;
+    txSoVersion.visible = false;
+    btClose.visible = false;  
+    btShowTrees.visible = false;
+    btLabel.visible = false;  
+    addSymbol(myModuleName(), 
+              myPanelName(), 
+              \"fwSystemOverview/fwSystemOverview_stateColorLegends.pnl\", 
+              \"StateLegends\", 
+              makeDynString(), 
+              0, 747, 0, 1,1);
+  }
+  else
+  {
+    addSymbol(myModuleName(), 
+              myPanelName(), 
+              \"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl\", 
+              \"fwSO_AC\", 
+              makeDynString(), 
+              570, 0, 0, 1,1);
+  }
+  
+  
+  
+  const int maxViews = 16;
+  for(int i = 1; i <= maxViews; i++)
+  {
+     tabSoViews.namedRegisterVisible(\"#\"+i, false);
+  }
+  
+  dyn_string soTrees;
+  fwSystemOverviewFsm_getTrees(soTrees);
+  int n = dynlen(soTrees);
+  if(n <= 0)
+  {
+    addSymbol(myModuleName(), myPanelName(), \"fwSystemOverview/fwSystemOverview_startHere.pnl\", 
+            USER_VIEW, makeDynString(), 30, 90, 0, 1, 1);
+    txTree.text = USER_VIEW;
+    ++n;  
+    tabSoViews.namedColumnHeader(\"#\"+n, USER_VIEW);
+    tabSoViews.namedRegisterVisible(\"#\" + n, true);
+   }
+  else
+  {
+    for(int i = 1; i <= n; i++)
+    {
+      string label = \"\";
+      fwUi_getLabel(soTrees[i], soTrees[i], label);
+      
+      m[label] = soTrees[i];
+  
+      string fsmDp;
+      fwCU_getDp(soTrees[i], fsmDp);
+      fsmNodeToTabName[fsmDp] = \"#\" + i;
+
+      tabSoViews.namedColumnHeader(\"#\"+i, label);
+      tabSoViews.namedRegisterVisible(\"#\" + i, true);
+      
+      if (dpExists(fsmDp + \".fsm.currentState\"))
+      {
+        dpConnect(\"treeStateChanged\",fsmDp + \".fsm.currentState\");
+       
+      }
+    }
+  } 
+
+  setDefaultViewsVisibility();  
+  
+  txSoVersion.text = \"FW System Overview Tool v\" + FW_SYSTEM_OVERVIEW_TOOL_VERSION;
+//  txFmcVersion.text = \"FW Farm Monitoring and Control v\" + FW_FMC_TOOL_VERSION_DPT;
+
+  //if there is access control defined but no expert privilege prompt the user to define it
+  string accessDomain, expertPrivilege;
+  if(dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_ACCESS_DOMAIN))
+    dpGet(fwSysOverview_PARAMETRIZATION + fwSysOverview_ACCESS_DOMAIN, accessDomain,
+          fwSysOverview_PARAMETRIZATION + fwSysOverview_EXPERT_PRIVILEGE, expertPrivilege);
+  if(accessDomain != \"\" && expertPrivilege == \"\")
+  {
+    dyn_float rf;
+    dyn_string rs;
+    ChildPanelOnCentralReturn(\"fwSystemOverview/fwSystemOverview_setExpertPrivilege.pnl\", 
+                             \"ExpertPrivilege\", 
+                             makeDynString(\"$domain:\"+accessDomain), rf, rs);
+    
+  }
+  
+  //Access Control:
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyAcCB\", ex);
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+}
+
+void treeStateChanged(string fsmTreeDp, string state)
+{
+  string fsmDpWithSys = dpSubStr(fsmTreeDp, DPSUB_SYS_DP);
+  string fsmDp = dpSubStr(fsmTreeDp, DPSUB_DP);
+  dyn_string tmpArr = strsplit(fsmDp, \"|\");
+  if (dynlen(tmpArr) == 2)
+  {
+    string color;
+    fwCU_getStateColor(tmpArr[1] + \"::\" + tmpArr[2], state, color);
+    tabSoViews.namedRegisterIcon(fsmNodeToTabName[fsmDpWithSys],\"state_icon_\" + color  + \".gif\");
+  }
+}
+
+
+" 0
+ E E E E 1 -1 -1 0  0 10
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+#uses \"fwSystemOverview/fwSystemOverviewFsm.ctl\"
+#uses \"fwInstallation.ctl\"
+ 
+const string PROJECTS_FLAT = \"Projects_flat\";
+const string HOSTS_FLAT = \"Hosts_flat\";
+const string PLCS_FLAT = \"PLCs_flat\";
+const string USER_VIEW = \"User View\";
+    
+mapping m;
+
+setDefaultViewsVisibility()
+{
+  dyn_string hidenTrees;
+  dpGet(\"fwSysOverviewParametrization.UI.fsmViews.hideTrees\", hidenTrees);
+
+  dyn_string soTrees;
+  fwSystemOverviewFsm_getTrees(soTrees);
+  int n = dynlen(soTrees);
+  if(n == 0) //allow always the start here panel to be shown.
+  {
+    ++n;
+  }
+  else
+  {
+    for(int i = 1; i <= n; i++)
+    {
+      string label = \"\";
+      fwUi_getLabel(soTrees[i], soTrees[i], label);
+      tabSoViews.namedRegisterVisible(\"#\" + i, dynContains(hidenTrees, label)>0?false:true);
+    }
+  }
+  
+  ++n;  
+  tabSoViews.namedColumnHeader(\"#\"+n, PROJECTS_FLAT);
+  tabSoViews.namedRegisterVisible(\"#\" + n, dynContains(hidenTrees, \"Projects_flat\")>0?false:true);
+  
+  ++n;  
+  tabSoViews.namedColumnHeader(\"#\"+n, HOSTS_FLAT);
+  tabSoViews.namedRegisterVisible(\"#\" + n, dynContains(hidenTrees, \"Hosts_flat\")>0?false:true);
+  
+  if(isDollarDefined(\"$embedded\"))
+  {
+     ++n;  
+    tabSoViews.namedColumnHeader(\"#\"+n, PLCS_FLAT);
+    tabSoViews.namedRegisterVisible(\"#\" + n, dynContains(hidenTrees, \"PLCs_flat\")>0?false:true);
+
+  }
+  return;
+}
+
+void applyAcCB(string s1, string s2)
+ {
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string domain;
+  fwSysOverview_getACDomain(domain);
+  // at first, disable whatever was enabled to this moment
+  disableAllInPanel();
+
+  if(domain == \"\") //AC not yet configured. Enable access 
+  {
+    hasExpertPrivilege = true;
+  }
+  else
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(1);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, hasExpertPrivilege, exceptionInfo);
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+  }
+  // enable UI elements, depending on the access rights:
+    btConfiguration.enabled = hasExpertPrivilege;
+//    btFilter.enabled = true;
+  
+}
+
+void disableAllInPanel()
+{
+  btConfiguration.enabled = false;
+//  btFilter.enabled = false;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+28 0
+"tabSoViews"
+""
+1 0 20.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"selchangedcb" "main()
+{
+
+  int idx = -1;
+  string fmcTree;
+  getValue(\"tabSoViews\", \"activeRegister\", idx);
+
+  string previousTree = txTree.text;
+  if(previousTree != \"\")
+  {
+    moduleOff(\"modFsmNodeProperties\");
+    removeSymbol(myModuleName(), myPanelName(), previousTree);  
+  }  
+  if(idx < 0)
+    return;
+
+  string label = \"\";
+  getValue(\"tabSoViews\", \"registerHeader\", idx, label);
+  if(patternMatch(\"#*\", label) || label == \"\")
+    return;
+
+  dyn_string hidenTrees;
+  dpGet(\"fwSysOverviewParametrization.UI.fsmViews.hideTrees\", hidenTrees);
+  
+  if(label == USER_VIEW)
+  {
+    fmcTree = USER_VIEW;
+    addSymbol(myModuleName(), myPanelName(), \"fwSystemOverview/fwSystemOverview_startHere.pnl\", 
+              USER_VIEW, makeDynString(), 30, 90, 0, 1, 1);    
+  }
+  else if(label == HOSTS_FLAT && dynContains(hidenTrees, \"Hosts_flat\") <= 0)
+  {
+    fmcTree = HOSTS_FLAT;
+    addSymbol(myModuleName(), myPanelName(), \"fwSystemOverview/fwSystemOverview_tree.pnl\", 
+              HOSTS_FLAT, makeDynString(\"$1:host\"), 10, 40, 0, 1, 1);    
+  }
+  else if(label == PROJECTS_FLAT && dynContains(hidenTrees, \"Projects_flat\") <= 0)
+  {
+    fmcTree = PROJECTS_FLAT;
+    addSymbol(myModuleName(), myPanelName(), \"fwSystemOverview/fwSystemOverview_tree.pnl\", 
+              PROJECTS_FLAT, makeDynString(\"$1:hierarchy\"), 10, 40, 0, 1, 1);    
+  }
+  else if(label == PLCS_FLAT && dynContains(hidenTrees, \"PLCs_flat\") <= 0)
+  {
+    fmcTree = PLCS_FLAT;
+    addSymbol(myModuleName(), myPanelName(), \"fwSystemOverview/fwSystemOverview_tree.pnl\", 
+              PLCS_FLAT, makeDynString(\"$1:plcs\"), 10, 40, 0, 1, 1);    
+  }
+  else
+  {
+    if(!mappingHasKey(m, label))
+    {
+      txTree.text = \"\";
+      return;
+    }
+    fmcTree = m[label];
+    
+    dyn_string parameters = makeDynString(\"$tree:\" + fmcTree);
+    if(isDollarDefined(\"$embedded\"))
+    {
+      parameters[dynlen(parameters)+1] = \"$embedded:\"+$embedded;
+    }    
+    
+    addSymbol(myModuleName(), myPanelName(), \"fwSystemOverview/fwSystemOverview_fsmNavigator.pnl\", 
+              fmcTree, parameters, 30, 50, 0, 1, 1);
+    fwFsmUser_operateNodeClick(fmcTree, fmcTree);
+  }    
+  txTree.text = fmcTree;
+ 
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  -2 18 1272 45
+E16 "#1" 1
+LANG:1 2 #1
+0
+"#2" 1
+LANG:1 2 #2
+0
+"#3" 1
+LANG:1 2 #3
+0
+"#4" 1
+LANG:1 2 #4
+0
+"#5" 1
+LANG:1 2 #5
+0
+"#6" 1
+LANG:1 2 #6
+0
+"#7" 1
+LANG:1 2 #7
+0
+"#8" 1
+LANG:1 2 #8
+0
+"#9" 1
+LANG:1 2 #9
+0
+"#10" 1
+LANG:1 3 #10
+0
+"#11" 1
+LANG:1 3 #11
+0
+"#12" 1
+LANG:1 3 #12
+0
+"#13" 1
+LANG:1 3 #13
+0
+"#14" 1
+LANG:1 3 #14
+0
+"#15" 1
+LANG:1 3 #15
+0
+"#16" 1
+LANG:1 3 #16
+0
+
+13 41
+"btLabel"
+""
+1 780 17.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  778 15 898 43
+
+T 
+1
+LANG:1 22 Show/hide trees       
+E E E E
+13 3
+"btClose"
+""
+1 1040 810 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  1038 808 1142 842
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}
+" 0
+ E E E
+14 19
+"txTree"
+""
+1 628 780 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  626 778 1030 802
+3 "0s" 0 0 0 0 0 -1  E E E
+13 20
+"btnMonitor"
+""
+1 460 13.95454545454556 E E E 1 E 0 E N "_ButtonText" E N <{236,0,12},4,{255,247,5},4,{0,0,0},0,{0,0,0},0,{0,0,0},0,{0,0,0},0> E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 17 Click for details
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  458 8 572 41
+
+T 
+1
+LANG:1 20 Communication Errors
+"main()
+{
+  ChildPanelOnCentralModal(\"fwFMC/fwFMC_integrity.pnl\", \"DIM Servers States\", makeDynString());
+}
+
+
+" 0
+ E E "main()
+{
+    dpConnect(\"checkIntegrity\", 
+            \"_fwFMCDim_ipmi.alive\", 
+            \"_fwFMCDim_continuousMonitoring.alive\", 
+            \"_fwFMCDim_temporaryMonitoring.alive\", 
+            \"_fwFMCDim_processes.alive\", 
+            \"_fwFMCDim_tmLogger.alive\",
+            \"_fwSystemOverviewMonitor.isCtrlRunning\",
+            \"_fwFMCParameterization.enabled\");
+
+}
+
+checkIntegrity(string dpe1, bool val1,
+               string dpe2, bool val2,
+               string dpe3, bool val3,
+               string dpe4, bool val4,
+               string dpe5, bool val5,
+               string dpe6, bool val6,
+               string dpe7, bool enabled)
+{
+  if(enabled && 
+     (!val1 ||
+     !val2 ||
+     !val3 ||
+     !val4 ||
+     !val5 ||
+     !val6))
+  {
+    btnMonitor.visible = true;
+  }
+  else
+  {
+    btnMonitor.visible = false;
+  }
+}
+
+
+
+
+
+" 0
+
+2 26
+"txSoVersion"
+""
+1 20 830 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 20 830 27 844
+0 2 2 "0s" 0 0 0 192 0 0  20 830 1
+1
+LANG:1 25 Arial,8,-1,5,75,1,0,0,0,0
+0 1
+LANG:1 1 v
+13 29
+"btFilter"
+""
+1 110 784 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  108 782 217 817
+
+T 
+1
+LANG:1 6 Filter
+"// SimpleCtrlScriptStart {invalid}
+main()
+{
+  ChildPanelOnCentral(\"fwSystemOverview/fwSystemOverview_searchManagers.pnl\", \"Managers filter\",
+                      makeDynString(\"$granted:\" + true));
+}
+
+
+
+" 0
+ E E E
+13 30
+"btConfiguration"
+""
+1 10 785 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:5 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  8 783 95 817
+
+T 
+2
+LANG:1 13 Configuration
+LANG:5 9 Configure
+"main()
+{
+//  fwSysOverview_setMonitoringDp(2);
+  ChildPanelOnCentralModal(\"fwSystemOverview/fwSystemOverview_Configuration.pnl\", \"Configuration\", makeDynString()); 
+//  fwSysOverview_setMonitoringDp(1);
+  
+ 
+}
+
+
+" 0
+ E E E
+13 36
+"btShowTrees"
+""
+1 586 15.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  870 13 897 41
+
+P 
+4294967295
+"pictures/attreditor.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+E E "main()
+{
+  dyn_float df;
+  dyn_string ds;
+  
+  ChildPanelOnCentralModalReturn(\"fwSystemOverview/fwSystemOverview_mainPanelSettings.pnl\", 
+                           \"FW System Overview Tool panel settings\",
+                           makeDynString(), df, ds); 
+  setDefaultViewsVisibility();
+}
+
+
+" 0
+ E
+13 42
+"btnSearch"
+""
+1 1040 15 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  1038 13 1162 40
+
+T 
+1
+LANG:1 6 Search
+"
+main()
+{
+  string activeTabName, activeTabHeader;
+  getValue(\"tabSoViews\", \"namedActiveRegister\", activeTabName);
+  getValue(\"tabSoViews\", \"namedColumnHeader\", activeTabName, activeTabHeader);;
+  string devicePattern = \"*\" + strtoupper(txDevice.text) + \"*\";
+  dyn_string devices, dps, domains;
+  string device;
+  bool isFsm = false;
+  string moduleName, domain;
+  if (activeTabHeader == HOSTS_FLAT)
+  {
+      devices = dpNames(\"SystemOverview/\" + devicePattern, \"FwSystemOverviewPC\");
+      moduleName = \"hostconsole\";
+  }
+  else if (activeTabHeader == PROJECTS_FLAT)
+  {
+      devices = dpNames(\"SystemOverview/*/\" + devicePattern, \"FwSystemOverviewProject\");
+      moduleName = \"hierarchyconsole\";
+  }
+  else if(activeTabHeader == PLCS_FLAT)
+  {
+      dps = dpNames(\"plc*\", \"IcemonPlc\");
+      for(int i=1; i<=dynlen(dps); i++)
+      {
+        string alias = dpGetAlias(dps[i] + \".\");
+        if(patternMatch(devicePattern, alias))
+        {
+          dynAppend(devices, alias);
+        }
+      }
+      moduleName = \"plcsconsole\";
+  }
+  else 
+  {
+      //fsm
+      isFsm = true;     
+      openProgressBar(\"\",\"\",\"Please wait..\", \"\",\"\", 2);
+      string tree = fwSysOverviewFsm_getTreeByLabel(activeTabHeader);
+      devices = fwSysOverviewFsm_getTreeDevices(tree, true, devicePattern);
+      closeProgressBar();
+  }
+  if (dynlen(devices) == 0)
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"WARNING: No device matches the search criteria\", makeDynString(\"No device in the \" + activeTabHeader+ \" tree matches the search criteria\"));
+    return;
+  }
+  else if (dynlen(devices) == 1)
+  {
+    device = devices[1];
+    domain = fwSysOverviewFsm_getDomain(device);
+  }
+  else
+  {
+    // popup for selecting device
+    dyn_float df;
+    dyn_string ds;
+    ChildPanelOnCentralModalReturn(\"fwSystemOverview/fwSystemOverview_deviceSelector.pnl\", 
+                                   \"Please select device\", makeDynString(\"$devices:\" + devices, \"$tree:\" + activeTabHeader), df, ds);
+    if (dynlen(ds) > 0 && ds[1] != \"\")
+    {
+      device = ds[1];
+      domain = fwSysOverviewFsm_getDomain(device);
+    }
+    else
+      return;
+  }
+
+  if (!isFsm)
+  {
+    shape sh = getShape(\"tree\");
+    if(sh != 0)
+    {
+      sh.ensureItemVisible(device);
+      sh.setSelectedItem(device, true);
+
+      //show device panel
+      fwSysOverviewUi_openConsole(moduleName, device);
+    }
+  }
+  else
+  {
+   openProgressBar(\"\",\"\",\"Please wait..\", \"\",\"\", 2);
+   shape sh = getShape(\"fsmOperate.Tree_1\");
+   
+    dyn_string parents = getParents(device);    
+    for(int i=1; i<=dynlen(parents);i++)
+    {
+      showProgressBar(\"Please wait...\", \"\", \"\", (100*i)/dynlen(parents));
+      
+      sh.setOpen(parents[i], true);
+      delay(1,500);
+    }
+    sh.setSelectedItem(device, true);
+    sh.ensureItemVisible(device);
+    // show device panel    
+    fwFsmUser_operateNodeClick(domain, device);
+    closeProgressBar();
+  }
+  
+ 
+}
+
+dyn_string getParents(string device)
+{
+  dyn_string parents;
+  if (!patternMatch(\"fwSO_*\", device))
+  {
+    int type;
+    string parent = fwCU_getParent(type, device);
+    if (parent != \"\")
+    {
+      parents = getParents(parent);
+      dynAppend(parents, parent);
+    }
+  }
+  return parents;
+}
+" 0
+ E E E
+14 43
+"txDevice"
+""
+1 910 17 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  908 15 1032 38
+3 "0s" 0 0 0 0 0 -1  E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

@@ -1,0 +1,2806 @@
+V 10
+1
+LANG:1 1  
+PANEL,-1 -1 901 700 N "_3DFace" 0
+"main()
+{
+	dyn_string exceptionInfo;
+	init();
+	selectedButtons = makeDynString(\"generalButton\", \"\", \"\");
+	
+	fwGeneral_init(exceptionInfo);
+	fwConfigs_init();
+	
+	addGlobal(\"g_dpeConfigObject\", DYN_DYN_ANYTYPE_VAR);
+	
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E E E 1 -1 -1 0  10 10
+""0  1
+E "
+const int DPE_COLUMN_INDEX = 2;
+
+const string ELEMENTS_MODE = \"ELEMENTS\";
+const string ELEMENTS_MODE_TABLE = \"elementsTable\";
+const string PANELS_MODE = \"PANELS\";
+const string PANELS_MODE_TABLE = \"panelsTable\";
+const string GENERAL_MODE = \"GENERAL\";
+const string GENERAL_MODE_TABLE = \"generalTable\";
+const string ADDRESSGENERAL_MODE = \"ADDRESSGENERAL\";
+const string ADDRESSGENERAL_MODE_TABLE = \"addressGeneralTable\";
+const string ADDRESSOPCGENERAL_MODE = \"ADDRESSOPCGENERAL\";
+const string ADDRESSOPCGENERAL_MODE_TABLE = \"addressOpcGeneralTable\";
+const string ADDRESSDIMGENERAL_MODE = \"ADDRESSDIMGENERAL\";
+const string ADDRESSDIMGENERAL_MODE_TABLE = \"addressDimGeneralTable\";
+
+mapping modeToTable;
+
+string definitionDp;
+string copyDefinitionDp;
+string selectedGroup;
+
+dyn_anytype copiedLine;	// used as clipboard when copying a line
+dyn_string 	definitionElementsWithoutGroups, 	// definitionElements without the groups
+						definitionElementsGroups,
+						visibleDefinitionElements;			// definitionElements that have to be displayed
+
+dyn_dyn_string definitionElements, generalDefinitionElements;
+
+dyn_string selectedButtons;
+
+init()
+{
+	string deviceType, deviceDpType, defDp;
+	dyn_string exceptionInfo, deviceDefinitionDps;
+	dyn_dyn_string types;
+	
+	fwOpenProgressBar(\"Initializing...\", \"Initializing...\", 1, 0);
+	
+	initDefinitionElements();
+	initGroups();
+	initializeTable();
+	
+
+	// init list with device definitions
+	fwShowProgressBar(\"Initializing list with device definitions.\");
+	deviceDefinitionDps = dpNames(\"*\", \"_FwDeviceDefinition\");
+
+	deviceTypes.deleteAllItems();
+	deviceDpTypes.deleteAllItems();
+	
+	deviceTypes.appendItem(\"Choose a device type...\");
+	deviceDpTypes.appendItem(\"\");
+	
+	editTypeDefinitionButton.enabled(FALSE);
+	deleteTypeDefinitionButton.enabled(FALSE);
+	editModelDefinitionButton.enabled(FALSE);
+	deleteModelDefinitionButton.enabled(FALSE);
+	
+	fwDevice_getAllTypes(types, exceptionInfo);
+	for(int i = 1; i <= dynlen(deviceDefinitionDps); i++)
+	{
+		deviceTypes.appendItem(types[1][i]);
+		deviceDpTypes.appendItem(types[2][i]);
+	}	
+	deviceTypes.selectedPos(1);
+	deviceDpTypes.selectedPos(1);
+	
+	
+	// init list with model definitions
+	fwShowProgressBar(\"Initializing list with model definitions.\");
+	deviceModels.items = makeDynString(\"No type selected\");
+	deviceModels.enabled = FALSE;
+	
+	deviceModels.selectedPos(1);
+	
+	fwCloseProgressBar(\"Finished initialization\");
+}
+
+selectButton(string newSelButtonName, int level)
+{
+//	DebugN(newSelButtonName, selectedButtons, level);
+	dyn_string buttons;
+	
+//	DebugN(\"selectedButtons \", selectedButtons);
+	if(level > 0)
+	{
+		// unselect button at the same level
+		setValue(selectedButtons[level], \"backCol\", \"_3DFace\");
+
+		// select new button
+		setValue(newSelButtonName, \"backCol\", \"kobaltblau\");
+		selectedButtons[level] = newSelButtonName;
+	}
+
+	// unselect buttons in any level below
+	for(int i = level + 1; i <= dynlen(selectedButtons); i++)
+	{
+		setValue(selectedButtons[i], \"backCol\", \"_3DFace\");
+		selectedButtons[i] = \"dummyButton\";
+	}
+	
+	buttons = makeDynString(\"addressButton\", \"addressOPCButton\", \"addressOPCGeneralButton\", 
+									\"addressDIMButton\", \"addressDIMGeneralButton\");
+	
+	if(dynContains(buttons, newSelButtonName) > 0)
+	{
+		displayAddressControls(TRUE);
+	}
+	else
+	{
+		displayAddressControls(FALSE);
+	}
+}
+
+updateTable(string type)
+{
+	int i, j;
+	string table;
+	dyn_string dpes, values, parameterNames, aux, elements;
+	dyn_dyn_string valuesWithColor;
+
+	for(i = 1; i <= mappinglen(modeToTable); i++)
+	{
+		table = mappingGetValue(modeToTable, i);
+		if(table != ELEMENTS_MODE_TABLE)
+			setValue(table, \"deleteAllLines\");
+	}
+	
+	// build list of dpes that are going to be edited
+	for(i = 1; i <= dynlen(generalDefinitionElements); i++)
+	{
+		dpes[i] = definitionDp + generalDefinitionElements[i][2];
+	}
+	
+	// retrieve the current values of the dpes
+	dpGet(dpes, values);
+	
+	// insert everything in the table
+	for(i = 1; i <= dynlen(values); i++)
+	{
+		// in case it is a dyn_string stored as a string, replace spaces around separator
+		if(strreplace(values[i], \" \" + fwGeneral_DYN_STRING_DEFAULT_SEPARATOR + \" \", fwGeneral_DYN_STRING_DEFAULT_SEPARATOR));
+		
+		// background for the values is white to indicate that they can be edited
+		valuesWithColor[i] = makeDynString(values[i], \"_Window\");
+	
+		// display data in the general editing table
+		setValue(modeToTable[generalDefinitionElements[i][3]], \"appendLine\", \"dpe\", dpes[i], \"parameter\", generalDefinitionElements[i][1], \"value\", valuesWithColor[i]);
+	}
+}
+
+updateElementsTable()
+{
+	bool canHave;
+	int i, j;
+	dyn_string tableColumn, deviceList, dsAux;
+
+	enableControls(FALSE);
+	refreshVisible(makeDynString());
+	
+	elementsTable.deleteAllLines();
+	
+	// Add columns to the table, read from the Device Definition	
+	for(i = 1; i <= dynlen(definitionElementsWithoutGroups); i++)
+	{		
+		//if(dynContains(visibleDefinitionElements, definitionElementsWithoutGroups[i]))
+			elementsTable.columnVisibility(i, TRUE);
+				
+		dsAux = strsplit(definitionElementsWithoutGroups[i], \".\");
+		elementsTable.columnHeader(i, dsAux[dynlen(dsAux)]);
+		elementsTable.columnName(i, definitionElementsWithoutGroups[i]);
+		dpGet(definitionDp + \".\" + definitionElementsWithoutGroups[i], tableColumn);
+		//DebugN(elementsTable.columnName(i));
+		
+		if(dynlen(tableColumn) > elementsTable.lineCount)
+		{
+			int linesToAppend = dynlen(tableColumn) - elementsTable.lineCount;
+			for(int j = 1; j <= linesToAppend; j++)
+			{
+				elementsTable.appendLine(elementsTable.columnName(i), \"\");
+			}
+		}
+		//DebugN(definitionElementsWithoutGroups[i + 1], tableColumn);
+		
+		// fill in data for the column	
+		for(j = 1; j <= dynlen(tableColumn); j++)
+		{
+			elementsTable.cellValueRC(j - 1, elementsTable.columnName(i), makeDynString(tableColumn[j]));
+		}
+		
+		elementsTable.columnEditable(i, FALSE);
+	}
+	
+	// Check if there is at least a dp of the current Type
+	deviceList = dpNames(\"*\", deviceDpTypes.text);
+
+	// if there is at least one instance, check if dpes in device definition
+	// are really there. If not mark background as yellow
+	if(dynlen(deviceList) > 0)
+	{
+		unsigned dpId; 
+		int elId;
+		string dpe;
+		
+		for(i = 1; i <= elementsTable.lineCount; i++)
+		{
+			dpe = deviceList[1] + elementsTable.cellValueRC(i - 1, elementsTable.columnName(DPE_COLUMN_INDEX));
+			//DebugN(\"Checking dpe \" + dpe);
+			
+			// if element doesn't exist, set background to yellow
+			if(!dpGetId(dpe, dpId, elId))
+			{
+				elementsTable.cellBackColRC(i - 1, elementsTable.columnName(DPE_COLUMN_INDEX), \"yellow\");		
+				//DebugN(\"Setting color to yellow\");
+			}
+		}
+	}
+	
+	refreshIndexNumber();
+	
+	elementsTable.lineVisible(0);
+	enableControls(TRUE);
+}
+
+refreshIndexNumber()
+{
+	// display column with index
+	elementsTable.columnVisibility(0, TRUE);
+	
+	// fill in index for each row
+	for(int j = 1; j <= elementsTable.lineCount; j++)
+	{
+		elementsTable.cellValueRC(j - 1, elementsTable.columnName(0), j);				
+	}
+}
+
+refreshVisible(dyn_string selectedGroups)
+{
+	string columnName;
+	
+	// if groups wanted not passed as parameter then use all
+	if(dynlen(selectedGroups) == 0)
+	{
+		selectedGroups = definitionElementsGroups;
+	}
+	else // only change to edit mode when a specific group is chosen
+	{
+		editMode(ELEMENTS_MODE);
+	}
+
+	// initialize list of visible elements 
+	visibleDefinitionElements = makeDynString();
+	
+	//DebugN(\"selectedGroups \" + selectedGroups);
+	for(int i = 1; i <= dynlen(definitionElements); i++)
+	{
+		if(dynContains(selectedGroups, definitionElements[i][2]) > 0)
+			dynAppend(visibleDefinitionElements, definitionElements[i][1]);
+	}
+	
+	for(int i = 3; i < elementsTable.columnCount(); i++)
+	{
+		columnName = elementsTable.columnName(i);
+		if(dynContains(visibleDefinitionElements, columnName) > 0)
+			elementsTable.columnVisibility(i, TRUE);
+		else
+			elementsTable.columnVisibility(i, FALSE);
+	}
+	
+
+}
+
+//	Parses the dyn_string with the dpes in the definition.
+//	Then it initializes the table columns and the groups accordingly.
+initGroups()
+{	
+	// remove groups from list of device definition elements
+	definitionElementsWithoutGroups = makeDynString();
+	for(int i = 1; i <= dynlen(definitionElements); i++)
+	{
+		dynAppend(definitionElementsWithoutGroups, definitionElements[i][1]);
+		
+		if(dynContains(definitionElementsGroups, definitionElements[i][2]) < 1)
+			dynAppend(definitionElementsGroups, definitionElements[i][2]);
+	}
+}
+
+initializeTable()
+{
+	elementsTable.deleteAllLines();
+	for(int i = 0; i < elementsTable.columnCount(); i++)
+	{
+		elementsTable.columnVisibility(i, FALSE);
+	}
+}
+
+editMode(string mode)
+{
+	string modeKey, table;
+	
+	for(int i = 1; i <= mappinglen(modeToTable); i++)
+	{
+		modeKey = mappingGetKey(modeToTable, i);
+		table = mappingGetValue(modeToTable, i);
+		
+		if(modeKey == mode)
+			setValue(table, \"visible\", TRUE);
+		else
+			setValue(table, \"visible\", FALSE);
+	}
+	
+	// enable elements controls only in ELEMNTS_MODE
+	if(mode == ELEMENTS_MODE)
+		enableElementsControls(TRUE);
+	else
+		enableElementsControls(FALSE);
+}
+
+fwGeneral_tableGetColumnValues(string tableName, string columnHeader, dyn_string &values, dyn_string &exceptionInfo)
+{
+	int i;
+	string columnName;
+	shape localTable = getShape(tableName);
+	
+	values = makeDynString();
+	
+	fwGeneral_tableColumnHeaderToName(tableName, columnHeader, columnName, exceptionInfo);
+	
+	// check if column was found
+	if(dynlen(exceptionInfo) > 0)
+		return;
+	
+	// then get the elements in the column
+	for(i = 0; i < localTable.lineCount; i++)
+	{
+		values[i + 1] = localTable.cellValueRC(i, columnName);
+	}
+
+}
+
+fwGeneral_tableColumnHeaderToName(	string tableName, string columnHeader, string &columnName,
+									dyn_string &exceptionInfo)
+{
+	shape localTable = getShape(tableName);
+	
+	for(int i = 0; i < localTable.columnCount; i++)
+	{
+		//DebugN(\"localTable.columnHeader(i) \" + localTable.columnHeader(i));
+		if(localTable.columnHeader(i) == columnHeader)
+		{
+			columnName = localTable.columnToName(i);
+			return;
+		}
+	}
+	
+	// if column was not found, raise an exception
+	if(columnName == \"\")
+	{
+		fwException_raise(	exceptionInfo, \"ERROR\",
+							\"Could not find a column with the specified header (\" + columnHeader + \")\", \"\");
+		return;
+	}
+}
+
+fwGeneral_tableResizeColumns(string table, int size = 10)
+{
+	int i, j, w, h, columnWidth;
+	string columnHeader;
+	shape myTable = getShape(table);
+	dyn_anytype columnData;
+	dyn_dyn_anytype tableData;
+	
+	for(i = 0; i < myTable.lineCount; i++)
+	{
+		tableData[i + 1] = myTable.getLineN(i);
+	}
+	
+	for(i = 0; i < myTable.columnCount; i++)
+	{
+		setValue(\"TextSize\" + size, \"text\", myTable.columnHeader(i));
+		getValue(\"TextSize\" + size, \"size\", w, h);
+		columnWidth = w + 10;
+		columnData = getDynAnytype(tableData, i + 1);
+//		DebugN(\"Header width \" + w + \" \" + myTable.columnHeader(i));
+		
+		for(j = 1; j <= dynlen(columnData); j++)
+		{
+			setValue(\"TextSize\" + size, \"text\", columnData[j]);
+			getValue(\"TextSize\" + size, \"size\", w, h);
+			w = w + 10;
+//			DebugN(\"w h \" + w + \" \" + h); 
+			if(w > columnWidth)
+				columnWidth = w;
+		}
+		
+		myTable.columnWidth(i, columnWidth);
+	}
+}
+
+
+displayAddressControls(bool display)
+{
+	addressOPCButton.visible = display;
+	addressOPCGeneralButton.visible = display;
+	addressDIMButton.visible = display;
+	addressDIMGeneralButton.visible = display;
+}
+
+enableControls(bool enable)
+{
+	applyButton.enabled				= enable;
+	createVendorNodeButton.enabled	= enable;
+	addToVendorNodeButton.enabled 	= enable;
+	enableElementsControls(enable);
+}
+
+enableElementsControls(bool enable)
+{
+	addElementsButton.enabled		= enable;
+	removeElementsButton.enabled	= enable;
+}
+
+
+initDefinitionElements()
+{	
+
+	/* Format of entries:
+		
+			[1] dpe in device definition
+			[2] group
+			[3]
+			[4] mapping to config object
+			[5] type of information stored
+	*/
+
+	// properties
+	dynAppend(definitionElements, makeDynString(\"properties.names\", \"properties\", \"\", fwDevice_PROPERTY_NAMES_INDEX, DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"properties.dpes\", \"properties\", \"\", fwDevice_ELEMENTS_INDEX, DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"properties.description\", \"properties\", \"\", fwDevice_DESCRIPTION_INDEX, DYN_STRING_VAR));		
+	dynAppend(definitionElements, makeDynString(\"properties.defaultValues\", \"properties\", \"\", fwDevice_DEFAULT_VALUES_INDEX, DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"properties.userData\", \"properties\", \"\", fwDevice_USER_DATA_INDEX, DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"properties.types\", \"properties\", \"\", fwDevice_ELEMENTS_TYPES_INDEX, DYN_STRING_VAR));
+	
+	// address
+	dynAppend(definitionElements, makeDynString(\"configuration.address.canHave\", fwConfigs_FW_ADDRESS, \"\", 0, DYN_BOOL_VAR));
+	//dynAppend(definitionElements, makeDynString(\"configuration.address.direction\", fwConfigs_FW_ADDRESS, \"\", fwPeriphAddress_DPE_OBJECT_DIRECTION, DYN_INT_VAR);
+
+	// addressOPC
+	dynAppend(definitionElements, makeDynString(\"configuration.address.OPC.items\", fwPeriphAddress_TYPE_OPC, \"\", fwPeriphAddress_DPE_OBJECT_REFERENCE, DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.address.OPC.groups\", fwPeriphAddress_TYPE_OPC, \"\", fwPeriphAddress_DPE_OBJECT_OPC_GROUP_IN, DYN_STRING_VAR));
+	//dynAppend(definitionElements, makeDynString(\"configuration.address.OPC.types\", fwPeriphAddress_TYPE_OPC, \"\", 0, DYN_STRING_VAR));
+	//dynAppend(definitionElements, makeDynString(\"configuration.address.OPC.userDefined\", fwPeriphAddress_TYPE_OPC, \"\", 0, DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.address.OPC.direction\", fwPeriphAddress_TYPE_OPC, \"\", fwPeriphAddress_DPE_OBJECT_DIRECTION, DYN_STRING_VAR));
+
+	// addressDIM
+	dynAppend(definitionElements, makeDynString(\"configuration.address.DIM.direction\", fwPeriphAddress_TYPE_DIM, \"\", fwPeriphAddress_DPE_OBJECT_DIRECTION, DYN_INT_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.address.DIM.items\", fwPeriphAddress_TYPE_DIM, \"\", fwPeriphAddress_DPE_OBJECT_REFERENCE, DYN_STRING_VAR));
+
+	// addressMODBUS
+	//dynAppend(definitionElements, makeDynString(\"configuration.address.MODBUS.direction\", \"addressMODBUS\", \"\", 0));
+	
+	// addressDIP
+	//dynAppend(definitionElements, makeDynString(\"configuration.address.DIP.items\", \"addressDIP\", \"\", 0, DYN_STRING_VAR));
+	//dynAppend(definitionElements, makeDynString(\"configuration.address.DIP.direction\", \"addressDIP\", \"\", 0, DYN_INT_VAR));
+	
+	// dpFunction
+	dynAppend(definitionElements, makeDynString(\"configuration.dpFunction.canHave\", fwConfigs_FW_DP_FUNCT, \"\", 0, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.dpFunction.function\", fwConfigs_FW_DP_FUNCT, \"\", fwDpFunction_DPE_OBJECT_FUNCTION, DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.dpFunction.params\", fwConfigs_FW_DP_FUNCT, \"\", fwDpFunction_DPE_OBJECT_PARAMETERS, DYN_DYN_STRING_VAR));
+//	dynAppend(definitionElements, makeDynString(\"configuration.dpFunction.globals\", fwConfigs_FW_DP_FUNCT, \"\", fwDpFunction_DPE_OBJECT_GLOBALS, DYN_DYN_STRING_VAR));
+
+	// alarm
+	dynAppend(definitionElements, makeDynString(\"configuration.alert.canHave\", fwConfigs_FW_ALERT_HDL, \"\", 0, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.alert.defaultClasses\", fwConfigs_FW_ALERT_HDL, \"\", fwAlertConfig_DPE_OBJECT_CLASSES, DYN_DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.alert.defaultTexts\", fwConfigs_FW_ALERT_HDL, \"\", fwAlertConfig_DPE_OBJECT_TEXTS, DYN_DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.alert.defaultLimits\", fwConfigs_FW_ALERT_HDL, \"\", fwAlertConfig_DPE_OBJECT_LIMITS, DYN_DYN_STRING_VAR));
+// not sure if needed??
+//	dynAppend(definitionElements, makeDynString(\"configuration.alert.defaultActive\", \"alarm\", \"\", fwAlertConfig_ACTIVE));
+
+	// archive
+	dynAppend(definitionElements, makeDynString(\"configuration.archive.canHave\", fwConfigs_FW_ARCHIVE, \"\", 0, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.archive.defaultClass\", fwConfigs_FW_ARCHIVE, \"\", fwArchive_DPE_OBJECT_CLASS_NAME, DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.archive.smoothType\", fwConfigs_FW_ARCHIVE, \"\", fwConfigs_DPE_OBJECT_TYPE, DYN_INT_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.archive.smoothProcedure\", fwConfigs_FW_ARCHIVE, \"\", fwArchive_DPE_OBJECT_PROCEDURE, DYN_INT_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.archive.deadband\", fwConfigs_FW_ARCHIVE, \"\", fwArchive_DPE_OBJECT_DEADBAND, DYN_FLOAT_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.archive.timeInterval\", fwConfigs_FW_ARCHIVE, \"\", fwArchive_DPE_OBJECT_TIME_INTERVAL, DYN_FLOAT_VAR));
+
+	// smoothing
+	dynAppend(definitionElements, makeDynString(\"configuration.smoothing.canHave\", fwConfigs_FW_SMOOTH, \"\", 0, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.smoothing.smoothProcedure\", fwConfigs_FW_SMOOTH, \"\", fwSmoothing_DPE_OBJECT_PROCEDURE, DYN_INT_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.smoothing.deadband\", fwConfigs_FW_SMOOTH, \"\", fwSmoothing_DPE_OBJECT_DEADBAND, DYN_FLOAT_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.smoothing.timeInterval\", fwConfigs_FW_SMOOTH, \"\", fwSmoothing_DPE_OBJECT_TIME_INTERVAL, DYN_FLOAT_VAR));
+	
+	// pvRange
+	dynAppend(definitionElements, makeDynString(\"configuration.pvRange.canHave\", fwConfigs_FW_PV_RANGE, \"\", 0, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.pvRange.minValue\", fwConfigs_FW_PV_RANGE, \"\", fwPvRange_DPE_OBJECT_MIN_VALUE, DYN_FLOAT_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.pvRange.maxValue\", fwConfigs_FW_PV_RANGE, \"\", fwPvRange_DPE_OBJECT_MAX_VALUE, DYN_FLOAT_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.pvRange.negateRange\", fwConfigs_FW_PV_RANGE, \"\", fwPvRange_DPE_OBJECT_NEGATE_RANGE, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.pvRange.ignoreOutside\", fwConfigs_FW_PV_RANGE, \"\", fwPvRange_DPE_OBJECT_IGNORE_OUTSIDE, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.pvRange.inclusiveMin\", fwConfigs_FW_PV_RANGE, \"\", fwPvRange_DPE_OBJECT_INCLUSIVE_MIN, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.pvRange.inclusiveMax\", fwConfigs_FW_PV_RANGE, \"\", fwPvRange_DPE_OBJECT_INCLUSIVE_MAX, DYN_BOOL_VAR));
+	
+	// format
+	dynAppend(definitionElements, makeDynString(\"configuration.format.canHave\", fwConfigs_FW_FORMAT, \"\", 0, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.format.format\", fwConfigs_FW_FORMAT, \"\", fwFormat_DPE_OBJECT_FORMAT, DYN_STRING_VAR));
+
+	// unit
+	dynAppend(definitionElements, makeDynString(\"configuration.unit.canHave\", fwConfigs_FW_UNIT, \"\", 0, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.unit.unit\", fwConfigs_FW_UNIT, \"\", fwUnit_DPE_OBJECT_UNIT, DYN_STRING_VAR));
+	
+	// conversion
+	dynAppend(definitionElements, makeDynString(\"configuration.conversion.canHave\", fwConfigs_FW_CMD_CONV, \"\", 0, DYN_BOOL_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.conversion.type\", fwConfigs_FW_CMD_CONV, \"\", fwConversion_DPE_OBJECT_TYPE, DYN_STRING_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.conversion.conversionType\", fwConfigs_FW_CMD_CONV, \"\", fwConversion_DPE_OBJECT_CONV_TYPE, DYN_INT_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.conversion.order\", fwConfigs_FW_CMD_CONV, \"\", fwConversion_DPE_OBJECT_ORDER, DYN_INT_VAR));
+	dynAppend(definitionElements, makeDynString(\"configuration.conversion.arguments\", fwConfigs_FW_CMD_CONV, \"\", fwConversion_DPE_OBJECT_ARGUMENTS, DYN_FLOAT_VAR));
+
+	modeToTable[ELEMENTS_MODE] = ELEMENTS_MODE_TABLE;
+	modeToTable[GENERAL_MODE] = GENERAL_MODE_TABLE;
+	modeToTable[PANELS_MODE] = PANELS_MODE_TABLE;
+//	modeToTable[ADDRESSGENERAL_MODE] = ADDRESSGENERAL_MODE_TABLE;
+	modeToTable[ADDRESSOPCGENERAL_MODE] = ADDRESSOPCGENERAL_MODE_TABLE;
+	modeToTable[ADDRESSDIMGENERAL_MODE] = ADDRESSDIMGENERAL_MODE_TABLE;
+		
+	dynAppend(generalDefinitionElements, makeDynString(\"Device Type\", \".type\", GENERAL_MODE));			
+	dynAppend(generalDefinitionElements, makeDynString(\"Datapoint Type\", \".dpType\", GENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Version\", \".version\", GENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Default Address Type\", \".configuration.address.general.defaultType\", GENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Can have defaults for addresses and alarms?\", \".configuration.canHaveDefaults\", GENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Children Datapoint Types\", \".general.childrenDPTypes\", GENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Default Name Root\", \".general.nameRoot\", GENERAL_MODE));			
+	dynAppend(generalDefinitionElements, makeDynString(\"Default Name Digits\", \".general.nameDigits\", GENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Starting Number\",\".general.startingNumber\", GENERAL_MODE));			
+//	dynAppend(generalDefinitionElements, makeDynString(\".frontEnd.configFile.openingTag\", GENERAL_MODE));
+//	dynAppend(generalDefinitionElements, makeDynString(\".frontEnd.configFile.closingTag\", GENERAL_MODE));
+	
+	dynAppend(generalDefinitionElements, makeDynString(\"Hardware View in Navigator Mode\", \".panels.navigator.hardware\", PANELS_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Hardware View in Editor Mode\", \".panels.editor.hardware\", PANELS_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Logical View in Navigator Mode\", \".panels.navigator.logical\", PANELS_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Logical View in Editor Mode\", \".panels.editor.logical\", PANELS_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Expert Hardware View in Editor Mode\", \".panels.editor.expert\", PANELS_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Panel to add children devices (if not the default one)\", \".panels.editor.hardwareAdd\", PANELS_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Panel to remove children devices (if not the default one)\", \".panels.editor.hardwareRemove\", PANELS_MODE));
+//	dynAppend(generalDefinitionElements, makeDynString(\".panels.symbols.synoptic\", PANELS_MODE));
+// dynAppend(generalDefinitionElements, makeDynString(\".panels.symbols.display\", PANELS_MODE));
+	
+	dynAppend(generalDefinitionElements, makeDynString(\"Can have OPC addressing?\", \".configuration.address.OPC.general.canHave\", ADDRESSOPCGENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Driver Number\", \".configuration.address.OPC.general.driverNumber\", ADDRESSOPCGENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"OPC Server Name\", \".configuration.address.OPC.general.serverName\", ADDRESSOPCGENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"OPC Group In\", \".configuration.address.OPC.general.groupIn\", ADDRESSOPCGENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"OPC Group Out\", \".configuration.address.OPC.general.groupOut\", ADDRESSOPCGENERAL_MODE));
+	
+	dynAppend(generalDefinitionElements, makeDynString(\"Can have DIM addressing?\", \".configuration.address.DIM.general.canHave\", ADDRESSDIMGENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Driver Number\", \".configuration.address.DIM.general.driverNumber\", ADDRESSDIMGENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Time Interval\", \".configuration.address.DIM.general.timeInterval\", ADDRESSDIMGENERAL_MODE));
+	dynAppend(generalDefinitionElements, makeDynString(\"Time Stamp\", \".configuration.address.DIM.general.timeStamp\", ADDRESSDIMGENERAL_MODE));	
+}" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 4
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  3 0 8 0 E 12 12 250 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 28 Edit Device/Model Definition
+2 5
+"Text2"
+""
+1 37 58 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  3 0 8 0 E 39 60 71 77
+0 2 0 "0s" 0 0 0 192 0 0  39 60 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Type:
+2 22
+"Text3"
+""
+1 304 58 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  3 0 8 0 E 306 60 360 77
+0 2 0 "0s" 0 0 0 192 0 0  306 60 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 DP Type:
+30 39
+"Frame1"
+""
+1 20 120 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+27 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 40 890 120
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Choose definition
+2 40
+"Text4"
+""
+1 37 90 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  3 0 8 0 E 39 92 78 109
+0 2 0 "0s" 0 0 0 192 0 0  39 92 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Model:
+2 47
+"Text6"
+""
+1 140 670 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  3 0 8 0 E 142 672 200 689
+0 2 0 "0s" 0 0 0 192 0 0  142 672 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Clipboard:
+30 48
+"Frame2"
+""
+1 9 690 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+37 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 9 650 385 690
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Copy definition
+2 60
+"Text7"
+""
+1 270 150 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  3 0 8 0 E 272 152 324 169
+0 2 0 "0s" 0 0 0 192 0 0  272 152 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Editing...
+2 65
+"TextSize8"
+""
+1 617 10 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 617 10 713 25
+0 0 0 "0s" 0 0 0 192 0 0  617 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 To measure width 8
+2 75
+"TextSize10"
+""
+1 487 10 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 487 10 607 27
+0 0 0 "0s" 0 0 0 192 0 0  487 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 To measure width 10
+30 80
+"editFrame"
+""
+1 20 658 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+60 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 128 890 658
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Editing NOTHING
+22 1
+"deviceDpTypes"
+""
+1 363 58 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 361 56 584 83
+0
+
+E
+E
+E
+ 0 0
+22 2
+"deviceTypes"
+""
+1 74 58 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 72 56 300 83
+0
+
+E
+"main()
+{
+	dyn_string models, items, exceptionInfo;
+	
+	this.enabled(FALSE);
+	applyButton.enabled = FALSE;
+	
+	// If info message selected don't do anything
+	if(deviceTypes.selectedPos != 1)
+	{		
+		fwOpenProgressBar(\"Looking for device models.\", \"Looking for device models.\", 1, 0);
+		editTypeDefinitionButton.enabled(TRUE);
+		deleteTypeDefinitionButton.enabled(TRUE);
+		
+		deviceDpTypes.selectedPos(deviceTypes.selectedPos());	
+
+		fwDevice_getTypeModels(deviceDpTypes.text, \"\", models, exceptionInfo);
+		deviceModels.deleteAllItems();
+
+		if(dynlen(models) == 0)
+		{
+			deviceModels.items = makeDynString(\"No models available for the selected type.\");
+			deviceModels.enabled = FALSE;
+		}
+		else
+		{
+			dynAppend(items, \"Choose a device model...\");
+			dynAppend(items, models);
+			deviceModels.items = items;
+			deviceModels.enabled = TRUE;			
+		}
+		
+		fwCloseProgressBar(\"Finished looking for device models\");
+	}
+	else
+	{
+		deviceModels.items = makeDynString(\"No type selected\");
+		deviceModels.enabled = FALSE;
+	}
+	
+	deviceModels.selectedPos(1);
+	editModelDefinitionButton.enabled(FALSE);
+	deleteModelDefinitionButton.enabled(FALSE);
+	this.enabled(TRUE);
+}
+" 0
+
+E
+ 0 0
+13 3
+"editTypeDefinitionButton"
+""
+1 587 57 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 585 55 719 82
+
+T 
+1
+LANG:1 20 Edit type definition
+"main()
+{
+	fwOpenProgressBar(\"Edit type definition\", \"Refreshing tables...\", 1, 0);
+
+	definitionDp = deviceDpTypes.text + fwDevice_DEFINITION_SUFIX;
+	editFrame.text = \"Editing: \" + definitionDp;
+	
+	updateTable(GENERAL_MODE);
+	updateElementsTable();
+
+//	updateTable(PANELS_MODE);
+	editMode(GENERAL_MODE);
+	selectButton(\"generalButton\", 1);
+
+	fwGeneral_tableResizeColumns(ELEMENTS_MODE_TABLE, 8);
+	
+	fwCloseProgressBar(\"Tables refreshed.\");
+}" 0
+ E E E
+13 6
+"applyButton"
+""
+1 719 666 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 717 664 801 691
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	bool canHave, ok;
+	int dpeType, i, j, count;
+	string dpe, modeKey, table;
+	dyn_string tableData, propertyNames, dynValue, exceptionInfo;
+	dyn_anytype line;
+	
+	enableControls(FALSE);
+
+	// before storing make some checks
+	fwGeneral_tableGetColumnValues(\"elementsTable\", \"names\", propertyNames, exceptionInfo);
+	if(dynContains(propertyNames, \"EMPTY\") > 0 || dynContains(propertyNames, \"\") > 0)
+	{
+		fwGeneral_openMessagePanel(	\"Some of the property names are empty. This can prevent some Framework Tools from working properly. \" +
+									\"Do you still want to continue?\",
+									ok, exceptionInfo, \"Inconsistencies found in definition\");
+		if(!ok)
+			return;
+	}
+	
+	// store settings for individual elements
+	for(i = 0; i < elementsTable.columnCount; i++)
+	{
+		if(dynContains(definitionElementsWithoutGroups, elementsTable.columnName(i)))
+		{
+			tableData = makeDynString();
+			dpeType = dpElementType(definitionDp + \".\" + elementsTable.columnName(i));
+			// get data from the table
+			for(j = 1; j <= elementsTable.lineCount; j++)
+			{
+				tableData[j] = elementsTable.cellValueRC(j - 1, elementsTable.columnName(i));				
+				if((tableData[j] == \"\") && (dpeType == DPEL_DYN_STRING))
+					tableData[j] = fwDevice_DEFINITION_EMPTY_ENTRY; 
+			}
+			// write data to device definitions
+//			DebugN(\"Setting \" + definitionDp + \".\" + elementsTable.columnName(i) + \" to \" + tableData);
+			dpSet(definitionDp + \".\" + elementsTable.columnName(i), tableData);
+		}
+	}
+
+	// store settings in the other tables
+	for(int i = 1; i <= mappinglen(modeToTable); i++)
+	{
+		modeKey = mappingGetKey(modeToTable, i);
+		table = mappingGetValue(modeToTable, i);
+		
+		if(modeKey != ELEMENTS_MODE)
+		{	
+			getValue(table, \"lineCount\", count);
+			for(j = 0; j < count; j++)
+			{
+				getValue(table, \"getLineN\", j, line);
+			//	DebugN(line);
+				dpe = line[1];
+				dpeType = dpElementType(dpe);
+		
+				if(dynContains(g_fwGeneral_dynDpeTypes, dpeType))
+				{
+					fwGeneral_stringToDynString(line[3], dynValue, \"|\", FALSE);
+					dpSet(dpe, dynValue);
+				}
+				else
+				{
+					dpSet(dpe, line[3]);
+				}
+			//DebugN(line, dpe, dynValue);
+			}
+		}
+	}
+
+	enableControls(TRUE);
+}
+" 0
+ E E E
+13 15
+"Button5"
+""
+1 810 666 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 808 664 892 691
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+13 24
+"generalButton"
+""
+1 32 151 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 16 General settings
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 30 149 99 176
+
+T 
+1
+LANG:1 7 General
+"main()
+{
+	selectButton(this.name, 1);
+	editMode(GENERAL_MODE);
+	
+	fwGeneral_tableResizeColumns(GENERAL_MODE_TABLE);
+}" 0
+ E E E
+13 25
+"propertiesButton"
+""
+1 32 182 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 30 180 99 207
+
+T 
+1
+LANG:1 10 Properties
+"main()
+{
+	selectedGroup = substr(this.name, 0, strpos(this.name, \"Button\"));
+
+	selectButton(this.name, 1);
+	refreshVisible(makeDynString(selectedGroup));
+}" 0
+ E E E
+13 26
+"addressButton"
+""
+1 102 181 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 100 179 169 206
+
+T 
+1
+LANG:1 7 Address
+"main()
+{
+	selectedGroup = fwConfigs_FW_ADDRESS;
+
+	selectButton(this.name, 1);
+	refreshVisible(makeDynString(selectedGroup));
+}" 0
+ E E E
+13 27
+"alarmButton"
+""
+1 317 181 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 315 179 384 206
+
+T 
+1
+LANG:1 5 Alarm
+"main()
+{
+	selectedGroup = fwConfigs_FW_ALERT_HDL;
+
+	selectButton(this.name, 1);
+	refreshVisible(makeDynString(selectedGroup));
+}" 0
+ E E E
+13 30
+"addressOPCButton"
+""
+1 129 212 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 127 210 221 237
+
+T 
+1
+LANG:1 9 OPC items
+"main()
+{
+	selectedGroup = fwPeriphAddress_TYPE_OPC;//substr(this.name, 0, strpos(this.name, \"Button\"));
+
+	selectButton(this.name, 2);
+	refreshVisible(makeDynString(selectedGroup));
+}" 0
+ E E E
+13 31
+"addressDIMGeneralButton"
+""
+1 226 212 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 224 210 318 237
+
+T 
+1
+LANG:1 11 DIM general
+"main()
+{
+	selectButton(this.name, 2);
+	editMode(ADDRESSDIMGENERAL_MODE);
+	
+	fwGeneral_tableResizeColumns(ADDRESSDIMGENERAL_MODE_TABLE);
+}" 0
+ E E E
+13 32
+"addressMODBUSButton"
+""
+1 820 212 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 818 210 887 237
+
+T 
+1
+LANG:1 6 MODBUS
+"main()
+{
+	selectedGroup = substr(this.name, 0, strpos(this.name, \"Button\"));
+
+	selectButton(this.name, 2);
+	refreshVisible(makeDynString(selectedGroup));
+}" 0
+ E E E
+13 33
+"archiveButton"
+""
+1 245 181 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 243 179 312 206
+
+T 
+1
+LANG:1 7 Archive
+"main()
+{
+	selectedGroup = fwConfigs_FW_ARCHIVE;
+
+	selectButton(this.name, 1);
+	refreshVisible(makeDynString(selectedGroup));
+
+}" 0
+ E E E
+13 34
+"Button4"
+""
+1 102 151 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 100 149 169 176
+
+T 
+1
+LANG:1 6 Panels
+"main()
+{
+	selectButton(this.name, 1);
+	editMode(PANELS_MODE);
+	
+	fwGeneral_tableResizeColumns(PANELS_MODE_TABLE);
+}" 0
+ E E E
+13 35
+"smoothingButton"
+""
+1 390 181 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 388 179 457 206
+
+T 
+1
+LANG:1 6 Smooth
+"main()
+{
+	selectedGroup = fwConfigs_FW_SMOOTH;
+
+	selectButton(this.name, 1);
+	refreshVisible(makeDynString(selectedGroup));
+
+}" 0
+ E E E
+13 36
+"pvRangeButton"
+""
+1 531 181 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 529 179 598 206
+
+T 
+1
+LANG:1 7 PvRange
+"main()
+{
+	selectedGroup = fwConfigs_FW_PV_RANGE;
+
+	selectButton(this.name, 1);
+	refreshVisible(makeDynString(selectedGroup));
+
+}" 0
+ E E E
+13 37
+"unitButton"
+""
+1 602 181 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 600 179 669 206
+
+T 
+1
+LANG:1 4 Unit
+"main()
+{
+	selectedGroup = fwConfigs_FW_UNIT;
+
+	selectButton(this.name, 1);
+	refreshVisible(makeDynString(selectedGroup));
+
+}" 0
+ E E E
+13 38
+"formatButton"
+""
+1 672 181 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 670 179 739 206
+
+T 
+1
+LANG:1 6 Format
+"main()
+{
+	selectedGroup = fwConfigs_FW_FORMAT;
+
+	selectButton(this.name, 1);
+	refreshVisible(makeDynString(selectedGroup));
+
+}" 0
+ E E E
+22 41
+"deviceModels"
+""
+1 80 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 78 88 301 115
+0
+
+E
+"main()
+{
+	if(this.selectedPos != 1)
+	{
+		editModelDefinitionButton.enabled(TRUE);
+		deleteModelDefinitionButton.enabled(TRUE);
+	}
+}" 0
+
+E
+ 0 0
+13 42
+"editModelDefinitionButton"
+""
+1 587 87 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 585 85 719 112
+
+T 
+1
+LANG:1 21 Edit model definition
+"main()
+{
+	dyn_string modelDp, exceptionInfo;
+	
+	fwOpenProgressBar(\"Edit model definition\", \"Refreshing tables...\", 1, 0);
+	fwDevice_getModelDp(makeDynString(\"\", deviceDpTypes.text, \"\", deviceModels.text), modelDp, exceptionInfo);
+	
+	definitionDp = modelDp[1] + \".modelDefinition.definition\";
+	editFrame.text = \"Editing: \" + definitionDp;
+	
+	updateElementsTable();
+	updateTable(GENERAL_MODE);
+	updateTable(PANELS_MODE);
+	editMode(GENERAL_MODE);
+	selectButton(\"generalButton\", 1);
+	//	selectButton(\"\", 0);
+
+	fwGeneral_tableResizeColumns(ELEMENTS_MODE_TABLE, 8);
+	fwCloseProgressBar(\"Tables refreshed.\");
+}
+" 0
+ E E E
+13 43
+"copyDefinitionButton"
+""
+1 10 666 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 664 67 691
+
+T 
+1
+LANG:1 4 Copy
+"main()
+{
+	copyDefinitionDp = definitionDp;
+	definitionDpClipboardText.text = copyDefinitionDp;
+	pasteDefinitionButton.enabled(TRUE);
+}" 0
+ E E E
+13 44
+"pasteDefinitionButton"
+""
+1 71 666 E E E 0 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 69 664 128 691
+
+T 
+1
+LANG:1 5 Paste
+"main()
+{
+	int elementType;
+	string value, sourceDpe, targetDpe;
+	dyn_int dynTypes = makeDynString(DPEL_DYN_BOOL, DPEL_DYN_INT, DPEL_DYN_STRING, DPEL_DYN_FLOAT);
+	dyn_string dynValue;
+	
+	for(int i = 1; i <= dynlen(definitionElementsWithoutGroups); i++)
+	{
+		sourceDpe = copyDefinitionDp + \".\" + definitionElementsWithoutGroups[i];
+		targetDpe = definitionDp + \".\" + definitionElementsWithoutGroups[i];
+		if(dynContains(dynTypes, dpElementType(sourceDpe)) > 0)
+		{
+			dynValue = makeDynString();
+			dpGet(sourceDpe, dynValue);
+			//DebugN(\"Setting \" + targetDpe + \" to \" + dynValue);
+			dpSet(targetDpe, dynValue);
+		}
+		else
+		{
+			value = \"\";
+			dpGet(sourceDpe, value);
+			//DebugN(\"Setting \" + targetDpe + \" to \" + value);
+			dpSet(targetDpe, value);
+		}
+	}
+}" 0
+ E E E
+14 45
+"definitionDpClipboardText"
+""
+1 200 660 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 198 658 363 685
+3 "0s" 0 0 0 0 0 -1  E E E
+13 49
+"DPfunctButton"
+""
+1 173 181 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 171 179 240 206
+
+T 
+1
+LANG:1 8 DP funct
+"main()
+{
+	selectedGroup = fwConfigs_FW_DP_FUNCT;
+
+	selectButton(this.name, 1);
+	refreshVisible(makeDynString(selectedGroup));
+
+}" 0
+ E E E
+13 50
+"addressDIPButton"
+""
+1 752 212 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 750 210 819 237
+
+T 
+1
+LANG:1 3 DIP
+"main()
+{
+	selectedGroup = substr(this.name, 0, strpos(this.name, \"Button\"));
+
+	selectButton(this.name, 2);
+	refreshVisible(makeDynString(selectedGroup));
+}" 0
+ E E E
+13 52
+"dummyButton"
+""
+1 730 10 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 728 8 892 32
+
+T 
+1
+LANG:1 25 Dummy for selected colors
+E E E E
+13 54
+"addToVendorNodeButton"
+""
+1 157 628 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 155 626 279 653
+
+T 
+1
+LANG:1 18 Add to vendor node
+"main()
+{
+	dyn_string vendorNodes, vendorNode, exceptionInfo, childrenDpTypes;
+	
+	fwNode_getNodes(\"\", fwNode_TYPE_VENDOR, vendorNodes, exceptionInfo);
+	
+	fwGeneral_selectFromList(vendorNodes, vendorNode, exceptionInfo);
+	
+	if(dynlen(exceptionInfo) > 0 )
+		fwExceptionHandling_display(exceptionInfo);
+		
+	// check if any node was selected
+	if(dynlen(vendorNode) == 0)
+	{
+		return;
+	}
+	
+	fwNode_getDpTypes(vendorNode[1], childrenDpTypes, exceptionInfo);
+
+	// if the dp type is not yet in the list, then add it
+	if(dynContains(childrenDpTypes, deviceDpTypes.text) < 1)
+	{
+		dynAppend(childrenDpTypes, deviceDpTypes.text);
+		fwNode_setDpTypes(vendorNode, childrenDpTypes, exceptionInfo);
+	}
+	
+	if(dynlen(exceptionInfo) > 0 )
+		fwExceptionHandling_display(exceptionInfo);
+	
+//	DebugN(\"vendorNodes \" + vendorNodes + vendorNode);
+}" 0
+ E E E
+13 58
+"cmdConversionButton"
+""
+1 461 181 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 459 179 528 206
+
+T 
+1
+LANG:1 7 Convers
+"main()
+{
+	selectedGroup = fwConfigs_FW_CMD_CONV;
+
+	selectButton(this.name, 1);
+	refreshVisible(makeDynString(selectedGroup));
+
+}" 0
+ E E E
+14 61
+"definitionDpText"
+""
+1 363 149 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 361 147 814 174
+3 "0s" 0 0 0 0 0 -1  E E E
+25 0
+"elementsTable"
+""
+1 30 240 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main()
+{
+	//DebugN(\"Double click\");
+}" 0
+
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 238 882 622
+"main()
+{
+	elementsTable.sortOnClick(FALSE);
+	elementsTable.selectByClick(TABLE_SELECT_LINE);
+
+
+	elementsTable.tableMode(TABLE_SELECT_BROWSE);
+	elementsTable.selectByClick(TABLE_SELECT_LINE_COLUMN);
+}" 0
+"main(int row, string column, string value)
+{
+	bool canHave;
+	int i, alertType, dpeType, index;
+	string dpe, aux, group, columnHeader, panel, configGroup;
+	dyn_float df;
+	dyn_string ds, dynAux, exceptionInfo, dps, propertyDefinition;
+	dyn_anytype line;
+	
+	line = elementsTable.getLineN(row);
+	//DebugN(line);
+
+	index = elementsTable.nameToColumn(column);
+	//DebugN(\"row \" + row + \" column \" + column + \" column index \" + index);
+
+	// Do nothing for column with row number 
+	if(index < 1)  
+	{
+		return;
+	}
+	
+	columnHeader = elementsTable.columnHeader(index);
+	//DebugN(\"columHeader \" + columnHeader);
+	
+	// If it is a canHave column then toggle its current value
+ 	if(columnHeader == \"canHave\") 
+	{
+			canHave = line[index + 1];
+			//DebugN(\"canHave \" + canHave);
+			if(canHave)
+				elementsTable.cellValueRC(row, column, makeDynString(FALSE));
+			else
+				elementsTable.cellValueRC(row, column, makeDynString(TRUE));			
+			return;
+	}
+
+	// Reset config object
+	// fill in empty entries (20 should be put as a constant or taken as maximum lenght of object from somewhere)
+	g_dpeConfigObject = makeDynAnytype();	
+	for(i = 1; i <= 20; i++)
+	{
+		g_dpeConfigObject[i] = makeDynString(\"\");			
+	}
+	
+	// Read values applicable only to config objects
+	if(selectedGroup != \"properties\")
+	{
+		// Get the dpe name
+		index = elementsTable.nameToColumn(\"properties.dpes\");
+		g_dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_NAME][1] = line[index + 1];
+		
+		// always set config to active
+		g_dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1] = TRUE;
+	
+		// get type for element. At least one dp instance is required
+		dps = dpNames(\"*\", deviceDpTypes.text);	
+		if(dynlen(dps) == 0)
+		{
+			fwException_raise(exceptionInfo,
+												\"WARNING\",
+												\"There should be at least one dp of type \" + deviceDpTypes.text + \" to be able to proceed\",
+												\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+		g_dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_TYPE][1] = dpElementType(dps[1] + g_dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_NAME][1]);
+		
+		// if editing a specific address type
+		if(selectedGroup == fwPeriphAddress_TYPE_OPC || selectedGroup == fwPeriphAddress_TYPE_DIM)
+		{
+			configGroup = fwConfigs_FW_ADDRESS;
+			g_dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE] = selectedGroup;
+		}
+		else
+		{
+			configGroup = selectedGroup;
+		}	
+			
+		panel =	fwConfigs_FW_PANEL[fwConfigs_PVSS[configGroup]];
+	}
+	else
+	{
+		panel = \"fwDevice/fwDeviceEditPropertyDefinition.pnl\";
+	}
+	
+	// Read values from table into object
+	for(int i = 1; i <= dynlen(definitionElements); i++)
+	{
+		if(definitionElements[i][2] == selectedGroup)
+		{			
+			// initialize in case there is bad data
+			aux = \"\";
+			
+			// get data from table line
+			index = elementsTable.nameToColumn(definitionElements[i][1]);
+			aux = line[index + 1];
+			strreplace(aux, strtolower(fwDevice_DEFINITION_EMPTY_ENTRY), \"\");
+			strreplace(aux, strtoupper(fwDevice_DEFINITION_EMPTY_ENTRY), \"\");
+			
+			index = definitionElements[i][4];
+			// if it is a dyn type, proces it before putting it into the object
+			// consider that operand || is not a separator
+//			if((strpos(aux, \"|\") >= 0) && (strpos(aux, \"||\") <= 0))
+			if(definitionElements[i][5] == DYN_DYN_STRING_VAR)
+			{
+				fwGeneral_stringToDynString(aux, dynAux);				
+				if(index > 0)
+					g_dpeConfigObject[index] = dynAux;
+			}
+			else
+			{	
+				if(index > 0)
+					g_dpeConfigObject[index][1] = aux;
+			}			
+//			DebugN(i, definitionElements[i], index, aux, dynAux, definitionElements[i][4], g_dpeConfigObject);
+		}
+	}
+
+	// For alerts it is necessary to specify the alert type if there is a default defined
+	if(selectedGroup == fwConfigs_FW_ALERT_HDL)
+	{	
+		// if there are some classes we consider that there is a default
+		if (g_dpeConfigObject[fwAlertConfig_DPE_OBJECT_CLASSES] != \"\")
+		{
+			switch(g_dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_TYPE][1])
+			{
+				case DPEL_BOOL:
+				case DPEL_DYN_BOOL:
+					g_dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1] = DPCONFIG_ALERT_BINARYSIGNAL;
+					break;
+				case DPEL_INT:
+				case DPEL_UINT:
+				case DPEL_FLOAT:
+					g_dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1] = DPCONFIG_ALERT_NONBINARYSIGNAL;
+					break;
+				default:
+					g_dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1] = DPCONFIG_NONE;
+					break;
+			}	
+		}
+		else
+		{
+			g_dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1] = DPCONFIG_NONE;
+		}
+	}
+
+//	DebugN(\"Object before editing: \", g_dpeConfigObject);
+	
+	// Open panel to edit object
+	if(panel != \"\")
+	{
+		ChildPanelOnCentralModalReturn(	panel,
+																		\"Configure \" + selectedGroup,
+																		makeDynString(\"$sDpeConfigObjectVarName:g_dpeConfigObject\",
+																									\"$sDpe:\",
+																									\"$bHierarchyBrowser:FALSE\"),
+																		df, ds);
+	}
+	else
+	{
+			fwException_raise(exceptionInfo,
+											\"WARNING\",
+											\"Configuration panel not defined for \" + selectedGroup,
+											\"\");
+			return;
+	}
+
+//	DebugN(\"Object after editing: \", g_dpeConfigObject);
+
+	// Put returned object back in the table
+	for(int i = 1; i <= dynlen(definitionElements); i++)
+	{
+		if(definitionElements[i][2] == selectedGroup)
+		{
+			index = definitionElements[i][4];
+			if(index > 0)
+			{
+				fwGeneral_dynStringToString(g_dpeConfigObject[index], aux);
+				//DebugN(\"aux = \" + aux);
+				if(aux == \"\")
+					aux = fwDevice_DEFINITION_EMPTY_ENTRY;
+				elementsTable.cellValueRC(row, definitionElements[i][1], makeDynString(aux));
+			}
+		}
+	}
+}" 0
+ 1 0 1 52 1 "#1" 2 1 0 "s" 1
+LANG:1 3 num
+E
+1
+LANG:1 0 
+
+30 "#2" 15 1 0 "s" 1
+LANG:1 2 #2
+E
+1
+LANG:1 0 
+
+128 "#3" 15 1 0 "s" 1
+LANG:1 2 #3
+E
+1
+LANG:1 0 
+
+128 "#4" 15 1 0 "s" 1
+LANG:1 2 #4
+E
+1
+LANG:1 0 
+
+128 "#5" 15 1 0 "s" 1
+LANG:1 2 #5
+E
+1
+LANG:1 0 
+
+128 "#6" 15 1 0 "s" 1
+LANG:1 2 #6
+E
+1
+LANG:1 0 
+
+128 "#7" 15 1 0 "s" 1
+LANG:1 2 #7
+E
+1
+LANG:1 0 
+
+128 "#8" 15 1 0 "s" 1
+LANG:1 2 #8
+E
+1
+LANG:1 0 
+
+128 "#9" 15 1 0 "s" 1
+LANG:1 2 #9
+E
+1
+LANG:1 0 
+
+128 "#10" 15 1 0 "s" 1
+LANG:1 3 #10
+E
+1
+LANG:1 0 
+
+128 "#11" 15 1 0 "s" 1
+LANG:1 3 #11
+E
+1
+LANG:1 0 
+
+128 "#12" 15 1 0 "s" 1
+LANG:1 3 #12
+E
+1
+LANG:1 0 
+
+128 "#13" 15 1 0 "s" 1
+LANG:1 3 #13
+E
+1
+LANG:1 0 
+
+128 "#14" 15 1 0 "s" 1
+LANG:1 3 #14
+E
+1
+LANG:1 0 
+
+128 "#15" 15 1 0 "s" 1
+LANG:1 3 #15
+E
+1
+LANG:1 0 
+
+128 "#16" 15 1 0 "s" 1
+LANG:1 3 #16
+E
+1
+LANG:1 0 
+
+128 "#17" 15 1 0 "s" 1
+LANG:1 3 #17
+E
+1
+LANG:1 0 
+
+128 "#18" 15 1 0 "s" 1
+LANG:1 3 #18
+E
+1
+LANG:1 0 
+
+128 "#19" 15 1 0 "s" 1
+LANG:1 3 #19
+E
+1
+LANG:1 0 
+
+128 "#20" 15 1 0 "s" 1
+LANG:1 3 #20
+E
+1
+LANG:1 0 
+
+128 "#21" 15 1 0 "s" 1
+LANG:1 3 #21
+E
+1
+LANG:1 0 
+
+128 "#22" 15 1 0 "s" 1
+LANG:1 3 #22
+E
+1
+LANG:1 0 
+
+128 "#23" 15 1 0 "s" 1
+LANG:1 3 #23
+E
+1
+LANG:1 0 
+
+128 "#24" 15 1 0 "s" 1
+LANG:1 3 #24
+E
+1
+LANG:1 0 
+
+128 "#25" 15 1 0 "s" 1
+LANG:1 3 #25
+E
+1
+LANG:1 0 
+
+128 "#26" 15 1 0 "s" 1
+LANG:1 3 #26
+E
+1
+LANG:1 0 
+
+128 "#27" 15 1 0 "s" 1
+LANG:1 3 #27
+E
+1
+LANG:1 0 
+
+128 "#28" 15 1 0 "s" 1
+LANG:1 3 #28
+E
+1
+LANG:1 0 
+
+128 "#29" 15 1 0 "s" 1
+LANG:1 3 #29
+E
+1
+LANG:1 0 
+
+128 "#30" 15 1 0 "s" 1
+LANG:1 3 #30
+E
+1
+LANG:1 0 
+
+128 "#31" 15 1 0 "s" 1
+LANG:1 3 #31
+E
+1
+LANG:1 0 
+
+128 "#32" 15 1 0 "s" 1
+LANG:1 3 #32
+E
+1
+LANG:1 0 
+
+128 "#33" 15 1 0 "s" 1
+LANG:1 3 #33
+E
+1
+LANG:1 0 
+
+128 "#34" 15 1 0 "s" 1
+LANG:1 3 #34
+E
+1
+LANG:1 0 
+
+128 "#35" 15 1 0 "s" 1
+LANG:1 3 #35
+E
+1
+LANG:1 0 
+
+128 "#36" 15 1 0 "s" 1
+LANG:1 3 #36
+E
+1
+LANG:1 0 
+
+128 "#37" 15 1 0 "s" 1
+LANG:1 3 #37
+E
+1
+LANG:1 0 
+
+128 "#38" 15 1 0 "s" 1
+LANG:1 3 #38
+E
+1
+LANG:1 0 
+
+128 "#39" 15 1 0 "s" 1
+LANG:1 3 #39
+E
+1
+LANG:1 0 
+
+128 "#40" 15 1 0 "s" 1
+LANG:1 3 #40
+E
+1
+LANG:1 0 
+
+128 "#41" 15 1 0 "s" 1
+LANG:1 3 #41
+E
+1
+LANG:1 0 
+
+128 "#42" 15 1 0 "s" 1
+LANG:1 3 #42
+E
+1
+LANG:1 0 
+
+128 "#43" 15 1 0 "s" 1
+LANG:1 3 #43
+E
+1
+LANG:1 0 
+
+128 "#44" 15 1 0 "s" 1
+LANG:1 3 #44
+E
+1
+LANG:1 0 
+
+128 "#45" 15 1 0 "s" 1
+LANG:1 3 #45
+E
+1
+LANG:1 0 
+
+128 "#46" 15 1 0 "s" 1
+LANG:1 3 #46
+E
+1
+LANG:1 0 
+
+128 "#47" 15 1 0 "s" 1
+LANG:1 3 #47
+E
+1
+LANG:1 0 
+
+128 "#48" 15 1 0 "s" 1
+LANG:1 3 #48
+E
+1
+LANG:1 0 
+
+128 "#49" 15 1 0 "s" 1
+LANG:1 3 #49
+E
+1
+LANG:1 0 
+
+128 "#50" 15 1 0 "s" 1
+LANG:1 3 #50
+E
+1
+LANG:1 0 
+
+128 "#51" 15 1 0 "s" 1
+LANG:1 3 #51
+E
+1
+LANG:1 0 
+
+128 "#52" 15 1 0 "s" 1
+LANG:1 3 #52
+E
+1
+LANG:1 0 
+
+128 
+18 18 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 2 1 7
+1 0
+13 62
+"deleteTypeDefinitionButton"
+""
+1 727 57 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 725 55 873 82
+
+T 
+1
+LANG:1 22 Delete type definition
+"main()
+{	
+	bool ok;
+	dyn_string exceptionInfo;
+	
+	fwGeneral_openMessagePanel(\"Are you sure you want to delete the definition for \" + deviceTypes.text + \"?\", ok, exceptionInfo, \"Delete definition confirmation\");
+	
+	if(ok)
+	{
+		dpDelete(deviceDpTypes.text + fwDevice_DEFINITION_SUFIX);
+	}
+	
+	init();
+}" 0
+ E E E
+13 63
+"deleteModelDefinitionButton"
+""
+1 727 87 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 725 85 873 112
+
+T 
+1
+LANG:1 23 Delete model definition
+"main()
+{
+
+}" 0
+ E E E
+25 56
+"panelsTable"
+""
+1 -9 58 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 238 882 622
+E"main(int row, string column, string value)
+{
+	string list;
+ 	dyn_float df;
+	dyn_string ds;
+	
+//	fwGeneral_stringToDynString();
+	ChildPanelOnCentralModalReturn(	\"fwGeneral/fwGeneralEditDynString.pnl\", 
+									\"Edit panel list\",
+									makeDynString(	\"$sTitle:Edit panel list\",
+													\"$dsValues:\" + value,
+													\"$sEditMode:PANEL_LIST\"),
+									df, ds);
+									
+//	DebugN(\"df \" + df + \" ds \" + ds);
+	
+	if(df[1] == 0)
+	{
+		list = ds;
+		// remove spaces
+		strreplace(list, \" \", \"\");
+		
+		// put in the table the new list of panels
+		this.cellValueRC(row, column, makeDynString(list));	
+	}							
+}" 0
+ 1 0 1 3 1 "dpe" 17 0 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+200 "parameter" 26 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+300 "value" 44 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+500 
+20 20 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+25 67
+"generalTable"
+""
+1 49 -41 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 238 882 622
+"main()
+{
+	this.tableMode(TABLE_SELECT_BROWSE);
+	this.selectByClick(TABLE_SELECT_LINE_COLUMN);
+}" 0
+E 1 0 1 3 1 "dpe" 17 0 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+200 "parameter" 26 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+300 "value" 44 1 1 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+500 
+20 20 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 68
+"addressOPCGeneralButton"
+""
+1 32 212 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 30 210 124 237
+
+T 
+1
+LANG:1 11 OPC general
+"main()
+{
+	selectButton(this.name, 2);
+	editMode(ADDRESSOPCGENERAL_MODE);
+	
+	fwGeneral_tableResizeColumns(ADDRESSOPCGENERAL_MODE_TABLE);
+}" 0
+ E E E
+25 70
+"addressOpcGeneralTable"
+""
+1 230 -181 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 238 882 622
+"main()
+{
+	this.tableMode(TABLE_SELECT_BROWSE);
+	this.selectByClick(TABLE_SELECT_LINE_COLUMN);
+}" 0
+E 1 0 1 3 1 "dpe" 17 0 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+200 "parameter" 26 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+300 "value" 44 1 1 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+500 
+20 20 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+25 73
+"addressDimGeneralTable"
+""
+1 309 -260 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 238 882 622
+"main()
+{
+	this.tableMode(TABLE_SELECT_BROWSE);
+	this.selectByClick(TABLE_SELECT_LINE_COLUMN);
+}" 0
+E 1 0 1 3 1 "dpe" 17 0 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+200 "parameter" 26 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+300 "value" 44 1 1 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+500 
+20 20 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 74
+"addressDIMButton"
+""
+1 323 212 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 321 210 415 237
+
+T 
+1
+LANG:1 9 DIM items
+"main()
+{
+	selectedGroup = fwPeriphAddress_TYPE_DIM; //substr(this.name, 0, strpos(this.name, \"Button\"));
+
+	selectButton(this.name, 2);
+	refreshVisible(makeDynString(selectedGroup));
+}" 0
+ E E E
+13 78
+"addElementsButton"
+""
+1 635 628 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 633 626 757 653
+
+T 
+1
+LANG:1 12 Add elements
+"main()
+{
+	int i;
+	string dpesColumnName, propertyNamesColumnName;
+	dyn_string allDptElements, allDptElementTypes, tableElements, notInTableElements, newElements, exceptionInfo;
+
+	fwGeneral_getDpElements(\"\", deviceDpTypes.text, allDptElements, allDptElementTypes, exceptionInfo, makeDynInt(DPEL_STRUCT));
+	
+	fwGeneral_tableGetColumnValues(\"elementsTable\", \"dpes\", tableElements, exceptionInfo);
+	
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// see which elements of the type are not yet in the table
+	for(i = 1; i <= dynlen(allDptElements); i++)
+	{
+		if(dynContains(tableElements, allDptElements[i]) < 1)
+			dynAppend(notInTableElements, allDptElements[i]);
+	}
+	
+	// ask the user which elements he wants to add
+	fwGeneral_selectFromList(notInTableElements, newElements, exceptionInfo, TRUE, \"Select new dp elements\");
+	
+	// add the elements in the table
+	fwGeneral_tableColumnHeaderToName(\"elementsTable\", \"dpes\", dpesColumnName, exceptionInfo);
+	fwGeneral_tableColumnHeaderToName(\"elementsTable\", \"names\", propertyNamesColumnName, exceptionInfo);
+	elementsTable.appendLines(dynlen(newElements), dpesColumnName, newElements, propertyNamesColumnName, newElements);
+	elementsTable.lineVisible(elementsTable.lineCount);
+	
+	refreshIndexNumber();
+	//DebugN(\"newElements \" + newElements);
+	
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+	}
+}" 0
+ E E E
+13 79
+"createVendorNodeButton"
+""
+1 30 628 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 626 152 653
+
+T 
+1
+LANG:1 18 Create vendor node
+"main()
+{	
+	ChildPanelOnCentralModal(	\"fwNode/fwNodeCreate.pnl\",
+										\"Create new node\",
+ 										makeDynString(	\"$sNodeType:\" + fwNode_TYPE_VENDOR));	
+}" 0
+ E E E
+13 81
+"removeElementsButton"
+""
+1 761 628 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 759 626 883 653
+
+T 
+1
+LANG:1 15 Remove elements
+"main()
+{
+	bool ok;
+	int i;
+	string columnName;
+	dyn_string dpesInTable, deleteElements, exceptionInfo;
+	
+	fwGeneral_tableGetColumnValues(\"elementsTable\", \"dpes\", dpesInTable, exceptionInfo);
+
+	// ask the user which elements he wants to add
+	fwGeneral_selectFromList(dpesInTable, deleteElements, exceptionInfo, TRUE, \"Select dp elements to remove from table\");
+
+	// if no elements selected for deletion, return
+	if(dynlen(deleteElements) < 1)
+		return;
+		
+	// ask the user for confirmation of removal
+	fwGeneral_openMessagePanel(	\"Are you sure you want to remove the selected elements from the definition?\",
+								ok, exceptionInfo, \"Remove elements confirmation\");
+	
+	if(ok)
+	{
+		fwGeneral_tableColumnHeaderToName(\"elementsTable\", \"dpes\", columnName, exceptionInfo);
+		
+		// go through the lines in the table to see which one to delete
+		for(i = elementsTable.lineCount; i >= 0; i--)
+		{
+			if(dynContains(deleteElements, elementsTable.cellValueRC(i, columnName)) > 0)
+			{
+				elementsTable.deleteLineN(i);
+				//DebugN(\"Deleted line \" + i);
+			}
+		}
+		refreshIndexNumber();
+	}
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

@@ -1,0 +1,719 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 1180 390 N "_3DFace" 0
+"main()
+{
+  initDPTypes();
+}" 0
+ E E E E 1 -1 -1 0  40 90
+""0  1
+E "
+bool commandsAccepted = TRUE;
+
+void initDPTypes()
+{
+int idx;
+dyn_string dptypes;
+  
+  dptypes = dpTypes(\"FwCaV*\");
+  
+  tabledpt.appendLines(dynlen(dptypes),\"dptypes\",dptypes);
+}
+
+void selectAllEntries ( shape widget , bool select )
+{
+int idx, rows;
+dyn_int allrows;
+  
+  rows = widget.lineCount();
+  
+  if ( rows == 0 ) return;
+  
+  for ( idx = 1 ; idx <= rows ; ++idx )
+  {
+    allrows[idx] = idx - 1;
+  }
+  
+  if ( select )
+  {
+    widget.addSelectLines(allrows);
+  }
+  else
+  {
+    widget.removeSelectLines(allrows);
+  }
+}
+
+void appendDPTypes ( string dptype )
+{
+int idx, has;
+dyn_bool isActive;
+dyn_bool hasAddress;
+dyn_string exceptErrors;
+dyn_dyn_anytype dpeParams;
+dyn_string dPoints, dpeNames;
+  
+  dPoints = dpNames(\"*\",dptype);
+  
+  if ( dynlen(dPoints) == 0 ) return;
+  
+  for ( idx = 1 ; idx <= dynlen(dPoints) ; ++idx )
+  {
+    // DebugN(\"DP-Name: '\"+dPoints[idx]+\"'\");
+    
+    // \"SYSTEM:CaV/SsdsddPlant.Actual.status:_address.._type\"
+    // \"SYSTEM:CaV/SsdsddPlant.Actual.status:_address.._active\"
+    // \"SYSTEM:CaV/SsdsddPlant.Actual.status:_address.._direction\"
+        
+    dpeNames = dpNames(dPoints[idx]+\".**:\");
+    
+    fwPeriphAddress_getMany ( dpeNames , hasAddress , dpeParams , isActive , exceptErrors );
+    
+    if ( dynlen(exceptErrors) != 0 )
+    {
+      DebugN(\"##### Errors Encountered...\");
+      DebugN(exceptErrors);
+      
+      continue;
+    }
+    
+    for ( has = 1 ; has <= dynlen(dpeNames) ; ++has )
+    {
+      if ( ! hasAddress[has] )
+      {
+        continue;
+      }
+      
+/*  
+1 Output group, 
+5 Output single, 
+2 Input spontaneous, 
+3 Input SQ (Single query), 
+4 Input polling, 
+6 Input/output spontaneous, 
+7 Input/output polling, 
+8 Input/output SQ
+*/
+      
+      if (  ( dpeParams[has][fwPeriphAddress_DIRECTION] == 2 )
+         || ( dpeParams[has][fwPeriphAddress_DIRECTION] == 3 )
+         || ( dpeParams[has][fwPeriphAddress_DIRECTION] == 4 ) )
+      {
+        continue;
+      }
+      
+      if (  ( dpeParams[has][fwPeriphAddress_DIRECTION] < 1 )
+         || ( dpeParams[has][fwPeriphAddress_DIRECTION] > 8 ) )
+      {
+        DebugN(\"##### Error Unrecognised 'Direction' '\"
+               +dpeParams[has][fwPeriphAddress_DIRECTION]+\"' for '\"+dpeNames[has]+\"'\");
+        continue;
+      }
+      
+      if ( isActive[has] )
+      {
+        tableact.appendLine(\"tableact\",dpeNames[has]);
+      }
+      else
+      {
+        tabledes.appendLine(\"tabledes\",dpeNames[has]);
+      }
+    }
+  }  
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tabledpt"
+""
+1 10 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 88 142 302
+"main()
+{
+  this.selectColors(\"blue\",\"yellow\");
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);  
+}" 0
+E 1 0 1 1 0 "dptypes" 10 1 0 "s" 1
+LANG:1 12 CaV DP-Types
+E
+1
+LANG:1 0 
+
+127 
+23 23 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 4 7
+1 0
+25 1
+"tableact"
+""
+1 160 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 158 88 662 302
+"main()
+{
+  this.selectColors(\"blue\",\"yellow\");
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 1 0 "tableact" 42 1 0 "s" 1
+LANG:1 36 CaV Datapoints Command-Set Activated
+E
+1
+LANG:1 0 
+
+477 
+23 23 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 4 7
+1 0
+25 2
+"tabledes"
+""
+1 670 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 668 88 1172 302
+"main()
+{
+  this.selectColors(\"blue\",\"yellow\");
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 1 0 "tabledes" 42 1 0 "s" 1
+LANG:1 39 CaV Datapoints Command-Set Desactivated
+E
+1
+LANG:1 0 
+
+477 
+23 23 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 4 7
+1 0
+13 3
+"selallact"
+""
+1 160 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 158 58 662 82
+
+T 
+1
+LANG:1 22 Select All Active Ones
+"main()
+{
+  selectAllEntries ( getShape(\"tableact\") , TRUE );
+  // selectAllEntries ( getShape(\"tabledes\") , FALSE );
+}" 0
+ E E E
+13 4
+"moveactdes"
+""
+1 160 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 158 308 662 332
+
+T 
+1
+LANG:1 38 Desactivate All Selected Ones ------->
+"main()
+{
+bool selectionOk;
+int idx;
+dyn_int sellines;
+dyn_string list;
+string seltype;
+
+  getValue(\"tableact\",\"getSelectedLines\",sellines);
+
+  // DebugN(\"Number of Selected DPTs: \"+dynlen(sellines));
+  
+  if ( dynlen(sellines) == 0 ) return;
+  
+  tableact.enabled(FALSE);
+  tabledes.enabled(FALSE);
+  selallact.enabled(FALSE);
+  selalldes.enabled(FALSE);
+  moveactdes.enabled(FALSE);
+  movedesact.enabled(FALSE);
+   
+  savefile.enabled(FALSE);
+  
+  selectionOk = TRUE;
+  for ( idx = 1 ; idx <= dynlen(sellines) ; ++idx )
+  {
+    list = tableact.getLineN(sellines[idx]);
+    if ( dynlen(list) != 1 ) selectionOk = FALSE;
+    else
+    {
+      seltype = list[1];
+      
+      // DebugN(\"Selected Active Datapoint-Element '\"+seltype+\"'\");
+      
+      dpSetWait ( seltype + \":_address.._active\" , FALSE );
+    }
+  }
+  
+  tableact.deleteAllLines();
+  tabledes.deleteAllLines();
+ 
+  getValue(\"tabledpt\",\"getSelectedLines\",sellines);
+
+  selectionOk = TRUE;
+  for ( idx = 1 ; idx <= dynlen(sellines) ; ++idx )
+  {
+    list = tabledpt.getLineN(sellines[idx]);
+    if ( dynlen(list) != 1 ) selectionOk = FALSE;
+    else
+    {
+      seltype = list[1];
+      
+      // DebugN(\"Selected Datapoint-Type '\"+seltype+\"'\");
+      
+      appendDPTypes ( seltype );
+    }
+  }
+
+  selectAllEntries ( getShape(\"tableact\") , FALSE );
+  selectAllEntries ( getShape(\"tabledes\") , FALSE );
+  
+  savefile.enabled(TRUE);
+  
+  movedesact.enabled(TRUE);
+  moveactdes.enabled(TRUE);
+  selalldes.enabled(TRUE);
+  selallact.enabled(TRUE);
+  tabledes.enabled(TRUE);
+  tableact.enabled(TRUE);
+}" 0
+ E E E
+13 5
+"movedesact"
+""
+1 670 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 668 308 1172 332
+
+T 
+1
+LANG:1 35 <------- Activate All Selected Ones
+"main()
+{
+bool selectionOk;
+int idx;
+dyn_int sellines;
+dyn_string list;
+string seltype;
+
+  getValue(\"tabledes\",\"getSelectedLines\",sellines);
+
+  // DebugN(\"Number of Selected DPTs: \"+dynlen(sellines));
+  
+  if ( dynlen(sellines) == 0 ) return;
+  
+  tableact.enabled(FALSE);
+  tabledes.enabled(FALSE);
+  selallact.enabled(FALSE);
+  selalldes.enabled(FALSE);
+  moveactdes.enabled(FALSE);
+  movedesact.enabled(FALSE);
+   
+  savefile.enabled(FALSE);
+  
+  selectionOk = TRUE;
+  for ( idx = 1 ; idx <= dynlen(sellines) ; ++idx )
+  {
+    list = tabledes.getLineN(sellines[idx]);
+    if ( dynlen(list) != 1 ) selectionOk = FALSE;
+    else
+    {
+      seltype = list[1];
+      
+      // DebugN(\"Selected Desactive Datapoint-Element '\"+seltype+\"'\");
+      
+      dpSetWait ( seltype + \":_address.._active\" , TRUE );
+    }
+  }
+  
+  tableact.deleteAllLines();
+  tabledes.deleteAllLines();
+ 
+  getValue(\"tabledpt\",\"getSelectedLines\",sellines);
+
+  selectionOk = TRUE;
+  for ( idx = 1 ; idx <= dynlen(sellines) ; ++idx )
+  {
+    list = tabledpt.getLineN(sellines[idx]);
+    if ( dynlen(list) != 1 ) selectionOk = FALSE;
+    else
+    {
+      seltype = list[1];
+      
+      // DebugN(\"Selected Datapoint-Type '\"+seltype+\"'\");
+      
+      appendDPTypes ( seltype );
+    }
+  }
+
+  selectAllEntries ( getShape(\"tableact\") , FALSE );
+  selectAllEntries ( getShape(\"tabledes\") , FALSE );
+  
+  savefile.enabled(TRUE);
+  
+  movedesact.enabled(TRUE);
+  moveactdes.enabled(TRUE);
+  selalldes.enabled(TRUE);
+  selallact.enabled(TRUE);
+  tabledes.enabled(TRUE);
+  tableact.enabled(TRUE);
+}" 0
+ E E E
+13 6
+"selalldes"
+""
+1 670 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 668 58 1172 82
+
+T 
+1
+LANG:1 25 Select All Desactive Ones
+"main()
+{
+  selectAllEntries ( getShape(\"tabledes\") , TRUE );
+  // selectAllEntries ( getShape(\"tableact\") , FALSE );
+}" 0
+ E E E
+13 8
+"selalldpt"
+""
+1 10 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 58 142 82
+
+T 
+1
+LANG:1 15 Select All DPTs
+"main()
+{
+  if ( commandsAccepted )
+  {
+    selectAllEntries ( getShape(\"tabledpt\") , TRUE );
+  }
+  else
+  {
+    selectAllEntries ( getShape(\"tabledpt\") , FALSE );
+
+    tableact.deleteAllLines();
+    tabledes.deleteAllLines();
+
+    tabledpt.enabled(TRUE);
+    
+    selalldpt.text(\"Select All DPTs\");
+    commandsAccepted = TRUE;
+    
+    tableshow.enabled(TRUE);
+  }
+  
+  // setInputFocus(myModuleName(),myPanelName(),\"tabledpt\");  
+}" 0
+ E E E
+13 9
+"tableshow"
+""
+1 10 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 308 142 332
+
+T 
+1
+LANG:1 12 Show Details
+"main()
+{
+bool selectionOk;
+int idx;
+dyn_int sellines;
+dyn_string list;
+string seltype;
+
+  getValue(\"tabledpt\",\"getSelectedLines\",sellines);
+
+  // DebugN(\"Number of Selected DPTs: \"+dynlen(sellines));
+  
+  if ( dynlen(sellines) == 0 ) return;
+  
+  tabledpt.enabled(FALSE);
+  
+  tableact.enabled(FALSE);
+  tabledes.enabled(FALSE);
+  selallact.enabled(FALSE);
+  selalldes.enabled(FALSE);
+  moveactdes.enabled(FALSE);
+  movedesact.enabled(FALSE);
+  
+  savefile.enabled(FALSE);
+  
+  selalldpt.enabled(FALSE);
+  tableshow.enabled(FALSE);
+  
+  tableact.deleteAllLines();
+  tabledes.deleteAllLines();
+ 
+  selectionOk = TRUE;
+  for ( idx = 1 ; idx <= dynlen(sellines) ; ++idx )
+  {
+    list = tabledpt.getLineN(sellines[idx]);
+    if ( dynlen(list) != 1 ) selectionOk = FALSE;
+    else
+    {
+      seltype = list[1];
+      
+      // DebugN(\"Selected Datapoint-Type '\"+seltype+\"'\");
+      
+      appendDPTypes ( seltype );
+    }
+  }
+  
+  selectAllEntries ( getShape(\"tableact\") , FALSE );
+  selectAllEntries ( getShape(\"tabledes\") , FALSE );
+  
+  selalldpt.text(\"Restart Selection\");
+  commandsAccepted = FALSE;
+  selalldpt.enabled(TRUE);
+  
+  savefile.enabled(TRUE);
+  
+  movedesact.enabled(TRUE);
+  moveactdes.enabled(TRUE);
+  selalldes.enabled(TRUE);
+  selallact.enabled(TRUE);
+  tabledes.enabled(TRUE);
+  tableact.enabled(TRUE);
+
+  // setInputFocus(myModuleName(),myPanelName(),\"tabledpt\");
+}" 0
+ E E E
+14 10
+"TEXT_FIELD1"
+""
+1 160 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-25-*-100-100-*-*-iso8859-1|-25,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 158 8 1172 49
+2 "0s" 0 0 0 1 0 -1  E "main()
+{
+  this.text(\"fwCaV (Des-)Activate Address Configurations for Outgoing Requests\");
+}" 0
+ E
+13 11
+"savefile"
+""
+1 10 350 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 348 142 372
+
+T 
+1
+LANG:1 12 Save to File
+"main()
+{
+int rtn;
+file fds;
+int idx, rows;
+string filename;
+dyn_string list;
+bool selectionOk;
+  
+  rtn = fileSelector(filename,\"\",FALSE,\"*\",FALSE);
+  
+  if ( rtn != 0 ) return;
+  
+  savefile.enabled(FALSE);
+  
+  if ( ( fds = fopen(filename,\"w\") ) == 0 ) return;
+  
+  selectionOk = TRUE;
+  rows = tableact.lineCount();
+  for ( idx = 0 ; idx < rows ; ++idx )
+  {
+    list = tableact.getLineN(idx);
+    if ( dynlen(list) != 1 ) selectionOk = FALSE;
+    else
+    {
+      fputs(\"Active,\"+list[1]+\"\\n\",fds);
+    }
+  }
+
+  selectionOk = TRUE;
+  rows = tabledes.lineCount();
+  for ( idx = 0 ; idx < rows ; ++idx )
+  {
+    list = tabledes.getLineN(idx);
+    if ( dynlen(list) != 1 ) selectionOk = FALSE;
+    else
+    {
+      fputs(\"Desactive,\"+list[1]+\"\\n\",fds);
+    }
+  }
+  
+  fclose ( fds );
+  
+  savefile.enabled(TRUE);
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

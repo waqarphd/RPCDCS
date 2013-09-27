@@ -1,0 +1,1049 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 320 418 N "_3DFace" 3
+"$1"
+"$2"
+"$3"
+"main()
+{
+dyn_float res;
+dyn_string items, ret;
+string unit;
+
+	items = strsplit($2,\"/\");
+	unit = $1;
+	if(dynlen(items) > 2)
+		unit = items[2];
+	if(strpos($2, \"_FWMAJ\") > 0)
+	{
+		ChildPanelOnReturn(\"fwFSM/ui/fwTreeAddSpecialNode.pnl\",\"Special Majority Object\",
+			makeDynString(unit, $2),
+			20,65, res, ret);
+	}
+}" 0
+ E E E E 1 -1 -1 0  20 30
+""0  1
+E "string get_type()
+{
+	string dev, type;
+	dyn_string exInfo;
+
+	fwTree_getNodeDevice($3, dev, type, exInfo);
+	return type;
+}
+
+string get_type_enabled(int &enabled)
+{
+	string dev, type;
+	dyn_string exInfo;
+
+	type = get_type();
+  enabled = 1;
+//	if((fwFsm_isProxy($2)) || (fwFsm_isObjectReference($3)))
+	if(fwFsm_isObjectReference($3))
+		enabled = 0;
+	return type;
+}
+
+int get_CU()
+{
+	int cu;
+	dyn_string exInfo;
+
+	fwTree_getNodeCU($3, cu, exInfo);
+	return cu;
+}
+
+int get_CU_enabled(int &enabled)
+{
+	int cu, pcu, ccu;
+	dyn_string exInfo, children;
+  string parent;
+	int i, can_change = 1;
+
+	cu = get_CU();
+	fwTree_getParent($3, parent, exInfo);
+	fwTree_getNodeCU(parent, pcu, exInfo);
+	if(cu)
+	{
+//		fwTree_getNodeCU($1, pcu, exInfo);
+		if(!pcu)
+		{
+			can_change = -1;
+//DebugN(\"Can't change, Parent is not CU\");
+		}
+		fwTree_getChildren($3,children, exInfo);
+		for(i = 1; i <= dynlen(children); i++)
+		{
+			fwTree_getNodeCU(children[i], ccu, exInfo);
+			if(ccu)
+			{
+				can_change = -2;
+//DebugN(\"Can't change, Some children are CUs\");
+				break;
+			}
+		}
+	}
+	else
+	{
+//		fwTree_getNodeCU($1, pcu, exInfo);
+		if(strpos($3,\"&\") == 0)
+		{
+			can_change = -3;
+//DebugN(\"Can't change, CU name already exists\");
+		}
+		if(!pcu)
+		{
+			can_change = -4;
+//DebugN(\"Can't change, Parent not CU\");
+		}
+	}
+//	enabled = 1;
+//	if(cant_change)
+	enabled = can_change;
+	return cu;
+}
+
+string get_label()
+{
+	string label;
+
+	fwUi_getLabel($1, $2, label);
+	return label;
+}
+
+string get_default_label()
+{
+	string label;
+
+	label = fwFsm_getDefaultLabel($1, $2);
+	return label;
+}
+
+string get_panel()
+{
+	string panel, type;
+
+	fwUi_getUserPanel($1, $2, panel);
+	if(panel == \"\")
+	{
+		fwFsm_getObjectType($2, type);
+		fwUi_getTypePanel(type, panel);
+	}
+	return panel;
+}
+
+string get_default_panel()
+{
+	string panel;
+
+	panel = fwFsm_getDefaultPanel($1, $2);
+	return panel;
+}
+
+get_flags(int &visible, int &op, int &domain_op)
+{
+	op = 0;
+	domain_op = 0;
+	fwUi_getVisibility($1,$2, visible);
+	if($1 != $2)
+		fwUi_getOperation($1,$2, op);
+	else
+		fwUi_getDomainOperation($1, domain_op);
+}
+
+// bit0 = CU, bit1 = DU, bit2 = LO, bit3 = LU
+bit32 find_type()
+{
+	dyn_string children, exInfo;
+	bit32 type;
+	
+	if($1 != $2)
+	{
+		if(fwFsm_isProxy($2))
+			setBit(type, 1, 1);
+		else
+		{
+			fwTree_getChildren($3,children, exInfo);
+			if(dynlen(children))
+				setBit(type, 3, 1);
+			else
+				setBit(type, 2,1);
+		}
+	}
+	else
+	{
+		setBit(type, 0, 1);
+		if(fwFsm_isProxy($2))
+			setBit(type, 1, 1);
+	}
+	return type;
+}
+
+int get_ctrlFlag()
+{
+  int flag;
+  
+  flag = fwFsm_getCUCtrlFlag($1);
+  return flag;
+}
+" 0
+ 2
+"CBRef" "0"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text2"
+""
+1 20 20 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	string text;
+	int visible, op, domain_op, flag;
+	bit32 node_type;
+	
+	get_flags(visible, op, domain_op);
+	setValue(\"visible_flag\",\"state\",0,visible);
+	setValue(\"visible_label\",\"visible\",1);
+	setValue(\"visible_flag\",\"visible\",1);
+// bit0 = CU, bit1 = DU, bit2 = LO, bit3 = LU
+	node_type = find_type();
+	if(!getBit(node_type, 0))
+	{
+		setValue(\"operator_flag\",\"state\",0,op);
+//		setValue(\"visible_label\",\"visible\",1);
+//		setValue(\"visible_flag\",\"visible\",1);
+		if(getBit(node_type,1))
+		{
+			text = \"Device Unit: \"+$1+\"::\"+$2;
+//			setValue(\"operator_label\",\"visible\",1);
+//			setValue(\"operator_flag\",\"visible\",1);
+		}
+		else
+		{
+			if(getBit(node_type, 3))
+				text = \"Logical Unit: \"+$1+\"::\"+$2;
+			else
+				text = \"Logical Object: \"+$1+\"::\"+$2;
+		}
+		setValue(\"operator_label\",\"visible\",1);
+		setValue(\"operator_flag\",\"visible\",1);
+	}
+	else
+	{
+//		setValue(\"label_label\",\"visible\",0);
+//		setValue(\"label\",\"visible\",0);
+		setValue(\"children_operator_flag\",\"state\",0,domain_op);
+		text = \"Control Unit: \"+$1;
+                flag = get_ctrlFlag();
+    		if(!getBit(node_type,1))
+		{
+			setValue(\"children_operator_label\",\"visible\",1);
+			setValue(\"children_operator_flag\",\"visible\",1);
+			setValue(\"ctrl\",\"visible\",1);
+  		        setValue(\"ctrl\",\"number\",flag);
+		}
+	}
+	setValue(\"\",\"text\",text);
+}" 0
+ E 0 1 1 0 1 E U  1 E 12 12 100 29
+0 2 2 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Device Name:
+2 1
+"label_label"
+""
+1 42 248 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 262 56 278
+0 2 2 "0s" 0 0 0 192 0 0  22 262 1
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+1
+LANG:1 6 Label:
+2 2
+"panel_label"
+""
+1 60 366 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 302 57 318
+0 2 2 "0s" 0 0 0 192 0 0  22 302 1
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+1
+LANG:1 6 Panel:
+2 7
+"visible_label"
+""
+1 20 285 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 335 62 351
+0 2 2 "0s" 0 0 0 192 0 0  22 335 1
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+1
+LANG:1 8 Visible:
+2 9
+"operator_label"
+""
+1 152 285 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 154 335 248 351
+0 2 2 "0s" 0 0 0 192 0 0  154 335 1
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+1
+LANG:1 17 Operator Control:
+2 14
+"Text1"
+""
+1 36 108 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 72 50 88
+0 2 2 "0s" 0 0 0 192 0 0  22 72 1
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+1
+LANG:1 5 Type:
+30 17
+"Frame1"
+""
+1 10 300 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 0 70 0 E 10 160 310 300
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Graphic Settings
+30 18
+"Frame2"
+""
+1 10 140 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.71717171717171 0 -28.6868686868687 0 E 10 40 310 140
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 20 Operational Settings
+2 21
+"Text4"
+""
+1 20 106 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 106 90 122
+0 2 2 "0s" 0 0 0 192 0 0  22 106 1
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+1
+LANG:1 13 Control Unit:
+2 11
+"children_operator_label"
+""
+1 140 285 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 142 335 271 351
+0 2 2 "0s" 0 0 0 192 0 0  142 335 1
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+1
+LANG:1 22 Operator Control Down:
+14 3
+"label"
+""
+1 137 283 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 258 252 285
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	string label;
+
+	label = get_label();
+	setValue(\"label\",\"text\",label);
+}" 0
+ E
+14 4
+"panel"
+""
+1 193 385 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 298 222 325
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	string panel;
+
+	panel = get_panel();
+	setValue(\"panel\",\"text\",panel);
+}" 0
+ E
+13 5
+"Button1"
+""
+1 315 550 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 198 378 282 408
+
+T 
+2
+LANG:1 6 Cancel
+LANG:0 9 Abbrechen
+"main()
+{
+  PanelOffReturn(makeDynFloat(0),makeDynString()); 
+}" 0
+ E E E
+13 6
+"Button2"
+""
+1 61 550 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 38 378 122 408
+
+T 
+2
+LANG:1 2 Ok
+LANG:0 2 OK
+"main()
+{
+	dyn_string pars;
+	string type, label, panel, new_type, new_label, new_panel;
+	int i, cu, visible, op, domain_op, ctrl_flag;
+	int new_cu, new_visible, new_op, new_domain_op, par4, doit, new_ctrl_flag;
+	
+	doit = 0;
+	for(i = 1; i <= 7; i++)
+		pars[i] = \"\";
+	getValue(\"label\",\"text\",new_label);
+	label = get_label();
+	if(label != new_label)
+		doit = 1;
+	else
+		new_label = \"\";
+	getValue(\"panel\",\"text\",new_panel);
+	panel = get_panel();
+	if(panel != new_panel)
+		doit = 1;
+	else
+		new_panel = \"\";
+	getValue(\"visible_flag\",\"state\",0,new_visible);
+	get_flags(visible, op, domain_op);
+	if(visible != new_visible)
+		doit = 1;
+	else
+		new_visible = -1;
+	if($1 != $2)
+	{
+		getValue(\"operator_flag\",\"state\",0,new_op);
+		if(op != new_op)
+			doit = 1;
+		else
+			new_op = -1;
+		par4 = new_op;
+	}
+	else
+	{
+		getValue(\"children_operator_flag\",\"state\",0,new_domain_op);
+		if(domain_op != new_domain_op)
+			doit = 1;
+		else
+			new_domain_op = -1;
+		par4 = new_domain_op;
+	}
+	if(doit)
+	{
+		pars[1] = new_label;
+		pars[2] = new_panel;
+		pars[3] = new_visible;
+		pars[4] = par4;
+	}
+	getValue(\"type\",\"text\",new_type);
+	type = get_type();
+	if(type != new_type)
+	{
+		pars[5] = new_type;
+	}
+	getValue(\"cu\",\"state\",0, new_cu);
+	cu = get_CU();
+	if(cu != new_cu)
+	{
+		pars[6] = new_cu;
+	}
+  if(cu)
+  {
+	  getValue(\"ctrl\",\"number\", new_ctrl_flag);
+	  ctrl_flag = get_ctrlFlag();
+	  if(ctrl_flag != new_ctrl_flag)
+	  {
+	  	pars[7] = new_ctrl_flag;
+	  }
+  }
+//DebugN(pars);
+	PanelOffReturn(makeDynFloat(1),pars); 
+}
+" 0
+ E E E
+20 8
+"visible_flag"
+""
+1 68 328 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 68 328 101 360
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 10
+"operator_flag"
+""
+1 250 328 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 250 328 283 360
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 12
+"children_operator_flag"
+""
+1 276 328 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 276 328 309 360
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE13 13
+"Button3"
+""
+1 222 300 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 220 298 254 326
+
+P 
+13434828
+"pictures/file_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string name, dir;
+	int pos;
+		
+	dir = fwFsm_getProjPath()+\"/panels/fwFSMuser\";
+	fileSelector(name, dir, 0, \"*\");
+	if(name != \"\")
+	{
+//		strreplace(name, dir+\"/\",\"\");
+//		strreplace(name, fwFsm_getProjPath()+\"/panels/\",\"\");
+		pos = strpos(name,\"/panels/\");
+		if(pos >= 0)
+			name = substr(name, pos+8);
+		setValue(\"panel\",\"text\",name);
+	}
+}" 0
+ E E E
+14 15
+"type"
+""
+1 136 93 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 58 68 252 95
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	string type;
+	int enabled;
+
+	type = get_type_enabled(enabled);
+	setValue(\"type\",\"text\",type);
+//	if(!enabled)
+//		setValue(\"change_type\",\"enabled\", 0);
+}" 0
+ E
+13 16
+"change_type"
+""
+1 252 70 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 250 68 304 96
+
+T 
+1
+LANG:1 6 Change
+"main()
+{
+	dyn_string ret, exInfo;
+	dyn_float res;
+	string device, type, new_type, ref_node;
+	int ref;
+		
+	if(fwFsm_isObjectReference($3))
+		ref_node = \"&\";
+	ref_node += fwTree_getNodeDisplayName($3, exInfo);
+
+	ChildPanelOnReturn(\"fwFSM/ui/fwTreeTypeNode.pnl\",\"Change Type of Node\",
+		makeDynString(ref_node),
+		100,60, res, ret);
+	if(res[1])
+	{
+		new_type = ret[1];
+		setValue(\"type\",\"text\",new_type);
+	}
+}" 0
+ E E E
+20 22
+"cu"
+""
+1 98 98 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 98 98 131 130
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+	int cu, enabled;
+
+//	cu = get_CU_enabled(enabled);
+	cu = get_CU();
+	setValue(\"cu\",\"state\",0,cu);
+//	if(!enabled)
+//		setValue(\"\",\"enabled\", 0);
+}" 0
+"main(int button, bool state)
+{
+int cu, enabled, answer;
+string msg, msg1;
+
+	cu = get_CU_enabled(enabled);
+	msg = make_msg();
+	if(enabled == 1)
+	{
+		msg1 = \"Are you sure ?\";
+		fwUi_askUser(msg, 100, 60, 0, answer, msg1);
+		if(!answer)
+			setValue(\"cu\",\"state\",0,cu);
+	}
+	else
+	{
+		switch(enabled)
+		{
+			case -1:
+					msg1 = \"Can't change, Parent is not CU\";
+					break;
+			case -2:
+					msg1 = \"Can't change, Some children are CUs\";
+					break;
+			case -3:
+					msg1 = \"Can't change, CU name already exists\";
+					break;
+			case -4:
+					msg1 = \"Can't change, Parent is not CU\";
+					break;
+		}
+		fwUi_informUser(msg, 100,60, \"ok\", msg1);
+		setValue(\"cu\",\"state\",0,cu);
+	}
+}
+
+string make_msg()
+{
+	string msg;
+	bit32 node_type;
+	
+// bit0 = CU, bit1 = DU, bit2 = LO, bit3 = LU
+	node_type = find_type();
+	msg = \"Change \";
+	if(!getBit(node_type, 0))
+	{
+		if(getBit(node_type,1))
+			msg += $2+\" from DU to CU\"; 
+		else
+		{
+			if(getBit(node_type, 3))
+				msg += $2+\" from LU to CU\"; 
+			else
+				msg += $2+\" from Obj to CU\"; 
+		}
+	}
+	else
+	{
+		if(getBit(node_type,1))
+			msg += $2+\" from CU to DU\"; 
+		else
+			msg += $2+\" from CU to LU\"; 
+	}
+	return msg;
+}" 0
+13 23
+"Button4"
+""
+1 252 260 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 250 258 304 286
+
+T 
+1
+LANG:1 7 Default
+"main()
+{
+	string label;
+	
+	label = get_default_label();
+	setValue(\"label\",\"text\",label);
+}" 0
+ E E E
+13 24
+"Button5"
+""
+1 252 300 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 250 298 304 326
+
+T 
+1
+LANG:1 7 Default
+"main()
+{
+	string panel;
+	
+	panel = get_default_panel();
+	setValue(\"panel\",\"text\",panel);
+}
+" 0
+ E E E
+19 28
+"ctrl"
+""
+1 30 130 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 28 128 212 202
+3
+T 
+1
+LANG:1 34 One Ctrl Manager for ALL (default)
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 23 One Ctrl Manager per CU
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 23 One Ctrl Manager per DU
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

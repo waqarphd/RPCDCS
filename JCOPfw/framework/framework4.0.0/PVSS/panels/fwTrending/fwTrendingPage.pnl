@@ -1,0 +1,998 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 1270 835 N "FwTrendingViewBackground" 1
+"$templateParameters"
+"main()
+{
+	bool isConnected, isRemote;
+	string dpName, systemName;
+	dyn_string exceptionInfo, texts = makeDynString(\"10 minutes\", \"1 hour\", \"8 hours\", \"1 day\", \"10 days\", \"User Specified\");
+	int i, iRes, len;
+	
+// start 20/05/2008: Herve
+        if(strpos(myModuleName(),\";unicosGFPanel\") >= 0)
+          CloseButton.visible(false);
+//end 20/05/2008: Herve		
+	if(isDollarDefined(\"$PageName\"))
+		dpName = getDollarValue(\"$PageName\");
+	else
+	{
+		if(isDollarDefined(\"$sDpName\"))
+			dpName = getDollarValue(\"$sDpName\");
+	}
+	
+	PAGE_DP_NAME = dpName;
+	
+// disable time back/forward and jump
+	pageButton.enableItem(CASCADE_TIME_JUMP, TRUE);
+	pageButton.enableItem(CASCADE_TIME_BACK, TRUE);
+	pageButton.enableItem(CASCADE_TIME_FWD, TRUE);
+// disable Y zoom in/out
+	pageButton.enableItem(CASCADE_TIME_ZOOM, TRUE);
+// disable 1:1
+	pageButton.enableItem(CASCADE_UNZOOM, TRUE);
+// disable Xzoom in/out
+	pageButton.enableItem(CASCADE_Y_ZOOM, TRUE);
+//	DebugN($PageName, $OpenPageName, $PlotName, $bEdit);
+	pageHiddenTime.text = \"\";
+
+// reset the cascade button menu.
+	len = dynlen(texts);
+	for(i=1;i<=len;i++) {
+		pageButton.textItem( \"0.\"+(i-1), texts[i]);
+	}
+          
+	if(isFunctionDefined(\"unGenericDpFunctionsHMI_setCallBack_user\"))
+	{
+		unGenericDpFunctionsHMI_setCallBack_user(\"unGenericButtonFunctionsHMI_TrendingPageselectCB\", iRes, exceptionInfo);
+	}
+	else if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+          fwAccessControl_setupPanel(\"checkHasSaveRights\", exceptionInfo);
+        else
+	  ACCESS_RIGHTS_GRANTED = TRUE;
+        
+	if(PAGE_DP_NAME != \"\")
+	{
+		fwGeneral_getSystemName(PAGE_DP_NAME, systemName, exceptionInfo);
+		unDistributedControl_isRemote(isRemote, systemName);
+
+//DebugN(systemName);
+		if((systemName == \"\") || !isRemote)
+		{
+			PAGE_DP_NAME = dpSubStr(PAGE_DP_NAME, DPSUB_SYS_DP);
+			pageDisplay_configDpSystemConnect(\"\", TRUE);
+		}
+		else
+			unDistributedControl_register(\"pageDisplay_configDpSystemConnect\", iRes, isConnected, systemName, exceptionInfo);
+	}
+
+	pageButton.enableItem(CASCADE_SAVE, FALSE);
+}" 0
+ E E E E 1 -1 -1 0  1170 0
+""0  1
+E "string PAGE_DP_NAME;
+time LAST_CONFIG_UPDATE;
+dyn_string g_dsReference;
+bool IS_DP_AVAILABLE = FALSE, LOADED_PAGE_CONFIG = FALSE, ACCESS_RIGHTS_GRANTED = FALSE;
+int REFRESH_DELAY = 250;
+
+const string CASCADE_SAVE = \"13\";
+const string CASCADE_SAVE_AS = \"14\";
+const string CASCADE_PAGE_CONFIG = \"12\";
+const string CASCADE_SAVE_PLOTS = \"10\";
+
+const string CASCADE_UNZOOM = \"2\";
+const string CASCADE_Y_ZOOM = \"1.0\";
+const string CASCADE_TIME_ZOOM = \"0.7\";
+const string CASCADE_TIME_JUMP = \"0.8\";
+const string CASCADE_TIME_BACK = \"0.10\";
+const string CASCADE_TIME_FWD = \"0.11\";
+
+const string CASCADE_10MIN = \"0.0\";
+const string CASCADE_1HOUR = \"0.1\";
+const string CASCADE_8HOUR = \"0.2\";
+const string CASCADE_1DAY = \"0.3\";
+const string CASCADE_10DAY = \"0.4\";
+const string CASCADE_USER_SPEC = \"0.5\";
+
+
+checkHasSaveRights(string dp, string user)
+{
+  bool isAllowed=TRUE;
+  dyn_string pageData, exceptionInfo;
+
+  while(dynlen(pageData) == 0)
+  {
+    fwTrending_getRuntimePageDataWithStrings(pageData, exceptionInfo);
+    delay(0,100);
+  }
+//DebugN(\"Rights: \" + pageData[fwTrending_PAGE_OBJECT_ACCESS_CONTROL_SAVE]);
+  if(pageData[fwTrending_PAGE_OBJECT_ACCESS_CONTROL_SAVE]!=\"\")
+    fwAccessControl_isGranted(pageData[fwTrending_PAGE_OBJECT_ACCESS_CONTROL_SAVE], isAllowed, exceptionInfo);
+
+  ACCESS_RIGHTS_GRANTED = isAllowed;
+  pageButton.enableItem(CASCADE_SAVE, (IS_DP_AVAILABLE && ACCESS_RIGHTS_GRANTED));
+  pageButton.enableItem(CASCADE_SAVE_AS, (IS_DP_AVAILABLE && ACCESS_RIGHTS_GRANTED));
+}
+
+pageDisplay_configDpSystemConnect(string dpe, bool isConnected)
+{
+	string dpName;
+	dyn_string errorMessage;
+	shape errorShape;
+	
+	IS_DP_AVAILABLE = isConnected;
+	dpName = PAGE_DP_NAME;
+//DebugN(dpName, isConnected);
+
+	if(!LOADED_PAGE_CONFIG)
+	{
+		if(isConnected)
+		{
+			if(dpExists(dpName))
+			{
+				if(dpTypeName(dpName) == fwTrending_PAGE)
+				{
+					dpConnect(\"pageDisplay_update\", TRUE, dpName + fwTrending_PAGE_PLOTS);
+					dpNotExist.visible = FALSE;
+					dpNotAvailable.visible = FALSE;
+				}
+			}
+		}
+		else
+		{
+			if(dpExists(dpName))
+				errorShape = getShape(\"dpNotAvailable\");
+			else
+				errorShape = getShape(\"dpNotExist\");
+
+			errorMessage = errorShape.text;
+			errorMessage[2] = \"\\\"\" + dpName + \"\\\"\";
+			errorShape.text = errorMessage;
+			errorShape.visible = TRUE;
+		}
+	}
+
+	pageButton.enableItem(CASCADE_SAVE, (isConnected && ACCESS_RIGHTS_GRANTED));
+}
+
+pageDisplay_update(string pagesDpe, dyn_string pages)
+{
+	time timeStamp;
+	string shouldRefresh, dpName;
+	dyn_string exceptionInfo, plots;
+	dyn_dyn_string pageData;
+
+	pagesDpe = dpSubStr(pagesDpe, DPSUB_SYS_DP_EL);
+	dpName = dpSubStr(pagesDpe, DPSUB_SYS_DP);
+	dpGet(pagesDpe + \":_online.._stime\", timeStamp);
+
+	if(timeStamp == LAST_CONFIG_UPDATE)
+		return;
+
+	shouldRefresh = refreshPage.text;
+	if(shouldRefresh != \"TRUE\")
+		return;
+
+	pageButton.enabled = TRUE;
+
+// here get all data from PVSS DB. isLog should be set. and initialize all the local data.
+//DebugN(\"DPGET and draw page\");
+	fwTrending_getPage(dpName, pageData, exceptionInfo);
+	fwTrending_simplifyPagePlotList(pageData[fwTrending_PAGE_OBJECT_PLOTS],
+					pageData[fwTrending_PAGE_OBJECT_NROWS][1],
+					pageData[fwTrending_PAGE_OBJECT_NCOLS][1], plots, exceptionInfo);
+//DebugN(pageData);
+	if(dynlen(pageData) == fwTrending_SIZE_PAGE_OBJECT)
+		fwTrending_setRuntimePageDataWithObject(pageData, exceptionInfo);
+
+	drawPage(pageData[fwTrending_PAGE_OBJECT_TITLE][1], plots);
+
+	LAST_CONFIG_UPDATE = timeStamp;
+	dpNotExist.visible = FALSE;
+	dpNotAvailable.visible = FALSE;
+}
+
+drawPage(string pageTitle, dyn_string plots)
+{
+	bool isOk;
+	int i, length;
+	string parameterString, finalParameterList;
+	dyn_float df;
+	dyn_string exceptionInfo, ds, parameters, parameterList;
+	dyn_dyn_string configurationData;
+	shape cascadeButton;
+
+	if(parameterValues.text == parameterValues.name)
+	{
+		if(isDollarDefined(\"$templateParameters\"))
+			parameterValues.text = $templateParameters;
+		else
+			parameterValues.text = \"\";
+	}
+		
+	parameterString = parameterValues.text;
+
+	if(!LOADED_PAGE_CONFIG)
+		fwTrending_getPage(PAGE_DP_NAME, configurationData, exceptionInfo);
+	else
+		fwTrending_getRuntimePageDataWithObject(configurationData, exceptionInfo);
+
+	LOADED_PAGE_CONFIG = TRUE;
+	
+	fwTrending_simplifyPagePlotList(configurationData[fwTrending_PAGE_OBJECT_PLOT_TEMPLATE_PARAMETERS],
+																	configurationData[fwTrending_PAGE_OBJECT_NROWS][1],
+																	configurationData[fwTrending_PAGE_OBJECT_NCOLS][1],
+																	parameterList,
+																	exceptionInfo);
+																	
+	if(dynlen(plots) > dynlen(parameterList))
+		parameterList[dynlen(plots)] = \"\";
+//DebugN(plots, parameterList);
+	fwTrending_checkAndGetAllTemplateParameters(pageTitle, configurationData, fwTrending_PAGE, parameterString, exceptionInfo, FALSE, TRUE);
+
+	parameterValues.text = parameterString;
+	
+	_fwTrending_evaluateTemplate(parameterString, pageTitle, exceptionInfo);    
+//	_fwTrending_evaluateTemplate(parameterString, plots, exceptionInfo);    
+	
+	length = dynlen(g_dsReference);
+	for(i=1; i<=length; i++)
+	{
+		removeSymbol(myModuleName(), myPanelName(), g_dsReference[i]);
+		removeSymbol(myModuleName(), myPanelName(), g_dsReference[i] + \"trend\");
+	}
+
+	pageButton.textItem(CASCADE_PAGE_CONFIG, \"Page configuration: \"+pageTitle);
+
+	dynClear(parameters);
+	for(i=1; i<=dynlen(plots); i++)
+	{
+		fwTrending_mergeParameterLists(parameterList[i],
+																		parameterString, finalParameterList, exceptionInfo);
+
+		dynAppend(parameters, finalParameterList);
+	}
+
+	fwTrending_showPlot(dynlen(plots), plots, g_dsReference, parameters);
+
+	for(i=1; i<=dynlen(g_dsReference); i++)
+	{
+		cascadeButton = getShape(g_dsReference[i] + \".OtherCascadeButton\");
+		cascadeButton.enableItem(\"2\", FALSE);
+	}
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 2
+"pageHiddenTime"
+""
+1 1120 0 E E E 1 E 0 E N {0,0,0} E N {255,255,255} E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 1 1 1 0 1 E U  1 E 1122 2 1201 17
+1 2 0 "0s" 0 0 0 192 0 0  1122 2 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 pageHiddenTime
+2 6
+"refreshPage"
+""
+1 620 40 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 622 42 778 58
+0 2 0 "0s" 0 0 0 64 0 0  622 42 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 TRUE
+2 7
+"dpNotExist"
+""
+1 525 283 E E E 1 E 0 E N {255,0,0} E N {255,255,255} E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+
+}" 0
+ E 0 1 1 0 1 E U  1 E 540 298 730 349
+1 15 0 "0s" 0 0 0 193 0 0  635 298 3
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 33 The page configuration data point
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 {name}
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 does not exist.
+2 8
+"dpNotAvailable"
+""
+1 485 283 E E E 1 E 0 E N {255,0,0} E N {255,255,255} E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 500 298 770 349
+1 15 0 "0s" 0 0 0 193 0 0  635 298 3
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 33 The page configuration data point
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 {name}
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 47 is from a remote system which is not available.
+2 9
+"parameterValues"
+""
+1 370 40 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 372 42 528 58
+0 2 0 "0s" 0 0 0 64 0 0  372 42 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 parameterValues
+17 4
+"pageInfo"
+""
+1 370 70 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 368 68 922 252
+0
+
+E
+E
+E
+
+0 0
+26 1
+"pageButton"
+""
+1 1193 -1 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 1191 -3 1271 23
+ 0 1
+LANG:1 10 Page plots
+"" 0 0 0 0 0
+ 15 0 1
+LANG:1 10 Time range
+"Time range" 0 0 0 0 0
+ 12 1 1
+LANG:1 10 10 minutes
+"10 minutes" 0 0 0 0 0
+ 1 1
+LANG:1 6 1 hour
+"1 hour" 0 0 0 0 0
+ 1 1
+LANG:1 7 8 hours
+"8 hours" 0 0 0 0 0
+ 1 1
+LANG:1 5 1 day
+"1 day" 0 0 0 0 0
+ 1 1
+LANG:1 7 10 days
+"10 days" 0 0 0 0 0
+ 1 1
+LANG:1 14 User Specified
+"User Specified" 0 0 0 0 0
+ 1 1
+LANG:1 3 ___
+"new_sep" 0 0 0 0 0
+ 0 1
+LANG:1 4 Zoom
+"Xzoom" 0 0 0 0 0
+ 2 1 1
+LANG:1 7 Zoom in
+"XZoom in" 0 0 0 0 0
+ 1 1
+LANG:1 8 Zoom out
+"XZoom out" 0 0 0 0 0
+ 1 1
+LANG:1 15 Jump to time...
+"jump" 0 0 0 0 0
+ 1 1
+LANG:1 3 ___
+"new_sep" 0 0 0 0 0
+ 1 1
+LANG:1 14 Step Backwards
+"backwards" 0 0 0 0 0
+ 1 1
+LANG:1 13 Step Forwards
+"forwards" 0 0 0 0 0
+ 0 1
+LANG:1 6 Y Axes
+"Y Axes" 0 0 0 0 0
+ 1 0 1
+LANG:1 4 Zoom
+"YZoom" 0 0 0 0 0
+ 2 1 1
+LANG:1 7 Zoom in
+"YZoom in" 0 0 0 0 0
+ 1 1
+LANG:1 8 Zoom out
+"YZoom out" 0 0 0 0 0
+ 1 1
+LANG:1 3 1:1
+"1:1" 0 0 0 0 0
+ 1 1
+LANG:1 3 ___
+"new_sep" 0 0 0 0 0
+ 1 1
+LANG:1 23 Show grids on all plots
+"showallgrids" 0 0 0 0 0
+ 1 1
+LANG:1 23 Hide grids on all plots
+"hideallgrids" 0 0 0 0 0
+ 0 1
+LANG:1 5 Other
+"other" 0 0 0 0 0
+ 2 1 1
+LANG:1 18 Run all histograms
+"Run all plots" 0 0 0 0 0
+ 1 1
+LANG:1 21 Freeze all histograms
+"Stop all plots" 0 0 0 0 0
+ 1 1
+LANG:1 3 ___
+"new_sep" 0 0 0 0 0
+ 1 1
+LANG:1 26 Export all plots to CSV...
+"Export all plots data" 0 0 0 0 0
+ 1 1
+LANG:1 10 Print page
+"printPage" 0 0 0 0 0
+ 1 1
+LANG:1 22 Save all plot settings
+"Save all plots settings" 0 0 0 0 0
+ 1 1
+LANG:1 3 ___
+"new_sep" 0 0 0 0 0
+ 1 1
+LANG:1 18 Page configuration
+"Page configuration" 0 0 0 0 0
+ 1 1
+LANG:1 13 Save settings
+"save" 0 0 0 0 0
+ 1 1
+LANG:1 24 Save page settings as...
+"saveas" 0 0 0 0 0
+ E "string previousText = \"\";
+int previous = 0;
+
+main(string id)
+{
+	bool changed, isConnected, dpNotAvailable, dpNotExist;
+	string sDpName, sTimeRange, proposedName;
+	dyn_string ds, pageData, modifiedPageData, plots;
+	dyn_float df;
+	int d, h, m, t, midTime, startTime; 
+	int i, len;
+	string ref, model, isRunning;
+	dyn_string panelsList, plotData, plotShapes, exceptionInfo, referenceNames;
+	dyn_dyn_string pageDataObject;
+	
+	if(isDollarDefined(\"$PageName\"))
+		sDpName = getDollarValue(\"$PageName\");
+	else
+		if(isDollarDefined(\"$sDpName\"))
+			sDpName = getDollarValue(\"$sDpName\");
+
+	this.enabled(false);
+	len = dynlen(g_dsReference);
+	referenceNames = g_dsReference;
+
+	for(i=1; i<=len; i++)
+	{
+		getValue(referenceNames[i] + \"trend.dpNotExist\", \"visible\", dpNotExist);
+		getValue(referenceNames[i] + \"trend.dpNotAvailable\", \"visible\", dpNotAvailable);
+		
+		if(dpNotExist || dpNotAvailable)
+		{
+			dynRemove(referenceNames, i);
+			len = dynlen(referenceNames);
+			i--;
+		}
+	}
+
+	switch(id) {
+		case \"printPage\" : 
+			printPanel(myModuleName(), myPanelName());
+			break;
+		case \"10 minutes\":
+			if(previousText != \"\") {
+				this.textItem(\"0.\"+previous, previousText);
+			}
+			previousText = \"10 minutes\";
+			previous = 0;
+			this.textItem(CASCADE_10MIN, \"10 minutes  *\");
+			t = 10*60;
+			pageHiddenTime.text = t;
+			for(i=1;i<=len;i++) {
+				ref=referenceNames[i];
+				if(ref != \"\")
+					ref+=\".\";
+				fwTrending_changeTrendTimeRange(referenceNames[i], t, ref, \"  0 d  0 h 10 m\", 0, \"10 minutes  *\");
+			}
+//DebugN(referenceNames);
+			break;
+		case \"1 hour\":
+			if(previousText != \"\") {
+				this.textItem(\"0.\"+previous, previousText);
+			}
+			previousText = \"1 hour\";
+			previous = 1;
+			this.textItem(CASCADE_1HOUR, \"1 hour  *\");
+			t = 60*60;
+			pageHiddenTime.text = t;
+			for(i=1;i<=len;i++) {
+				ref=referenceNames[i];
+				if(ref != \"\")
+					ref+=\".\";
+				fwTrending_changeTrendTimeRange(referenceNames[i], t, ref, \"  0 d  1 h  0 m\", 1, \"1 hour  *\");
+			}
+			break;
+		case \"8 hours\":
+			if(previousText != \"\") {
+				this.textItem(\"0.\"+previous, previousText);
+			}
+			previousText = \"8 hours\";
+			previous = 2;
+			this.textItem(CASCADE_8HOUR, \"8 hours  *\");
+			t =  8*60*60;
+			pageHiddenTime.text = t;
+			for(i=1;i<=len;i++) {
+				ref=referenceNames[i];
+				if(ref != \"\")
+					ref+=\".\";
+				fwTrending_changeTrendTimeRange(referenceNames[i], t, ref, \"  0 d  8 h  0 m\", 2, \"8 hours  *\");
+			}
+			break;
+		case \"1 day\":
+			if(previousText != \"\") {
+				this.textItem(\"0.\"+previous, previousText);
+			}
+			previousText = \"1 day\";
+			previous = 3;
+			this.textItem(CASCADE_1DAY, \"1 day  *\");
+			t = 24*60*60;
+			pageHiddenTime.text = t;
+			for(i=1;i<=len;i++) {
+				ref=referenceNames[i];
+				if(ref != \"\")
+					ref+=\".\";
+				fwTrending_changeTrendTimeRange(referenceNames[i], t, ref, \"  1 d  0 h  0 m\", 3, \"1 day  *\");
+			}
+			break;
+		case \"10 days\":
+			if(previousText != \"\") {
+				this.textItem(\"0.\"+previous, previousText);
+			}
+			previousText = \"10 days\";
+			previous = 4;
+			this.textItem(CASCADE_10DAY, \"10 days  *\");
+			t = 10*24*60*60;
+			pageHiddenTime.text = t;
+			for(i=1;i<=len;i++) {
+				ref=referenceNames[i];
+				if(ref != \"\")
+					ref+=\".\";
+				fwTrending_changeTrendTimeRange(referenceNames[i], t, ref, \" 10 d  0 h  0 m\", 4, \"10 days  *\");
+			}
+			break;
+		case \"User Specified\":
+			sTimeRange = pageHiddenTime.text;
+			sscanf(sTimeRange,\"%d\",t);
+			decodeTime(t, d, h, m);
+			ChildPanelOnCentralModalReturn(\"fwTrending/fwTrendingTimeSpec.pnl\", \"Specify a Time Period\",
+				makeDynString(\"$iDays:\"+d,\"$iHours:\"+h,\"$iMins:\"+m), df, ds);
+			if(dynlen(ds) > 0 && ds[1] == \"ok\") {
+				d = df[1]; h = df[2]; m = df[3];
+				//this.textItem(prev - 1, texts[prev] + \"  *\");
+				encodeTime(t, d, h, m);
+				decodeTime(t, d, h, m);
+				if(t > 0) {
+
+					if(previousText != \"\") {
+						this.textItem(\"0.\"+previous, previousText);
+					}
+					previousText = \"User Specified\";
+					previous = 5;
+					this.textItem(CASCADE_USER_SPEC, \"User Specified\"+ \" (\" + d + \"d \" + h + \"h \" + m + \"m)  *\");
+
+					sprintf(sTimeRange,\"%3d d %2d h %2d m\",d,h,m);
+					pageHiddenTime.text = t;
+					for(i=1;i<=len;i++) {
+						ref=referenceNames[i];
+						if(ref != \"\")
+							ref+=\".\";
+						fwTrending_changeTrendTimeRange(referenceNames[i], t, ref, sTimeRange, 5, \"User Specified\"+ \" (\" + d + \"d \" + h + \"h \" + m + \"m)\"+\"  *\");
+					}
+				}
+			}
+			break;
+		case \"jump\":
+			sTimeRange = pageHiddenTime.text;
+			sscanf(sTimeRange,\"%d\",t);
+			decodeTime(t, d, h, m);
+			ChildPanelOnCentralModalReturn(\"fwTrending/fwTrendingTimeJumpSpec.pnl\", \"Specify a Time Range to Display\",
+				makeDynString(\"$iDays:\"+d,\"$iHours:\"+h,\"$iMins:\"+m, \"$iMidTime:\"+(int)getCurrentTime()), df, ds);
+			if(dynlen(ds) > 0 && ds[1] == \"ok\") {
+				d = df[1]; h = df[2]; m = df[3]; midTime = df[4];
+				//this.textItem(prev - 1, texts[prev] + \"  *\");
+				encodeTime(t, d, h, m);
+				decodeTime(t, d, h, m);
+
+				startTime = midTime - (t/2);
+				if((startTime + t) > getCurrentTime())
+					startTime = getCurrentTime() - t;
+
+				if(t > 0) {
+
+					if(previousText != \"\") {
+						this.textItem(\"0.\"+previous, previousText);
+					}
+					previousText = \"User Specified\";
+					previous = 5;
+					this.textItem(CASCADE_USER_SPEC, \"User Specified\"+ \" (\" + d + \"d \" + h + \"h \" + m + \"m)  *\");
+
+					sprintf(sTimeRange,\"%3d d %2d h %2d m\",d,h,m);
+					pageHiddenTime.text = t;
+					for(i=1;i<=len;i++) {
+						fwTrending_getRuntimePlotDataWithStrings(referenceNames[i], isRunning, plotShapes, plotData, exceptionInfo, FALSE);
+						if(plotData[fwTrending_PLOT_OBJECT_MODEL] == fwTrending_HISTOGRAM_PLOT_MODEL)
+							continue;
+
+						ref=referenceNames[i];
+						if(ref != \"\")
+							ref+=\".\";
+
+						fwTrending_changeTrendTimeRange(referenceNames[i], t, ref, sTimeRange, 5, \"User Specified\"+ \" (\" + d + \"d \" + h + \"h \" + m + \"m)\"+\"  *\");
+						setValue(referenceNames[i] + \"trend.standardTrend\", \"timeBegin\", startTime);
+//						setValue(referenceNames[i] + \"trend.logTrend\", \"timeBegin\", startTime);
+					}
+				}
+			}
+			break;
+		case \"XZoom in\":
+			for(i=1;i<=len;i++) {
+				fwTrending_trendZoomX(referenceNames[i], true);
+			}
+			break;
+		case \"XZoom out\":
+			for(i=1;i<=len;i++) {
+				fwTrending_trendZoomX(referenceNames[i], false);
+			}
+			break;
+		case \"backwards\":
+			for(i=1;i<=len;i++) {
+				fwTrending_trendTimeBack(referenceNames[i], true);
+			}
+			break;
+		case \"forwards\":
+			for(i=1;i<=len;i++) {
+				fwTrending_trendTimeBack(referenceNames[i], false);
+			}
+			break;
+		case \"YZoom in\":
+			for(i=1;i<=len;i++) {
+				fwTrending_trendZoomY(referenceNames[i], true);
+			}
+			break;
+		case \"YZoom out\":
+			for(i=1;i<=len;i++) {
+				fwTrending_trendZoomY(referenceNames[i], false);
+			}		
+			break;
+		case \"1:1\":
+			for(i=1;i<=len;i++) {
+				fwTrending_trendUnzoom(referenceNames[i]);
+			}		
+			break;
+		case \"refresh\":
+			for(i=1;i<=len;i++) {
+				fwTrending_trendRefresh(referenceNames[i]);
+			}		
+			break;
+		case \"Stop all plots\":
+// enable 1:1
+			this.enableItem(CASCADE_UNZOOM, true);
+// enable X zoom
+			this.enableItem(CASCADE_TIME_ZOOM, true);
+// enable Y zoom
+			this.enableItem(CASCADE_Y_ZOOM, true);
+// enable back and forward and jump
+			this.enableItem(CASCADE_TIME_JUMP, true);
+			this.enableItem(CASCADE_TIME_BACK, true);
+			this.enableItem(CASCADE_TIME_FWD, true);
+
+			for(i=1;i<=len;i++) {
+				ref=referenceNames[i];
+				if(ref != \"\")
+					ref+=\".\";
+				fwTrending_trendRun(referenceNames[i], false, ref);
+			}
+
+			break;
+		case \"Run all plots\":
+// disable 1:1
+			this.enableItem(CASCADE_UNZOOM, false);
+// disable X zoom
+			this.enableItem(CASCADE_TIME_ZOOM, false);
+// disable Y zoom
+			this.enableItem(CASCADE_Y_ZOOM, false);
+// disable back and forward and jump
+			this.enableItem(CASCADE_TIME_JUMP, false);
+			this.enableItem(CASCADE_TIME_BACK, false);
+			this.enableItem(CASCADE_TIME_FWD, false);
+
+			for(i=1;i<=len;i++) {
+				ref=referenceNames[i];
+				if(ref != \"\")
+					ref+=\".\";
+				fwTrending_trendRun(referenceNames[i], true, ref);
+			}
+			break;
+		case \"Page configuration\":
+			fwTrending_getRuntimePageDataWithStrings(pageData, exceptionInfo);
+
+			fwDevice_getDefaultConfigurationPanels(fwTrending_PAGE, panelsList, exceptionInfo);
+
+			ChildPanelOnModalReturn(panelsList[1] + \".pnl\",\"Page Configuration\",
+				makeDynString(\"$Command:onlineedit\", \"$sDpName:\" + sDpName,
+											\"$dsPageData:\" + pageData, \"$dsShowButtons:\" + makeDynString(\"ok\", \"cancel\")),0,0, df, ds);
+
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				modifiedPageData = strsplit(ds[3], \"|\");
+				for(i=1; i<=fwTrending_SIZE_PAGE_OBJECT; i++)
+				{
+					modifiedPageData[i] = strltrim(modifiedPageData[i], \" \");
+					modifiedPageData[i] = strrtrim(modifiedPageData[i], \" \");
+				}
+
+				fwTrending_setRuntimePageDataWithStrings(modifiedPageData, exceptionInfo);
+				fwTrending_getRuntimePageDataWithObject(pageDataObject, exceptionInfo);
+				fwTrending_simplifyPagePlotList(pageDataObject[fwTrending_PAGE_OBJECT_PLOTS],
+																				pageDataObject[fwTrending_PAGE_OBJECT_NROWS][1],
+																				pageDataObject[fwTrending_PAGE_OBJECT_NCOLS][1], plots, exceptionInfo);
+				_fwTrending_evaluateTemplate(parameterValues.text, pageDataObject[fwTrending_PAGE_OBJECT_TITLE], exceptionInfo);
+//DebugN(pageDataObject[fwTrending_PAGE_OBJECT_PLOT_TEMPLATE_PARAMETERS]);
+
+				changed = FALSE;
+				for(i=1; i<=fwTrending_SIZE_PAGE_OBJECT; i++)
+				{
+					if(pageData[i] != modifiedPageData[i])
+						changed = TRUE;
+				}
+				if(changed)
+					drawPage(pageDataObject[fwTrending_PAGE_OBJECT_TITLE][1], plots);
+			}				
+			break;
+		case \"Save all plots settings\":
+			for(i=1;i<=len;i++)
+			{
+				setValue(referenceNames[i] + \"trend.refreshTrend\", \"text\", \"FALSE\");
+			}
+			
+			for(i=1;i<=len;i++)
+			{
+				getValue(referenceNames[i]+\"trend.dpNameText\", \"text\", sDpName);
+				_fwTrending_isSystemForDpeConnected(sDpName, isConnected, exceptionInfo);
+				if(isConnected)
+					fwTrending_pageSavePlotSettings(referenceNames[i]);
+				else
+					fwException_raise(exceptionInfo, \"ERROR\", \"Settings could not be saved for \\\"\" +
+																	sDpName + \"\\\" because the remote system is unavailable\", \"\");
+			}
+			
+			if(dynlen(exceptionInfo)>0)
+				fwExceptionHandling_display(exceptionInfo);
+				
+			delay(0,REFRESH_DELAY);
+			for(i=1;i<=len;i++) {
+				setValue(referenceNames[i] + \"trend.refreshTrend\", \"text\", \"TRUE\");
+			}
+			break;
+		case \"Export all plots data\":
+			fwTrending_pageExportTrend(referenceNames, parameterValues.text);
+			break;
+ 		case \"showallgrids\":
+			for(i=1;i<=len;i++) {
+				ref=referenceNames[i];
+				if(ref != \"\")
+					ref+=\".\";
+				fwTrending_gridOnOff(referenceNames[i], TRUE, ref, exceptionInfo);
+			}
+			break;
+		case \"hideallgrids\":
+			for(i=1;i<=len;i++) {
+				ref=referenceNames[i];
+				if(ref != \"\")
+					ref+=\".\";
+				fwTrending_gridOnOff(referenceNames[i], FALSE, ref, exceptionInfo);
+			}
+			break;
+		case \"save\":
+			refreshPage.text = \"FALSE\";
+			fwTrending_saveCurrentSettings(\"\", sDpName, fwTrending_PAGE, FALSE, TRUE, exceptionInfo);
+			delay(0,REFRESH_DELAY);
+			refreshPage.text = \"TRUE\";
+			break;
+		case \"saveas\":
+			refreshPage.text = \"FALSE\";
+			proposedName = dpGetAlias(sDpName + \".\");
+			if(proposedName == \"\")
+				proposedName = dpSubStr(sDpName, DPSUB_DP);
+			ChildPanelOnCentralReturn(\"fwTrending/fwTrendingSaveAsSelector.pnl\", \"Save page settings as...\",
+																	makeDynString(\"$sDpType:\" + fwTrending_PAGE, \"$sProposedName:\" + proposedName), df, ds);
+			if(ds[1] == \"ok\")
+				fwTrending_saveCurrentSettings(\"\", ds[2], fwTrending_PAGE, TRUE, TRUE, exceptionInfo, TRUE);		
+			delay(0,REFRESH_DELAY);
+			refreshPage.text = \"TRUE\";
+			break;
+		default:
+//			DebugN(id);
+			break;
+	}
+	this.enabled(true);
+}
+
+encodeTime(int &t, int d, int h, int m)
+{
+	t = d * 86400 + h * 3600 + m * 60;
+}
+
+decodeTime(int t, int &d, int &h, int &m)
+{
+	d = t / 86400;
+	h = t % 86400 / 3600;
+	m = t % 3600 / 60;
+}
+
+checkPlotType(string ref, string model)
+{
+	string isRunning;
+	dyn_string plotShapes, plotData, exceptionInfo;
+
+	fwTrending_getRuntimePlotDataWithStrings(ref, isRunning, plotShapes, plotData, exceptionInfo, FALSE);
+	model = plotData[fwTrending_PLOT_OBJECT_MODEL];
+}" 0
+0 
+13 3
+"CloseButton"
+""
+1 1137 410 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 1135 -2 1194 23
+
+T 
+1
+LANG:1 5 Close
+"main() {
+	PanelOff();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

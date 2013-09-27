@@ -1,0 +1,1243 @@
+V 10
+2
+LANG:5 10 PMon Query
+LANG:1 10 PMon Query
+PANEL,-1 -1 759 754 N "_3DFace" 0
+"
+//string gTcpFifo = \"\";
+
+main()
+{
+  if(!globalExists(\"gTcpFifo\"))
+    addGlobal(\"gTcpFifo\", STRING_VAR);
+  
+  if(!globalExists(\"gInstanceName1\"))
+    addGlobal(\"gInstanceName1\", STRING_VAR);
+
+  if(!globalExists(\"gTreeViewMode\"))
+    addGlobal(\"gTreeViewMode\", STRING_VAR);
+  
+  if(!globalExists(\"gSysNameList\"))
+    addGlobal(\"gSysNameList\", DYN_STRING_VAR );
+
+  if(!globalExists(\"gSysNoList\"))
+    addGlobal(\"gSysNoList\", DYN_STRING_VAR);
+
+  if(!globalExists(\"gSysNoFilterList\"))
+    addGlobal(\"gSysNoFilterList\", DYN_STRING_VAR);
+
+  if(!globalExists(\"gManNameFilterList\"))
+    addGlobal(\"gManNameFilterList\", DYN_STRING_VAR);
+  
+  if(!globalExists(\"gManStateFilterList\"))
+    addGlobal(\"gManStateFilterList\", DYN_STRING_VAR);
+
+  gTcpFifo = \"\";
+  gInstanceName1 = \"fwSytemOverview\";
+  gTreeViewMode = \"SYSTEMVIEW\";
+
+  dynClear(gSysNoFilterList);
+  dynClear(gManNameFilterList);
+  dynClear(gManStateFilterList);
+
+  DebugN(\"PANEL INIT\");
+  addColToTree();
+  SysMode_Button1.toggleState(true);
+  ProcMode_Button1.toggleState(false);
+  hideColumns(gTreeViewMode);
+  
+  while(true)
+  {
+    if(isConfigured)
+    {
+      refreshView();
+    }
+    delay(4, 0);
+  }
+
+}" 0
+ E E E E 1 -1 -1 0  80 40
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverviewFunc.ctl\"
+
+bool isConfigured = false;
+
+addColToTree()
+{
+  pvssTree.addColumn(\"PVSS System\");
+  pvssTree.addColumn(\"Num\"); 
+  pvssTree.addColumn(\"Host Address\");   
+  pvssTree.addColumn(\"PMON Port\");   
+  pvssTree.addColumn(\"EM Port\");
+  pvssTree.addColumn(\"DistMan Port\");
+  pvssTree.addColumn(\"DM Port\");
+  pvssTree.addColumn(\"St\");
+//  pvssTree.setColumnWidth(8,24);
+  pvssTree.addColumn(\"Manager\");
+  pvssTree.addColumn(\"No\");
+//  pvssTree.setColumnWidth(10,26);
+  pvssTree.addColumn(\"Options\");  
+  pvssTree.addColumn(\"Start Time\");
+  pvssTree.addColumn(\"PID\");  
+  pvssTree.addColumn(\"Mode\"); 
+  pvssTree.addColumn(\"Restart#\");   
+  pvssTree.addColumn(\"ResetMin\");   
+  pvssTree.addColumn(\"SecKill\");   
+  pvssTree.addColumn(\"shmIndex\");   
+}
+
+const int PROC_COL_START  = 7;
+const int PROC_COL_END    = 17;
+const int SYS_COL_START   = 1;
+const int SYS_COL_END     = 6;
+
+hideColumns(string viewMode)
+{
+  if(viewMode == \"PROCESSVIEW\"){
+    for(int i = PROC_COL_END; i >= PROC_COL_START; i--)
+      pvssTree.adjustColumn(i);
+  
+    for(int i = SYS_COL_START; i <= SYS_COL_END; i++)
+      pvssTree.hideColumn(i); //setColumnWidth(i,0);
+  
+  //  for(int i = PROC_COL_START; i <= PROC_COL_END; i++)
+  //    pvssTree.setColumnWidth(i, 90);
+  }
+  else if (viewMode == \"SYSTEMVIEW\"){
+    for(int i = SYS_COL_END; i >= SYS_COL_START; i--)
+      pvssTree.adjustColumn(i);
+  
+    for(int i = PROC_COL_START; i <= PROC_COL_END; i++)
+      pvssTree.hideColumn(i); //setColumnWidth(i,0);
+    
+  
+  //  for(int i = SYS_COL_START; i <= SYS_COL_END; i++)
+  //    pvssTree.setColumnWidth(i, 90);
+    
+  }
+}
+
+setProcessMode()
+{
+  gTreeViewMode = \"PROCESSVIEW\";
+
+  ProcMode_Button1.toggleState(true);
+  SysMode_Button1.toggleState(false);
+  toggleTreeViewMode(getShape(\"pvssTree\"), gTreeViewMode);
+  hideColumns(gTreeViewMode);
+}
+
+setSystemMode()
+{
+  gTreeViewMode = \"SYSTEMVIEW\";
+
+  SysMode_Button1.toggleState(true);
+  ProcMode_Button1.toggleState(false);
+  toggleTreeViewMode(getShape(\"pvssTree\"), gTreeViewMode);
+  hideColumns(gTreeViewMode);
+}
+
+void populateTreeNode(shape tree, string dpName, string dpParentName)
+// Presently using recursion later to use for loop to avoid stack overload and handling loops and multiple parents    
+{
+  dyn_string childNodes;
+  string presentSystemName;
+  dyn_string ipAddrList;
+  dyn_uint pMonPortList, evmPortList, dataManPortList, distManPortList;
+  unsigned sysNo;
+  dyn_dyn_string ddsResult;
+  
+  unsigned childindex;
+
+  if (dpName != \"\"){
+    getSysName(dpName, presentSystemName);
+    getSysNo(dpName, sysNo);
+    getChildNodes(dpName, childNodes);
+    getIpAddrList(dpName, ipAddrList);
+    getPmonPortList(dpName, pMonPortList);
+    getEvmPortList(dpName, evmPortList);
+    getDmPortList(dpName, dataManPortList);
+    getDistmanPortList(dpName, distManPortList);
+    dynAppend(gSysNoList, sysNo);
+    dynAppend(gSysNameList, presentSystemName);
+  }
+  DebugN(\" Present System Name: \" + presentSystemName);
+  
+  if(!tree.itemExists(dpName)){
+
+    tree.appendItem(dpParentName, dpName, presentSystemName);
+    tree.setIcon(dpName, 0, PROJ_PATH + \"pictures/fwSystemOverview/system.bmp\");
+    tree.setText(dpName, 1, sysNo);
+    for(int index = 1; index <= dynlen(ipAddrList); index++){
+//      tree.appendItem(dpName, dpName + \"_HOST_\" + index, /*ipAddrList[index]*/strtolower(ipAddrList[index]) == \"localhost\" ? getHostByAddr(\"127.0.0.1\") : getHostByAddr(ipAddrList[index]));
+      tree.appendItem(dpName, dpName + \"_HOST_\" + index, ipAddrList[index]);
+      tree.setIcon(dpName + \"_HOST_\" + index, 0, PROJ_PATH + \"pictures/fwSystemOverview/host.gif\");
+      tree.setText(dpName + \"_HOST_\" + index, 2, ipAddrList[index]);
+      tree.setText(dpName + \"_HOST_\" + index, 3, pMonPortList[index]);
+      tree.setText(dpName + \"_HOST_\" + index, 4, evmPortList[index]);
+      tree.setText(dpName + \"_HOST_\" + index, 5, distManPortList[index]);
+      tree.setText(dpName + \"_HOST_\" + index, 6, dataManPortList[index]);
+      tree.setExpandable(dpName + \"_HOST_\" + index , true);
+      tree.setOpen(dpName + \"_HOST_\" + index , true);
+// Check if the port is open and pmon is working, accordingly populate the managers
+//      if(pmon_query(\"root#\"+\"\"+\"#PROJECT:\", ipAddrList[index], pMonPortList[index], ddsResult, false, true) == false){
+//        if(dynlen(ddsResult) > 0){
+//          DebugN(\"populateTreeNode: Expanding Managers for \" + ddsResult[1][1] + \" IP Address:\" +ipAddrList[index]+ \" PMON Port:\" +pMonPortList[index]);
+      getManagersInfoInTree(tree, dpName, index, gTreeViewMode);
+//        }
+//      }
+
+    }
+//    showManagerInTree(tree, dpName, \"SYSTEMVIEW\");
+
+
+    for( childindex = 1; childindex <= dynlen(childNodes); childindex++){
+      populateTreeNode(tree, SYSVIEW_NODE + childNodes[childindex], dpName);
+    }
+    tree.setOpen(dpName, true);
+    hideColumns(gTreeViewMode);
+  }
+  else{
+    DebugN(\"There is a loop in the dp struct or one child with many parents. Handle it later\", \"DPNAME: \" + dpName);
+    // There is a loop in the dp struct or one child with many parents. Handle it later
+  }
+}
+
+// Presently the function does not update the managers dyanamically
+void getManagersInfoInTree(shape tree, string dpName, int hostIndex, string command)
+{
+  string presentSystemName;
+  dyn_string ipAddrList;
+  unsigned sysNo;
+  dyn_uint pMonPortList;
+  int childCount, manCount, j;
+  
+  int            err;
+  dyn_dyn_string ddsResult, ddsResultStati;
+  string         sName, ss, si;
+  int            iState, iPID, iManNo;
+  time           ti;
+  string         iStartMode;
+  
+// Presently querying the DP. Else the data can directly be picked up from the tree colums  
+  if (dpName != \"\"){
+    getIpAddrList(dpName, ipAddrList);
+    getPmonPortList(dpName, pMonPortList);
+  }
+  else{
+    DebugN(\"Error in populateManager NULL DP\");
+    return;
+  }
+  
+  if(tree.itemExists(dpName) && tree.itemExists(dpName + \"_HOST_\"+hostIndex) && 
+     pmon_query(\"root#\"+\"\"+\"#PROJECT:\", ipAddrList[hostIndex], pMonPortList[hostIndex], ddsResult, false, true) == false){
+    if(dynlen(ddsResult) > 0){
+//    DebugN(\"In get ManagersInfoInTree: dpName\" + dpName + \" hostIndex: \" + hostIndex);
+
+//    tree.appendItem(dpName, dpName + \"_Managers\", \"Managers\");
+
+/*    if(command == \"PROCESSMODE\"){
+      tree.setVisible(dpName + \"_Managers\", true);
+    }
+    else if (command == \"SYSTEMMODE\"){
+      tree.setVisible(dpName + \"_Managers\", false);
+    }
+*/    
+      err = pmon_query(\"root#\"+\"#MGRLIST:LIST\", ipAddrList[hostIndex], pMonPortList[hostIndex], ddsResult, true, true);
+      err = pmon_query(\"root#\"+\"#MGRLIST:STATI\", ipAddrList[hostIndex], pMonPortList[hostIndex], ddsResultStati, true, true);
+  
+      if ( err )
+      {
+        pmon_warningOutput(\"errPmonNotRunning\", -1, false);
+        //return;
+      }
+      else
+      {
+        childCount = dynlen(tree.children(dpName + \"_HOST_\" + hostIndex));
+        manCount = dynlen(ddsResult);
+//        DebugN(dpName + \"_HOST_\" + hostIndex + \" CHILD COUNT: \" + tree.childCount(dpName + \"_HOST_\" + hostIndex) + \" MAN COUNT: \" + manCount);
+        if(childCount > manCount){
+          for(j = manCount + 1; j <= childCount; j++){
+            tree.removeItem(dpName + \"_HOST_\" + hostIndex + \"_\" + j);
+//            DebugN(\"Remove Item: \"+ dpName + \"_HOST_\" + hostIndex + \"_\" + j); 
+          }
+        }
+        for (int i = 1; i <= manCount; i++)        // to include code for updating the changed status of the managers
+        {
+          sName = pmon_getManDescript(ddsResult[i][1]);
+          if ( sName == \"\" ) sName = ddsResult[i][1];
+          if ( !isMotif() ) strreplace(sName, \"&\", \"&&\");
+          ss = ( dynlen(ddsResult[i]) > 5)?ddsResult[i][6]:\"\";
+          si = i;
+          iState = ddsResultStati[i][1];
+          iPID = ddsResultStati[i][2];
+          iStartMode = ddsResultStati[i][3];
+          ti = ddsResultStati[i][4];
+          iManNo = ddsResultStati[i][5];
+  //        DebugN(\"getManagerInfoInTree: ITEM NAME:\" + pvssTree.itemExists(dpName+67));
+          if(!tree.itemExists(dpName + \"_HOST_\" + hostIndex + \"_\" + i)){
+            tree.appendItem(dpName + \"_HOST_\" + hostIndex, dpName + \"_HOST_\" + hostIndex + \"_\" + i, sName);
+            tree.setIcon(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 0, PROJ_PATH + \"pictures/fwSystemOverview/manager.gif\");
+          }
+          else{
+            tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 0, sName);
+          }
+    //Depending on the mode selected show the manager nodes
+//          command == \"SYSTEMVIEW\" ? tree.setVisible(dpName + \"_HOST_\" + hostIndex + \"_\" + i, false) 
+//                                  : tree.setVisible(dpName + \"_HOST_\" + hostIndex + \"_\" + i, true);
+  
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 7, iState);
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 8, ddsResult[i][1]);
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 9, iManNo);
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 10, ss);
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 11, ti ? ti : \"\");
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 12, iPID);
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 13, pmonStartModeToStr(ddsResult[i][2]));
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 14, ddsResult[i][4]);
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 15, ddsResult[i][5]);
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 16, ddsResult[i][3]);
+          tree.setText(dpName + \"_HOST_\" + hostIndex + \"_\" + i, 17, si);
+  
+          setVisibleTreeNodes(tree, dpName + \"_HOST_\" + hostIndex + \"_\" + i, command, gSysNoFilterList, gManNameFilterList, gManStateFilterList);
+          
+        }
+        hideColumns(gTreeViewMode);
+      }
+    }
+  }
+  else{
+    childCount = dynlen(tree.children(dpName + \"_HOST_\" + hostIndex));
+    for(j = 1; j <= childCount; j++){
+      tree.removeItem(dpName + \"_HOST_\" + hostIndex + \"_\" + j);
+    }
+  }
+}
+
+
+refreshView()
+{
+  dyn_string rootNodeList;
+  shape tree = getShape(\"pvssTree\");
+
+  if(tree.itemExists(gInstanceName1)){  
+    rootNodeList = tree.children(gInstanceName1);
+    for(int i = dynlen(rootNodeList); i >= 1; i--){
+      if(tree.isVisible(rootNodeList[i])){
+        refreshVisibleMan(tree , rootNodeList[i]);
+      }
+    }
+    hideColumns(gTreeViewMode);
+  } 
+}
+
+refreshVisibleMan(shape tree, string treeNodeName)
+{
+  dyn_string treeNodeChildList;
+  int childno;
+
+  treeNodeChildList = tree.children(treeNodeName);
+  childno = dynlen(treeNodeChildList);
+  
+//  DebugN(\"in setVisibleTreeNodes: called: \", treeNodeName, command);
+  
+  if(patternMatch(\"*_HOST_*\", treeNodeName) && !patternMatch(\"*_HOST_*_*\", treeNodeName)){
+    int pos = strpos(treeNodeName, \"_HOST_\");
+    string dpName = substr(treeNodeName, 0, pos);
+    int hostIndex = substr(treeNodeName, pos+6);
+//  DebugN(\"DPNAME: \"+dpName+\" HOST INDEX: \" + hostIndex);
+    getManagersInfoInTree(tree, dpName, hostIndex, gTreeViewMode);
+//    setVisibleTreeNodes(tree, treeNodeName, gTreeViewMode, gSysNoFilterList, gManNameFilterList, gManStateFilterList);
+  }
+  else if(childno > 0){
+    for(int i = 1; i <= childno; i++){
+      if(tree.isVisible(treeNodeChildList[i])){
+        refreshVisibleMan(tree, treeNodeChildList[i]);
+      }
+    }
+  }
+//  tree.ensureItemVisible(gInstanceName1);
+  hideColumns(gTreeViewMode);
+}
+
+
+bool toggleTreeViewMode(shape tree, string command)
+{  
+  dyn_string rootNodeList;
+  
+//  getNodeNameList(dpNameList);
+  
+//  DebugN(tree.children(\"\"));
+  if(tree.itemExists(gInstanceName1)){  
+    rootNodeList = tree.children(gInstanceName1);
+    for(int i = dynlen(rootNodeList); i >= 1; i--){
+      tree.setVisible(rootNodeList[i], setVisibleTreeNodes(tree, rootNodeList[i], command, gSysNoFilterList, gManNameFilterList, gManStateFilterList));
+    }
+    tree.ensureItemVisible(gInstanceName1);
+    hideColumns(gTreeViewMode);
+  }
+//  DebugN(tree.children(dpNameList[2]));
+
+//  for(int i = 1; i <= dynlen(dpNameList); i++)
+//   showManagerInTree(tree, dpNameList[i], command);
+  return true;
+} 
+
+
+//Caution hardcoded column index used in patternmatch
+bool setVisibleTreeNodes(shape tree, string treeNodeName, string command, dyn_string sysNoList, dyn_string manNameList, dyn_string manStateList)
+{
+  dyn_string treeNodeChildList;
+  int childno;
+  bool showSysNode = false;
+
+  dyn_bool checkMatch;
+  bool isMatch = false, isMatch2 = false;
+
+  treeNodeChildList = tree.children(treeNodeName);
+  childno = dynlen(treeNodeChildList);
+  
+//  DebugN(\"in setVisibleTreeNodes: called: \", treeNodeName, command);
+  
+  if(childno > 0){
+    for(int i = 1; i <= childno; i++){
+      showSysNode |= setVisibleTreeNodes(tree, treeNodeChildList[i], command, sysNoList, manNameList, manStateList);
+    }
+    if(dynlen(sysNoList) > 0) {
+      if(!patternMatch(\"*_HOST_*\", treeNodeName)){
+        isMatch = false;
+        checkMatch = patternMatch(tree.getText(treeNodeName,1), sysNoList);
+//        DebugN(\"setVisibleTreeNodes: System Node checkMatch = \" + checkMatch, treeNodeName);
+        for(int i = 1; i <= dynlen(checkMatch); i++){
+          isMatch |= checkMatch[i];
+        }
+        showSysNode |= isMatch;
+        if(showSysNode){
+          tree.setVisible(treeNodeName, true);
+        }
+        else{
+          tree.setVisible(treeNodeName, false);
+        }
+      }
+      else{
+        isMatch = false;
+        checkMatch = patternMatch(tree.getText(tree.parent(treeNodeName),1), sysNoList);
+//        DebugN(\"setVisibleTreeNodes: Host Node checkMatch = \" + checkMatch, treeNodeName);
+        for(int i = 1; i <= dynlen(checkMatch); i++){
+          isMatch |= checkMatch[i];
+        }
+        showSysNode = isMatch;
+        if(isMatch){
+          tree.setVisible(treeNodeName, true);
+        }
+        else{
+          tree.setVisible(treeNodeName, false);
+//          showSysNode = false;
+        }
+      }
+    }
+    else{
+      if(!patternMatch(\"*_HOST_*_*\", treeNodeName)){
+        tree.setVisible(treeNodeName, true);
+        showSysNode = true;
+      }
+    }
+  }
+  else{
+//  DebugN(\"in setVisibleManTreeNodes: leaf node called: \", treeNodeName, command);
+    if(patternMatch(\"*_HOST_*_*\", treeNodeName)){
+//      DebugN(\"IN setVisibleTreeNodes: patternMatch is true: ie manager leaf node\", 
+//             \"SysNoList\", sysNoList,\"ManNameList\", manNameList, \" ManStateList\", manStateList);
+      if(dynlen(manNameList) > 0 && dynlen(manStateList) == 0){
+        isMatch = false;
+        checkMatch = patternMatch(tree.getText(treeNodeName,8), manNameList);
+        for(int i = 1; i <= dynlen(checkMatch); i++){
+          isMatch |= checkMatch[i];
+        }
+        if(isMatch){
+//          DebugN(\"CHECK IT OUT1 Tree Node name: \" + treeNodeName);
+          command == \"SYSTEMVIEW\" ? tree.setVisible(treeNodeName, false) : tree.setVisible(treeNodeName, true);
+        }
+        else{
+          tree.setVisible(treeNodeName, false);
+        }
+      }
+      else if(dynlen(manNameList) == 0 && dynlen(manStateList) > 0){
+        isMatch = false;
+        checkMatch = patternMatch(tree.getText(treeNodeName, 7), manStateList);
+        for(int i = 1; i <= dynlen(checkMatch); i++){
+          isMatch |= checkMatch[i];
+        }
+        if(isMatch){
+//          DebugN(\"CHECK IT OUT2 Tree Node name: \" + treeNodeName);
+          command == \"SYSTEMVIEW\" ? tree.setVisible(treeNodeName, false) : tree.setVisible(treeNodeName, true);
+        }
+        else{
+          tree.setVisible(treeNodeName, false);
+        }
+      }
+      else if(dynlen(manNameList) > 0 && dynlen(manStateList) > 0){
+        isMatch = false;
+        checkMatch = patternMatch(tree.getText(treeNodeName,8), manNameList);
+        for(int i = 1; i <= dynlen(checkMatch); i++){
+          isMatch |= checkMatch[i];
+        }
+        isMatch2 = false;
+        checkMatch = patternMatch(tree.getText(treeNodeName, 7), manStateList);
+        for(int i = 1; i <= dynlen(checkMatch); i++){
+          isMatch2 |= checkMatch[i];
+        }
+        if(isMatch && isMatch2){
+//          DebugN(\"CHECK IT OUT3 Tree Node name: \" + treeNodeName);
+          command == \"SYSTEMVIEW\" ? tree.setVisible(treeNodeName, false) : tree.setVisible(treeNodeName, true);
+        }
+        else{
+          tree.setVisible(treeNodeName, false);
+        }
+        
+      }
+      else{
+//        DebugN(\"CHECK IT OUT4 Tree Node name: \" + treeNodeName);
+        command == \"SYSTEMVIEW\" ? tree.setVisible(treeNodeName, false) : tree.setVisible(treeNodeName, true);
+      }
+      showSysNode = true;
+    }
+    else if(patternMatch(\"*_HOST_*\", treeNodeName)){
+      if(dynlen(sysNoList) > 0){
+        isMatch = false;
+        checkMatch = patternMatch(tree.getText(tree.parent(treeNodeName),1), sysNoList);
+        for(int i = 1; i <= dynlen(checkMatch); i++){
+          isMatch |= checkMatch[i];
+        }
+        showSysNode = isMatch;
+        if(isMatch){
+//          DebugN(\"CHECK IT OUT5 Tree Node name: \" + treeNodeName);
+          tree.setVisible(treeNodeName, true);
+        }
+        else{
+          tree.setVisible(treeNodeName, false);
+  //          showSysNode = false;
+        }
+      }
+      else{
+//          DebugN(\"CHECK IT OUT6 Tree Node name: \" + treeNodeName);
+        tree.setVisible(treeNodeName, true);
+      }
+    }
+  }
+  tree.setOpen(treeNodeName, true);
+  
+  return showSysNode;          
+}
+
+bool populateSystemTable(dyn_string sysNoList, dyn_string sysNameList)
+{
+  sysNoFilter.deleteAllLines();
+ 
+  sysNoFilter.tableMode(TABLE_SELECT_MULTIPLE);
+  sysNoFilter.selectByClick(TABLE_SELECT_LINE);
+  dynInsertAt(sysNoList, \"All\", 1);
+  dynInsertAt(sysNameList, \"\", 1);
+  
+  sysNoFilter.appendLines(dynlen(sysNoList), \"sysNo\",sysNoList, \"sysName\",sysNameList);
+  sysNoFilter.selectLineN(0);
+  sysNoFilter.lineVisible(0);
+}
+    
+bool populateManagerStateTable()
+{
+  manStateFilter.deleteAllLines();
+
+  manStateFilter.tableMode(TABLE_SELECT_MULTIPLE);
+  manStateFilter.selectByClick(TABLE_SELECT_LINE);
+  
+  manStateFilter.appendLine(\"stateNo\", \"All\", \"stateDesc\" , \"\");
+  manStateFilter.appendLine(\"stateNo\", \"0\", \"stateDesc\" , \"stopped\");
+  manStateFilter.appendLine(\"stateNo\", \"1\", \"stateDesc\" , \"init\");
+  manStateFilter.appendLine(\"stateNo\", \"2\", \"stateDesc\" , \"running\");
+  manStateFilter.appendLine(\"stateNo\", \"3\", \"stateDesc\" , \"blocked\");
+  manStateFilter.selectLineN(0);
+  manStateFilter.lineVisible(0);
+}
+
+bool populateManagerNameTable()
+{
+  dyn_string managers, mans;
+
+  manNameFilter.deleteAllLines();
+  
+  manNameFilter.tableMode(TABLE_SELECT_MULTIPLE);
+  manNameFilter.selectByClick(TABLE_SELECT_LINE);
+  
+  if ( _WIN32 )
+  {
+    mans = getFileNames(PVSS_PATH + \"/bin\", \"PVSS00*.exe\");
+  }
+  else
+  {
+    mans = getFileNames(PVSS_PATH + \"/bin\", \"PVSS00*\");
+  }
+  dynAppend(managers, mans);
+
+  for (int j = dynlen(managers); j > 0; j-- )
+  {
+    strreplace(managers[j], \".exe\", \"\");
+    if ( strpos(managers[j], \"databg\")>0 || 
+         strpos(managers[j], \"XCheck\")>0 || 
+         strpos(managers[j], \"archiv\")>0 || 
+         strpos(managers[j], \"pid\")>0 || 
+         strpos(managers[j], \"blink\")>0)
+      dynRemove(managers, j);
+  }
+  dynUnique(managers);
+  dynSortAsc(managers);
+  dynInsertAt(managers, \"All\", 1);
+  manNameFilter.appendLines(dynlen(managers), \"manName\", managers);
+  manNameFilter.selectLineN(0);
+  manNameFilter.lineVisible(0);
+}
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:5 0 
+29 0
+"pvssTree"
+""
+1 20 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+2
+LANG:5 0 
+LANG:1 0 
+
+10
+"treeStepSize" "int 20"
+"lineWidth" "int 2"
+"itemMargin" "int 1"
+"midLineWidth" "int 0"
+"resizeMode" "enum 0"
+"frameShadow" "enum 48"
+"frameShape" "enum 6"
+"showSortIndicator" "bool FALSE"
+"margin" "int 1"
+"selectionMode" "enum 0"
+ 20 70 743 553
+10 TreeWidget
+7
+0 "expanded" "(string id)"
+"
+/*  DebugN(\"in expand: Tree Node: \" + id);
+  if(patternMatch(\"*_HOST_*\", id)){
+    int pos = strpos(id, \"_HOST_\");
+    string dpName = substr(id, 0, pos);
+    int hostIndex = substr(id,pos+6);
+
+    getManagersInfoInTree(getShape(this.name()), dpName, hostIndex, gTreeViewMode);
+  }
+  hideColumns(gTreeViewMode);
+  */"
+0 "collapsed" "(string id)"
+""
+0 "selectionChanged" "(string id)"
+""
+0 "clicked" "(string id, int column)"
+""
+0 "doubleClicked" "(string id, int column)"
+"  if(patternMatch(\"*_HOST_*\", id) && !patternMatch(\"*_HOST_*_*\", id)){
+    dyn_string hostList;
+    dyn_int portList;
+    int port;
+    string dpName, host;
+    int pos, hostIndex;
+
+    pos = strpos(id, \"_HOST_\");
+    dpName = substr(id, 0, pos);
+    hostIndex = (int)substr(id,pos+6);
+  
+    getIpAddrList(dpName, hostList);
+    getPmonPortList(dpName, portList);
+    port = portList[hostIndex];
+    host = hostList[hostIndex];
+    
+    ChildPanelOn (\"fwSystemOverview/SystemStatus.pnl\", \"SystemStatus\", makeDynString(\"$host:\"+host, \"$port:\"+port), 0, 0);
+  }"
+0 "rightClicked" "(string id, int column)"
+"  if(patternMatch(\"*_HOST_*_*\", id)){
+    int answer; 
+    
+    string command, host;
+    int port,idx;
+    bool showErrorDialog=TRUE, openTCP=TRUE, err;
+    bool start, stop, kill;
+    dyn_string txt;
+    shape tree = getShape(\"pvssTree\"); 
+    
+    string sUser = \"root\", sPassword = \"\";
+    
+    int pos = strpos(id, \"_HOST_\");
+    string dpName = substr(id, 0, pos);
+    int hostIndex = substr(id,pos+6);
+
+    idx = (unsigned)tree.getText(id, 17) - 1;
+    host = tree.getText(tree.parent(id), 2);
+    port = tree.getText(tree.parent(id), 3);
+    
+    if(tree.getText(id, 7) == 0){
+      start = true;
+      stop = false;
+      kill = false;
+    }
+    else if(tree.getText(id, 7) == 2){
+      start = false;
+      stop = true;
+      kill = true;
+    }
+    else{
+      start = false;
+      stop = false;
+      kill = true;
+    }
+      
+// Show Popup           
+    txt=makeDynString(\"PUSH_BUTTON, Start, 1, \" + (unsigned)start, 
+    \"PUSH_BUTTON, Stop, 2, \"+ (unsigned)stop, 
+    \"PUSH_BUTTON, Kill, 3, \" + (unsigned)kill, 
+    \"SEPARATOR\", // separating line 
+    \"PUSH_BUTTON, Insert Manager, 4, 1\", 
+    \"PUSH_BUTTON, Delete Manager, 5, 1\"); 
+
+    if(popupMenu(txt, answer) == -1)
+      return; 
+    
+   
+   
+  DebugN(\"POP UP answer:\" + answer);
+// Required to execute the manager: index of the manager, host, port   
+    switch(answer)
+    {
+      case 1:
+        sprintf(command, \"SINGLE_MGR:START %d\",idx);
+        command= sUser+\"#\"+sPassword+\"#\"+command;
+        err = pmon_command(command, host, port, showErrorDialog, openTCP);
+        DebugN(\"Command Executed: Manager Start\");
+                  
+        break;
+           
+      case 2:
+        sprintf(command, \"SINGLE_MGR:STOP %d\",idx);
+        command= sUser+\"#\"+sPassword+\"#\"+command;
+        err = pmon_command(command, host, port, showErrorDialog, openTCP);
+        DebugN(\"Command Executed: Manager Stop\");
+    
+        break;
+           
+           
+      case 3:
+        sprintf(command, \"SINGLE_MGR:KILL %d\",idx);
+        command= sUser+\"#\"+sPassword+\"#\"+command;
+        err = pmon_command(command, host, port, showErrorDialog, openTCP);
+        DebugN(\"Command Executed: Manager Kill\");
+    
+        break;
+           
+      case 4:      //Insert new manager
+        sprintf(command, \"SINGLE_MGR:START %d\",idx);
+        command= sUser+\"#\"+sPassword+\"#\"+command;
+        err = pmon_command(command, host, port, showErrorDialog, openTCP);
+           
+        DebugN(\"This will insert new manager\");
+        break;
+    
+                  
+      case 5:      //Delete manager
+        sprintf(command, \"SINGLE_MGR:START %d\",idx);
+        command= sUser+\"#\"+sPassword+\"#\"+command;
+        err = pmon_command(command, host, port, showErrorDialog, openTCP);
+    
+        DebugN(\"this will kill the selected manager\");
+                  
+        break;
+           
+      default:
+        DebugN(\"Pl select the desired menu\");
+        break;
+    }
+  }"
+0 "itemRenamed" "(string id, int column, string text)"
+""
+"main()
+{
+//  treeViewMode = gTreeViewMode;
+//  hideColumns(treeViewMode);
+//  DebugN(\"TREE INIT\");
+}" 0
+13 1
+"Get_Info"
+""
+1 670 660 E E E 1 E 1 E N "_ButtonText" E N "STD_inputfield_back_marked" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+2
+LANG:5 0 
+LANG:1 0 
+
+0
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 668 658 752 692
+
+T 
+2
+LANG:5 8 Get Info
+LANG:1 8 Get Info
+"
+main()   
+{
+  dyn_dyn_string resultStr1, resultStr2;
+  shape tree;
+
+  dynClear(gSysNameList);
+  dynClear(gSysNoList);
+
+  dynClear(gSysNoFilterList);
+  dynClear(gManNameFilterList);
+  dynClear(gManStateFilterList);
+  
+  tree = getShape(\"pvssTree\");
+  tree.clear();
+
+//  readPvssConfigFile(\"test\");   
+  string result, filestr, dirstr;
+  dyn_string rootDPs;
+  dyn_dyn_string  configData;
+
+  fileSelector (filestr,\"C:/PVSSprojects/Configuration/\", false, \"*.*\" ); 
+//   fileToString(filestr, result);
+  DebugN(\"Success ? :\", readPVSSConfigFile(filestr, configData), \"Config Data : \", configData);
+
+  populateNodeArrayStruct(configData);
+
+  getRootNodes(DPNAME_ARRAY, rootDPs);
+  DebugN(gInstanceName1);
+  tree.appendItem(\"\", gInstanceName1, gInstanceName1);
+  for(int rootindex = 1; rootindex <= dynlen(rootDPs); rootindex++)
+    populateTreeNode(tree, rootDPs[rootindex], gInstanceName1);
+  tree.setOpen(gInstanceName1 ,true);
+  
+  populateSystemTable(gSysNoList, gSysNameList);
+  populateManagerNameTable();  
+  populateManagerStateTable();
+  
+  isConfigured = true;
+}
+" 0
+ E E E
+13 3
+"Clear_DP"
+""
+1 670 700 E E E 1 E 1 E N "_ButtonText" E N "STD_inputfield_back_marked" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+0
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 668 698 752 732
+
+T 
+1
+LANG:5 8 Clear DP
+"main()
+{
+  deleteDPStruct();
+}" 0
+ E E E
+2 5
+"PRIMITIVE_TEXT1"
+""
+1 20.7460317460317 20 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.37301587301587 0 1 -6.71428571428572 0 1 E 20 20 277 43
+0 2 2 "0s" 0 0 0 192 0 0  20 20 1
+1
+LANG:5 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:5 26 PVSS System Overview Panel
+13 6
+"SysMode_Button1"
+""
+1 20 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+1
+"isToggle" ""
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 568 162 602
+
+T 
+1
+LANG:5 11 System Mode
+"main()
+{
+  setSystemMode();
+}
+" 0
+ E E E
+13 7
+"ProcMode_Button1"
+""
+1 180 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+2
+"hoverbclr" "N \"_Transparent\""
+"isToggle" ""
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 178 568 322 602
+
+T 
+1
+LANG:5 12 Process Mode
+"main()
+{
+  setProcessMode();
+}
+" 0
+ E E E
+13 11
+"ApplyFilter"
+""
+1 440 700 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+0
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 438 698 532 732
+
+T 
+1
+LANG:5 5 Apply
+"main()
+{
+  dyn_int sysNoLineNo, manNameLineNo, manStateLineNo;
+  dyn_string sysNoList, manNameList, manStateList;
+  dyn_bool checkMatch;
+  bool isMatch = false;
+  
+  dynClear(sysNoLineNo); dynClear(manNameLineNo); dynClear(manStateLineNo); 
+  dynClear(sysNoList); dynClear(manNameList); dynClear(manStateList); 
+  
+  sysNoLineNo = sysNoFilter.getSelectedLines();
+  manNameLineNo = manNameFilter.getSelectedLines();
+  manStateLineNo = manStateFilter.getSelectedLines();
+  
+  for(int i = 1; i <= dynlen(sysNoLineNo); i++){
+   dynAppend(sysNoList, sysNoFilter.cellValueRC(sysNoLineNo[i], \"sysNo\"));
+  }
+  
+  isMatch = false;
+  checkMatch = patternMatch(\"All\", sysNoList);
+//  DebugN(\"check match \" + checkMatch);
+  for(int i = 1; i <= dynlen(checkMatch); i++){
+    isMatch |= checkMatch[i];
+  }
+//  DebugN(\"is match \" + isMatch);
+  if(isMatch){
+    dynClear(sysNoList);
+  }
+  for(int i = 1; i <= dynlen(manNameLineNo); i++){
+   dynAppend(manNameList, manNameFilter.cellValueRC(manNameLineNo[i], \"manName\"));
+  }
+//  DebugN(\"manNameList \" + manNameList, \"PATTERN-PATTERN MATCH OUTPUT: \" + patternMatch(\"All\", manNameList));
+  isMatch = false;
+  checkMatch = patternMatch(\"All\", manNameList);
+  for(int i = 1; i <= dynlen(checkMatch); i++){
+    isMatch |= checkMatch[i];
+  }
+  if(isMatch){
+//    DebugN(\"PATTERN MATCH Name\", patternMatch(\"All\", manNameList));
+    dynClear(manNameList);
+  }
+  for(int i = 1; i <= dynlen(manStateLineNo); i++){
+   dynAppend(manStateList, manStateFilter.cellValueRC(manStateLineNo[i], \"stateNo\"));
+  }
+//  DebugN(\"BEFORE in ApplyFilter main:\" , \"gSysNoFilterList \"+ gSysNoFilterList, \"sysNoList \"+sysNoList,
+//          \"gManNameFilterList \"+ gManNameFilterList, \"manNameList \"+manNameList, \"gManStateFilterList \"+ 
+//          gManStateFilterList, \"manStateList \"+manStateList);
+  isMatch = false;
+  checkMatch = patternMatch(\"All\", manStateList);
+  for(int i = 1; i <= dynlen(checkMatch); i++){
+    isMatch |= checkMatch[i];
+  }
+  if(isMatch){
+    dynClear(manStateList);
+  }
+  gSysNoFilterList = sysNoList;
+  gManNameFilterList = manNameList;
+  gManStateFilterList = manStateList;
+  DebugN(\"in ApplyFilter main:\" , \"gSysNoFilterList \"+ gSysNoFilterList, \"sysNoList \"+sysNoList,
+          \"gManNameFilterList \"+ gManNameFilterList, \"manNameList \"+manNameList, \"gManStateFilterList \"+ gManStateFilterList, \"manStateList \"+manStateList);
+
+  toggleTreeViewMode(getShape(\"pvssTree\"), gTreeViewMode, gSysNoFilterList, 
+                     gManNameFilterList, gManStateFilterList);
+  toggleTreeViewMode(getShape(\"pvssTree\"), gTreeViewMode, gSysNoFilterList, 
+                     gManNameFilterList, gManStateFilterList);
+
+  
+//  pvssTree.setVisible(\"FwSysOverviewPvssNode_Instance_1_dist_1\", false);
+//  pvssTree.setVisible(\"FwSysOverviewPvssNode_Instance_1_Test_2\", true);
+}" 0
+ E E E
+2 15
+"PRIMITIVE_TEXT4"
+""
+1 20 650 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 641.409090909091 87 655
+0 2 2 "0s" 0 0 0 64 0 0  22 641.409090909091 1
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:5 11 PVSS System
+2 16
+"PRIMITIVE_TEXT5"
+""
+1 90 650 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+2
+"hoverbclr" "N \"_Transparent\""
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 172 642.409090909091 302 662.409090909091
+0 2 2 "0s" 0 0 0 64 0 0  172 642.409090909091 1
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:5 12 Manager Name
+2 17
+"PRIMITIVE_TEXT6"
+""
+1 90 650 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 324 644.409090909091 454 664.409090909091
+0 2 2 "0s" 0 0 0 64 0 0  324 644.409090909091 1
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:5 13 Manager State
+25 21
+"sysNoFilter"
+""
+1 20 660 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+0
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 658 152 732
+EE 0 0 1 2 0 "sysNo" 1 1 0 "s" 1
+LANG:5 2 #1
+E
+1
+LANG:5 0 
+
+24 "sysName" 5 1 0 "s" 1
+LANG:5 2 #2
+E
+1
+LANG:5 0 
+
+72 
+14 14 10 10
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 0 7
+1 0
+25 22
+"manNameFilter"
+""
+1 170 660 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+0
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 658 302 732
+EE 0 0 1 1 0 "manName" 8 1 0 "s" 1
+LANG:5 2 #1
+E
+1
+LANG:5 0 
+
+99 
+14 14 10 10
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 0 7
+1 0
+25 23
+"manStateFilter"
+""
+1 320 660 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+0
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 318 658 422 732
+EE 0 0 1 2 0 "stateNo" 1 1 0 "s" 1
+LANG:5 2 #1
+E
+1
+LANG:5 0 
+
+24 "stateDesc" 5 1 0 "s" 1
+LANG:5 2 #2
+E
+1
+LANG:5 0 
+
+72 
+14 14 10 10
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 0 7
+1 0
+30 24
+"FRAME1"
+""
+1 10 623 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+24 0 0 0 0 0
+E E E
+1
+1
+LANG:5 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.885245901639344 0 1 1.14754098360656 0 0 E 10 623 621 741
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:5 7 Filters
+0
+LAYER, 1 
+1
+LANG:5 0 
+0
+LAYER, 2 
+1
+LANG:5 0 
+0
+LAYER, 3 
+1
+LANG:5 0 
+0
+LAYER, 4 
+1
+LANG:5 0 
+0
+LAYER, 5 
+1
+LANG:5 0 
+0
+LAYER, 6 
+1
+LANG:5 0 
+0
+LAYER, 7 
+1
+LANG:5 0 
+0
+0

@@ -1,0 +1,239 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 292 259 N "_3DFace" 0
+"main()
+{
+  dyn_string dps = dpNames(\"*:_RDBArchive\");
+  
+  string sys; dyn_string exc; int selectedPos;
+  for (int i=1; i<= dynlen(dps); i++) {
+      fwGeneral_getSystemName(dps[i], sys, exc);
+      cbSys.appendItem(sys);
+      if (sys == getSystemName()) selectedPos = i;
+  }
+  
+  cbSys.selectedPos = selectedPos;
+  
+
+  
+}" 0
+ E E E E 1 -1 -1 0  70 90
+""0  1
+E "/*
+ Creates a SQL file to run in the condition db to update the aliases table for a given system 
+  */
+string CMSfwInstallUtils_saveSqlAliases(string sysName = \"\") {
+  dyn_string dps, aliases;
+  if (strlen(sysName) == 0) sysName = getSystemName();
+  sysName = strrtrim(sysName, \":\") + \":\";
+  dpGetAllAliases(dps, aliases, \"*/*\",sysName+ \"*.\");
+
+  string host, user, pwd;
+  dpGet(sysName + \"_RDBArchive.db.user\", user);
+  
+   string sql= \"--- connect to \" + user + \" and run this script to update the aliases\\n\";
+   sql+= \"---script generated at \" + formatTime(\"%c\",getCurrentTime()) + \"\\n\\n\";
+   
+
+  dyn_string dpsAdded;
+  for (int i=1; i<= dynlen(dps); i++) {   
+    if (dpTypeName(dps[i]) == \"FwNode\") continue;
+    strreplace(dps[i], \"\\\\\",\"\\\\\\\\\");
+    strreplace(aliases[i], \"\\\\\",\"\\\\\\\\\");
+    sql += \"call recordAliasChange('\" + dps[i] + \"','\" + aliases[i] + \"');\\n\";
+    
+  }
+  sql+=\"commit;\\n\";
+  
+  string fn = PROJ_PATH + DATA_REL_PATH + \"aliases_\" + strrtrim(sysName, \":\") + \"_\" +  formatTime(\"%Y%m%d_%H%M\",getCurrentTime()) + \".sql\";
+  file f = fopen(fn, \"w\");
+  fputs(sql, f);
+  
+  fclose(f);
+
+   DebugN(fn);
+    return fn;
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"PUSH_BUTTON1"
+""
+1 70 110 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  68 108 242 162
+
+T 
+1
+LANG:1 15 Create SQL File
+"main()
+{
+  txtFileName.text = CMSfwInstallUtils_saveSqlAliases(cbSys.selectedText);
+}" 0
+ E E E
+22 1
+"cbSys"
+""
+1 60 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  58 48 252 72
+0
+
+E
+E
+E
+ 0 0
+14 2
+"txtFileName"
+""
+1 40 190 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  38 188 262 211
+2 "0s" 0 0 0 0 0 -1  E E E
+2 3
+"PRIMITIVE_TEXT1"
+""
+1 60 29 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1.021621621621622 0 8.567567567567568 0 E 60 20 250 40
+0 2 2 "0s" 0 0 0 64 0 0  60 20 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Select System
+2 4
+"PRIMITIVE_TEXT2"
+""
+1 42 172.0432432432432 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1.021621621621622 -18 151.6108108108108 0 E 60 20 250 40
+0 2 2 "0s" 0 0 0 64 0 0  60 20 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 File Name Created
+2 5
+"PRIMITIVE_TEXT3"
+""
+1 12 2 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 12 2 572 42
+0 2 2 "0s" 0 0 0 64 0 0  12 2 1
+1
+LANG:1 35 MS Shell Dlg 2,12,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 24 Save Aliases to SQL File
+13 6
+"PUSH_BUTTON2"
+""
+1 90 220 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  88 218 212 245
+
+T 
+1
+LANG:1 4 open
+"main()
+{
+  system(txtFileName.text);
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

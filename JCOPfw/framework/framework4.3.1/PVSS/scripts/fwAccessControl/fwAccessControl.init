@@ -1,0 +1,102 @@
+main()
+{
+    float requiredCtrlLdapVersion=1.01; // i.e. "1.1"
+    CheckInstallCtrlLDAP(requiredCtrlLdapVersion);
+    CheckDisableCtrlLDAPinConfig();
+}
+
+
+/** Copies the appropriate version of the CtrlLDAP_xxx.dll to CtrlLDAP.dll
+*/
+void CheckInstallCtrlLDAP(float requiredCtrlLdapVersion)
+{
+    if (!isFunctionDefined("fwInstallation_copyFile")) {
+	DebugN("ERROR in fwAccessControl.init -> fwInstallation_copyFile() function not available - installation tool is out of date");
+	DebugN(" to complete the installation you need to copy the appropriate versions of CtrlLDAP.so/.dll to your components' bin/ dir");
+	return;
+    }
+
+
+    // find out where do we get installed...
+    string installPath;
+    dyn_dyn_string componentsInfo;
+    int rc=fwInstallation_getInstalledComponents(componentsInfo);
+    if (rc==-1) {
+	DebugN("ERROR in fwAccessControl.init -> InstallCtrlLDAP: cannot get installed components");
+	return;
+    }
+
+    for (int i=1;i<=dynlen(componentsInfo);i++) {
+	if (componentsInfo[i][1]=="fwAccessControl") {
+	    installPath=componentsInfo[i][3];
+	    break;
+	};
+    }
+    
+    if (installPath=="") {
+	// last resort - try the fwInstallationInfo...
+	dpGet("fwInstallationInfo.installationDirectoryPath",installPath);
+	if (installPath=="") {
+	    DebugN("ERROR in fwAccessControl.init -> InstallCtrlLDAP: cannot get installation path");
+	    return;
+	}
+    }
+
+    string srcFileNameTempl="CtrlLDAP_"+VERSION;
+    string dstFileNameTempl="CtrlLDAP";
+
+    
+    srcFileNameTempl=installPath+"/bin/fwAccessControl/"+srcFileNameTempl;
+    dstFileNameTempl=installPath+"/bin/"+dstFileNameTempl;
+    strreplace(srcFileNameTempl,"//","/");
+    strreplace(dstFileNameTempl,"//","/");
+
+    // do it for both platforms, so that we could have a common components filesystem (UNICOS)
+    dyn_string extensions=makeDynString(".so",".dll");
+    for (int i=1;i<=dynlen(extensions);i++) {
+	string srcFileName=srcFileNameTempl+extensions[i];
+	string dstFileName=dstFileNameTempl+extensions[i];
+	DebugN("INFO: fwAccessControl.init","copyFile "+srcFileName+" "+dstFileName);
+
+
+//////   WORKAROUND for crashing UI during installation on Linux; to be resolved in fwInstallation-5.0.6
+    if (fwInstallation_checkToolVersion("5.0.6") < 1) {
+	if (_UNIX) {
+	    // check if the dstFile exists, and remove it in appropriate way, not crashing the UIs
+	    rc=access(dstFileName,F_OK);
+	    if (rc==0) {
+		DebugN("INFO: fwAccessControl.init, activating workaround for fwInstallation < 5.0.6","while copying file we found the destination already exists. Unlinking it first",dstFileName);
+		system("unlink "+dstFileName);
+	    }
+	}
+    }
+/////////// END OF WORKAROUND
+
+	rc=fwInstallation_copyFile(srcFileName, dstFileName);
+	if (rc!=0) {
+	    DebugN("WARNING: fwAccessControl.init: The installation of CtrlLDAP"+extensions[i]+" in the bin/ directory of your project has failed");
+	    DebugN("You need to copy the version corresponding to your PVSS installation into bin/CtrlLDAP"+extensions[i]+" in components dir");
+	}
+    }
+
+    // clean up the bin/ folder from previous versions...
+    dyn_string toCleanup=getFileNames(installPath+"/bin/","CtrlLDAP_?.?.*");
+    for (int i=1;i<=dynlen(toCleanup);i++){
+	string toRemove=installPath+"/bin/"+toCleanup[i];
+        DebugN("INFO: fwAccessControl.init(): Cleanup -> removing:",toRemove);
+        remove(toRemove);
+    }
+
+}
+
+void CheckDisableCtrlLDAPinConfig()
+{
+    // check if CtrlLDAP is currently being loaded from config...
+    // if not, we need to delete it from the config file...
+    if (isFunctionDefined("ldapGetVersion")) return;
+    DebugTN("INFO: fwAccessControl.init(): Disabling the loading of CtrlLDAP in the config file");
+    string configfile=getPath(CONFIG_REL_PATH,"config");
+    paCfgDeleteValue(configfile,"ui","CtrlDLL","CtrlLDAP");
+    paCfgDeleteValue(configfile,"ctrl","CtrlDLL","CtrlLDAP");
+
+}

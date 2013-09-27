@@ -1,0 +1,1737 @@
+V 10
+1
+LANG:1 11 RDB Mapping
+PANEL,-1 -1 801 533 N "_3DFace" 4
+"$sDBName"
+"$sDpe"
+"$sPassword"
+"$sUser"
+"void checkDollarParameters() {
+	bool singleDpe;
+	int length, i, elementType;
+	string dpe=\"\", name;
+	dyn_string exceptionInfo;
+	
+	bool isArchived, isConfigured;
+	int smoothType, smoothProcedure, typeCorrection, pos, archiveClassType;
+	float deadband, timeInterval;
+	string archiveClass, errorString, archiveClassName;
+	dyn_string systems, archiveClassDpList, archiveClasses, rdbArchiveClasses, archiveClassDpName, rdbArchiveClassDpName, ds;
+	shape optionsList;
+	string sArchiveClassDpName;
+	dyn_int di;
+	int dpeIndex;
+	dpeDefined=isDollarDefined(\"$sDpe\");
+	if(dpeDefined)
+	{
+		//DebugN($sDpe);
+		dpe = $sDpe;
+		strreplace(dpe, \" \", \"\");
+	    DPE_LIST = strsplit(dpe, \"|\");
+		}
+  
+   //you can only select your own DPE if the panel was opened standalone
+		dpField.editable(!dpeDefined);
+		//and adding the select button makes things more complicated for no really good reason.
+		dpSelectButton.visible(!dpeDefined);
+		archiveConfiguration.visible(!dpeDefined); //if the DPE is defined, then we are probably opening this panel from an archive configuration window, so there is no need to open another archive configuration window.
+		delete.visible(!dpeDefined);
+		deleteAll.visible(dpeDefined);
+	//these buttons are for adding/updating single datapoints as selected in the list
+	update.visible=!dpeDefined;
+	Add.visible=!dpeDefined;
+	AddOrUpdate.visible=dpeDefined;
+	autocreate.visible=!dpeDefined; //when adding or updating multiple datapoints, what constitutes an 'add' to create a new table on? Anyhow when people open the panel with DPEs selected, they are unlikely to create more than one table.
+	length = dynlen(DPE_LIST);
+	switch(length)
+	{
+			case 0:
+					enableButtons(); //check what this will do in this situation
+					if (dpeDefined) {
+						dpField.text(\"No Data Point Elements\");
+						fwException_raise(exceptionInfo, \"WARNING\", getCatStr(\"fwConfigs\", \"PANEL_NODATAPOINTSTOCONFIG\"), \"\");
+						fwExceptionHandling_display(exceptionInfo);
+						return;
+					} else dpField.text=\"\";
+				break;				
+			case 1:		// single dpe passed to the panel
+				//panelMode = SINGLE_DPE;
+				dpe = dpSubStr(DPE_LIST[1],DPSUB_DP_EL);
+				dpField.text(dpe);
+				
+				_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+				break;
+			
+			default:	// multiple dpes passed to the panel
+				//panelMode = MULTIPLE_DPES;
+				dpe = DPE_LIST[1];
+				
+				_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+				
+				if(dynlen(systems) == 1)
+					dpField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					dpField.text(\"Multiple Data Point Elements (from multiple systems)\");
+	}
+	
+	exceptionInfo = makeDynString();
+	for (dpeIndex=1;dpeIndex<=length;dpeIndex++) {
+		DPE_LIST[dpeIndex]=dpSubStr(DPE_LIST[dpeIndex],DPSUB_DP_EL); //remove system names as mappings are system-independent. This is okay since there won't be any aliases in the list
+	}
+	if(openConnection()){
+		if (dpeDefined) displayExistingMapping();
+		refreshTable();
+		closeConnection();
+		displayWarning(\"\");
+		if (!dpeDefined) refreshDPCombo();
+	}
+}
+
+main() {
+	mapTable.tableMode(TABLE_SELECT_BROWSE);
+	mapTable.selectByClick(TABLE_SELECT_LINE);
+	checkDollarParameters();
+	enableButtons();
+}" 0
+ E E E E 1 -1 -1 0  10 21
+""0  1
+E "//functions dealing with which DB is set up for the archiving
+#uses \"CtrlPv2Admin\" 
+#uses \"fwRDBArchiving/fwRDBConfig.ctl\"
+
+dyn_string DPE_LIST;
+bool dpeDefined;
+const int timeFormatTimestamp=0;
+const int timeFormatMicroseconds=1;
+
+string getRDBSetting(string dpe) {	
+	string dpName=\"_RDBArchive.db.\"+dpe;
+	string value;
+	if (dpExists(dpName)) dpGet(dpName,value);
+	return value;
+}
+
+//argh, we're setting a setting, if only I could think of a better name... luckily this is a private function.
+void setRDBSetting(string dpe,string newValue) {
+	//we have to set the same values in both _RDBArchive dps.
+	//The actual _RDBArchive dp names depend on the setup, but _RDBArchive and _RDBArchive_2 are the defaults.	
+	string dpName=\"_RDBArchive.db.\"+dpe; 
+	string dpName2=\"_RDBArchive_2.db.\"+dpe;
+	if (dpExists(dpName)) dpSet(dpName,newValue);
+	if (dpExists(dpName2)) dpSet(dpName2,newValue);
+}
+
+const string hostDPE=\"host\";
+const string userDPE=\"user\";
+
+string getRDBHost() {
+	return getRDBSetting(hostDPE);
+}
+
+/*
+Sets the value of the key in section sectionName of the config file to value.
+If there already is an entry for that key, it will be changed. Otherwise, one will be added.
+If the section does not exist, it will be added.
+If there is more than one entry for that key, they will all be changed... but you would usually
+use this function for the sort of key which can only have one value (otherwise you could use paCfgInsertValue)
+returns 0 - \"success\"  -1 - error
+*/
+int setConfigValue(string sectionName,string key,string value) {
+	dyn_string section;
+	int entryIndex;
+	dyn_string entry;
+	bool entryExists=false;
+	string newEntry=key+\" = \\\"\"+value+\"\\\"\";
+	int getSectionError=fwInstallation_getSection(sectionName,section);
+	if (getSectionError==0) {
+		for (entryIndex=1;entryIndex<=dynlen(section);entryIndex++) {
+			entry=strsplit(section[entryIndex],\"=\");
+			if (strtolower(strrtrim(strltrim(entry[1])))==strtolower(key)) {
+				section[entryIndex]=newEntry;
+				entryExists=true;
+			}
+		}
+	}
+	if (!entryExists) dynAppend(section,newEntry);
+	return fwInstallation_setSection(sectionName,section);
+}
+
+
+void setRDBHost(string newHost) {
+	setRDBSetting(hostDPE,newHost);
+	setConfigValue(\"ValueArchiveRDB\",\"db\", newHost);
+}
+
+string getRDBUser() {
+	return getRDBSetting(userDPE);
+}
+
+string getConfigFilePath() {
+	return getPath(CONFIG_REL_PATH) + \"config\";
+}
+
+void setRDBUser(string newUser) {
+	setRDBSetting(userDPE,newUser);
+	setConfigValue(\"ValueArchiveRDB\", \"Dbuser\", newUser);
+}
+
+void checkForRDBSettingsChange() {
+	//If they are now editing the mappings for a database other than the one that the RDB archiver is using, enable the button
+	//to change the one used by the RDB archiver to the one they're editing. Perhaps it should display a warning as well.
+	SetasArchiveRDB.enabled=(txtUser.text!=getRDBUser() || txtdbName.text!=getRDBHost());
+}
+
+//Basic database access functions
+dbConnection	conGeneral;
+
+int connectionsOpen=0; //a 'retain count' for the connection, so that it's okay to call openConnection when the connection is already open (this was so I could call displayMappingAtRow from refreshTable, without making loadColumnCombos require the connection to be already open
+
+//opens a connection to a database using the information entered on the panel.
+//This must be balanced with a call to closeConnection.
+bool openConnection() {
+	if (connectionsOpen || fwRDBConfig_openConnection($sDBName,$sUser,$sPassword)) {
+		connectionsOpen++;
+		return true;
+	}
+	return false;
+}
+
+//closes the connection opened by openConnection
+void closeConnection() {
+	//DebugN(\"Closing connection\");
+	if (connectionsOpen) {
+		connectionsOpen--;
+		if (connectionsOpen==0) rdbCloseConnection(conGeneral);
+	} else DebugN(\"Attempted to close a connection that was not open.\");
+}
+
+//Interface functions
+const string ARCHIVING_COLUMN_NAME=\"Archiving\";
+
+//displays the string on the warnings area on the panel.
+void displayWarning(string warning) {
+	warnings.text=warning;
+}
+
+void addToCombo(string comboName,string item) {
+		dyn_string items;
+		if (item) {
+			getValue(comboName,\"items\",items); //this one has to be called using getValue
+			if (!dynContains(items,item)) setValue(comboName,\"appendItem\",item);
+		}
+}
+
+//adds the string table to the list of available tables in the table name combo, if it is not in there already
+void addToTableList(string table) {
+		addToCombo(\"table\",table);
+}
+
+//adds the string table to the list of available functions in the DPE Name transform function combo, if it is not in there already
+void addToFunctionList(string table) {
+		addToCombo(\"DPETransformFunction\",table);
+}
+
+//returns the DPE name of the selected row in the table, or an empty string if there is no selected row.
+string selectedDPE() {
+	dyn_int selectedRows=mapTable.getSelectedLines();
+	string selectedDPE=\"\";
+	if (dynlen(selectedRows)) getValue(\"mapTable\",\"cellValueRC\",selectedRows[1], \"DPE\" ,selectedDPE);
+	return selectedDPE;
+}
+
+void enableButtons() {
+	bool isMappingSelected=dynlen(DPE_LIST)>0;//(bool)selectedDPE();
+	delete.enabled=isMappingSelected;
+	update.enabled=isMappingSelected;
+}
+
+bool validateEntry() {
+	if (strlen(dpField.text())) {
+		if (strlen(table.text())) {
+			if (strlen(column.text)) {
+				if (strlen(date.text)) {
+					return true;
+				} else displayWarning(\"Please enter a date column name.\");
+			} else displayWarning(\"Please enter a value column name.\");
+		} else displayWarning(\"Please enter a table name.\");
+	} else displayWarning(\"Please enter a DPE.\");
+	return false;
+}
+
+//returns a WHERE clause which limits a select or other statement to only select rows with the DPE in DPE_LIST (or all DPs if dpSelected is false)
+string whereClause(bool in=true) {
+	//it would be nice if this could use bind variables
+	//supposedly somebody worked out a way to do it using CAST() and object types but I can't find it on his website.
+	string sSQL=\"\";
+	if (dpeDefined) {
+		int dpeCount=dynlen(DPE_LIST);
+		if (dpeCount) {
+			int dpeIndex;
+			sSQL+=\" WHERE DPE\";
+			if (!in) sSQL+=\" NOT\";
+			sSQL+=\" IN (\";
+			for (dpeIndex=1;dpeIndex<=dpeCount;dpeIndex++) {
+				string dpe=DPE_LIST[dpeIndex];
+				string alias=dpGetAlias(dpe);
+				if (dpeIndex!=1) sSQL+=\",\";
+				sSQL+=quoted(dpSubStr(dpe,DPSUB_DP_EL));
+				if (strlen(alias)) sSQL+=\",\"+quoted(alias);
+			}
+			sSQL+=\")\";
+		}
+	}
+	return sSQL;
+}
+
+//gets the latest values from the MAP table in the database and displays them in mapTable
+//assumes the database connection has already been opened.
+void refreshTable() {
+	anytype 			DPEName;
+	anytype			tableName;
+	anytype			valueColumn;
+	anytype			statusColumn;
+	anytype			nameColumn;
+	anytype			warning;
+        string                  warningString;
+	anytype			positionColumn;
+	anytype			DPETransform;
+	anytype			dateColumn;
+	anytype			dateFormat;
+	dyn_string tables;
+	int				fieldIndex=0;
+	string sSQL = \"SELECT DPE, TABLE_NAME, COLUMN_NAME, DATE_COLUMN, STATUS_COLUMN, DPE_NAME_COLUMN,DPE_NAME_TRANSFORM,DATE_FORMAT,mappingError(rowid),columnExistsInTable('POSITION',TABLE_NAME) FROM MAP\"+whereClause();
+	//this is another way to find out whether each table has a position column, which could theoretically be faster since
+	//it doesn't have to do a seperate query for each row, but it was in fact slightly slower when I tried and there probably
+	//won't be enough data for it to matter.
+	/*string sSQL =\"SELECT DPE, MAP.TABLE_NAME, MAP.COLUMN_NAME, STATUS_COLUMN, DPE_NAME_COLUMN,rowError(MAP.rowid),USER_TAB_COLUMNS.column_name \"
+							\"FROM MAP left outer join USER_TAB_COLUMNS \"
+							\"on USER_TAB_COLUMNS.table_name=upper(map.table_name) and USER_TAB_COLUMNS.column_name='POSITION'\";
+*/
+	DebugN(sSQL);
+	dyn_dyn_mixed data;
+	mapping bindVariables;
+	runSelectCommand(sSQL,data,bindVariables,false) ;
+	mapTable.deleteAllLines();
+	int rowCount=dynlen(data);
+	int rowIndex;
+	for (rowIndex=1;rowIndex<=rowCount;rowIndex++) {
+		fieldIndex=1;
+		DPEName=		data[rowIndex][fieldIndex++];
+		tableName=	data[rowIndex][fieldIndex++];
+		valueColumn=	data[rowIndex][fieldIndex++];
+		dateColumn=	data[rowIndex][fieldIndex++];
+		statusColumn=	data[rowIndex][fieldIndex++];
+		nameColumn=	data[rowIndex][fieldIndex++];
+		DPETransform=	data[rowIndex][fieldIndex++];
+		dateFormat=	data[rowIndex][fieldIndex++];
+		warning=	data[rowIndex][fieldIndex++];
+		positionColumn=	data[rowIndex][fieldIndex++];
+                if (getType(warning)==STRING_VAR) {
+                  warningString=warning;
+                  } else {
+                    DebugN(\"warning is of type \"+getType(warning));
+                    warningString=warning;
+                    if (strlen(warningString)==0) warningString=\"Warning could not be read\";
+                  }
+		if (!strlen(warningString) && DPEIsArray(DPEName)) {
+			if (!positionColumn) warningString=\"The DPE is an array but the table '\"+tableName+\"' does not have a 'POSITION' column.\";
+		}
+		mapTable.appendLine(ARCHIVING_COLUMN_NAME,archivingStatus(DPEName),\"DPE\",DPEName,\"Table\",tableName,\"Value\",valueColumn,\"Date\",dateColumn,\"Status\",statusColumn,\"Name\",nameColumn,\"Transform\",DPETransform,\"Date format\",dateFormat,\"Warnings\",warningString,0,strlen(warningString)?1:0);
+		 			
+		addToTableList(tableName);
+		addToFunctionList(DPETransform);
+	}
+	if (dpeDefined) {
+		int dpIndex=0;
+		int dpCount=dynlen(DPE_LIST);
+		for (dpIndex=1;dpIndex<=dpCount;dpIndex++) {
+			DPEName=DPE_LIST[dpIndex];
+			if (!mappingExistsForDPEOrAliasCached(DPEName)) {
+				warningString=\"There is no mapping defined for \"+DPEName;
+				mapTable.appendLine(ARCHIVING_COLUMN_NAME,archivingStatus(DPEName),\"DPE\",DPEName,\"Table\",\"\",\"Value\",\"\",\"Date\",\"\",\"Status\",\"\",\"Name\",\"\",\"Transform\",\"\",\"Date format\",\"\",\"Warnings\",warningString,0,strlen(warningString)?1:0);
+			}
+		}
+	}
+	
+	enableButtons();
+	/*if (dynlen(DPE_LIST)==1) { //if there is only one DPE, load it into the fields, and there is no need to show the table.
+		mapTable.selectLineN(0);
+		mapTable.visible(false);
+		displayMappingAtRow(0);
+	}*/
+}
+
+//returns whether there is a mapping in the table for this DPE.
+//assumes the database connection is already open
+//originally this just looked through the table on-screen but that wouldn't work if they had only just opened the panel
+bool mappingExistsForDPE(string dpName) {
+	dyn_dyn_mixed data;
+	mapping bindVariables;
+	bindVariables[\"dpename\"]=dpName;
+	runSelectCommand(\"SELECT count(*) FROM MAP WHERE DPE=:dpename\",data,bindVariables,false) ;
+	DebugN(data);
+	return data[1][1]>0;
+}
+
+//returns whether there is a mapping in the table for this DPE or its alias.
+//assumes the information has already been loaded into mapTable
+//does not access the database.
+bool mappingExistsForDPEOrAliasCached(string dpName) {
+	int lineCount=mapTable.lineCount;
+	int lineIndex;
+	string alias=dpGetAlias(dpName);
+	string thisDPE;
+	for (lineIndex=0;lineIndex<lineCount;lineIndex++) {
+		getValue(\"mapTable\",\"cellValueRC\",lineIndex, \"DPE\" ,thisDPE);
+		if (thisDPE==alias || thisDPE==dpSubStr(dpName,DPSUB_DP_EL)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+string currentDPETransformFunction() {
+	if (transformDPE.state(0)) return DPETransformFunction.text;
+	return \"\";
+}
+
+int dateFormat() {
+	return dateformat.number;
+}
+
+string dateColumn() {
+	/*if (strlen(date.text))*/ return strtoupper(date.text);
+	//return 'CHANGE_DATE';
+}
+
+void insertMappingForDPE(string dpe) {
+		mapping bindVariables;
+		bindVariables[\"dpe\"]=dpe;
+		bindVariables[\"tablename\"]=table.text;
+		bindVariables[\"columnname\"]=column.text;
+		bindVariables[\"status\"]=status.text;
+		bindVariables[\"dpename\"]=dpename.text;
+		bindVariables[\"transform\"]=currentDPETransformFunction();
+		bindVariables[\"datecolumn\"]=dateColumn();
+		bindVariables[\"dateformat\"]=dateFormat();
+		string sSQL = \"INSERT INTO MAP (DPE,TABLE_NAME,COLUMN_NAME,STATUS_COLUMN,DPE_NAME_COLUMN,DPE_NAME_TRANSFORM,DATE_COLUMN,DATE_FORMAT) values (:dpe,:tablename,:columnname,:status,:dpename,:transform,:datecolumn,:dateformat)\";
+		executeSQLCommand(sSQL,bindVariables);
+}
+
+//adds the information on the panel as a new entry in the MAP table.
+//assumes the database connection has already been opened.
+void addEntry() {
+	if (validateEntry()) {
+		insertMappingForDPE(dpField.text());
+		refreshTable();
+		dyn_string unused;
+		writeIntoAliasTableIfNecessary(dpField.text,unused);
+		deleteCurrentItemFromDPField(); //now it has a mapping, so it doesn't need to be in the combo any more. This should be more efficient than calling refreshDPNames and querying the DB a whole lot.
+		if (mappingExistsForDPEOrAliasCached(dpField.text)) {
+			displayWarning(\"Mapping added for \"+dpField.text); //it's not really a warning... perhaps I should rename the function
+		} else {
+			displayWarning(\"An unknown error occurred while adding the mapping. Check the log for details.\");
+		}
+	}
+}
+
+void updateMapping(string DPE) {
+	updateMappings(\"WHERE DPE=\"+quoted(DPE));
+	refreshTable();
+}
+
+void updateMappings(string whereClause) {
+	mapping bindVariables;
+		bindVariables[\"tablename\"]=table.text;
+		bindVariables[\"columnname\"]=column.text;
+		bindVariables[\"status\"]=status.text;
+		bindVariables[\"dpename\"]=dpename.text;
+		bindVariables[\"transform\"]=currentDPETransformFunction();
+		bindVariables[\"datecolumn\"]=dateColumn();
+		bindVariables[\"dateformat\"]=dateFormat();
+	string sSQL = \"UPDATE MAP SET TABLE_NAME=:tablename,COLUMN_NAME=:columnname\"+
+									\",STATUS_COLUMN=:status,DPE_NAME_COLUMN=:dpename\"+
+									\",DPE_NAME_TRANSFORM=:transform\"+
+									\",DATE_COLUMN=:datecolumn\"+
+									\",DATE_FORMAT=:dateformat \"+whereClause;
+	executeSQLCommand(sSQL,bindVariables);
+}
+
+//updates or adds mappings for all selected DPEs to the values currently entered into the panel.
+//assumes database connection has already been opened.
+void updateOrAddMappings() {
+	updateMappings(whereClause());
+	int dpeIndex;
+	int dpeCount=dynlen(DPE_LIST);
+	for (dpeIndex=1;dpeIndex<=dpeCount;dpeIndex++) {
+		if (!mappingExistsForDPE(DPE_LIST[dpeIndex])) {
+			insertMappingForDPE(DPE_LIST[dpeIndex]);
+		}
+	}
+	
+	refreshTable();
+	//find out if any of the dpes still don't have the correct mappings
+	string sSQL=\"SELECT DPE FROM MAP\"+whereClause()+
+		\" and not (TABLE_NAME=:tablename and COLUMN_NAME=:valuecolumn\"+
+		\" and STATUS_COLUMN=:status\"+
+		\" and DPE_NAME_COLUMN=:dpename and DPE_NAME_TRANSFORM=:dpetransform and DATE_COLUMN=:datecolumn\"+
+		\" and DATE_FORMAT=:dateformat)\";
+		//quoted(table.text)+\",\"+quoted(column.text)+\",\"+quoted(status.text)+\",\"+quoted(dpename.text)+\",\"+quoted(currentDPETransformFunction())+\",\"+quoted(dateColumn())+\",\"+dateFormat()+\")\";
+		mapping bindVariables;
+		dyn_dyn_mixed data;
+		bindVariables[\"tablename\"]=table.text;
+		bindVariables[\"valuecolumn\"]=column.text;
+		bindVariables[\"status\"]=status.text;
+		bindVariables[\"dpename\"]=dpename.text;
+		bindVariables[\"dpetransform\"]=currentDPETransformFunction();
+		bindVariables[\"datecolumn\"]=dateColumn();
+		bindVariables[\"dateformat\"]=dateFormat();
+		runSelectCommand(sSQL,data,bindVariables);
+		if (dynlen(data) && dynlen(data[1])) {
+		displayWarning(\"Some mappings could not be changed. See the log for details.\");
+		DebugN(\"Mappings for the following DPEs were not successfully updated.\");
+		DebugN(data[1]);
+	} else displayWarning(\"\");
+}
+
+//returns whether the DPE or alias at dpe is an array type
+//false if the DPE does not exist or is a DP rather than a DPE.
+bool DPEIsArray(string dpe) {
+	int elementType=-1;
+	string resolvedDPE=resolveAlias(dpe);
+	if (dpExists(resolvedDPE)) {
+		if (dpSubStr(resolvedDPE,DPSUB_DP_EL)!=dpSubStr(resolvedDPE,DPSUB_DP)) { //if it's an element and not just a DP
+			 elementType=dpElementType(resolvedDPE);
+		}
+	}
+	switch (elementType) {
+		case DPEL_DYN_BIT32:
+		case DPEL_DYN_BIT32_STRUCT:
+		case DPEL_DYN_BLOB:
+		case DPEL_DYN_BLOB_STRUCT:
+		case DPEL_DYN_BOOL:
+		case DPEL_DYN_BOOL_STRUCT:
+		case DPEL_DYN_CHAR:
+		case DPEL_DYN_CHAR_STRUCT:
+		case DPEL_DYN_DPID:
+		case DPEL_DYN_DPID_STRUCT:
+		case DPEL_DYN_FLOAT:
+		case DPEL_DYN_FLOAT_STRUCT:
+		case DPEL_DYN_INT:
+		case DPEL_DYN_INT_STRUCT:
+		case DPEL_DYN_LANGSTRING:
+		case DPEL_DYN_LANGSTRING_STRUCT:
+		case DPEL_DYN_STRING:
+		case DPEL_DYN_STRING_STRUCT:
+		case DPEL_DYN_TIME:
+		case DPEL_DYN_TIME_STRUCT:
+		case DPEL_DYN_UINT:
+		case DPEL_DYN_UINT_STRUCT:
+			return true;
+		default:
+			return false;
+		}
+}
+
+string columnTypeForDateFormat() {
+	if (dateFormat()==timeFormatMicroseconds) return \"NUMBER\";//\"BINARY_DOUBLE\";
+	return \"TIMESTAMP(6)\";
+}
+
+//creates a table with the columns specified on the panel
+//assumes the database connection has already been opened.
+void createTable() {
+	string sCreateStatement=\"CREATE TABLE \\\"\"+strtoupper(table.text())+\"\\\" (\\\"\"+dateColumn()+\"\\\" \"+columnTypeForDateFormat()+\",\\\"\"+strtoupper(column.text)+\"\\\"  VARCHAR2(4000),\";
+	if (strlen(status.text)) sCreateStatement+=\"\\\"\"+strtoupper(status.text)+\"\\\" number,\";
+	if (strlen(dpename.text)) sCreateStatement+=\"\\\"\"+strtoupper(dpename.text)+\"\\\" varchar2(4000),\";
+	if (indexColumn.state(0)) sCreateStatement+=\"\\\"POSITION\\\" number default 0,\"; //default 0 is so that a table made for arrays can also be used for single values.
+	sCreateStatement+=\"PRIMARY KEY (\\\"\"+dateColumn()+\"\\\"\";
+	if (indexColumn.state(0)) sCreateStatement+=\",POSITION\";
+	sCreateStatement+=\"))\";
+	mapping bindVariables;
+	executeSQLCommand(sCreateStatement,bindVariables);
+	refreshTable();
+}
+
+//functions dealing with the actual archiving of the DPEs
+string RDBArchiveClass() {
+	return getSystemName()+\"_EVENT\";
+}
+
+void turnOnArchiving(string dpName) {
+	string resolved=resolveAlias(dpName);
+	if (dpExists(resolved)) {
+		string configName=resolved+\":_archive.\";
+		dpSetWait(
+			configName+\"._type\", DPCONFIG_DB_ARCHIVEINFO,
+	 		configName+\"._archive\", TRUE,
+	 		configName+\"1._type\", DPATTR_ARCH_PROC_VALARCH,
+	 		configName+\"1._class\", RDBArchiveClass()
+	 	);
+ 	}
+}
+
+void turnOffArchiving(string dpName) {
+	dpSetWait(resolveAlias(dpName)+\":_archive.._archive\", FALSE);
+}
+
+string archivingStatus(string dpName) {
+	string archivingStatus=\"UNKNOWN\";
+	dpName=resolveAlias(dpName);
+	if (dpExists(dpName)) {
+		if (dpExists(dpName+\":_archive.._archive\")) {
+			bool archivingOn;
+			dpGet(dpName+\":_archive.._archive\",archivingOn);
+			archivingStatus=archivingOn?\"ON\":\"OFF\";
+			if (archivingOn) {
+				string class;
+				dpGet(dpName+\":_archive.1._class\",class);
+				if (class!=RDBArchiveClass()) archivingStatus=\"NOT RDB\";
+			}
+		}
+		else archivingStatus=\"OFF\";
+	}
+	return archivingStatus;
+}
+
+void addToDPCombo(string DPE) {
+	setValue(\"dpField\",\"appendItem\",dpSubStr(resolveAlias(DPE),DPSUB_DP_EL)); //we know there won't be two the same.
+}
+
+//fill the DP combo box with datapoints which have RDB archiving turned on but don't have mappings yet
+//assumes mappings have already been loaded into the table (does not access the database)
+void refreshDPCombo() {
+	dyn_string datapoints=dpNames(\"*.*:_archive.._archive\");
+	//dyn_string aliases;
+	
+	//if (dpGetAllAliases (datapoints, aliases,\"\",\"*\")) {
+		int DPIndex;
+		//DebugN(\"dps=\",datapoints);
+		//bool connected=openConnection(); //if valid login details have been entered, we can limit the DP list to ones which haven't already been mapped
+		for (DPIndex=1;DPIndex<=dynlen(datapoints);DPIndex++) {
+			string status=archivingStatus(dpSubStr(datapoints[DPIndex],DPSUB_SYS_DP_EL));
+			//if (status!=\"OFF\") DebugN(status,dpSubStr(datapoints[DPIndex],DPSUB_SYS_DP_EL));
+			if (status==\"ON\") {
+				//if (/*!connected ||*/ !mappingExistsForDPE(datapoints[DPIndex])) {
+				if (!mappingExistsForDPEOrAliasCached(datapoints[DPIndex])) {
+					addToDPCombo(datapoints[DPIndex]);
+				}
+			}
+		}
+		//if (connected) closeConnection();
+	//}
+}
+
+//puts the column names of the currently selected table into the column combo boxes
+//assumes a database connection is not open (will only connect to the database if the selected table has changed)
+string previousTable=\"\";
+void loadColumnCombos() {
+	dyn_string columnFields=makeDynString(\"column\",\"status\",\"dpename\",\"date\");
+	int numberOfFields=dynlen(columnFields);
+	int fieldIndex;
+	mapping oldValues;
+	if (previousTable!=table.text) {
+		for (fieldIndex=1;fieldIndex<=numberOfFields;fieldIndex++) {
+			getValue(columnFields[fieldIndex],\"text\",oldValues[columnFields[fieldIndex]]);
+			setValue(columnFields[fieldIndex],\"deleteAllItems\");
+		}
+		previousTable=table.text;
+		if (table.text) {
+			if (openConnection()) {
+				mapping bindVariables;
+				bindVariables[\"tablename\"]=strtoupper(table.text);
+				dyn_dyn_mixed data;
+				string sSQL = \"SELECT COLUMN_NAME FROM USER_TAB_COLUMNS WHERE TABLE_NAME=:tablename AND COLUMN_NAME NOT IN ('POSITION')\"; //uses 'in' because it used to also exclude CHANGE_DATE Perhaps it still should.
+				string columnName;
+				runSelectCommand(sSQL,data,bindVariables) ;
+				DebugN(sSQL);
+				int rowCount=0;
+				if (dynlen(data)) rowCount=dynlen(data[1]);
+				int rowIndex;
+				for (rowIndex=1;rowIndex<=rowCount;rowIndex++) {
+					columnName=data[1][rowIndex];
+					for (fieldIndex=1;fieldIndex<=numberOfFields;fieldIndex++) {
+						setValue(columnFields[fieldIndex],\"appendItem\",columnName);
+					}
+				}
+				closeConnection();
+			}
+		}
+		for (fieldIndex=1;fieldIndex<=numberOfFields;fieldIndex++) {
+			setValue(columnFields[fieldIndex],\"text\",oldValues[columnFields[fieldIndex]]);
+		}
+	}
+}
+
+void setPositionCheckbox() {
+ indexColumn.state(0)=DPEIsArray(dpField.text());
+}
+
+void deleteCurrentItemFromDPField() {
+	int selectedPos=dpField.selectedPos();
+	if (selectedPos!=-1) dpField.deletePos(selectedPos);
+}
+
+void enableTransformFields() {
+	bool DPENameStored=strlen(dpename.text)>0;
+	transformDPE.enabled=DPENameStored;
+	if (!DPENameStored) {
+		setValue(\"transformDPE\",\"state\",0,false);
+		DPETransformFunction.enabled=false;
+	}
+}
+
+void editArchiveConfiguration() {
+	ChildPanelOnCentralModal(	\"fwConfigs/fwArchiveConfig.pnl\",
+			     				\"Advanced Archive Configuration \",
+			      				makeDynString(	\"$sDpe:\"+ dpField.text,\"$bHierarchyBrowser:\" + FALSE));
+}
+
+bool standaloneMode() {
+	return !isDollarDefined(\"$sDpe\");
+}
+
+//displays the mapping at the specified row of the on-screen table in the fields
+displayMappingAtRow(int row) {
+	anytype cellValue;
+	bool transformDefined=false;
+	getValue(\"mapTable\",\"cellValueRC\",row, \"Table\" ,cellValue);
+	table.text=cellValue;
+	getValue(\"mapTable\",\"cellValueRC\",row, \"Value\" ,cellValue);
+	column.text=cellValue;
+	getValue(\"mapTable\",\"cellValueRC\",row, \"Status\" ,cellValue);
+	status.text=cellValue;
+	getValue(\"mapTable\",\"cellValueRC\",row, \"Date\" ,cellValue);
+	date.text=cellValue;
+	getValue(\"mapTable\",\"cellValueRC\",row, \"Name\" ,cellValue);
+	dpename.text=cellValue; 
+	loadColumnCombos();
+	getValue(\"mapTable\",\"cellValueRC\",row, \"Date format\" ,cellValue);
+	dateformat.number=cellValue;
+	getValue(\"mapTable\",\"cellValueRC\",row, \"Transform\" ,cellValue);
+	if (cellValue) transformDefined=strlen(cellValue)>0;
+	setValue (\"transformDPE\",\"state\",0, transformDefined);
+	DPETransformFunction.enabled=transformDefined;
+	enableTransformFields();
+	if (transformDefined) {
+		DPETransformFunction.text=cellValue;
+	} //otherwise leave the previous transform function there in case they want to enable it for subsequent DPs
+	getValue(\"mapTable\",\"cellValueRC\",row, \"Warnings\" ,cellValue);
+	displayWarning(cellValue);
+	setPositionCheckbox();
+	enableButtons();
+}
+
+//if all the selected datapoints have the same mapping, then it will be entered into the fields.
+displayExistingMapping() {
+		string sSQL = \"SELECT DISTINCT TABLE_NAME, COLUMN_NAME, DATE_COLUMN, STATUS_COLUMN, DPE_NAME_COLUMN,DPE_NAME_TRANSFORM,DATE_FORMAT FROM MAP\"+whereClause();
+		DebugN(sSQL);
+		dyn_dyn_mixed data;
+		mapping bindVariables;
+		runSelectCommand(sSQL,data,bindVariables,false);
+		int rowCount=dynlen(data);
+		int rowIndex;
+		if (rowCount==1) { //if there was only one distinct result
+		//for (rowIndex=1;rowIndex<=rowCount;rowIndex++) {
+			int fieldIndex=0;
+			anytype 		DPEName;
+			anytype		tableName;
+			anytype		valueColumn;
+			anytype		statusColumn;
+			anytype		nameColumn;
+			anytype		DPETransform;
+			anytype		dateColumn;
+			anytype		dateFormat;
+			tableName=	data[rowIndex][fieldIndex++];
+			valueColumn=	data[rowIndex][fieldIndex++];
+			dateColumn=	data[rowIndex][fieldIndex++];
+			statusColumn=	data[rowIndex][fieldIndex++];
+			nameColumn=	data[rowIndex][fieldIndex++];
+			DPETransform=	data[rowIndex][fieldIndex++];
+			dateFormat=	data[rowIndex][fieldIndex++];
+			bool transformDefined=false;
+			table.text=tableName;
+			column.text=valueColumn;
+			status.text=statusColumn;
+			date.text=dateColumn;
+			dpename.text=nameColumn; 
+			loadColumnCombos();
+			dateformat.number=dateFormat;
+			if (DPETransform) transformDefined=strlen(DPETransform)>0;
+			setValue (\"transformDPE\",\"state\",0, transformDefined);
+			DPETransformFunction.enabled=transformDefined;
+			enableTransformFields();
+			if (transformDefined) {
+				DPETransformFunction.text=DPETransform;
+			} //otherwise leave the previous transform function there in case they want to enable it for subsequent DPs
+			displayWarning(\"\");
+			setPositionCheckbox();
+			enableButtons();
+		}	
+
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 89
+"Text1"
+""
+1 81 11 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 83 13 82 29
+0 2 0 "0s" 0 0 0 64 0 0  83 13 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Text1
+2 90
+"Text3"
+""
+1 131 31 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 133 33 189 49
+0 2 0 "0s" 0 0 0 66 0 0  133 33 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 DPE
+2 92
+"Text4"
+""
+1 131 61 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 133 63 189 79
+0 2 0 "0s" 0 0 0 66 0 0  133 63 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Table
+2 94
+"Text5"
+""
+1 91 91 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 93 93 188 112
+0 2 0 "0s" 0 0 0 66 0 0  93 93 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Value Column
+2 95
+"Text8"
+""
+1 80 152 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 82 154 187 174
+0 2 0 "0s" 0 0 0 66 0 0  82 154 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 Status Column
+2 98
+"Text9"
+""
+1 55 181 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 57 183 189 202
+0 2 0 "0s" 0 0 0 66 0 0  57 183 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 DPE Name Column
+2 107
+"warnings"
+""
+1 16 228 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 18 230 788 260
+0 2 0 "0s" 0 0 0 64 0 0  18 230 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 120
+"Text11"
+""
+1 80 122 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 82 124 187 144
+0 2 0 "0s" 0 0 0 66 0 0  82 124 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Date Column
+2 126
+"Text12"
+""
+1 380 122 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 382 124 438 140
+0 2 0 "0s" 0 0 0 64 0 0  382 124 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 Store as:
+22 91
+"table"
+""
+1 201 58 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E "main() {
+	loadColumnCombos();
+}" 0
+ E
+0
+1
+LANG:1 48 Table to store archived information for this DPE
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 199 56 373 83
+0
+
+E
+E
+E
+ 1 0
+22 112
+"dpField"
+""
+1 200 29 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E "main()
+{
+	setPositionCheckbox(); //it seems like this should be done in EventChange, but if there is an EventChange script then typed changes disappear.
+	if (!dpeDefined) DPE_LIST=makeDynString(this.text);
+}" 0
+ E
+0
+1
+LANG:1 37 Name or alias of a DPE to be archived
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 198 27 502 54
+0
+
+E
+E
+E
+ 1 0
+13 97
+"dpSelectButton"
+""
+1 853 55 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 21 Click to select a DPE
+
+0
+2
+LANG:1 84 -*-arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+ 511 23 555 57
+
+P 
+10862530
+"pictures/dpeMon_tree.gif"
+1
+LANG:1 0 
+"main() 
+{ 
+ string dp;
+ dpSelector(dp,true, \"ALL_SYSTEM_NAME_SYS\"); //was using OWN_SYSTEM_NAME_NO_SYS to prevent the system name from showing up in the dp, but it's better to allow them to select from any system and then strip off the system name
+ dpField.text=dpSubStr(dp,DPSUB_DP_EL_CONF_DET_ATT);
+ setPositionCheckbox();
+} 
+" 0
+ E E E
+13 101
+"refresh"
+""
+1 400 605 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 62 Refresh the table below with the information from the database
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 293 132 320
+
+T 
+1
+LANG:1 7 Refresh
+"main() {
+	if(openConnection()){
+		refreshTable();
+		closeConnection();
+		displayWarning(\"\");
+		if (standaloneMode()) refreshDPCombo();
+	}
+}" 0
+ E E E
+13 102
+"update"
+""
+1 930 605 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 57 Update the selected mapping according to the fields above
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 538 293 662 320
+
+T 
+1
+LANG:1 6 Update
+"main()
+{
+	string oldDPE=selectedDPE();
+	float resultFloat;
+	float resultText;
+	
+	if (validateEntry()) {
+		if (oldDPE==dpField.text()) {
+			if(openConnection()){
+				updateMapping(dpField.text());
+				closeConnection();	
+			}
+		}
+		else {
+			if (!strlen(oldDPE)) {
+				displayWarning(\"No mapping selected to update.\");
+			} else {
+				//we can't update this line since we have changed the primary key, so add a new one instead.
+				displayWarning(\"Cannot update this mapping because the DPE name has changed. Delete and re-add instead.\");
+			}		
+		}	
+	}
+}" 0
+ E E E
+13 103
+"deleteAll"
+""
+1 410 295 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 46 Delete the mapping for all selected datapoints
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 408 293 532 320
+
+T 
+1
+LANG:1 6 Delete
+"main() {
+	if (openConnection()) {
+			mapping bindVariables;
+		 	executeSQLCommand(\"DELETE FROM MAP \"+whereClause(),bindVariables);
+		 	refreshTable();
+		 	displayWarning(\"\");
+		 	//if (archivingStatus(DPE)==\"ON\") addToDPCombo(DPE); //this DPE no longer has a mapping, so it should appear in the combo if it is archived
+			closeConnection();
+		}
+}" 0
+ E E E
+25 100
+"mapTable"
+""
+1 10 329 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 327 792 524
+E"main(int row, string col, string value)
+{
+	anytype cellValue;
+	string dpeName;
+	getValue(\"\",\"cellValueRC\",row, \"DPE\" ,dpeName);
+	if (col==ARCHIVING_COLUMN_NAME) {
+		if (value==\"ON\") turnOffArchiving(dpeName);
+		else turnOnArchiving(dpeName);
+		setValue(\"\",\"cellValueRC\",row, ARCHIVING_COLUMN_NAME ,archivingStatus(dpeName));
+	}
+	if (!dpeDefined) dpField.text=dpeName;//for now we will always edit all selected dpes at once, no making changes individually. So the dpename should reflect that.
+	displayMappingAtRow(row);
+}" 0
+ 1 0 1 10 1 "Archiving" 5 1 0 "s" 1
+LANG:1 9 Archiving
+E
+1
+LANG:1 48 Click to turn RDB archiving on or off for a DPE.
+
+67 "DPE" 17 1 0 "s" 1
+LANG:1 3 DPE
+E
+1
+LANG:1 0 
+
+195 "Table" 7 1 0 "s" 1
+LANG:1 5 Table
+E
+1
+LANG:1 0 
+
+85 "Value" 7 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+85 "Date" 7 1 0 "s" 1
+LANG:1 4 Date
+E
+1
+LANG:1 0 
+
+85 "Status" 7 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+85 "Name" 7 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+89 "Transform" 7 1 0 "s" 1
+LANG:1 9 Transform
+E
+1
+LANG:1 0 
+
+89 "Date format" 7 0 0 "s" 1
+LANG:1 11 Date format
+E
+1
+LANG:1 0 
+
+89 "Warnings" 35 1 0 "s" 1
+LANG:1 8 Warnings
+E
+1
+LANG:1 0 
+
+400 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 108
+"createtable"
+""
+1 10 265 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 84 Create a table with the necessary columns according to the information entered above
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 263 132 290
+
+T 
+1
+LANG:1 12 Create Table
+"main() {
+	if (validateEntry()) {
+		if (openConnection()) {
+			createTable();
+			closeConnection();
+		}
+	}
+}" 0
+ E E E
+20 109
+"indexColumn"
+""
+1 140 265 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 64 Tick this box to include a position column when creating a table
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 138 263 350 287
+1
+T 
+1
+LANG:1 33 with position column (for arrays)
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 110
+"autocreate"
+""
+1 368 265 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 69 Tick this box to automatically create the table when adding a mapping
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 366 263 590 287
+1
+T 
+1
+LANG:1 33 Automatically create table on add
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE22 113
+"column"
+""
+1 200 89 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 56 Column of specified table to store the value of this DPE
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 198 87 372 114
+0
+
+E
+E
+E
+ 1 0
+22 114
+"status"
+""
+1 200 150 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 68 Column of specified table to store the status of this DPE (optional)
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 198 148 372 175
+0
+
+E
+E
+E
+ 1 0
+22 115
+"dpename"
+""
+1 201 179 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E "main()
+{
+enableTransformFields();
+}" 0
+ E
+0
+1
+LANG:1 66 Column of specified table to store the name of this DPE (optional)
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 199 177 373 204
+0
+
+E
+E
+E
+ 1 0
+20 118
+"transformDPE"
+""
+1 377 179 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 375 177 609 201
+1
+T 
+1
+LANG:1 33 Transform DPE name with function:
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+DPETransformFunction.enabled=state;
+}" 0
+22 121
+"date"
+""
+1 200 120 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 66 Column of specified table to store the date and time of the change
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 198 118 372 145
+0
+
+E
+E
+E
+ 1 0
+22 122
+"DPETransformFunction"
+""
+1 604 178 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 56 Column of specified table to store the value of this DPE
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 602 176 786 203
+0
+
+E
+E
+E
+ 1 0
+19 125
+"dateformat"
+""
+1 440 122 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 438 120 682 164
+2
+T 
+1
+LANG:1 9 timestamp
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 33 microseconds since 01/01/1970 UTC
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+13 128
+"Add"
+""
+1 670 295 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 88 Add a new mapping using the information entered above, and turn on archiving for the DPE
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 668 293 792 320
+
+T 
+1
+LANG:1 3 Add
+"//if we're adding a DPE for which there is already a mapping for the alias,
+//or adding an alias when there is already a mapping for the DPE, that's an error as the DB does not know which to use.
+//for now we will allow adding DPEs which don't exist, in case the DPE is in another DB and the entry was deleted by accident
+//and needs to be re-added.
+bool validateAdd(string dpName) {
+	string fullDPEName=resolveAlias(dpName);
+	string alias;
+	if (mappingExistsForDPE(dpName)) {
+		//this one will be caught by the database constraints but it's nicer to show a warning here.
+		displayWarning(\"There is already a mapping for this DPE. Edit that mapping instead of adding a new one.\");
+		return false;
+	}
+	if (dpExists(fullDPEName)) {
+		fullDPEName=dpSubStr(fullDPEName,DPSUB_DP_EL_CONF_DET_ATT);
+		string alias=dpGetAlias(fullDPEName);
+		DebugN(\"fullDPEName=\"+fullDPEName+\" alias=\"+alias+\" dpName=\"+dpName);
+		if ((alias==dpName) && mappingExistsForDPE(fullDPEName)) {
+			displayWarning(\"There is a mapping for this DPE using its full name. You can't add another one for the alias.\");
+			return false;
+		} else if (mappingExistsForDPE(alias)) {
+			displayWarning(\"There is a mapping for this DPE using its alias. You can't add another one for the full name.\");
+			return false;
+		}
+	}
+	return true;
+}
+
+main()
+{		
+	if (validateEntry()) {
+		if (openConnection()) {
+			if (validateAdd(dpField.text)) {
+				if (autocreate.state(0)) createTable(); //this should be done before addEntry so that we don't momentarily see an error saying that the table does not exist
+				turnOnArchiving(dpField.text); //this should also be done before addEntry so the correct archiving status is shown
+				addEntry();
+			}
+			closeConnection();
+		}
+	}
+}" 0
+ E E E
+13 129
+"archiveConfiguration"
+""
+1 570 29 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 34 Set up smoothing etc. for this DPE
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 568 27 712 54
+
+T 
+1
+LANG:1 21 Archive Configuration
+"main()
+{		
+	editArchiveConfiguration();
+}" 0
+ E E E
+13 132
+"updateAliases"
+""
+1 660 262 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 84 Update the ALIASES table with the aliases of the parent DPs of all DPEs listed below
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 658 260 792 287
+
+T 
+1
+LANG:1 20 Update Aliases table
+"main() {		
+	if (openConnection()) {
+		int lineCount=mapTable.lineCount;
+		int lineIndex;
+		string thisDPE;
+		dyn_string DPs;
+		for (lineIndex=0;lineIndex<lineCount;lineIndex++) {
+			getValue(\"mapTable\",\"cellValueRC\",lineIndex, \"DPE\" ,thisDPE);
+			writeIntoAliasTableIfNecessary(thisDPE,DPs);
+		}
+		closeConnection();
+		displayWarning(\"Aliases updated.\");
+	}
+}" 0
+ E E E
+13 133
+"AddOrUpdate"
+""
+1 280 295 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 95 Creates or changes mappings for all selected datapoints, according to the values entered above.
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 293 402 320
+
+T 
+1
+LANG:1 10 Update/Add
+"main() {
+	if (validateEntry()) {
+		if (openConnection()) {
+			updateOrAddMappings();
+			closeConnection();
+		}
+	}
+}" 0
+ E E E
+13 134
+"delete"
+""
+1 410 295 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 46 Delete the mapping selected in the table below
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 408 293 532 320
+
+T 
+1
+LANG:1 6 Delete
+"main()
+{		
+	string DPE=selectedDPE();
+	if (DPE) {
+		if (openConnection()) {
+			mapping bindVariables;
+			bindVariables[\"dpe\"]=DPE;
+		 	executeSQLCommand(\"DELETE FROM MAP WHERE DPE=:dpe\",bindVariables);
+		 	refreshTable();
+		 	if (archivingStatus(DPE)==\"ON\") addToDPCombo(DPE); //this DPE no longer has a mapping, so it should appear in the combo if it is archived
+			closeConnection();
+		}
+	} 
+	else displayWarning(\"No mapping selected to delete\");
+}" 0
+ E E E
+1 135 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 746 20 T 46 1 0 1 18 9
+1
+"$sPanelRelativePath""fwRDBArchiving/fwRDBArchivingMappings"
+0

@@ -1,0 +1,115 @@
+main()
+{
+	int i, length;
+        string fileName, destinationFileName;
+	dyn_bool values;
+	dyn_string settings, screenConfigurations, exceptionInfo;
+
+	DebugN("fwAlarmHandling: post install file");
+
+ 	DebugN("fwAlarmHandling: Installing alarm screen extension library");  
+  if(_WIN32)
+  {
+    if(isfile(PROJ_PATH + "/bin/TabUtilEx.dll"))
+      remove(PROJ_PATH + "/bin/TabUtilEx.dll");
+    
+    fileName = fwInstallation_findFileForPvssVersion("/bin/fwAlarmHandling/TabUtilEx"
+                                                     + fwInstallation_VERSION_KEYWORD + ".dll",
+                                                     makeDynString("3.6", "3.8"));
+    if(fileName != "")
+    {
+      //set destination of file copy to component installation dir, directly in bin directory without version in file name
+      destinationFileName = fileName;
+      strreplace(destinationFileName, "/bin/fwAlarmHandling/TabUtilEx", "/bin/TabUtilEx");
+      destinationFileName = substr(destinationFileName, 0, strpos(destinationFileName, "/bin/TabUtilEx") + strlen("/bin/TabUtilEx"));
+      destinationFileName += ".dll";
+      
+      //copy file to /bin
+      fwInstallation_copyFile(fileName, destinationFileName);
+    }
+    else
+      DebugN("TabUtilEx.dll could not be found for the current version of PVSS (" + VERSION + ")");
+  }
+  else
+  {
+    if(isfile(PROJ_PATH + "/bin/TabUtilEx.so"))
+      remove(PROJ_PATH + "/bin/TabUtilEx.so");
+
+    fileName = fwInstallation_findFileForPvssVersion("/bin/fwAlarmHandling/TabUtilEx"
+                                                     + fwInstallation_VERSION_KEYWORD + ".so",
+                                                     makeDynString("3.6", "3.8"));  
+    if(fileName != "")
+    {
+      //set destination of file copy to component installation dir, directly in bin directory without version in file name
+      destinationFileName = fileName;
+      strreplace(destinationFileName, "/bin/fwAlarmHandling/TabUtilEx", "/bin/TabUtilEx");
+      destinationFileName = substr(destinationFileName, 0, strpos(destinationFileName, "/bin/TabUtilEx") + strlen("/bin/TabUtilEx"));
+      destinationFileName += ".so";
+      
+      //copy file to /bin
+      fwInstallation_copyFile(fileName, destinationFileName);
+    }
+    else
+      DebugN("TabUtilEx.so could not be found for the current version of PVSS (" + VERSION + ")");
+  }
+  
+	DebugN("fwAlarmHandling: Setting default screen style");
+	screenConfigurations = dpNames("*", "_AEScreen");
+	length = dynlen(screenConfigurations);
+	for(i=1; i<=length; i++)
+	{
+		dynAppend(settings, screenConfigurations[i] + ".UseAsDefault");
+		dynAppend(values, FALSE);
+	}
+
+	dpSetWait(settings, values);
+	dpSetWait("_AEScreen_fwAes" + ".UseAsDefault", TRUE);
+	DebugN("fwAlarmHandling: Default screen style set: fwAES_Alerts");
+        
+        if(!dpExists("_FwAlarmHelpSettings"))
+        {
+          DebugN("fwAlarmHandling: Configuring alarm help default file types");
+          dpCreate("_FwAlarmHelpSettings", "_FwAlarmHelp");
+          
+          while(!dpExists("_FwAlarmHelpSettings"))
+            delay(0,200);
+          
+          fwAlarmHandling_setHelpFileFormats(makeDynString(".htm", ".html", ".xml", ".pdf"),
+                                             makeDynString("","","",""), makeDynString("","","",""), exceptionInfo);
+        }
+        
+        if(!dpExists("_FwAesSetup"))
+        {
+          DebugN("fwAlarmHandling: Setting alarm screen option defaults");
+
+          dpCreate("_FwAesSetup", "_FwAesSetup");
+          while(!dpExists("_FwAesSetup"))
+            delay(0,200);
+        }
+        
+        time t;
+        dpGet("_FwAesSetup.onlineValueUpdateRate:_original.._stime", t);
+        if(t == 0)
+          dpSetWait("_FwAesSetup.onlineValueUpdateRate", 5);
+            
+        dpGet("_FwAesSetup.rightClickMenu.items:_original.._stime", t);
+        if(t == 0)
+        {
+          dpSetWait("_FwAesSetup.rightClickMenu.items",
+                      makeDynString("FSM Panel", "Details", "Trend", "Alarm Help"),
+                    "_FwAesSetup.rightClickMenu.functions",
+                      makeDynString("_fwAlarmHandling_showFsmPanel", "_fwAlarmHandling_showDetails",
+                                    "_fwAlarmHandling_showTrend", "_fwAlarmHandling_showHelp"),
+                    "_FwAesSetup.rightClickMenu.alertTypes",
+                      makeDynString("ALL", "ALL", "NO_SUMMARY", "ALL"));
+        }
+		
+        if(!dpExists("_FwAlarmScreenPlot"))
+        {
+          DebugN("fwAlarmHandling: Creating alarm screen plot configuration");
+          _fwAlarmHandling_createPlotDp("_FwAlarmScreenPlot");
+        }
+
+        
+
+}

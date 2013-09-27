@@ -1,0 +1,561 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 233 349 N "_3DFace" 2
+"$domain"
+"$operation"
+" main()
+{
+ int timeout;
+ bool ConfApplyRecipe,simplifiedAR;
+ 
+ switch($operation)
+ {
+  case \"Add\": 
+  	{ 
+         timeoutText.visible = TRUE;
+         ConfDBtimeout.visible = TRUE;
+         applyRecipes_radioCheck.number(1);
+         simplifiedAR_check.enabled(TRUE);
+         setValue(\"ConfDBtimeout\",\"text\",\"20\");
+         break;
+  	}
+  case \"Change\":
+      { 
+       dpGet($domain+\"_ConfDB.applyRecipes.timeout\",timeout,
+             $domain+\"_ConfDB.applyRecipes.usingConfigurator\",ConfApplyRecipe,
+             $domain+\"_ConfDB.applyRecipes.simplifiedAR\", simplifiedAR);
+       
+       if(!ConfApplyRecipe) {
+          timeoutText.visible = FALSE;
+          ConfDBtimeout.visible = FALSE;
+          simplifiedAR_check.enabled(FALSE);
+          applyRecipes_radioCheck.number(0);
+         }
+         else
+             {
+              timeoutText.visible = TRUE;
+              ConfDBtimeout.visible = TRUE;
+              simplifiedAR_check.enabled(TRUE);
+              applyRecipes_radioCheck.number(1);
+              setValue(\"ConfDBtimeout\",\"text\",timeout);
+              }
+        
+       simplifiedAR_check.state(0, simplifiedAR);
+      }
+ }
+
+}
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E E 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+1 0 0 "" 0
+0
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 8 16 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+
+}" 0
+ E 0 1 1 0 1 E U  1 E 10 16 139 33
+0 2 2 "0s" 0 0 0 192 0 0  10 16 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 20 FSM Configuration DB
+13 2
+"Applybutton"
+""
+1 98 311 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 96 309 156 338.612363636364
+
+T 
+1
+LANG:1 2 OK
+"main()
+{ 
+bool simplifiedAR, recursively;
+int apply_recipe,n;
+string configuratortType;
+dyn_string treeCUs;
+
+  getValue(\"applyRecipes_radioCheck\",\"number\",apply_recipe);
+  getValue(\"simplifiedAR_check\",\"state\",0,simplifiedAR);
+  getValue(\"applyRecursively\",\"state\",0,recursively);
+  
+  if($operation==\"Add\")
+    { 
+     n = confTypeSelector.itemCount; 
+     if (n>0)  
+        configuratortType = confTypeSelector.selectedText;
+      else
+        configuratortType = \"\";
+      
+    if(fwFSMConfDB_addConfigurator($domain,configuratortType)!=0) {  //add configurator dp + Fsm node
+       DebugN(\"ERROR creating configurator for \"+$domain);
+       return -1;
+       }
+    
+   //refresh the FSM tree in the Device Editor Navigator
+    fwFsmTree_refreshTree();       
+    }
+    
+  // set configurator parameters 
+ 
+   dpSet($domain+\"_ConfDB.applyRecipes.usingConfigurator\",apply_recipe,
+         $domain+\"_ConfDB.applyRecipes.simplifiedAR\",simplifiedAR,
+         $domain+\"_ConfDB.applyRecipes.timeout\",ConfDBtimeout.text);
+  
+    if(apply_recipe && simplifiedAR)
+       DebugN(\"Configurator parameters: Configurator apply recipes in simplified mode, timeout set to \"+ConfDBtimeout.text+\" seconds.\");
+       else if(apply_recipe)
+            DebugN(\"Configurator parameters: Configurator apply all recipes, timeout set to \"+ConfDBtimeout.text+\" seconds.\");
+            else
+                DebugN(\"Configurator parameters: Each device apply recipe to itself.\");
+   
+   //set configurator ConfDB flag: DB/Cache 
+   dpSet($domain+\"_ConfDB.useConfDB\",recipesLocation.number);  
+    
+   //if active, it sets the ConfDB flag: DB/Cache to all configurators children of this CU
+   if(recursively)
+    {
+     fwFSMConfDB_getAllTreeCUs($domain,treeCUs); 
+      
+     for(n=1;n<=dynlen(treeCUs);n++)
+       {
+        if (dpExists(treeCUs[n]+\"_ConfDB\"))
+           dpSet(treeCUs[n]+\"_ConfDB.useConfDB\",recipesLocation.number);
+        }
+     }
+      
+     if(recipesLocation.number)
+       DebugN(\"Load recipes from DB\");
+       else
+         DebugN(\"Load recipes from cache\");
+    
+  PanelOffReturn(makeDynFloat(1),makeDynString());
+    
+}
+
+
+" 0
+ E E E
+14 6
+"ConfDBtimeout"
+""
+1 168 189 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 166 187 208 214
+3 "0s" 0 0 0 0 0 -1  E E E
+2 7
+"timeoutText"
+""
+1 11 187 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 15 191 167 208
+0 2 0 "0s" 0 0 0 192 0 0  15 191 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 26 Apply recipe timeout (sec)
+13 8
+"Button3"
+""
+1 164 311 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,arial
+0 ""
+ 162 309 220 338.599563854436
+
+T 
+1
+LANG:1 6 Cancel
+"main() 
+{ 
+	PanelOffReturn(makeDynFloat(0),makeDynString());
+} 
+
+" 0
+ E E E
+22 9
+"confTypeSelector"
+""
+1 42 71.0000000000001 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 40 69.0000000000001 200 96
+0
+
+"main()
+{
+  string search = \"fwOT_FwFSMConfDB*\";
+  string type = \"_FwFsmObjectType\";
+  dyn_string configuratorTypes;
+
+  if($operation==\"Add\")
+    { 
+     configuratorTypes = mydpNames(search, type);
+  
+     if(dynlen(configuratorTypes)>1)
+       {
+        this.visible = TRUE;
+        this.selectedPos(1);
+        populateList(configuratorTypes);  
+        }  
+     }
+    else
+      this.visible = FALSE;
+      
+}
+
+string removeDpTypeName(string sDpName)
+{
+  string ds;
+
+  ds = strltrim(sDpName, \"fwOT_\");
+  
+  return ds;
+}
+
+populateList(dyn_string configuratorList)
+{  
+  string configuratorType;
+  int i;
+  
+  setValue(\"confTypeSelector\",\"deleteAllItems\");
+  
+  for(i=1;i<=dynlen(configuratorList);i++)
+     {
+      configuratorType = removeDpTypeName(fwFSMConfDB_removeSystemName(configuratorList[i]));
+       	
+      setValue(\"confTypeSelector\",\"appendItem\",configuratorType); 
+      }
+}" 0
+
+E
+E
+ 0 0
+19 10
+"recipesLocation"
+""
+1 29.1904761904762 248.076923076923 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 31 247 195 275
+2
+T 
+1
+LANG:1 5 Cache
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 8 Database
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+"main()
+{
+  bool confDB;
+  
+  if (dpExists($domain+\"_ConfDB\")) 
+    {
+     dpGet($domain + \"_ConfDB.useConfDB\",confDB); 
+     recipesLocation.number(confDB);
+   }
+}" 0
+ E
+30 11
+"FRAME1"
+""
+1 20 270 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.49640287769784 0 0.646464646464647 -17.9280575539568 56.4545454545453 0 E 20 270 160 370
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Load recipes from
+20 12
+"applyRecursively"
+""
+1 34 272 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 32 270 140 294
+1
+T 
+1
+LANG:1 17 apply recursively
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+ this.state(0) = FALSE;
+}" 0
+E30 13
+"FRAME2"
+""
+1 25 112 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+25 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.08376963350785 0 1.46341463414634 -15.0942408376963 -62.9024390243902 0 E 25 112 217 195
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-*-80-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 12 APPLY RECIPE
+19 14
+"applyRecipes_radioCheck"
+""
+1 22 118 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-*-90-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 20 116 154 165
+2
+T 
+1
+LANG:1 6 device
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 configurator
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  timeoutText.visible = button;
+  ConfDBtimeout.visible = button;
+ 
+  if(button) { 
+    simplifiedAR_check.enabled(TRUE);
+    ConfDBtimeout.text=20;
+   }
+    else{ 
+         ConfDBtimeout.text=0;
+         simplifiedAR_check.enabled(FALSE);
+         simplifiedAR_check.state(0,FALSE);
+        }     
+}" 0
+
+20 15
+"simplifiedAR_check"
+""
+1 39 156 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 37 154 196 183
+1
+T 
+1
+LANG:1 15 simplified mode
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE2 19
+"ConfiguratorName"
+""
+1 112 56 E E E 1 E 1 E N "_WindowText" E N "_Button" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+setValue(\"ConfiguratorName\",\"text\",$domain + \"_ConfDB\");
+
+}" 0
+ E 0 1 1 0 1 E U  0 E 50 50.0000000000001 182 67
+0 2 0 "0s" 0 0 0 193 0 0  116 50.0000000000001 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 20 Configurator's name 
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "PANEL_REF3"
+"objects/fwGeneral/fwHelpButton.pnl" 178 4 T 0 1 0 1 18 8
+1
+"$sPanelRelativePath""fwFSMConfDB/fwFSMConfDB_addConfigurator"
+0

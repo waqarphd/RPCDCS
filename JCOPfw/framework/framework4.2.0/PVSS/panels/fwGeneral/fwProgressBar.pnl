@@ -1,0 +1,400 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,517 391 340 90 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+// Local Variables
+// ---------------
+	bool bAutoClose;
+	
+	int iType;
+	int iThread;
+
+// Executable Code
+// ---------------
+	// Set DPE to indicate the panel is open
+	dpSet($sDpName + \".panelOpen\", true);
+	
+	// Get the type of progress bar to show
+	dpGet($sDpName + \".type\", iType,
+				$sDpName + \".autoClose\", bAutoClose);
+	
+	// Connect to message
+	dpConnect(\"cbkShowMessage\", $sDpName + \".message\");
+	
+	// Set the automatic close checkbox
+	setValue(\"chkCloseOnComplete\", \"state\", 0, bAutoClose);
+	
+	switch (iType) {
+		case 3:	// Time to complete bar
+			// Hide the percentage complete bar
+			barProgress.visible = false;
+			bdProgress.visible = false;
+			txtValue.visible = false;
+			
+			// Ensure busy bar visible
+			Polyline1.visible = true;
+			Polyline2.visible = true;
+			
+			// Connect to value indicating when finished
+			dpConnect(\"cbkRunBusy\", $sDpName + \".run\");
+			
+			// Start thread to count down the timeout
+			iThread = startThread(\"modfnTimedBar\");
+			if (iThread < 0)
+				dpSet($sDpName + \".run\", false);
+			break;
+		case 2:	// Percentage complete bar
+			// Make the percentage bar visible
+			barProgress.visible = true;
+			bdProgress.visible = true;
+			txtValue.visible = true;
+			
+			// Hide the busy bar
+			Polyline1.visible = false;
+			Polyline2.visible = false;
+			
+			// Connect to required progress value
+			dpConnect(\"cbkScaleBar\", $sDpName + \".value\");
+			break;
+		default: // As default, assume just 'busy' indicator
+			// Hide the percentage complete bar
+			barProgress.visible = false;
+			bdProgress.visible = false;
+			txtValue.visible = false;
+			
+			// Ensure busy bar visible
+			Polyline1.visible = true;
+			Polyline2.visible = true;
+			
+			// Connect to value indicating when finished
+			dpConnect(\"cbkRunBusy\", $sDpName + \".run\");
+			break;
+	}
+
+	// Return to calling routine
+	return;
+}
+
+void cbkScaleBar(string sDpe, float fValue)
+{
+// Local Variables
+// ---------------
+	string sText;
+	
+// Executable Code
+// ---------------
+	// Set the scale of the bar to indicate to percentage complete
+	barProgress.scale(fValue / 100.0, 1.0);
+	
+	// Display the percentage complete as text
+	sprintf(sText, \"%1.0f %\", fValue);
+	txtValue.text = sText;
+	
+	// Check for action complete
+	if (fValue >= 100.0)
+		modfnOnComplete();
+	
+	// Return to calling routine
+	return;
+}
+
+void cbkRunBusy(string sDpe, bool bRun)
+{
+// Local Variables
+// ---------------
+// None
+
+// Executable Code
+// ---------------
+	// Check for action complete
+	if (!bRun)
+		modfnOnComplete();
+		
+	// Return to calling routine
+	return;
+}
+
+void cbkShowMessage(string sDpe, string sText)
+{
+// Local Variables
+// ---------------
+// None
+
+// Executable Code
+// ---------------
+	// Enter the text message into the correct field in the panel
+	txtMessage.text = sText;
+	
+	// Return to calling routine
+	return;
+}
+" 0
+"main()
+{
+	// Set value to indicate panel is closed (to stop anything from waiting)
+	dpSet($sDpName + \".panelOpen\", false);
+}" 0
+E E E 1 -1 -1 0  10 50
+"" 0 1
+E"void modfnOnComplete()
+{
+// Local Variables
+// ---------------
+	int iState;
+
+// Executable Code
+// ---------------
+	// Get value of check box for automatic close
+	getValue(\"chkCloseOnComplete\", \"state\", 0, iState);
+	if (iState == 1) {
+		modfnOnClose();
+	} else {
+		cmdClose.enabled = true;
+	}
+
+	// Return to calling routine
+	return;
+}
+
+void modfnOnClose()
+{
+// Local Variables
+// ---------------
+	int iState;
+
+// Executable Code
+// ---------------
+	// Get value of check box for automatic close
+	getValue(\"chkCloseOnComplete\", \"state\", 0, iState);
+	if (iState == 1)
+		dpSet($sDpName + \".autoClose\", true);
+	else
+		dpSet($sDpName + \".autoClose\", false);
+		
+	// Set value to indicate panel is closed
+	dpSet($sDpName + \".panelOpen\", false);
+	
+	// Close panel
+	PanelOff();
+
+	// Return to calling routine
+	return;
+}
+
+void modfnTimedBar()
+{
+// Local Variables
+// ---------------
+	int iSeconds;
+	
+	string sMessage;
+
+// Executable Code
+// ---------------
+	// Get the number of seconds to wait
+	dpGet($sDpName + \".timeout\", iSeconds);
+	
+	// Check timeout is valid
+	if (iSeconds > 0) {
+		// Loop until time is up
+		while (iSeconds > 0) {
+	
+			// Set message
+			if (iSeconds == 1)
+				sprintf(sMessage, \"Please wait %d second\", iSeconds);
+			else
+				sprintf(sMessage, \"Please wait %d seconds\", iSeconds);
+		
+			dpSet($sDpName + \".message\", sMessage);
+	
+			// Wait one second before looping again	
+			delay(1);
+			iSeconds--;
+		}
+	}
+	
+	// Stop the busy bar
+	dpSet($sDpName + \".message\", \"Complete\");
+	dpSet($sDpName + \".run\", false);
+	
+	// Return to calling routine
+	return;
+}
+" 0
+ 2
+"CBRef""0"
+"EClose""main()
+{
+	// Call function to handle last processing and close the panel
+	modfnOnClose();
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+6 25
+"bdProgress"
+""
+1 10 50 E E E 1 E 1 E N "STD_border_med" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+EE E
+2
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 3 1 0 1 E U  0 E 10 30 330 50
+6 26
+"barProgress"
+""
+1 12 46 E E E 1 E 1 E N "_Transparent" E N {0,0,255} E E
+ E E
+7 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 32 328 47
+2 24
+"txtValue"
+""
+1 10 30 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 32 328 48
+0 2 0 "s" 0 0 0 65 0 0  12 32
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 3 0 %
+2 27
+"txtMessage"
+""
+1 10 10 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 328 28
+0 2 0 "s" 0 0 0 64 0 0  12 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 0 
+1 41 2 "" 14
+0
+1 42 2 "" 9
+0
+1 43 2 "" 10
+0
+1 44 2 "" 11
+0
+1 45 2 "" 12
+0
+13 23
+"cmdClose"
+""
+1 240 55 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+238 53 332 80
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	// Call function to handle last processing and close the panel
+	modfnOnClose();
+}" 0
+ E E E
+20 35
+"chkCloseOnComplete"
+""
+1 10 60 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+8 58 192 82
+1
+T 
+1
+LANG:1 25 Close panel on completion
+ 0
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+1
+E E 
+EE0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 2 "ProgressBarRef"
+"objects\\fwGeneral\\fwProgressBarRef.pnl" 10 50 T 13 1 0 1  186 815  
+1
+"$sDpName""$sDpName"
+2 "Group2" 10 30 330 50
+3 24 26 25
+0

@@ -1,0 +1,384 @@
+V 10
+1
+LANG:1 24 fwDipPublicationContents
+PANEL,-1 -1 545 371 N "_3DFace" 5
+"$bBrowser"
+"$iFieldType"
+"$sApiManagerDp"
+"$sFieldName"
+"$sPublicationAddress"
+"
+main()
+{
+	dipPublicationAddress.text = $sPublicationAddress; // the DIP service address
+	
+	int length;
+	dyn_string childName, childType, fieldName, fieldType;
+	dyn_string translatedFieldType;
+	
+	dyn_string exceptionInfo;
+	int resultType;
+	string dataTypeText;
+
+	Confirm_Selected_Field.enabled = false;	
+	if (isDollarDefined(\"$iInvokedFromMain\"))
+	{
+		// we have all the data to display passed as $parameters
+		// thus we don't need to query API manager again
+		// usually used when DIP Hierarchy browser has already data about
+		// the particular publication
+		string tmp1, tmp2;
+		tmp1 = $sFieldName;
+		tmp2 = $iFieldType;
+		strreplace(tmp1, \" |\", \"|\");
+		strreplace(tmp1, \"| \", \"|\");
+		strreplace(tmp2, \" |\", \"|\");
+		strreplace(tmp2, \"| \", \"|\");		
+		fieldName = strsplit(tmp1, \"|\");
+		fieldType = strsplit(tmp2, \"|\");
+	}
+	else
+	{
+		/*
+			Get the data from the 'API manager filled' dpe.
+		*/
+		Cancel.enabled = false;
+		int timeout;
+		dpGet($sApiManagerDp+\".queryTimeout\", timeout);
+		fwOpenProgressBar(\"Information\", \"Querying API Manager\", 1);
+		resultType = fwDIP_DipQuery($sApiManagerDp, $sPublicationAddress,
+													childName, childType,
+													fieldName, fieldType,
+													exceptionInfo, timeout);
+		Cancel.enabled = true;
+	}
+
+	if (dynlen(exceptionInfo) != 0)
+	{
+		fwCloseProgressBar(\"There were errors while querying API Manager\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	fwCloseProgressBar(\"No errors\");
+	
+
+	for(int i=1; i<=dynlen(fieldName); i++)
+	{
+		fwConfigs_getDataTypeText(fieldType[i], dataTypeText, exceptionInfo);
+		// fill the table with the data, in a hidden column store the numerical code of datatype
+		PublicationContentsTable.appendLine( \"fieldName\", fieldName[i],
+																				 \"fieldType\", dataTypeText,
+																				 \"fieldTypeInt\", fieldType[i]);
+	}
+	
+	// Whether the ADD button is enabled...
+	if($bBrowser==1)
+		Confirm_Selected_Field.visible = false;
+	else
+		Confirm_Selected_Field.visible = true;
+}" 0
+ "main()
+{
+	int i;
+}" 0
+ E E E 1 0 0 0  20 270
+""0  1
+E "	int selectedType; // the type of the selected field - will be returned on panel exit" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+30 0
+"Frame1"
+""
+1 20 264 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 44 520 264
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Choose the tag
+2 1
+"Text1"
+""
+1 20 20 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 22 140 39
+0 2 0 "0s" 0 0 0 192 0 0  22 22 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 20 Publication address:
+2 7
+"Text2"
+""
+1 20 270 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 272 104 289
+0 2 0 "0s" 0 0 0 192 0 0  22 272 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Selected field:
+2 10
+"Text3"
+""
+1 20 310 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 312 133 329
+0 2 0 "0s" 0 0 0 192 0 0  22 312 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 20 Selected field type:
+14 2
+"dipPublicationAddress"
+""
+1 150 20 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-*-90-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 148 18 492 43
+2 "0s" 0 0 0 0 0 -1  E E E
+25 4
+"PublicationContentsTable"
+""
+1 30 64 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E "main()
+{
+	int column, row;
+	string selectedField;
+	
+	getValue(\"\", \"currentCell\", row, column);
+	
+	if(row < 0)
+		return;
+			
+	dipSelectedPublicationField.text = this.cellValueRC(row,\"fieldName\");
+	dipSelectedPublicationFieldType.text = this.cellValueRC(row,\"fieldType\");
+	selectedType = this.cellValueRC(row,\"fieldTypeInt\");
+	//PanelOffReturn(makeDynFloat(0), makeDynString(selectedField));
+	Confirm_Selected_Field.enabled	= true;
+}" 0
+
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 62 512 256
+"main()
+{
+	this.tableMode(TABLE_SELECT_BROWSE);
+	this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 3 1 "fieldName" 29 1 0 "s" 1
+LANG:1 10 Field Name
+E
+1
+LANG:1 0 
+
+327 "fieldType" 10 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+127 "fieldTypeInt" 0 0 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+1 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 0 1 7
+1 0
+13 6
+"Cancel"
+""
+1 450 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 448 308 502 342
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOffReturn(makeDynFloat(0), makeDynString(\"cancel\"));
+}" 0
+ E E E
+14 8
+"dipSelectedPublicationField"
+""
+1 150 270 E E E 0 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 148 268 462 295
+3 "0s" 0 0 0 0 0 -1  E E E
+13 9
+"Confirm_Selected_Field"
+""
+1 280 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 308 402 342
+
+T 
+1
+LANG:1 18 Use Selected Field
+"main()
+{
+	string selectedField;
+	selectedField = dipSelectedPublicationField.text;
+	if(strlen(selectedField)>0)
+		PanelOffReturn(makeDynFloat(1), makeDynString(selectedField,selectedType));
+	else
+		PanelOffReturn(makeDynFloat(0), makeDynString(\"cancel\"));
+}" 0
+ E E E
+14 11
+"dipSelectedPublicationFieldType"
+""
+1 150 310 E E E 0 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 148 308 232 335
+3 "0s" 0 0 0 0 0 -1  E E E
+1 12 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 20 414 T 12 1 0 1 480 -394
+1
+"$sPanelRelativePath""fwDIP/fwDipPublicationContents"
+0

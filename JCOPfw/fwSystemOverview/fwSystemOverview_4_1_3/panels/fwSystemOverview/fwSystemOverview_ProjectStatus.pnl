@@ -1,0 +1,380 @@
+V 10
+1
+LANG:5 12 SystemStatus
+PANEL,-1 -1 428 440 N "_3DFace" 4
+"$host"
+"$port"
+"$userName"
+"$userPassword"
+"main()
+{
+  string host = $host;
+  int port = $port;
+  string userName = $userName;
+  string userPassword = $userPassword;
+  
+  DebugN(\"System Status Panel : Initialize\", host, port);
+  setManTable(host, port, userName, userPassword);
+}" 0
+ E E E E 1 -1 -1 0  50 80
+""0  1
+E "
+//#uses \"CtrlPv2Admin\"
+#uses \"pmon.ctl\"
+#uses \"panel.ctl\"
+#uses \"fwSystemOverview/fwSystemOverviewFunc.ctl\"
+
+setManTable(string host, int port, string userName, string userPassword)
+{
+  int            i, iPos, err, iRefresh;
+  string         s, ss, projName, sName, si;
+  dyn_dyn_string ddsResult, ds;
+  
+  manTable.deleteAllLines();
+  manTable.tableMode(TABLE_SELECT_BROWSE);
+  manTable.selectByClick(TABLE_SELECT_LINE);
+  manTable.selectColors(\"darkgrey\", \"white\");
+  manTable.sort(\"shmIndex\");
+  manTable.sortOnClick(false);
+
+  delay(0,100);
+  
+    err = pmon_query(userName+\"#\"+userPassword +\"#MGRLIST:LIST\", host, port, ddsResult, true, true);
+
+    if ( err )
+    {
+      pmon_warningOutput(\"errPmonNotRunning\", -1, false);
+      //return;
+    }
+    else
+    {
+      for (i = 1; i <= dynlen(ddsResult); i++)
+      {
+        sName = pmon_getManDescript(ddsResult[i][1]);
+        if ( sName == \"\" ) sName = ddsResult[i][1];
+        if ( !isMotif() ) strreplace(sName, \"&\", \"&&\");
+        ss = ( dynlen(ddsResult[i]) > 5)?ddsResult[i][6]:\"\";
+        si = i;
+        manTable.updateLine(1, \"shmIndex\",  i,
+                            \"descript\",     sName,
+                            \"manager\",      ddsResult[i][1],
+                            \"options\",      ss,
+                            \"startMode\",    pmonStartModeToStr(ddsResult[i][2]),  // getCatStr
+                            \"restartCount\", ddsResult[i][4],
+                            \"resetMin\",     ddsResult[i][5],
+                            \"secKill\",      ddsResult[i][3]
+                           );
+      }
+      manTable.lineVisible(0);
+      manTable.enabled = true;
+    }
+    
+  while ( true )
+  {
+    showState(host, port, userName, userPassword);
+    delay(4);
+  }
+}
+
+//-----------------------------------------------------------------------------
+showState(string host, int port, string userName, string userPassword)
+{
+  int            i, iState, iPID, iTime, err, iErr, iFont, iMode, iEmergency, iLicense, iU, iL;
+  bool           bChanged, runnable, bRuns;
+  time           ti;
+  string         color, iStartMode, sMode, sName, otherProject = \"\";
+  dyn_int        diIdx, diFont;
+  dyn_dyn_string ddsResult;
+  dyn_string     ds, dsVer, dsPath;
+
+  err = pmon_query(userName+\"#\"+userPassword +\"#MGRLIST:STATI\", host, port, ddsResult, true, true);
+
+  manTable.enabled = true;//(cmdLock.visible);//gButtonsEnabled[13];
+
+  if ( dynlen(ddsResult)-1 != manTable.lineCount)
+  {
+    string          ss;
+    dyn_dyn_string  ddssResult;
+    dyn_dyn_anytype ddsLines;
+    
+    err = pmon_query(userName+\"#\"+userPassword +\"#MGRLIST:LIST\", host, port, ddssResult, true, true);
+    if ( dynlen(ddsResult) < 1 ) return;
+
+    for (i = 1; i <= dynlen(ddssResult); i++)
+    {
+      ddsLines[1][i] = i;
+      sName = pmon_getManDescript(ddssResult[i][1]);
+      if ( sName == \"\" ) sName = ddssResult[i][1];
+      if ( !isMotif() ) strreplace(sName, \"&\", \"&&\");
+      ddsLines[2][i] = sName;
+      ddsLines[3][i] = ddssResult[i][1];
+      ss = ( dynlen(ddssResult[i]) > 5)?ddssResult[i][6]:\"\";
+      ddsLines[4][i] = ss;
+      ddsLines[5][i] = pmonStartModeToStr(ddssResult[i][2]);
+      ddsLines[6][i] = ddssResult[i][4];
+      ddsLines[7][i] = ddssResult[i][5];
+      ddsLines[8][i] = ddssResult[i][3];
+    }
+    
+    getValue(\"manTable\", \"lineRangeVisible\", iU, iL);
+    manTable.lineVisible = iU;
+    manTable.updateLines(1, \"shmIndex\",     ddsLines[1],
+                            \"descript\",     ddsLines[2],
+                            \"manager\",      ddsLines[3],
+                            \"options\",      ddsLines[4],
+                            \"startMode\",    ddsLines[5],
+                            \"restartCount\", ddsLines[6],
+                            \"resetMin\",     ddsLines[7],
+                            \"secKill\",      ddsLines[8]
+                        );
+    if ( manTable.lineCount > dynlen(ddssResult) )
+      manTable.deleteLinesN(dynlen(ddssResult), manTable.lineCount - dynlen(ddssResult));
+//    if ( gManShifted != 1 ) manTable.visible = true;
+//!!!
+    err = pmon_query(userName+\"#\"+userPassword +\"#MGRLIST:STATI\", host, port, ddsResult, true, true);
+  }
+
+  for (i = 1; i < dynlen(ddsResult); i++)
+  {
+    iState = ddsResult[i][1];
+    iPID = ddsResult[i][2];
+    iStartMode = ddsResult[i][3];
+    ti = ddsResult[i][4];
+
+    switch ( iState )
+    {
+      case PMON_STATE_NOT_RUNNING:
+      {
+        if ( iPID == -1 )
+          color = (iStartMode == PMON_START_MANUAL) ? \"\" : \"red\";
+        else if ( iPID == -2 )   // restarting too rapidly
+          color = \"<[0,0,100],6,[100,100,0],6,[0,0,0],0,[0,0,0],0,[0,0,0],0,[0,0,0],0>\";
+        else
+          color = \"<[100,100,0],6,[100,0,0],6,[0,0,0],0,[0,0,0],0,[0,0,0],0,[0,0,0],0>\";
+        iFont = 0;
+        break;
+      }
+      
+      case PMON_STATE_INIT   :
+        color = \"yellow\";
+        iFont = 2;
+        break;
+      case PMON_STATE_RUNNING:
+        color = \"green\";
+        iFont = 0;
+        break;
+      case PMON_STATE_BLOCKED:
+        color = \"violett\";
+        iFont = 0;
+        break;
+      default: DebugN(\"sName\",ddssResult[\"+i+\"],\"iState\",iState,\"iPID\",iPID);
+    }
+    
+    manTable.cellValueRC(i-1, \"state\",     makeDynString(iState, color));
+    manTable.cellBackColRC(i-1, \"state\",   color);
+    manTable.cellValueRC(i-1, \"pid\",       iPID);
+    manTable.cellValueRC(i-1, \"startTime\", ti ? ddsResult[i][4] : \"\");
+    manTable.cellValueRC(i-1, \"num\",       ddsResult[i][5]);
+    manTable.cellValueRC(i-1, \"startMode\", pmonStartModeToStr(ddsResult[i][3]));
+    diIdx = makeDynInt(i-1);
+    diFont = makeDynInt(iFont);
+    if ( i <= manTable.lineCount() )
+      manTable.rowFontType(diIdx) = diFont;
+  }
+
+}
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:5 0 
+13 4
+"PUSH_BUTTON1"
+""
+1 300 390 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+0
+1
+LANG:5 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 298 388 392 422
+
+T 
+1
+LANG:5 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+25 2
+"manTable"
+""
+1 20 120 E E E 1 E 1 E N "_3DText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:5 0 
+
+0
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 18 392 372
+EE 1 0 1 12 18 "state" 1 1 0 "s" 1
+LANG:5 2 St
+E
+1
+LANG:5 0 
+
+24 "descript" 12 1 0 "s" 1
+LANG:5 11 Description
+E
+1
+LANG:5 0 
+
+150 "num" 1 1 0 "s" 1
+LANG:5 2 No
+E
+1
+LANG:5 0 
+
+26 "options" 9 1 0 "s" 1
+LANG:5 7 Options
+E
+1
+LANG:5 0 
+
+115 "startTime" 10 1 0 "s" 1
+LANG:5 10 Start Time
+E
+1
+LANG:5 0 
+
+128 "pid" 2 1 0 "s" 1
+LANG:5 3 PID
+E
+1
+LANG:5 0 
+
+38 "startMode" 3 1 0 "s" 1
+LANG:5 4 Mode
+E
+1
+LANG:5 0 
+
+50 "restartCount" 5 1 0 "s" 1
+LANG:5 8 Restart#
+E
+1
+LANG:5 0 
+
+69 "resetMin" 5 1 0 "s" 1
+LANG:5 8 ResetMin
+E
+1
+LANG:5 0 
+
+66 "secKill" 4 1 0 "s" 1
+LANG:5 7 SecKill
+E
+1
+LANG:5 0 
+
+62 "manager" 10 1 0 "s" 1
+LANG:5 7 Manager
+E
+1
+LANG:5 0 
+
+128 "shmIndex" 2 1 0 "s" 1
+LANG:5 8 shmIndex
+E
+1
+LANG:5 0 
+
+40 
+16 16 "" 1 1
+LANG:5 3 #18
+"" 1 1
+LANG:5 3 #17
+"" 1 1
+LANG:5 3 #16
+"" 1 1
+LANG:5 3 #15
+"" 1 1
+LANG:5 3 #14
+"" 1 1
+LANG:5 3 #13
+"" 1 1
+LANG:5 3 #12
+"" 1 1
+LANG:5 3 #11
+"" 1 1
+LANG:5 3 #10
+"" 1 1
+LANG:5 2 #9
+"" 1 1
+LANG:5 2 #8
+"" 1 1
+LANG:5 2 #7
+"" 1 1
+LANG:5 2 #6
+"" 1 1
+LANG:5 2 #5
+"" 1 1
+LANG:5 2 #4
+"" 1 1
+LANG:5 2 #3
+"" 1 1
+LANG:5 2 #2
+"" 1 1
+LANG:5 2 #1
+10 56
+1
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 2 0 7
+1 0
+0
+LAYER, 1 
+1
+LANG:5 0 
+0
+LAYER, 2 
+1
+LANG:5 0 
+0
+LAYER, 3 
+1
+LANG:5 0 
+0
+LAYER, 4 
+1
+LANG:5 0 
+0
+LAYER, 5 
+1
+LANG:5 0 
+0
+LAYER, 6 
+1
+LANG:5 0 
+0
+LAYER, 7 
+1
+LANG:5 0 
+0
+0

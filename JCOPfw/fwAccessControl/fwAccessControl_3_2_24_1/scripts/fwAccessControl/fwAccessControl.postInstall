@@ -1,0 +1,69 @@
+main()
+{
+    //_fwAccessControl_checkInit();
+    fixSystemPrivileges322();
+}
+
+
+void fixSystemPrivileges322()
+{
+
+  dyn_string allGroupAreaIds,allGroupAreaPerms,allGroupNames;
+  dyn_int allGroupIds;
+  dyn_bit32 allGroupPermSets;
+  bool needConvert=FALSE;
+
+  int rc=dpGet("_Groups.UserName",allGroupNames,
+        "_Groups.UserId",allGroupIds,
+        "_Groups.AreaIds",allGroupAreaIds,
+        "_Groups.AreaPermissions",allGroupAreaPerms,
+        "_Groups.PermissionSet",allGroupPermSets);
+
+  if (rc) { DebugN("Error getting AC data! No check/migration done! Contact itcontrols.support for help"); return;};
+
+  // loop through all the groups, and find those ones that have SYSTEM privileges encoded
+  // (by mistake) in .AreaIds/.AreaPermissions, rather than in .PermissionSet
+  // note that AreaIds/AreaPermissions are semicolon-separated strings (need to parse them)
+
+  for (int i=1;i<=dynlen(allGroupIds);i++) {
+    dyn_string aIds=strsplit(allGroupAreaIds[i],";");
+    // SYSTEM domain is the one with ID=-1...
+    int idx=dynContains(aIds,"-1");
+    if (idx>=1) {
+      needConvert=TRUE;
+      DebugN("group at idx="+i+" id="+allGroupIds[i]+" ["+allGroupNames[i]+"] needs to be converted!");
+      dyn_string aPerms=strsplit(allGroupAreaPerms[i],";");
+      bit32 bPerms=(int)aPerms[idx];
+      DebugN("We will need to add privs",aPerms[idx],bPerms);
+      bit32 newPerms=allGroupPermSets[i]|bPerms;
+      DebugN("Old perms",allGroupPermSets[i], "newPerms:",newPerms);
+      allGroupPermSets[i]=newPerms;
+      // clear these perms from areaIds/areaPerms!
+      dynRemove(aIds,idx);
+      dynRemove(aPerms,idx);
+      // rebuild the strings!
+      string newAreaIds,newAreaPerms;
+      for (int j=1;j<=dynlen(aIds);j++) {
+        if (j!=1) {
+          newAreaIds+=";";
+          newAreaPerms+=";";
+        }
+        newAreaIds+=aIds[j];
+        newAreaPerms+=aPerms[j];
+      }
+      // keep compatibility! We do not need this for newAreaPerms, though.
+      if (newAreaIds=="") newAreaIds="0";
+
+      allGroupAreaIds[i]=newAreaIds;
+      allGroupAreaPerms[i]=newAreaPerms;
+    }
+  }
+  if (needConvert) {
+    DebugN("We will dpSet allPermSets",allGroupPermSets);
+    DebugN("We will dpSet areaIds/areaPerms",allGroupAreaIds,allGroupAreaPerms);
+    dpSetWait( "_Groups.AreaIds",allGroupAreaIds,
+        "_Groups.AreaPermissions",allGroupAreaPerms,
+        "_Groups.PermissionSet",allGroupPermSets);
+    DebugN("Done");
+  }
+}

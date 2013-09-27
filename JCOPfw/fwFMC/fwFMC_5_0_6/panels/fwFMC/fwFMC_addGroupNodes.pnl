@@ -1,0 +1,379 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 733 347 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  refreshPanel();
+}" 0
+ E E E E 1 -1 -1 0  60 140
+""0  1
+E "string group;
+
+refreshPanel()
+{
+  dyn_string nodes;
+  dyn_string exceptionInfo;
+  dyn_string groupNodes;
+  string dp = $sDpName;
+  dynClear(exceptionInfo);
+  
+  
+  if(!patternMatch(\"*.\", dp))
+    dp += \".\";
+  
+  group = dpNameToAlias(dp);  
+  fwDevice_getName(group, group, exceptionInfo);
+  
+  if(dynlen(exceptionInfo))
+  {
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }
+  
+  txTitle.text = \"Nodes in group: \" + group;
+  
+  fwFMC_getGroupNodes(group, groupNodes, exceptionInfo);
+  
+  if(dynlen(exceptionInfo))
+    fwExceptionHandling_display(exceptionInfo);
+  
+  slGroupNodes.items = groupNodes;
+  
+  fwFMC_getNodes(nodes);
+  
+  for(int i =1; i <= dynlen(groupNodes); i++) //Remove list of nodes in this group from the list of available nodes
+  {
+    if(dynContains(nodes, groupNodes[i]) > 0)
+      dynRemove(nodes, dynContains(nodes, groupNodes[i]));
+  }
+  
+  slAvailableNodes.items = nodes;
+
+}
+
+apply()
+{
+  dyn_string newNodes = slGroupNodes.items;
+  dyn_string groupNodes; //list of nodes in the group before applying the changes
+  dyn_string exceptionInfo;
+  
+  fwFMC_getGroupNodes(group, groupNodes, exceptionInfo);
+  
+  if(dynlen(exceptionInfo))
+  {
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }
+  
+  for(int i = 1; i <= dynlen(newNodes); i++)
+  {
+    if(dynContains(groupNodes, newNodes[i]) <= 0)    
+    {
+      fwFMC_addGroupNode(group, newNodes[i], exceptionInfo);
+//      DebugN(\"Removing\", newNodes[i], \"  from \", groupNodes, \" found at pos \", dynContains(groupNodes, newNodes[i]));
+      dynRemove(groupNodes, dynContains(groupNodes, newNodes[i])); //make sure this node will not be removed from the group at the end
+    }
+    else
+    {
+//      DebugN(\"Removing\", newNodes[i], \"  from \", groupNodes, \" found at pos \", dynContains(groupNodes, newNodes[i]));
+      dynRemove(groupNodes, dynContains(groupNodes, newNodes[i]));  //make sure this node will not be removed from the group at the end
+    }
+  }
+
+  //Remove now the nodes that are not present in the group anymore  
+  for(int i = 1; i <= dynlen(groupNodes); i++)
+    fwFMC_removeGroupNode(group, groupNodes[i], exceptionInfo);
+  
+  
+  if(dynlen(exceptionInfo))
+    fwExceptionHandling_display(exceptionInfo);
+    
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+17 0
+"slAvailableNodes"
+""
+1 20 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 38 322 302
+0
+
+E
+E
+E
+
+0 0
+17 1
+"slGroupNodes"
+""
+1 420 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  418 28 722 292
+0
+
+E
+E
+E
+
+0 0
+13 2
+"PUSH_BUTTON1"
+""
+1 350 70 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  348 68 382 92
+
+T 
+1
+LANG:1 1 >
+"main()
+{
+  slGroupNodes.appendItem(slAvailableNodes.selectedText());
+  slAvailableNodes.deletePos(slAvailableNodes.selectedPos());
+}" 0
+ E E E
+13 3
+"PUSH_BUTTON2"
+""
+1 350 100 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  348 98 382 122
+
+T 
+1
+LANG:1 2 >>
+E E "main()
+{
+  dyn_string nodes = slAvailableNodes.items;
+  
+  for(int i = 1; i <= dynlen(nodes); i++)                   
+    slGroupNodes.appendItem(nodes[i]);
+  
+  slAvailableNodes.deleteAllItems();
+  
+}" 0
+ E
+13 4
+"PUSH_BUTTON3"
+""
+1 350 150 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  348 148 382 172
+
+T 
+1
+LANG:1 1 <
+"main()
+{
+  slAvailableNodes.appendItem(slGroupNodes.selectedText());
+  slGroupNodes.deletePos(slGroupNodes.selectedPos());
+
+}" 0
+ E E E
+13 5
+"PUSH_BUTTON4"
+""
+1 350 180 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  348 178 382 202
+
+T 
+1
+LANG:1 2 <<
+"main()
+{
+  dyn_string nodes = slGroupNodes.items;
+  
+  for(int i = 1; i <= dynlen(nodes); i++)                   
+    slAvailableNodes.appendItem(nodes[i]);
+  
+  slGroupNodes.deleteAllItems();
+
+}" 0
+ E E E
+2 6
+"txTitle"
+""
+1 20 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 10 102 24
+0 2 2 "0s" 0 0 0 192 0 0  20 10 1
+1
+LANG:1 25 Arial,8,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 16 Nodes in group: 
+13 7
+"PUSH_BUTTON5"
+""
+1 540 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  538 308 626 340
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  apply();
+  refreshPanel();
+}" 0
+ E E E
+13 8
+"PUSH_BUTTON6"
+""
+1 635.555555555556 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  634 308 721 340
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+13 9
+"PUSH_BUTTON7"
+""
+1 440 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  438 308 526 340
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  apply();
+  PanelOffReturn(makeDynFloat(1.), makeDynString(\"OK\"));
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

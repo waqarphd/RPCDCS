@@ -1,0 +1,1298 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 1185 715 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  fwDevice_initialize();
+  while(1)
+  {
+    if(!cbDisableRefresh.state(0) && !stopRefresh)
+      update();
+    
+    delay(30);
+  }
+}
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  50 50
+""0  1
+E "#uses \"fwFMC/fwFMC.ctl\"
+#uses \"fwFMC/fwFMCProcess.ctl\"
+
+
+bool stopRefresh = false;    
+string processNamePattern = \"*\";
+string processCmdLinePattern = \"*\";
+update()
+{
+  if(!fwFMC_isEnabled())
+  {
+    tblMonitoredProcess.deleteAllLines();
+    tblMonitoredService.deleteAllLines();
+    tblProcess.deleteAllLines();
+    tblService.deleteAllLines();
+    return;
+  }
+  
+  dyn_string oldNames;
+  string node = fwFMC_getNodeName($sDpName);
+  string processDp = fwFMCProcess_getDp(node);
+  dyn_string sname, stype, sstartMode;
+  dyn_int sstarted, sdesktopInteract;
+  dyn_string desktopInteract, started;
+  dyn_int ppid, filteredPpid, sid;
+  dyn_string pname, pusername, pstarted, filteredPname, filteredPusername, filteredPstarted;
+  dyn_float pcpu, filteredPcpu;
+  dyn_int pmemory, filteredPmemory;
+  dyn_string pcmd, filteredPcmd;
+  dyn_int oldPids, lines;
+  bool found = false;
+  string systemName = dpSubStr($sDpName, DPSUB_SYS);
+  int x = 596, y = 561;
+  int mx = 501;//, my = 561;
+
+  txTitle.text = \"Processes and Services for node: \" + node + \" in \" + systemName;
+
+  string processDp = fwFMCProcess_getDp(node, systemName);
+  
+  int n = 0;
+  
+  tblMonitoredProcess.deleteAllLines();
+  tblMonitoredService.deleteAllLines();
+  tblProcess.deleteAllLines();
+  tblService.deleteAllLines();
+  
+  if(fwFMC_getNodeOs(node, systemName) == \"LINUX\")
+  {
+    tblMonitoredService.visible = false;
+    tblService.visible = false;
+    txServiceCount.visible = false;
+    txProcessCount.position(552, 642);    
+    frService.visible = false;
+    frProcess.size(x+30, y+50);
+    frProcessAll.size(1171, y+80);
+    frMonitoredProcess.size(mx+30, y+50);
+    frMonitoredService.visible = false;
+    frServiceAll.visible = false;
+    frService.visible = false;
+    tblProcess.size(x, y);
+    tblMonitoredProcess.size(mx, y);
+  }
+  //Processes
+  //Check that all services have been updated, i.e. all have the same dimension:
+
+  //scan table to find out what has to be deleted:
+  for(int i = 1; i <= tblProcess.lineCount(); i++)
+  {
+    getValue(\"tblProcess\", \"cellValueRC\", i-1, \"pid\", oldPids[i]);
+    lines[i] = i-1;
+  }
+  
+  dpGet(processDp + \".processes.name\", pname,
+        processDp + \".processes.username\", pusername,
+        processDp + \".processes.commandLine\", pcmd,
+        processDp + \".processes.pid\", ppid,
+        processDp + \".processes.memory\", pmemory,
+        processDp + \".processes.cpu\", pcpu,
+        processDp + \".processes.startDate\", pstarted);
+  
+  if(fwFMC_getNodeOs(node, systemName) == \"LINUX\")
+  {
+    for(int i = 1; i <= dynlen(pname); i++)
+    {
+      pstarted[i] = \"N/A\";
+    }
+  }  
+  
+  n = dynMin(makeDynInt(dynlen(ppid), dynlen(pname), dynlen(pcpu), dynlen(pmemory), dynlen(pcmd), dynlen(pusername), dynlen(pstarted)));                        
+  txProcessCount.text = \"Total: \" + n;
+  dynClear(filteredPpid);
+  dynClear(filteredPname);
+  dynClear(filteredPcpu);
+  dynClear(filteredPmemory);
+  dynClear(filteredPcmd);  
+  dynClear(filteredPusername);
+  dynClear(filteredPstarted);
+
+  for(int i = 1; i <= n; i++)
+  {
+    pmemory[i] /= 1024;
+    pcpu[i] = floor(pcpu[i]*10)/10.;
+    if (patternMatch(\"*\"+processNamePattern+\"*\", pname[i]) && patternMatch(\"*\"+processCmdLinePattern+\"*\", pcmd[i]))
+    {
+      dynAppend(filteredPpid, ppid[i]);
+      dynAppend(filteredPname, pname[i]);
+      dynAppend(filteredPcpu, pcpu[i]);
+      dynAppend(filteredPmemory, pmemory[i]);
+      dynAppend(filteredPcmd, pcmd[i]);  
+      dynAppend(filteredPusername, pusername[i]);
+      dynAppend(filteredPstarted, pstarted[i]);
+    }
+  }
+
+  tblProcess.updateLines(1, \"pid\", filteredPpid, \"name\", filteredPname, \"cpu\", filteredPcpu, 
+                         \"memory\", filteredPmemory, \"cmd\", filteredPcmd, \"username\", filteredPusername, \"started\", filteredPstarted);  
+  
+  //table clean up: remove entries for processes that are not running anymore:
+  dyn_int deletedPids;
+  for(int i = 1; i <= dynlen(oldPids); i++)
+  {
+    if(dynContains(filteredPpid, oldPids[i]) <= 0)
+    {
+      dynAppend(deletedPids, oldPids[i]);
+      tblProcess.deleteLineN(lines[i]);    
+    }
+  }  
+  
+  //Services
+  if(fwFMC_getNodeOs(node, systemName) == \"WINDOWS\")
+  {
+    //scan table to find out what has to be deleted:
+    dynClear(lines);
+    dynClear(sname);
+    dynClear(oldNames);
+  
+    for(int i = 1; i <= tblService.lineCount(); i++)
+    {
+      getValue(\"tblService\", \"cellValueRC\", i-1, \"name\", oldNames[i]);
+      lines[i] = i-1;
+    }
+
+    dpGet(processDp + \".services.name\", sname,
+          processDp + \".services.startMode\", sstartMode,
+          processDp + \".services.pid\", sid,
+          processDp + \".services.type\", stype,
+          processDp + \".services.started\", sstarted,
+          processDp + \".services.desktopInteract\", sdesktopInteract);
+
+    n = dynMin(makeDynInt(dynlen(sid), dynlen(sname), dynlen(sstarted), dynlen(sdesktopInteract), dynlen(stype), dynlen(sstartMode)));
+    txServiceCount.text = \"Total: \" + n;
+  
+    dyn_string dsstarted, dsdesktopInteract;
+    
+    for(int i = 1; i <= n; i++)
+    {
+    
+      if(sstarted[i])
+        dsstarted[i] = \"TRUE\";
+      else
+        dsstarted[i] = \"FALSE\";
+    
+      if(sdesktopInteract[i])
+        dsdesktopInteract[i] = \"TRUE\";
+      else 
+        dsdesktopInteract[i] = \"FALSE\";
+        
+    
+    }
+//DebugN(1, \"name\", sname, \"pid\", sid, \"name\", sname, \"started\", dsstarted, \"type\", stype, \"startMode\", sstartMode, \"desktopInteract\", dsdesktopInteract);
+
+    tblService.updateLines(1, \"name\", sname, \"pid\", sid, \"name\", sname, \"started\", dsstarted, \"type\", stype, \"startMode\", sstartMode, \"desktopInteract\", dsdesktopInteract);
+    
+    //table clean up: remove entries for non-existing services
+    for(int i = 1; i <= dynlen(oldNames); i++)
+    {
+      if(dynContains(sname, oldNames[i]) <= 0)
+        tblService.deleteLineN(lines[i]);      
+    }
+  }
+  
+  //Monitored processes:
+  dyn_string monitoredDps;
+  //scan table to find out what has to be deleted:
+  dynClear(lines);
+  dynClear(oldNames);
+  
+  for(int i = 1; i <= tblService.lineCount(); i++)
+  {
+    getValue(\"tblService\", \"cellValueRC\", i-1, \"dp\", oldNames[i]);
+    lines[i] = i-1;
+  }
+  
+    
+ // if(fwFMC_getNodeOs(node) == \"WINDOWS\")
+    monitoredDps = dpNames(systemName + \"FMC/\" + node + \"/*\", \"FwFMCMonitoredProcess\");
+ // else
+  //  monitoredDps = dpNames(systemName + \"FMC/\" + node + \"/*\", \"FwFMCMonitoredProcessLinux\");
+  
+  for(int i = 1; i <= dynlen(monitoredDps); i++)
+  {
+    int mpid = 0, mmemory = 0;
+    float mcpu = 0.;
+    string mname = \"\", mcmd = \"\";//, musername;
+    int mstate = 0;
+    string state = \"DEAD\";
+    string col = \"FwStateAttention3\";
+    
+    dpGet(monitoredDps[i] + \".config.name\", mname,
+          monitoredDps[i] + \".config.cmd\", mcmd,
+          monitoredDps[i] + \".readings.pid\", mpid,
+          monitoredDps[i] + \".readings.memory\", mmemory,
+          monitoredDps[i] + \".readings.cpu\", mcpu,
+          monitoredDps[i] + \".readings.state\", mstate);
+    
+    mmemory /= 1024;
+    mcpu = floor(mcpu*10)/10.;
+    
+    if(mstate >= 2 && mpid != -1)
+    {
+      col = \"FwStateOKPhysics\";
+      state = \"Running\";
+    }
+    else if(mpid == -1)
+    {
+      col = \"FwDead\";
+      state = \"Unknown\";
+    }
+    
+    tblMonitoredProcess.updateLine(1, \"dp\", monitoredDps[i], \"pid\", mpid, \"name\", mname, \"state\", state, \"cpu\", mcpu, \"memory\", mmemory, \"cmd\", mcmd);   
+    tblMonitoredProcess.cellBackColRC(i-1, \"state\", col);        
+  }
+  
+  //Remove now the monitored processes that do not exist any longer
+  for(int i = 1; i <= dynlen(oldNames); i++)
+  {
+    if(dynContains(monitoredDps, oldNames[i]) <= 0)
+      tblService.deleteLineN(lines[i]);
+  }  
+
+  //Monitored services:
+  if(fwFMC_getNodeOs(node, systemName) == \"WINDOWS\")
+  {
+    //scan the table to find out what has to be deleted afterwards  
+    dynClear(lines);
+    dynClear(oldNames);
+    for(int i = 1; i <= tblMonitoredService.lineCount(); i++)
+    {
+      getValue(\"tblMonitoredService\", \"cellValueRC\", i-1, \"dp\", oldNames[i]);
+      lines[i] = i-1;
+    }
+    
+    dynClear(monitoredDps);
+    monitoredDps = dpNames(systemName + \"FMC/\"+node+\"/*\", \"FwFMCMonitoredService\");
+  
+    for(int i = 1; i <= dynlen(monitoredDps); i++)
+    {
+      int mpid = 0, mdesktop = 0, mstarted = 0;
+      string mtype = \"\", mstartMode = \"\", mname = \"\";
+      string col = \"FwStateAttention3\";
+    
+      string started = \"FALSE\", desktopInteract = \"FALSE\";
+    
+      dpGet(monitoredDps[i] + \".readings.name\", mname,
+            monitoredDps[i] + \".readings.type\", mtype,
+            monitoredDps[i] + \".readings.pid\", mpid,
+            monitoredDps[i] + \".readings.startMode\", mstartMode,
+            monitoredDps[i] + \".readings.started\", mstarted,
+            monitoredDps[i] + \".readings.desktopInteract\", mdesktop);
+    
+      if(mstarted == 1)
+      {
+        started = \"TRUE\";
+        col = \"FwStateOKPhysics\";
+      }else if(mstarted < 0)
+      {
+        started = \"UNKNOWN\";
+        col = \"FwDead\";
+      }
+ 
+      if(mdesktop)
+        desktopInteract = \"TRUE\";
+    
+    
+      tblMonitoredService.updateLine(1, \"dp\", monitoredDps[i], \"pid\", mpid, \"name\", mname, \"started\", started, \"type\", mtype, \"startMode\", mstartMode, \"desktopInteract\", desktopInteract);
+      tblMonitoredService.cellBackColRC(i-1, \"started\", col);        
+    }
+    
+    //Remove now the services that do not exist any longer:
+    for(int i = 1; i <= dynlen(oldNames); i++)
+    {
+      if(dynContains(monitoredDps, oldNames[i])<=0)      
+        tblMonitoredProcess.deleteLineN(lines[i]);
+    }  
+    
+  }
+  
+  
+  tblProcess.removeSelectLines(0);
+  tblMonitoredProcess.removeSelectLines(0);
+  if(fwFMC_getNodeOs(node, systemName) == \"WINDOWS\")
+  {
+    tblService.removeSelectLines(0);
+    tblMonitoredService.removeSelectLines(0);
+  }
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tblProcess"
+""
+1 20 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  dyn_int lines;
+  dyn_string menu; 
+  int answer; 
+  string name, cmd;
+  int pid;
+  
+  stopRefresh = true;
+  string node = fwFMC_getNodeName($sDpName);
+  string domain;
+  fwSysOverview_getACDomain(domain, $sDpName);
+  string expertPrivilege = fwSysOverview_getExpertPrivilege(3);
+  
+  bool enabled = true;
+  dyn_string ex;
+  if (domain !=\"\" && expertPrivilege !=\"\")
+  {
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, enabled, ex);
+  }
+  getValue(\"\", \"getSelectedLines\", lines);
+
+  menu = makeDynString(
+    \"PUSH_BUTTON, Start Monitoring, 1, \" + (int) enabled
+    ); 
+  
+  popupMenu(menu, answer); 
+
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    getMultiValue(\"\", \"cellValueRC\", lines[i], \"pid\", pid, 
+                  \"\", \"cellValueRC\", lines[i], \"name\", name, 
+                  \"\", \"cellValueRC\", lines[i], \"cmd\", cmd);
+    
+    fwFMCProcess_sendProcessCommand(node, pid, name, cmd, answer);
+    delay(0,100);
+  }
+  
+  update();
+  stopRefresh = false;
+
+}
+
+
+
+
+
+
+" 0
+ E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 68 617 300
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE); 
+  this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 7 0 "pid" 3 1 0 "s" 1
+LANG:1 3 PID
+E
+1
+LANG:1 0 
+
+40 "name" 14 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+150 "cpu" 3 1 0 "s" 1
+LANG:1 4 %CPU
+E
+1
+LANG:1 0 
+
+46 "memory" 7 1 0 "s" 1
+LANG:1 11 Memory (MB)
+E
+1
+LANG:1 0 
+
+80 "username" 5 1 0 "s" 1
+LANG:1 4 User
+E
+1
+LANG:1 0 
+
+60 "started" 5 1 0 "s" 1
+LANG:1 10 Started on
+E
+1
+LANG:1 0 
+
+64 "cmd" 101 1 0 "s" 1
+LANG:1 12 Command Line
+E
+1
+LANG:1 0 
+
+1024 
+14 14 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+25 2
+"tblService"
+""
+1 20 400 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  dyn_int lines;
+  dyn_string menu; 
+  int answer, pid; 
+  string name;
+  
+  stopRefresh = true;
+  string node = fwFMC_getNodeName($sDpName);    
+  getValue(\"\", \"getSelectedLines\", lines);
+
+  bool enabled = true;
+  string domain;
+  fwSysOverview_getACDomain(domain, $sDpName);
+  string expertPrivilege = fwSysOverview_getExpertPrivilege(3);
+  
+  dyn_string ex;
+  if (domain !=\"\" && expertPrivilege !=\"\")
+  {
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, enabled, ex);
+  }
+   menu = makeDynString(
+    \"PUSH_BUTTON, Start Monitoring, 1, \" +(int) enabled 
+    ); 
+ 
+  popupMenu(menu, answer); 
+
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    getValue(\"\", \"cellValueRC\", lines[i], \"pid\", pid);
+    getValue(\"\", \"cellValueRC\", lines[i], \"name\", name);
+    fwFMCProcess_sendServiceCommand(node, pid, name, answer);
+  }
+  
+  update();
+  stopRefresh = false;
+  
+}
+
+
+
+
+
+" 0
+ E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 398 615 632
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE); 
+  this.selectByClick(TABLE_SELECT_LINE);
+  
+
+}" 0
+E 1 0 1 6 0 "pid" 3 1 0 "s" 1
+LANG:1 3 PID
+E
+1
+LANG:1 0 
+
+40 "name" 20 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+215 "started" 5 1 0 "s" 1
+LANG:1 7 Started
+E
+1
+LANG:1 0 
+
+60 "type" 12 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+130 "startMode" 5 1 0 "s" 1
+LANG:1 10 Start Mode
+E
+1
+LANG:1 0 
+
+60 "desktopInteract" 5 1 0 "s" 1
+LANG:1 12 Desktop Int.
+E
+1
+LANG:1 0 
+
+66 
+14 14 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 4
+"txTitle"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 10 350 30
+0 2 2 "0s" 0 0 0 64 0 0  10 10 1
+1
+LANG:1 25 Arial,8,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 7 txTitle
+25 7
+"tblMonitoredProcess"
+""
+1 650 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  dyn_int lines;
+  dyn_string menu; 
+  int answer; 
+  string name, cmd;
+  int pid;
+  string dp;
+  dyn_string ds;
+  dyn_string trendDps;
+  
+  stopRefresh = true;
+  
+  string node = fwFMC_getNodeName($sDpName);
+  
+  getValue(\"\", \"getSelectedLines\", lines);
+  
+  if(dynlen(lines) <= 0 )
+    return;
+//DebugN(\"Selected Lines: \", lines);  
+  bool enabled = true;
+  dyn_string ex;
+  string domain;
+  fwSysOverview_getACDomain(domain, $sDpName);
+  string expertPrivilege = fwSysOverview_getExpertPrivilege(3);
+   
+  if (domain !=\"\" && expertPrivilege !=\"\")
+  {
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, enabled, ex);
+  }
+  menu = makeDynString(
+    \"PUSH_BUTTON, Trend, 6, 1\", 
+    \"SEPARATOR\", // separating line 
+    \"SEPARATOR\", // separating line 
+    \"PUSH_BUTTON, Stop Monitoring, 2, \" + (int) enabled
+   ); 
+  
+  popupMenu(menu, answer); 
+  if(answer ==0 )
+    return;
+  if(answer < 6)
+  {
+      string msg;
+      if(answer == 2)
+        msg  = \"Are you sure you want to stop monitoring the selected process?\";
+         
+      dyn_string ds;
+      dyn_float df;
+      ChildPanelOnCentralModalReturn(\"fwInstallation/fwInstallationDB_question.pnl\", 
+                               \"Confirmation Required\", 
+                               makeDynString(\"$txt:\"+msg), df, ds);
+      
+      if(dynlen(df)<= 0 || strtoupper(ds[1]) != \"YES\")      
+      {
+        stopRefresh = false;
+        return;
+      }
+  }  
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+
+    getMultiValue(\"\", \"cellValueRC\", lines[i], \"pid\", pid, 
+                  \"\", \"cellValueRC\", lines[i], \"name\", name, 
+                  \"\", \"cellValueRC\", lines[i], \"cmd\", cmd,
+                  \"\", \"cellValueRC\", lines[i], \"dp\", dp);
+        
+    if (answer <6 )
+    {
+      fwFMCProcess_sendProcessCommand(node, pid, name, cmd, answer);
+    }
+    else if(answer == 6)
+    {
+      dynAppend(trendDps, dp + \"\");
+    }
+  }
+
+  if(answer == 6)
+    ChildPanelOnCentral(\"fwFMC/fwFMC_trendProcess.pnl\", \"Processes Trend\", makeDynString(\"$dps:\" + trendDps));  
+  
+  update();
+  stopRefresh = false;
+  
+}
+
+
+
+
+
+
+
+
+
+" 0
+ E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  648 68 1152 302
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE); 
+  this.selectByClick(TABLE_SELECT_LINE);
+} " 0
+E 1 0 1 7 0 "pid" 3 1 0 "s" 1
+LANG:1 3 PID
+E
+1
+LANG:1 0 
+
+40 "name" 14 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+150 "state" 5 1 0 "s" 1
+LANG:1 5 State
+E
+1
+LANG:1 0 
+
+60 "cpu" 3 1 0 "s" 1
+LANG:1 4 %CPU
+E
+1
+LANG:1 0 
+
+45 "memory" 7 1 0 "s" 1
+LANG:1 11 Memory (MB)
+E
+1
+LANG:1 0 
+
+80 "cmd" 101 1 0 "s" 1
+LANG:1 12 Command Line
+E
+1
+LANG:1 0 
+
+1024 "dp" 101 0 0 "s" 1
+LANG:1 2 dp
+E
+1
+LANG:1 0 
+
+1024 
+14 14 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 9
+"txProcessCount"
+""
+1 560 310 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 560 310 670 330
+0 2 2 "0s" 0 0 0 64 0 0  560 310 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Processes:
+2 10
+"txServiceCount"
+""
+1 552 642 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 552 642 662 662
+0 2 2 "0s" 0 0 0 64 0 0  552 642 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Processes:
+25 11
+"tblMonitoredService"
+""
+1 650 400 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  dyn_int lines;
+  dyn_string menu; 
+  int answer, pid; 
+  string name;
+  stopRefresh = true;
+  
+  string node = fwFMC_getNodeName($sDpName);    
+  getValue(\"\", \"getSelectedLines\", lines);
+  
+  bool enabled = true;
+  dyn_string ex;
+  string domain;
+  fwSysOverview_getACDomain(domain, $sDpName);
+  string expertPrivilege = fwSysOverview_getExpertPrivilege(3);
+  
+  if (domain !=\"\" && expertPrivilege !=\"\")
+  {
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, enabled, ex);
+  }
+  menu = makeDynString(
+    \"PUSH_BUTTON, Stop Monitoring, 2, \" + (int) enabled
+  ); 
+  
+  popupMenu(menu, answer); 
+  if(answer ==0 )
+    return;
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    getValue(\"\", \"cellValueRC\", lines[i], \"pid\", pid);
+    getValue(\"\", \"cellValueRC\", lines[i], \"name\", name);
+    fwFMCProcess_sendServiceCommand(node, pid, name, answer);
+  }
+  
+  update();
+  stopRefresh = false;  
+}
+
+
+
+
+
+" 0
+ E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  648 398 1150 632
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE); 
+  this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 7 0 "pid" 3 1 0 "s" 1
+LANG:1 3 PID
+E
+1
+LANG:1 0 
+
+40 "name" 42 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+394 "started" 5 1 0 "s" 1
+LANG:1 7 Started
+E
+1
+LANG:1 0 
+
+60 "type" 0 0 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+0 "startMode" 5 0 0 "s" 1
+LANG:1 10 Start Mode
+E
+1
+LANG:1 0 
+
+60 "desktopInteract" 6 0 0 "s" 1
+LANG:1 12 Desktop Int.
+E
+1
+LANG:1 0 
+
+66 "dp" 6 0 0 "s" 1
+LANG:1 2 dp
+E
+1
+LANG:1 0 
+
+66 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+30 13
+"frProcessAll"
+""
+1 10 43 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+21 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.48101265822785 0 1.00977198697068 -8.8101265822785 -13.42019543973924 0 E 10 43 801 351
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Processes
+30 14
+"frMonitoredService"
+""
+1 620 53 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+22 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.825396825396825 0 0.942760942760943 128.253968253968 330.03367003367 0 E 620 53 1251 351
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Monitored
+30 15
+"frService"
+""
+1 620 53 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+24 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.968253968253968 0 0.942760942760943 -590.31746031746 330.03367003367 0 E 620 53 1251 351
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Available Services
+30 16
+"frMonitoredProcess"
+""
+1 620 53 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+26 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.825396825396825 0 0.942760942760943 128.2539682539685 0.03367003367002039 0 E 620 53 1251 351
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Monitored
+30 17
+"frProcess"
+""
+1 620 53 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+28 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.968253968253968 0 0.942760942760943 -590.31746031746 0.0336700336700346 0 E 620 53 1251 351
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Running Processes
+30 18
+"frServiceAll"
+""
+1 10 43 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+30 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.48101265822785 0 1.00977198697068 -8.8101265822785 316.579804560261 0 E 10 43 801 351
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Services
+13 19
+"PUSH_BUTTON1"
+""
+1 1060 680 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  1058 678 1172 712
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+2 25
+"PRIMITIVE_TEXT1"
+""
+1 1050 20 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 1050 13 1320 33
+0 2 2 "0s" 0 0 0 64 0 0  1050 13 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Readout Status
+7 26
+"ELLIPSE1"
+""
+1 1080 20 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  int success = -1;
+  dyn_int manNums;            
+  string systemName = dpSubStr($sDpName, DPSUB_SYS);
+  string node = fwFMC_getNodeName($sDpName);
+
+  while(1)
+  {   
+    if(!fwFMC_isEnabled())
+    {
+        this.backCol = \"FwDead\";
+    }
+    else
+    {
+    //Check if DIM managers are running:
+    dpGet(systemName + \"_Connections.Device.ManNums\", manNums,
+          fwFMC_getNodeDp(node, systemName) + \".agentCommunicationStatus.process\", success);
+        
+    if(dynContains(manNums, FW_FMC_PROCESS_DIM) <= 0)
+    {
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"Process DIM Manager \" + FW_FMC_PROCESS_DIM + \" not running\")); 
+      this.backCol = \"FwStateAttention3\";
+    }
+    else if(success != 1)
+    {
+     ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"Communication error for node: \" + node + \" in system: \" + systemName)); 
+     this.backCol = \"FwStateAttention3\";
+    }
+    else
+      this.backCol = \"FwStateOKPhysics\";
+    }
+    delay(10);
+  } 
+}
+" 0
+ E 0 1 1 2 1 E 1 0 1 70 0 1 E 1080 20 10 10
+20 27
+"cbDisableRefresh"
+""
+1 10 670 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  8 668 192 692
+1
+T 
+1
+LANG:1 33 Disable tables' automatic refresh
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+EE13 28
+"PUSH_BUTTON2"
+""
+1 165 20 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 6 Filter
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  573 68 597 92
+
+P 
+4294967295
+"pictures/zoom_in_en.gif"
+1
+LANG:1 12 PUSH_BUTTON2
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  ChildPanelOnCentralModalReturn(\"fwFMC/fwFMC_defineProcessesFilter.pnl\", \"Define filter\",
+                                 makeDynString(\"$processNamePattern:\"+processNamePattern, \"$commandLinePattern:\"+processCmdLinePattern),
+                                 df, ds);
+  if (dynlen(df) > 0 && df[1])
+  {
+    processNamePattern = ds[1];
+    processCmdLinePattern = ds[2];
+    update();
+  }
+}" 0
+ E E E
+13 30
+"btnClearFilter"
+""
+1 185 20 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 12 Clear Filter
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  593 68 617 92
+
+P 
+4294967295
+"pictures/delete_24.png"
+1
+LANG:1 12 PUSH_BUTTON2
+"main()
+{
+  processNamePattern = \"*\";
+  processCmdLinePattern = \"*\";
+  update();
+}" 0
+ E E E
+2 31
+"txFMCDisabled"
+""
+1 882 12 E E E 1 E 0 E N "S7_sysMustWentUnq" E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  dpConnect(\"setVisibilityCB\", \"_fwFMCParameterization.enabled\");  
+}
+
+setVisibilityCB(string fmcParameterizationDp, bool enabled)
+{
+  this.visible = !enabled;
+  return;
+}
+
+
+" 0
+ E 0 1 1 2 1 E U  0 E 882 12 1032 32
+0 2 2 "0s" 0 0 0 66 0 0  882 12 1
+1
+LANG:1 26 Arial,10,-1,5,75,1,0,0,0,0
+0 1
+LANG:1 17 FMC is disabled!!
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

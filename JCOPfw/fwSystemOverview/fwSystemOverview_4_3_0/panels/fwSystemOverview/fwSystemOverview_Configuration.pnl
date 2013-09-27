@@ -1,0 +1,1093 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 435 596 N "_3DFace" 1
+"$embedded"
+"main()
+{
+   //fwSysOverview_setMonitoringDp(2);
+//  value1 = 0;
+//  value2 = \"\";
+  
+  dyn_string exceptionInfo;
+  
+   if(dpExists(\"fwInstallation_fwAccessControl\"))
+  {
+    //Access control callback function
+    fwAccessControl_setupPanel(\"appyAccessControl\",exceptionInfo);
+	
+    // check and handle exceptions that might have been thrown by the functions above
+    if (dynlen(exceptionInfo)) 
+    {
+      fwAccessControl_displayException(exceptionInfo);
+      return;
+    }    
+  }
+}" 0
+ "main()
+{
+  //fwSysOverview_setMonitoringDp(1);
+}" 0
+ E E E 1 -1 -1 0  40 40
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+#uses \"fwFMC/fwFMC.ctl\"
+#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+//dyn_float value1;
+//dyn_string value2;
+    
+void enablePanel(bool enable)
+{
+  btClose.enabled = enable;
+  btConfiguration.enabled = enable;
+  rbSource.enabled = enable;
+  cbEnableArchiving.enabled = enable;
+  cbDimPublish.enabled = enable;
+  btSetACDomain.enabled = enable;
+  btSetFMCSystem.enabled = enable;
+  tfFMCSystem.enabled = enable;
+  tfInheritFMC.enabled = enable;
+  tfCurrentArchive.enabled = enable;
+  cbACDomain.enabled = enable;
+  btChangeArchiving.enabled = enable;
+  btFMCAction.enabled = enable;
+}
+    
+
+void currentArchiveClass(string dpe, string newValue)
+{
+  if(newValue == \"\")
+    tfCurrentArchive.text = \"not defined\";   
+  else
+    tfCurrentArchive.text = newValue;
+  
+}
+
+void archivingStatus(string dpe, string newValue)
+{
+  if(newValue == 0)
+    cbEnableArchiving.state(0, false);
+  else if(newValue == 1)
+    cbEnableArchiving.state(0, true); 
+}
+
+void dimPublishStatus(string dpe, string newValue)
+{
+  if(newValue == 0)
+    cbDimPublish.state(0, false);
+  else if(newValue == 1)
+    cbDimPublish.state(0, true); 
+}
+
+appyAccessControl(string s1, string s2)
+{
+  string domain;
+  dyn_string exceptionInfo;
+  bool granted = FALSE;
+  fwSysOverview_getACDomain(domain);
+
+  if(domain != \"\")
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(1);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, granted, exceptionInfo);
+    
+    if (dynlen(exceptionInfo)) {
+     fwAccessControl_displayException(exceptionInfo); return;
+    } 
+  }
+  else
+    granted = true;
+  
+  DisableAllInPanel(granted);
+  btnReports.enabled = true;
+  btnNotifications.enabled = true;
+}
+
+
+DisableAllInPanel(bool disable = false)
+{  
+  dyn_string shapes, buttons, checkBoxes, radioBoxes;
+  
+  buttons = getShapes(myModuleName(), myPanelName(), \"shapeType\", \"PUSH_BUTTON\");
+  checkBoxes = getShapes(myModuleName(), myPanelName(), \"shapeType\", \"CHECK_BOX\");
+  radioBoxes = getShapes(myModuleName(), myPanelName(), \"shapeType\", \"RADIO_BOX\");
+  shapes = buttons;
+  dynAppend(shapes, checkBoxes);
+  dynAppend(shapes, radioBoxes);
+  
+  for(int i=1; i<=dynlen(shapes); i++)
+  {
+    setValue(shapes[i], \"enabled\", disable);
+  }
+  btClose.enabled = true;
+}
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+  string stop;
+//  dpSet(\"_Ui_\"+myManNum()+ \".ReturnValue.Float:_original.._value\", value1);
+ 
+//  dpSet(\"_Ui_\"+myManNum()+ \".ReturnValue.Text:_original.._value\", value2);
+
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 14
+"Modify_Configuration"
+""
+1 10 2 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+3 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.13888888888889 0 0.434782608695652 -1.3888888888889 379.1304347826085 0 E 10 2 371 141
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 13 Configuration
+13 15
+"btClose"
+""
+1 330 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 13 Close a panel
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  328 558 422 592
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+    PanelOff();
+}
+
+" 0
+ E E "main()
+{
+  if(isDollarDefined(\"$embedded\") && $embedded == \"TRUE\")
+    this.visible = false;
+    
+}
+" 0
+
+13 29
+"btConfiguration"
+""
+1 330 400.0000000000002 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:5 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  328 398 415 432
+
+T 
+2
+LANG:1 7 Proceed
+LANG:5 9 Configure
+"main()
+{
+    ChildPanelOnCentralModal(\"fwFMC/fwFMC_dbImport.pnl\", \"Mass Configuration\", 
+                             makeDynString(\"\"));
+}
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+2 30
+"PRIMITIVE_TEXT2"
+""
+1 100 0 E E E 1 E 1 E N "FwStateAttention3" E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+   if( !dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_MONITORING))
+   {
+     this.visible = false;
+     DebugTN(\"Data point \" + fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_MONITORING + \" does not exist.\");
+     return;  
+   }
+
+   dpConnect(\"setVisible\", fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_MONITORING);
+   
+}
+
+
+setVisible(string dpe, bool value)
+{
+  this.visible = !value;
+/*  
+  if(value == true)
+    this.visible = false;
+  
+  if(value == false)
+    this.visible = true;    
+  */  
+}
+" 0
+ E 0 1 1 2 1 E U  1 E 100 0 252 14
+0 2 2 "0s" 0 0 0 192 0 0  100 0 1
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 31 Monitoring has been stopped !!!
+30 31
+"FRAME1"
+""
+1 10 23 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+11 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.953488372093023 0 1.034482758620689 0.4651162790697692 -13.79310344827585 0 E 10 23 441 111
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 14 Access Control
+2 33
+"PRIMITIVE_TEXT1"
+""
+1 20 40 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 40 79 54
+0 2 2 "0s" 0 0 0 192 0 0  20 40 1
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 10 AC Domain:
+13 34
+"btSetACDomain"
+""
+1 330 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  328 58 412 92
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+ 
+  string newACDomain = cbACDomain.text;
+ 
+  if(!dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_ACCESS_DOMAIN))
+  {
+    DebugTN(\"Data point: \" + fwSysOverview_PARAMETRIZATION + fwSysOverview_ACCESS_DOMAIN + \" does not exist!!!\" );
+    return;
+  }
+
+  string domainFullName, domainComment;
+  int domainId;
+  dyn_string privilageNames, ex;
+  dyn_int privilageIds;
+  fwAccessControl_getDomain(newACDomain, domainFullName, domainComment, domainId, privilageNames, privilageIds, ex);
+
+  if (cmbPrivileges.text != \"\")
+  {
+    dpSetWait(fwSysOverview_PARAMETRIZATION + fwSysOverview_ACCESS_DOMAIN, newACDomain,
+              fwSysOverview_PARAMETRIZATION + fwSysOverview_EXPERT_PRIVILEGE, cmbPrivileges.text);
+    string description = myPanelName() + \": Changing SO access control configuration. Access control domain: \" + newACDomain + 
+                         \". Expert privilege: \" + cmbPrivileges.text;
+
+    fwConfigurationDBSystemInformation_logAction(description);
+  } 
+  else
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Error\", makeDynString(\"$1:\"+\"Please select an expert privilage!\"));
+  }
+ 
+}" 0
+ E E E
+30 35
+"FRAME2"
+""
+1 10 23 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+19 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.953488372093023 0 1.14942528735632 0.4651162790697697 193.5632183908047 0 E 10 23 441 111
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 10 FMC System
+30 48
+"FRAME4"
+""
+1 10 393 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+37 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.6493506493506493 0 64.80519480519479 0 E 10 393 421 471
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 3 DIM
+20 49
+"cbDimPublish"
+""
+1 19.99999999999997 340.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  18 338 222 362
+1
+T 
+1
+LANG:1 34 Publish projects' statuses via DIM
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+  
+  string version;
+//  if(!dpExists(\"fwDimDefaultConfig\"))
+  if(!fwInstallation_isComponentInstalled(\"fwDIM\", version))
+  {
+    this.enabled = false;
+    return;
+  }
+  
+  if(dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_DIM_PUBLISHING))
+    dpConnect(\"dimPublishStatus\", fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_DIM_PUBLISHING);
+    
+}
+
+
+" 0
+"main(int button, int state)
+{
+  bool  ok = FALSE;
+  dyn_float resultFloat;
+  dyn_string resultText;
+
+  if(state == 1)
+  {
+    ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation\", 
+                          makeDynString(\"$1:Do you want to publish projects' statuses via DIM?\" , \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+    if(dynlen(resultFloat) > 0 ) 
+      ok = resultFloat[1];
+
+    if(!ok)
+     {
+      this.state(0) = false;
+      return;
+    }
+    
+    fwSysOverview_enableDimPublishing();
+  }
+  else
+  {
+    ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation\", 
+                          makeDynString(\"$1:Do you want to stop publishing projects' statuses via DIM?\" , \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+    if(dynlen(resultFloat) > 0 ) 
+      ok = resultFloat[1];
+  
+    if(!ok)
+    {
+      this.state(0) = true;
+      return;
+    }
+
+    fwSysOverview_disableDimPublishing();
+  }  
+}
+
+
+" 0
+30 51
+"FRAME5"
+""
+1 10 2 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+40 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.13888888888889 0 0.652173913043478 -1.3888888888889 448.6956521739131 0 E 10 2 371 141
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 27 Manager Monitoring via PMON
+2 53
+"PRIMITIVE_TEXT5"
+""
+1 22 482 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 482 158 496
+0 2 2 "0s" 0 0 0 192 0 0  22 482 1
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 29 Current readout Interval (s):
+14 54
+"TEXT_FIELD1"
+""
+1 170 480.0000000000001 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  168 478 242 501
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  dpConnect(\"setCurrent\", \"fwSysOverviewParametrization.refreshRate\");
+}
+void setCurrent(string dpe, int interval)
+{
+  this.text = interval;
+  return;
+}
+
+" 0
+ E
+13 55
+"PUSH_BUTTON2"
+""
+1 330 505.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:5 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  328 503 415 537
+
+T 
+2
+LANG:1 5 Apply
+LANG:5 9 Configure
+"main()
+{
+  int interval = 0;
+  dpSet(\"fwSysOverviewParametrization.refreshRate\", tfNewReadout.text);
+  
+  string description = myPanelName() + \": fwSysOverviewParametrization.refreshRate changed: \" + tfNewReadout.text; 
+  fwConfigurationDBSystemInformation_logAction(description);
+}
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+2 56
+"PRIMITIVE_TEXT6"
+""
+1 22 512 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 512 141 526
+0 2 2 "0s" 0 0 0 192 0 0  22 512 1
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 25 New readout Interval (s):
+14 57
+"tfNewReadout"
+""
+1 170 510 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  168 508 242 531
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  int interval = 0;
+  dpGet(\"fwSysOverviewParametrization.refreshRate\", interval);
+  this.text = interval;
+}
+" 0
+ E
+2 58
+"PRIMITIVE_TEXT10"
+""
+1 22 412.0000000000001 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 412.0000000000001 116 426
+0 2 2 "0s" 0 0 0 192 0 0  22 412.0000000000001 1
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 19 Last Configured on:
+2 59
+"lastUpdateTime"
+""
+1 118 412.0000000000001 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  dpConnect(\"EP_textFieldInCB\",
+            \"fwSysOverviewParametrization.dbLastUpdate:_original.._stime\");
+}
+EP_textFieldInCB(string dp, time tNewValue)
+{
+  string newTime;
+  newTime = formatTime(\"%Y.%m.%d %H:%M\", tNewValue);
+  setValue(\"\", \"text\", newTime); //setValue(\"\", \"text\", tNewValue);
+}
+
+" 0
+ E 0 1 1 2 1 E U  1 E 118 412.0000000000001 119 426
+0 2 2 "0s" 0 0 0 192 0 0  118 412.0000000000001 1
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 0 
+30 60
+"FRAME6"
+""
+1 10 2 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+49 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.13888888888889 0 0.434782608695652 -1.3888888888889 99.1304347826087 0 E 10 2 371 141
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 7 Reports
+13 61
+"btnReports"
+""
+1 330 120.0000000000002 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:5 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  328 118 415 152
+
+T 
+2
+LANG:1 7 Proceed
+LANG:5 9 Configure
+"main()
+{
+    ChildPanelOnCentralModal(\"fwSystemOverview/fwSystemOverview_applicationEmailConfig.pnl\", \"Email report configuration\", 
+                             makeDynString(\"\"));
+}
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+22 62
+"cbACDomain"
+""
+1 110 37 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  108 35 301 58
+0
+
+"main()
+{
+  dyn_string domains, domainsFullNames, ex;
+  fwAccessControl_getAllDomains(domains, domainsFullNames, ex);
+  if (dynlen(ex) == 0)
+  {
+    this.items = domains;
+  }
+  
+  string accessDomain;
+  
+  if(!dpExists(\"fwInstallation_fwAccessControl\"))
+  {
+    this.text = \"Access Control is not installed\";
+    this.enabled = false;
+    return;
+  }
+  if(dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_ACCESS_DOMAIN))
+    dpGet(fwSysOverview_PARAMETRIZATION + fwSysOverview_ACCESS_DOMAIN, accessDomain);
+
+  this.text = accessDomain;
+
+}" 0
+
+"main()
+{
+  string newDomain = this.text;
+  if (newDomain != \"\")
+  {
+    cmbPrivileges.enabled = true;
+    dyn_string privilegeNames, ex;
+    dyn_int privilegeIds;
+    fwAccessControl_getPrivilegeNames(newDomain, privilegeNames, privilegeIds, ex);
+    if (dynlen(ex) == 0)
+    {
+      cmbPrivileges.items = privilegeNames;
+    }
+
+    string expertPrivelege;  
+    if(dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_EXPERT_PRIVILEGE))
+      dpGet(fwSysOverview_PARAMETRIZATION + fwSysOverview_EXPERT_PRIVILEGE, expertPrivelege);
+
+    if(dynContains(privilegeNames, expertPrivelege))
+      cmbPrivileges.text = expertPrivelege;
+    else
+      cmbPrivileges.text = \"\";
+  }
+  else
+    cmbPrivileges.enabled = false;
+}
+" 0
+
+E
+ 1 0
+30 63
+"FRAME7"
+""
+1 10 2 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+52 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.13888888888889 0 0.434782608695652 -1.3888888888889 159.1304347826087 0 E 10 2 371 141
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 13 Notifications
+13 64
+"btnNotifications"
+""
+1 330 180.0000000000002 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:5 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  328 178 415 212
+
+T 
+2
+LANG:1 7 Proceed
+LANG:5 9 Configure
+"main()
+{
+    ChildPanelOnCentralModal(\"fwSystemOverview/fwSystemOverview_applicationSMSConfiguration.pnl\", \"Notifications configuration\", 
+                             makeDynString(\"\"));
+}
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+2 65
+"PRIMITIVE_TEXT11"
+""
+1 22 73 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 73 102 87
+0 2 2 "0s" 0 0 0 192 0 0  22 73 1
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 1
+LANG:1 17 Expert Privilege:
+22 66
+"cmbPrivileges"
+""
+1 110 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  108 68 301 91
+0
+
+"main()
+{
+  if(!dpExists(\"fwInstallation_fwAccessControl\"))
+  {
+    this.text = \"Access Control is not installed\";
+    this.enabled = false;
+    return;
+  }
+
+
+  string accessDomain;
+    
+  
+  if(dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_ACCESS_DOMAIN))
+    dpGet(fwSysOverview_PARAMETRIZATION + fwSysOverview_ACCESS_DOMAIN, accessDomain);
+  if (accessDomain != \"\")
+  {
+    dyn_string domains, domainsFullNames, ex;
+    dyn_string privilegeNames, ex;
+    dyn_int privilegeIds;
+    fwAccessControl_getPrivilegeNames(accessDomain, privilegeNames, privilegeIds, ex);
+    if (dynlen(ex) == 0)
+    {
+      this.items = privilegeNames;
+    }
+
+    string expertPrivelege;  
+    if(dpExists(fwSysOverview_PARAMETRIZATION + fwSysOverview_EXPERT_PRIVILEGE))
+      dpGet(fwSysOverview_PARAMETRIZATION + fwSysOverview_EXPERT_PRIVILEGE, expertPrivelege);
+
+    this.text = expertPrivelege;
+  }
+  else
+    this.enabled = false;
+}" 0
+
+E
+E
+ 1 0
+1 82 1 "" 0
+0
+1 83 1 "" 1
+0
+1 86 1 "" 4
+0
+1 84 1 "" 2
+0
+1 85 1 "" 3
+0
+1 87 1 "" 5
+0
+13 81
+"PUSH_BUTTON5"
+""
+1 330 240.0000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  328 238 412 272
+
+T 
+1
+LANG:1 16 Inherit from
+FMC
+"//#uses \"fwFMC/fwFMC.ctl\"
+main()
+{
+  string fmcSystem = \"\";
+  dyn_string nodes, exceptionInfo;
+  string fmcDp;
+  dyn_float resultFloat;
+  dyn_string resultText;
+  
+  fmcSystem = fwSysOverview_getFmcSystem();
+  
+  if(fmcSystem == \"\")
+  {  
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR: FMC system is not defined.\", makeDynString(\"FMC system is not defined.\"));
+    return;
+  }
+    
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation\", 
+                          makeDynString(\"$1:Are you sure you want to inherit FMC configuration from \" + fmcSystem + \" ?\", \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+                           
+  bool ok=FALSE;
+  if(dynlen(resultFloat) > 0 ) 
+    ok = resultFloat[1];
+
+  if(ok)
+  {  
+    if(!isFunctionDefined(\"fwFMC_getNodeDp\"))
+    {
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR: FMC component is not Installed.\", makeDynString(\"FMC component is not installed.\"));
+      return;
+    }
+  
+    fwFMC_getNodes(nodes, fmcSystem);
+DebugN(\"nodes\", nodes);
+    for(int i=1; i<=dynlen(nodes); i++)
+    {
+      fmcDp = fwFMC_getNodeDp(nodes[i], fmcSystem);
+DebugTN(\"fmcDp\", fmcDp);  
+      fwSysOverview_createHostDp(nodes[i], fmcDp, exceptionInfo);
+        if(dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return;}
+    }
+  }
+  
+  string description = myPanelName() + \": FMC configuration inherited from \" + fmcSystem;
+  fwConfigurationDBSystemInformation_logAction(description);
+}
+  
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 1 "PANEL_REF1" -1
+"fwFMC/fwFMC_parameterization.pnl" 30 260 T 57 U 
+0
+0

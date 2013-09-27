@@ -1,0 +1,637 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 374 395 N "_3DFace" 4
+"$dsDeviceList"
+"$hierarchy"
+"$system"
+"$topDevice"
+"main()
+{
+	EnableAll(FALSE);
+	dyn_string exceptionInfo;
+	if (!isDollarDefined(\"$topDevice\")) fwException_raise(exceptionInfo,\"ERROR\",\"Dollar parameter $topDevice missing\",\"\");
+	if (!isDollarDefined(\"$hierarchy\")) fwException_raise(exceptionInfo,\"ERROR\",\"Dollar parameter $hierarchy missing\",\"\");
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	PopulatePanel();
+}
+" 0
+ E E E E 1 -1 -1 0  20 10
+""0  1
+E "dyn_string deviceList,allDeviceList;
+dyn_dyn_mixed recipeObject;
+string source;
+string recipe;
+string system=\"\";
+void PopulatePanel()
+{
+
+	dyn_string exceptionInfo;
+
+	if ($hierarchy!=\"\") {
+		TopDevice.text=$topDevice+\"/*\";
+		Hierarchy.text=$hierarchy;
+	} else {
+		TopDevice.visible=FALSE;
+		Hierarchy.visible=FALSE;
+		HierarchyFrame.visible=FALSE;
+		ShowDeviceList.visible=FALSE;
+		
+	}
+
+
+if (isDollarDefined(\"$system\")) system=$system;
+
+	ShowDeviceList.enabled=TRUE;
+
+  	dynClear(deviceList);
+
+	// Modified by FVR on 25 of Nov 2005
+  // Added handling of user-defined device list
+  if (isDollarDefined(\"$dsDeviceList\") && $dsDeviceList != \"\"){
+  	allDeviceList=strsplit($dsDeviceList,\"|\");
+	  for (int i=1;i<=dynlen(allDeviceList);i++) {
+		  allDeviceList[i]=strrtrim(strltrim(allDeviceList[i]));
+	  }
+  }
+  else{
+	  fwConfigurationDB_getHierarchyFromPVSS($topDevice, $hierarchy,
+                                            allDeviceList,exceptionInfo,system);
+    if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return FALSE;}	
+  }
+  
+  deviceList=allDeviceList;
+
+   source=\"CACHE\";
+   RecipeSourceSelected();
+
+   EnableAll(TRUE);
+
+   OKButton.enabled=FALSE;
+   ApplyButton.enabled=FALSE;
+
+}
+
+void RecipeSourceSelected()
+{
+	dyn_string exceptionInfo;
+
+
+	dyn_string recipes;
+	RecipeName.items=recipes; // clear it!
+	recipe=\"\";
+	RecipeSelected();// clear selection...
+
+	string sysName=getSystemName();
+        string deviceName=$topDevice;
+        if (deviceName==sysName) deviceName=\"\";
+
+	if (source==\"\") {
+		return;
+	}else if (source==\"CACHE\") {
+          fwConfigurationDB_getRecipesInCache(recipes,exceptionInfo,deviceName);
+	} else if (source==\"DATABASE\") {
+          fwConfigurationDB_getRecipesInDB(recipes,exceptionInfo,deviceName);
+	} else {
+	  fwException_raise(exceptionInfo,\"ERROR\",
+			\"Unknown recipe source:\"+source,\"\");
+	};
+
+	if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}
+	RecipeName.items=recipes; // set it
+	RecipeName.text=\"\";
+	recipe=\"\";
+	RecipeSelected();
+   OKButton.enabled=FALSE;
+   ApplyButton.enabled=FALSE;
+
+}
+
+void RecipeSelected()
+{
+	dyn_string exceptionInfo;
+	string recipeComment;
+	int numDevices, numValues, numAlerts;
+
+
+	RecipeName.text=\"\";
+	RecipeComment.text=\"\";
+	
+	if (recipe==\"\") return;
+
+	if (source==\"CACHE\") {
+
+		fwConfigurationDB_getRecipeDescriptionInCache(recipe, recipeComment,exceptionInfo);
+	} else if (source==\"DATABASE\") {
+		fwConfigurationDB_getRecipeDescriptionInDB(recipe, recipeComment,exceptionInfo);
+
+	}
+	if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo);return;};
+
+	if (recipeComment==\"\") recipeComment=\"(empty)\";
+	RecipeComment.text=recipeComment;
+
+	RecipeName.text=recipe;
+
+	OKButton.enabled=TRUE;
+	ApplyButton.enabled=TRUE;
+
+}
+
+
+
+
+
+
+
+
+
+void EnableAll(bool enabled=TRUE)
+{
+  
+        if(fwConfigurationDB_DBConfigured==FALSE) {
+          RecipeSource.enabled=FALSE;
+          RecipeSource.number=0;
+
+         } else {
+           RecipeSource.enabled=enabled; 
+        }
+
+  	
+	ShowDeviceList.enabled=enabled;
+
+	OKButton.enabled=enabled;
+	ApplyButton.enabled=enabled;
+
+}
+
+
+
+bool LoadRecipe()
+{
+OKButton.enabled=FALSE;
+ApplyButton.enabled=FALSE;
+
+if (recipe==\"\") return FALSE;
+dyn_string exceptionInfo;
+
+if (source==\"CACHE\") {
+	fwConfigurationDB_openProgressDialog(
+		makeDynInt(fwConfigurationDB_OPER_LoadRecipeFromCache,
+		   fwConfigurationDB_OPER_ApplyRecipeToSystem),
+		makeDynString(	\"Load Recipe from Cache\",
+			\"Apply Recipe to System\"));
+    	fwConfigurationDB_getRecipeFromCache(recipe, deviceList, $hierarchy, 
+					recipeObject, exceptionInfo,system);
+
+
+} else if (source==\"DATABASE\"){
+	fwConfigurationDB_openProgressDialog(
+		makeDynInt(fwConfigurationDB_OPER_ResolveHierarchy,
+		   fwConfigurationDB_OPER_LoadHierachyFromDB,
+		   fwConfigurationDB_OPER_ApplyRecipeToSystem),
+		makeDynString(\"Resolve device hierarchy\",
+			\"Load Recipe from DB\",
+			\"Apply Recipe to System\"));
+		fwConfigurationDB_getRecipeFromDB($topDevice, 
+			deviceList, $hierarchy, 
+			recipe, recipeObject,exceptionInfo,system);
+
+} else {
+	fwException_raise(exceptionInfo,\"ERROR\",\"Unknown recipe source:\"+source,\"\");
+}
+
+    if (fwConfigurationDB_handleErrors(exceptionInfo)) return FALSE;
+
+    fwConfigurationDB_ApplyRecipe(recipeObject,$hierarchy,exceptionInfo);
+    if (fwConfigurationDB_handleErrors(exceptionInfo)) return FALSE;
+
+    fwConfigurationDB_closeProgressDialog();
+    return TRUE;
+
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text1"
+""
+1 13 8 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 15 10 209 29
+0 2 0 "0s" 0 0 0 192 0 0  15 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 28 Configuration Database Tool 
+2 1
+"TopDevice"
+""
+1 62 102 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 40 100 105 115
+0 2 2 "0s" 0 0 0 192 0 0  40 100 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 $topDevice
+2 2
+"Hierarchy"
+""
+1 72 112 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 40 130 101 145
+0 2 2 "0s" 0 0 0 192 0 0  40 130 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 $hierarchy
+2 11
+"DescText"
+""
+1 20 10 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 40 109 59
+0 2 0 "0s" 0 0 0 192 0 0  20 40 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 Apply recipe:
+30 14
+"FRAME1"
+""
+1 20 170 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.006289308176101 0 -6.069182389937086 0 E 20 170 360 340
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Get recipe from: 
+30 16
+"HierarchyFrame"
+""
+1 20 80 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+31 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 80 360 160
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Device hierarchy
+2 24
+"PRIMITIVE_TEXT1"
+""
+1 30 214 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 30 220 72 235
+0 2 2 "0s" 0 0 0 192 0 0  30 220 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Recipe:
+13 3
+"CancelButton"
+""
+1 280 350 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 280 350 360 380
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+13 5
+"OKButton"
+""
+1 180 350 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 180 350 260 380
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+
+	if (LoadRecipe()) PanelOffReturn(makeDynFloat(1.0),makeDynString());
+
+}" 0
+ E E E
+14 9
+"RecipeComment"
+""
+1 28 298 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 14 Recipe comment
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 298 348 325
+2 "0s" 0 0 0 0 0 -1  E E E
+19 10
+"RecipeSource"
+""
+1 96.25 190 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 88 183 292 210
+2
+T 
+1
+LANG:1 5 Cache
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 8 Database
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+if (button==0) source=\"CACHE\";
+else if (button==1) source=\"DATABASE\";
+RecipeSourceSelected();
+}" 0
+
+13 15
+"ShowDeviceList"
+""
+1 240 120 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 240 120 340 150
+
+T 
+1
+LANG:1 11 Device List
+"main()
+{
+
+	dyn_float df;
+	dyn_string ds;
+	
+	string showDpSelector=\"TRUE\";
+	string showAliasSelector=\"TRUE\";
+
+	ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_SelectionList.pnl\",
+			\"Apply Recipe: device list\",
+			makeDynString(\"$text:Devices in recipe\",
+				\"$DPSelector:\"+showDpSelector,
+				\"$AliasSelector:\"+showAliasSelector,
+				\"$items:\"+allDeviceList,
+				\"$selectMultiple:\"+TRUE,
+				\"$selectedItems:\"+deviceList),
+			df,ds);
+
+	if (dynlen(df)<1) return;
+	if (df[1]>0.0) {
+                deviceList=ds;
+          	// check! New devices might have been added!
+                dynAppend(allDeviceList,ds);
+                dynUnique(allDeviceList);
+		TopDevice.text=$topDevice+\"/[SELECTED \"+dynlen(deviceList)+\"/\"+dynlen(allDeviceList)+\"]\";
+	};
+
+}" 0
+ E E E
+13 18
+"ApplyButton"
+""
+1 80 350 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 80 350 160 381
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+
+	LoadRecipe();
+}" 0
+ E E E
+22 20
+"RecipeName"
+""
+1 26.77551020408163 238 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 238 348 265
+0
+
+E
+"main()
+{
+
+getValue(\"\",\"text\",recipe);
+RecipeSelected();
+
+}" 0
+
+E
+ 1 0
+1 27 0 "" 0
+0
+2 26
+"PRIMITIVE_TEXT1"
+""
+1 30 264 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 30 280 128 295
+0 2 2 "0s" 0 0 0 192 0 0  30 280 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Recipe comment:
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 270 20 T 76 1 0 1 62 -8
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_RecipeApply"
+0

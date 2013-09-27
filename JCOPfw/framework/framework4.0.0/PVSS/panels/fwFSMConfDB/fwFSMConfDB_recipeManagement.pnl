@@ -1,0 +1,650 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 1051 595 N "_3DFace" 1
+"$configurator"
+"main()
+{
+ Recipes.deleteAllLines;
+ 
+ dyn_string exceptionInfo;
+
+ fwConfigurationDB_checkInit(exceptionInfo);
+ if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo);return;};
+}" 0
+ E E E E 1 -1 -1 0  60 102
+""0  1
+E "void Query()
+{
+  
+  Recipes.deleteAllLines;
+  dyn_string exceptionInfo;
+
+  dyn_string recipeNames, recipes;
+  string recipeName=RecipeName.text;
+  string hierarchyType=\"\";
+  string recipeComment=RecipeComment.text;
+  string recipeType=RecipeType.text;
+  string deviceName=RecipeDevice.text;
+
+  dyn_string hTypes,rComments,rTypes;
+    
+  if(rbSource.number == 0)
+  {
+    fwConfigurationDB_findRecipesInDB (recipeNames, exceptionInfo,
+  	recipeName,hierarchyType,recipeComment,recipeType,deviceName);
+
+    if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo);return;};
+
+    for (int i=1;i<=dynlen(recipeNames);i++) {
+      string hierarchyType, recipeComment, recipeType;
+
+
+      fwConfigurationDB_getRecipeMetaInfoInDB (recipeNames[i],exceptionInfo,
+      	                                    hierarchyType, recipeComment, recipeType);
+
+	
+
+      if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo);continue;};
+
+      recipes = recipeNames;
+      dynAppend(hTypes,hierarchyType);
+      dynAppend(rComments,recipeComment);
+      dynAppend(rTypes,recipeType);
+    }
+
+  }
+  else
+  {
+    fwConfigurationDB_findRecipesInCache (recipeNames, exceptionInfo,
+  	recipeName,hierarchyType,recipeComment,recipeType,deviceName);
+
+    if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo);return;};
+
+
+    for (int i=1;i<=dynlen(recipeNames);i++) {
+      string hierarchyType, recipeComment, recipeType;
+
+
+      fwConfigurationDB_getRecipeMetaInfoInCache (recipeNames[i],exceptionInfo,
+      	                                    hierarchyType, recipeComment, recipeType);
+
+	
+
+      if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo);continue;};
+
+      if(!patternMatch(\"FwFSMConfDB/*\", recipeNames[i]))
+      {
+        dynAppend(recipes,recipeNames[i]); 
+        dynAppend(hTypes,hierarchyType);
+        dynAppend(rComments,recipeComment);
+        dynAppend(rTypes,recipeType);
+      }
+    }
+  }  
+  
+  Recipes.appendLines(dynlen(recipeNames),
+                      \"Name\",recipes,
+                      \"originalName\",recipes,
+    		      \"Comment\",rComments,
+		      \"Hierarchy\",hTypes,
+		      \"RecipeType\",rTypes);
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 4
+"Recipes"
+""
+1 7.37113402061856 178 E E E 1 E 1 E N "_3DText" E N "_Window" E E
+ E "main()
+{
+int n,k;
+getValue(\"Recipes\", \"currentCell\", n, k);
+string recipeName=this.cellValueRC(n,\"Name\");
+string hierarchyType=this.cellValueRC(n,\"Hierarchy\");
+if (recipeName==\"\") return;
+dyn_dyn_mixed recipeObject;
+dyn_string exceptionInfo;
+fwOpenProgressBar(\"Recipe edit\",\"Loading recipe data, please wait\",0);
+
+fwConfigurationDB_loadRecipeFromDB(recipeName, makeDynString(),
+                                   hierarchyType, recipeObject, exceptionInfo);
+
+fwCloseProgressBar();
+
+if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}
+
+bool changed=fwConfigurationDB_editRecipe(recipeObject, FALSE, \"Edit recipe \"+recipeName);
+
+if (changed) {
+
+  dyn_string ds;
+  dyn_float df;
+  ChildPanelOnCentralModalReturn (\"fwGeneral/fwOkCancel.pnl\", \"Recipe data changed\",
+       makeDynString(\"$text:Do you want to save the changes in recipe \"+recipeName+\" ?\"),df,ds);
+
+  if (df[1]!=1) return;
+
+  fwOpenProgressBar(\"Save recipe\",\"Saving recipe, please wait\",0);
+
+  if (RecipeSource.number==0){
+     fwConfigurationDB_saveDiffRecipeToDB(recipeObject, hierarchyType,
+      recipeName, exceptionInfo);
+     } else {
+        fwConfigurationDB_saveRecipeToCache(recipeObject, hierarchyType,
+        recipeName, exceptionInfo);
+        }
+
+  fwCloseProgressBar();
+
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}
+}
+}" 0
+
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 178 1032 518
+"main()
+{
+this.selectByClick=TABLE_SELECT_LINE;
+this.sortOnClick(TRUE);
+this.tableMode(TABLE_SELECT_MULTIPLE);
+}" 0
+E 1 0 1 5 1 "originalName" 25 1 0 "s" 1
+LANG:1 11 Recipe Name
+E
+1
+LANG:1 0 
+
+290 "Name" 6 1 1 "s" 1
+LANG:1 36 Recipe name used by the configurator
+E
+1
+LANG:1 13 Click to edit
+
+290 "Comment" 22 1 0 "s" 1
+LANG:1 7 Comment
+E
+1
+LANG:1 0 
+
+250 "Hierarchy" 12 1 0 "s" 1
+LANG:1 9 Hierarchy
+E
+1
+LANG:1 0 
+
+150 "RecipeType" 12 1 0 "s" 1
+LANG:1 10 RecipeType
+E
+1
+LANG:1 0 
+
+150 
+17 17 "?" 1 1
+LANG:1 2 #1
+10 84
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 2 1 7
+1 0
+13 8
+"CloseButton"
+""
+1 937.684210526316 558 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 938 558 1030 589
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+PanelOff();
+}" 0
+ E E E
+13 9
+"QueryButton"
+""
+1 761.246753246753 107.444444444444 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 761.584415584416 107.518518518519 854.415584415584 138.481481481482
+
+T 
+1
+LANG:1 4 Find
+"main()
+{
+Query();
+}" 0
+ E E E
+2 13
+"PRIMITIVE_TEXT2"
+""
+1 305 73 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 152 83 188 100
+0 2 2 "0s" 0 0 0 192 0 0  152 83 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 name:
+14 14
+"RecipeName"
+""
+1 232 73 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 232 73 402 102
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+this.text=\"*\";
+}" 0
+ E
+30 16
+"FRAME1"
+""
+1 20 20 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+29 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 6.11878137836605 0 1.00862068965517 -102.375627567321 29.8275862068966 0 E 20 20 160 120
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Filter:
+2 17
+"PRIMITIVE_TEXT2"
+""
+1 305 73 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 430 80 488 97
+0 2 2 "0s" 0 0 0 192 0 0  430 80 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 comment:
+14 19
+"RecipeComment"
+""
+1 498 68 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 498 68 758 97
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+this.text=\"*\";
+}" 0
+ E
+2 20
+"PRIMITIVE_TEXT2"
+""
+1 305 73 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 152 113 220 130
+0 2 2 "0s" 0 0 0 192 0 0  152 113 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 recipe type:
+14 21
+"RecipeType"
+""
+1 232 103 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 232 103 402 132
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+this.text=\"*\";
+}" 0
+ E
+2 22
+"PRIMITIVE_TEXT2"
+""
+1 305 73 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 427 115 485 132
+0 2 2 "0s" 0 0 0 192 0 0  427 115 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 for device:
+14 23
+"RecipeDevice"
+""
+1 498 103 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 498 103 758 132
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+this.text=\"*\";
+}" 0
+ E
+2 24
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 20 306 43
+0 2 0 "0s" 0 0 0 192 0 0  20 20 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 28 FSMConfDB: recipe management
+13 29
+"PUSH_BUTTON1"
+""
+1 840 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 838 558 930.567961165048 589.243243243243
+
+T 
+1
+LANG:1 3 Add
+"main()
+{
+  dyn_int selectedLines;
+  int i;
+  dyn_anytype line;
+  dyn_string selectedRecipes;
+  
+  selectedLines = Recipes.getSelectedLines();
+  
+  for(i = 1; i <= dynlen(selectedLines); i++)
+	{
+	 line = Recipes.getLineN(selectedLines[i]);
+	 selectedRecipes[i] = line[2];	
+	}
+  
+  PanelOffReturn(makeDynFloat(1),selectedRecipes);
+}" 0
+ E E E
+2 30
+"PRIMITIVE_TEXT5"
+""
+1 645 35 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  setValue(\"\",\"text\",$configurator);
+}" 0
+ E 0 1 1 2 1 E U  0 E 630 30 749 47
+0 2 2 "0s" 0 0 0 192 0 0  630 30 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,758,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Configurator name
+30 31
+"FRAME2"
+""
+1 375 12 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+58 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 235 -2 0 E 375 12 636 56
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Configurator
+30 32
+"FRAME3"
+""
+1 30 73 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+59 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.2280701754386 0 -19.6491228070175 0 E 30 73 141 131
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 6 Source
+19 33
+"rbSource"
+""
+1 40 90 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 38 88 122 132
+2
+T 
+1
+LANG:1 8 Database
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 5 Cache
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+2 34
+"PRIMITIVE_TEXT6"
+""
+1 30 520 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 520 770 560
+0 2 2 "0s" 0 0 0 64 0 0  30 520 2
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-*-80-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 98 Note: You can use $sMode in the recipe name used by the configurator, e.g. $sMode/Vertex/Configure
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-*-80-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 82          The $sMode will be replaced at run time by the Run Type name being loaded
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

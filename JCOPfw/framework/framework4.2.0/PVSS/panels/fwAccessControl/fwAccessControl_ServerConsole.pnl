@@ -1,0 +1,765 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 633 684 N "_3DFace" 0
+"main()
+{  
+  Initialize();
+}" 0
+ E E E E 1 -1 -1 0  20 50
+""0  1
+E "bool g_clientsTableRepaintNeeded=FALSE;
+bool g_clientsTableRepaintInProgress=FALSE;
+dyn_dyn_mixed g_clientsState;
+time g_lastACS_hbeat=0;
+global string fwACS_ConfigDP = \"_fwAccessControlServer\";  
+
+void Initialize()
+{
+  // firstly check if we are really running on the system with a server
+  string acs;
+  dpGet(\"_fwAccessControlSetup.Integrated.ACServer\",acs);
+  if (acs!=getSystemName()) {
+    // disable all UI elements
+    if (isFunctionDefined(\"getShapes\")) {
+      dyn_string allShapes=getShapes(myModuleName(),myPanelName(),\"enabled\",true);
+      for (int i=1;i<=dynlen(allShapes);i++) setValue(allShapes[i],\"enabled\",false);
+      CloseButton.enabled=true;
+    }
+    errorDialog(makeError(\"fwAccessControl_Server\",PRIO_SEVERE,ERR_SYSTEM,2000,
+                          \"Console may only be run on the AC Server system\"));
+    PanelOff();
+    return;
+  }    
+  
+  
+  // TRICK: it seems that dpQueryConnectAll does not work in the panel, if there is
+  // no datapoint of specified type at the time of hotlink-establishing.
+  // make sure that there is any datapoint of this type...
+  dyn_string cltdpoints=dpNames(\"*\",\"_FwAccessControlClient\");
+  if (dynlen(cltdpoints)==0) {
+    dpCreate(\"_fwAccessControl_dummyClient_dont_delete\",\"_FwAccessControlClient\");
+    delay(0,500);
+  }
+
+  startThread(\"acsHBeatMonitor\");
+  
+  string sql=\"SELECT 'sysId:_online.._value', 'sysName:_online.._value', 'managed:_online.._value', 'syncFail:_online.._value','syncFail:_online.._stime', 'connected:_online.._value' FROM '*' WHERE _DPT = \\\"_FwAccessControlClient\\\" AND  'managed:_online.._value' == 1\";
+  dpQueryConnectAll(\"ClientStateChanged\",TRUE,\"clients changed\",sql,0);
+  
+  dpConnect(\"ServerConfigChanged\",TRUE,
+            makeDynString(fwACS_ConfigDP+\".state\",
+                          fwACS_ConfigDP+\".verbose\",
+                          fwACS_ConfigDP+\".rootPasswordLocal\")
+           );
+
+  dpConnect(\"ServerHeartbeat\",FALSE,fwACS_ConfigDP+\".heartbeat\");
+  dpConnect(\"ManagedClientsChanged\",FALSE,fwACS_ConfigDP+\".managedClients\");
+  dpConnect(\"SystemConnectedCB\",\"_DistConnections.Dist.ManNums\");
+}
+
+void acsHBeatMonitor()
+{
+  while(true) {
+    if (getCurrentTime()-g_lastACS_hbeat > 5) {
+      ACServerWait.visible=true;
+      ClientsTable.visible=false;
+      SummaryConnected.visible=false;
+      SummaryError.visible=false;
+      SummaryManaged.visible=false;
+      VerboseLabel.visible=false;
+      Verbose.visible=false;
+      RefreshButton.visible=false;
+      } else {
+        if (ClientsTable.visible==false) {
+          ACServerWait.visible=false;
+          ClientsTable.visible=true;
+          SummaryConnected.visible=true;
+          SummaryError.visible=true;
+          SummaryManaged.visible=true;
+          VerboseLabel.visible=true;
+          Verbose.visible=true;
+          RefreshButton.visible=true;
+        }
+      }
+    delay(1,0);
+  }
+}
+
+void ClientStateChanged(string identifier,dyn_dyn_mixed result)
+{
+//DebugTN(\"CLSTATECHG\",result);  
+synchronized(g_clientsTableRepaintNeeded) { 
+        g_clientsState=result;
+        if (g_clientsTableRepaintNeeded) {                                                                                                             
+            return; // already marked for (re-)execution...                                                                                         
+        }                                                                                                                                           
+        g_clientsTableRepaintNeeded=TRUE;                                                                                                              
+    }                                                                                                                                               
+                                                                                                                                                    
+    synchronized(g_clientsTableRepaintInProgress) {                                                                                                          
+        if (g_clientsTableRepaintInProgress) {                                                                                                               
+            return; // already executes in another thread...                                                                                        
+        }                                                                                                                                           
+    }                                                                                                                                               
+    startThread(\"ClientsTableRepaint\");     
+}
+
+void SystemConnectedCB(string dp, dyn_int sysids)
+{
+synchronized(g_clientsTableRepaintNeeded) { 
+        if (g_clientsTableRepaintNeeded) {                                                                                                             
+            return; // already marked for (re-)execution...                                                                                         
+        }                                                                                                                                           
+        g_clientsTableRepaintNeeded=TRUE;                                                                                                              
+    }                                                                                                                                               
+                                                                                                                                                    
+    synchronized(g_clientsTableRepaintInProgress) {                                                                                                          
+        if (g_clientsTableRepaintInProgress) {                                                                                                               
+            return; // already executes in another thread...                                                                                        
+        }                                                                                                                                           
+    }                                                                                                                                               
+    startThread(\"ClientsTableRepaint\");       
+}
+
+void ClientsTableRepaint()
+{
+                                                                                                                                                     
+    synchronized(g_clientsTableRepaintInProgress) { g_clientsTableRepaintInProgress=true;};
+ClientsTable.enabled=false;
+ClientsTable.updatesEnabled=false;
+while (g_clientsTableRepaintInProgress) {                                                                                                                    
+    synchronized(g_clientsTableRepaintNeeded) { g_clientsTableRepaintNeeded=FALSE;}                                                                       
+                                                                                                                                                    
+   ClientsTable.deleteAllLines();
+
+   // get list of all systems available as well...
+   dyn_uint allSysUids;
+   dyn_string allSystems;
+   getSystemNames(allSystems,allSysUids); 
+   // NOTE! allSystems do not have trailing colons!
+   
+   int totalManagedSystems=0;
+   int numManagedInErrorState=0;
+   int numManagedConnected=0;
+   
+  for (int i=2;i<=dynlen(g_clientsState);i++) {
+    if (g_clientsTableRepaintNeeded) break;
+    int sysid=g_clientsState[i][2];
+    string sysName=g_clientsState[i][3];
+    bool managed=g_clientsState[i][4];
+    bool syncFail=g_clientsState[i][5];
+    time lastSyncAttempt=g_clientsState[i][6];
+    bool connected=g_clientsState[i][7];
+    dyn_string status=makeDynString(\"OK\",\"Green\");
+    if (syncFail) status=makeDynString(\"ERROR\",\"Red\");
+    if (managed) totalManagedSystems++;
+    if (connected) numManagedConnected++;
+    if (syncFail) numManagedInErrorState++;    
+    dyn_string connState=makeDynString(\"Yes\",\"Green\");
+    if (!connected) connState=makeDynString(\"No\",\"Yellow\");
+    //string status=\" \"+result[i][4]+\"/\"+result[i][5]+\"/\"+result[i][6];
+    ClientsTable.appendLine(\"SysId\",sysid,\"SysName\",sysName,
+                            \"Connected\",connState,
+                            \"Status\",status,\"SyncTime\",lastSyncAttempt);
+        // remove this system (as already processed) from allSystems
+    int idx=dynContains(allSystems,strrtrim(sysName,\":\"));
+    if (idx) {dynRemove(allSystems,idx);dynRemove(allSysUids,idx);};
+  }
+  // then append all non-managed/non-connected systems:
+   // get the list of connected managers as well...
+   dyn_int connSysUids;
+   dpGet(\"_DistConnections.Dist.ManNums\",connSysUids);
+  
+  for (int i=1;i<=dynlen(allSystems);i++) {
+    string sysName=allSystems[i]+\":\";
+    dyn_string status=makeDynString(\"NOT MANAGED\"/*,\"lightgrey\"*/);
+    dyn_string connState=makeDynString(\"Yes\"/*,\"Green\"*/);
+    if (!dynContains(connSysUids,allSysUids[i])) {
+      connState=makeDynString(\"No\"/*,\"Yellow\"*/);
+    }
+    if (sysName==getSystemName()) {
+      status=makeDynString(\"SERVER\",\"Black\",\"White\");
+      connState=makeDynString();
+    }
+    ClientsTable.appendLine(\"SysId\",allSysUids[i],\"SysName\",sysName,
+                            \"Connected\",connState,
+                            \"Status\",status,\"SyncTime\",\"\");
+  }
+  SummaryManaged.text=\"\"+totalManagedSystems+\" managed\";
+  SummaryConnected.text=\"\"+numManagedConnected+\" connected\";
+  if (numManagedConnected<totalManagedSystems) SummaryConnected.color=\"Red\";
+   else SummaryConnected.color=\"Black\";
+  SummaryError.text=\"\"+numManagedInErrorState+\" in error state\";
+  if (numManagedInErrorState>0) SummaryError.color=\"Red\"; else SummaryError.color=\"Black\";
+     
+    synchronized(g_clientsTableRepaintNeeded){
+    synchronized(g_clientsTableRepaintInProgress)  {
+        g_clientsTableRepaintInProgress=false;
+        if (g_clientsTableRepaintNeeded) {
+            // restarting the execution=
+            g_clientsTableRepaintInProgress=true;
+        }
+        g_clientsTableRepaintNeeded=false;
+
+    }
+    }
+}
+ClientsTable.updatesEnabled=true;
+ClientsTable.enabled=true;
+
+}
+
+void ServerConfigChanged(dyn_string dp, dyn_mixed values)
+{
+  ServerState.text=values[1];
+  Verbose.text(values[2]); 
+}
+
+void ServerHeartbeat(string dp, int hb)
+{
+  g_lastACS_hbeat=getCurrentTime();
+  if (hb%2) Heartbeat.color=\"Green\"; else Heartbeat.color=\"White\";
+}
+
+void ManagedClientsChanged(string dp, dyn_string clients)
+{
+ 
+//  DebugN(\"clients:\",clients);
+}
+
+
+
+void Refresh()
+{
+  string sql=\"SELECT 'sysId:_online.._value', 'sysName:_online.._value', 'managed:_online.._value', 'syncFail:_online.._value','syncFail:_online.._stime', 'connected:_online.._value' FROM '*' WHERE _DPT = \\\"_FwAccessControlClient\\\" AND  'managed:_online.._value' == 1\";
+  dpQuery(sql,g_clientsState);
+  ClientsTableRepaint();
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 1
+"ClientsTable"
+""
+1 16 128 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  if (row<0) return; // clicked in empty row, etc...
+//  int n,k;
+//  getValue(\"\",\"currentCell\",n,k);
+  dyn_mixed rowContent;
+  getValue(\"\",\"getLineN\",row,rowContent);
+  
+  int sysId=rowContent[1];
+  string sysName=rowContent[2];
+  bool connected=1;
+  if (rowContent[3]==\"No\") connected=0;
+  string state=rowContent[4];  
+  
+  dyn_string menu;
+  
+  if (state==\"SERVER\") {
+    dynAppend(menu, \"PUSH_BUTTON,AC Server,99,1\");
+    dynAppend(menu, \"SEPARATOR\");
+    dynAppend(menu, \"PUSH_BUTTON,Force sync all,12,1\");    
+  } else if (!connected){
+    dynAppend(menu, \"PUSH_BUTTON,\"+sysName+\" (not connected)\"+\",99,1\");
+    dynAppend(menu, \"SEPARATOR\");
+    if (state!=\"NOT MANAGED\") dynAppend(menu, \"PUSH_BUTTON,Force release,15,1\");
+  } else if (state==\"NOT MANAGED\"){
+    dynAppend(menu, \"PUSH_BUTTON,\"+sysName+\" (\"+sysId+\")\"+\",99,1\");
+    dynAppend(menu, \"SEPARATOR\");    
+    dynAppend(menu, \"PUSH_BUTTON,Adopt,2,1\");      
+  } else if (state!=\"\") {
+    dynAppend(menu, \"PUSH_BUTTON, Client \"+sysName+\" (\"+sysId+\")\"+\",99,1\");
+    dynAppend(menu, \"SEPARATOR\");    
+    dynAppend(menu, \"PUSH_BUTTON,Release,3,1\");      
+ 	   dynAppend(menu, \"PUSH_BUTTON,Force sync host,11,1\");
+    dynAppend(menu, \"PUSH_BUTTON,Force sync all,12,1\");    
+  }
+  int answer;
+  popupMenu(menu,answer);
+
+  if (answer==2) {
+    // adopt into AC Server...
+    string dp=sysName+\"_fwAccessControlSetup.Integrated.ACServer\";
+    if (dpExists(dp)) {
+	    dpSetWait(dp,getSystemName());      
+    }
+ } else if (answer==3) {
+    // release from AC Server...
+    string dp=sysName+\"_fwAccessControlSetup.Integrated.ACServer\";
+    if (dpExists(dp)) {
+	    dpSetWait(dp,\"\");      
+    }   
+  } else if (answer==11) {
+	DebugN(\"Sync Host \"+sysName);
+	dyn_string results=_fwAccessControl_sendCommandToServer(\"SYNC_HOST\",
+			makeDynString(sysName));
+	if (results[1]==\"ERROR\"){
+		DebugN(results);
+	}
+	return; 
+
+ } else if (answer==12) { 
+	DebugN(\"Sync All...\");
+	dyn_string results=_fwAccessControl_sendCommandToServer(\"SYNC_ALL\");
+	if (results[1]==\"ERROR\"){
+		DebugN(results);
+    return;
+  }
+ } else if (answer==15) { 
+   DebugN(\"force remove\");
+   dyn_string results=_fwAccessControl_sendCommandToServer(\"REMOVE_HOST\",makeDynString(sysName));
+	  if (dynlen(results)>0 && (results[1]==\"ERROR\")){
+		    DebugN(results);
+    return;
+	}
+ } else if (answer==0) { 
+	return; 
+ }
+
+  
+/*
+
+if (n<0) return; // clicked in table, but on area with no item...
+string serv=g_acServers[n+1];
+string sys=g_allSystemNames[n+1]; 
+int canRelease=1;
+int canAdopt=1;
+
+int answer;
+
+dyn_string menu;
+ if (sys!=getSystemName()){
+	if (serv==getSystemName()) {
+		canAdopt=0;
+	}
+	if (serv==\"\") {
+		canRelease=0;
+	}
+ 	dynAppend(menu, \"PUSH_BUTTON,AC Client \"+sys+\",99,1\");
+ 	dynAppend(menu, \"SEPARATOR\");
+ 	dynAppend(menu, \"CASCADE_BUTTON,Set AC Server,1\");
+ 	dynAppend(menu, \"PUSH_BUTTON,Force sync host,11,1\");
+ 	dynAppend(menu, \"PUSH_BUTTON,Force sync all,12,1\");
+ 	dynAppend(menu, \"Set AC Server\");
+ 	dynAppend(menu, \"PUSH_BUTTON,Adopt   (set to \"+getSystemName()+\"),2,\"+canAdopt);
+ 	dynAppend(menu, \"PUSH_BUTTON,Release (set to empty) ,3,\"+canRelease);
+ 	dynAppend(menu, \"PUSH_BUTTON,Custom,4,1\"); 
+ } else {
+ 	dynAppend(menu, \"PUSH_BUTTON,AC Server,99,1\");
+ 	dynAppend(menu, \"SEPARATOR\");
+ 	dynAppend(menu, \"PUSH_BUTTON,Force sync all,12,1\");
+ }
+
+
+ popupMenu(menu,answer);
+
+
+ string dp=sys+\"_fwAccessControlSetup.Integrated.ACServer\";
+
+ if (answer==2) {
+	dpSetWait(dp,getSystemName());
+ } else if (answer==3) {
+	dpSetWait(dp,\"\");
+ } else if (answer==4) {
+
+	dyn_string ds;
+	dyn_float df;
+
+    	ChildPanelOnCentralReturn(  \"fwGeneral/fwGeneralReadStringValue.pnl\",
+                                     \"Set custom AC Server\",
+					makeDynString(  \"$sTitle: Set custom AC Server\",
+							\"$sDescription: Please provide AC Server name for system \"+sys),
+                                                        df,ds);
+	if (df[1]!=1) {
+		return;
+        }
+	dpSetWait(dp,ds[1]);
+	
+
+ } else if (answer==11) {
+	DebugN(\"Sync Host \"+sys);
+	dyn_string results=_fwAccessControl_sendCommandToServer(\"SYNC_HOST\",
+			makeDynString(sys));
+	if (results[1]==\"ERROR\"){
+		DebugN(results);
+	}
+	return; 
+
+ } else if (answer==12) { 
+	DebugN(\"Sync All...\");
+	dyn_string results=_fwAccessControl_sendCommandToServer(\"SYNC_ALL\");
+	if (results[1]==\"ERROR\"){
+		DebugN(results);
+	}
+	return; 
+ } else if (answer==0) { 
+	return; 
+ }
+	string ret;
+	dpGet(dp,ret);
+	g_acServers[n+1]=ret;
+	Refresh();
+*/
+}" 0
+ E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 14 126 618 602
+"main()
+{
+  this.tableMode=TABLE_SELECT_BROWSE ;
+  this.selectByClick=TABLE_SELECT_LINE;
+}" 0
+E 1 0 1 5 0 "SysId" 4 1 0 "s" 1
+LANG:1 5 SysId
+E
+1
+LANG:1 0 
+
+52 "SysName" 10 1 0 "s" 1
+LANG:1 11 System Name
+E
+1
+LANG:1 0 
+
+120 "Connected" 7 1 0 "s" 1
+LANG:1 9 Connected
+E
+1
+LANG:1 0 
+
+90 "Status" 11 1 0 "s" 1
+LANG:1 11 Sync status
+E
+1
+LANG:1 0 
+
+130 "SyncTime" 16 1 0 "s" 1
+LANG:1 17 Last Sync Attempt
+E
+1
+LANG:1 0 
+
+190 
+19 19 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+6 2
+"Heartbeat"
+""
+1 480 30 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+2 0 0 0 0 0
+E E E
+1
+1
+LANG:1 33 Heartbeat indicator for AC Server
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 -423 1 1 E 488 64 511 87
+21 4
+"Verbose"
+""
+1 571.2 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 318 68 378 95
+0
+
+E
+"main()
+{
+  dpSetWait(fwACS_ConfigDP+\".verbose\",(int)this.text);
+}" 0
+
+E
+
+N 0 2 1 0 1 1
+2 5
+"VerboseLabel"
+""
+1 255 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 255 70 308 86
+0 2 2 "0s" 0 0 0 192 0 0  255 70 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Verbose:
+14 6
+"ServerState"
+""
+1 90.00000000000001 65 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 88 63 236 90
+2 "0s" 0 0 0 0 0 -1  E E E
+13 7
+"RefreshButton"
+""
+1 544 608 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 542 606 618 633
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+  ClientsTableRepaint();
+}" 0
+ E E E
+13 8
+"CloseButton"
+""
+1 542.5 646.1538461538462 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 542 646 618 674
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+PanelOff();
+}" 0
+ E E E
+2 9
+"PRIMITIVE_TEXT2"
+""
+1 16 16 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 16 16 242 36
+0 2 2 "0s" 0 0 0 192 0 0  16 16 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 30 Access Control Server console:
+14 11
+"LocalHost"
+""
+1 270.5882352941176 15 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 258 13 406 36
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+this.text=getSystemName();
+}" 0
+ E
+2 14
+"PRIMITIVE_TEXT4"
+""
+1 20 70 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 70 61 86
+0 2 2 "0s" 0 0 0 192 0 0  20 70 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 status:
+2 15
+"SummaryConnected"
+""
+1 147 611.92 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 147 611.92 220 628
+0 2 2 "0s" 0 0 0 192 0 0  147 611.92 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 0 connected
+2 17
+"SummaryError"
+""
+1 287 611.92 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 287 611.92 373 628
+0 2 2 "0s" 0 0 0 192 0 0  287 611.92 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 0 in error state
+2 18
+"SummaryManaged"
+""
+1 17 611.92 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 17 611.92 83 628
+0 2 2 "0s" 0 0 0 192 0 0  17 611.92 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 0 managed
+2 19
+"ACServerWait"
+""
+1 25 100 E E E 1 E 0 E N "black_grey_c" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 25 100 278 120
+0 2 2 "0s" 0 0 0 192 0 0  25 100 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 36 Waiting for Access Control Server...
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

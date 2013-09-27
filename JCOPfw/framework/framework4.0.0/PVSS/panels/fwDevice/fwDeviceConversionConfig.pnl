@@ -1,0 +1,382 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,490 312 670 450 N "_3DFace" 2
+"$bHierarchyBrowser"
+"$sDpName"
+"main()
+{
+	init();
+}" 0
+EE E E 1 -1 -1 0  0 0
+"" 0 1
+E"string title;
+string panelName;
+string panelBarTitle;
+string config;
+int index;
+const int TYPE_COLUMN = 3;
+	
+init()
+{
+	int i, configType;
+	string model;
+	dyn_string exceptionInfo;
+	dyn_dyn_string elements, objects;
+
+	// init global variables
+	title = \"Conversion Configuration\";
+	index = 5;
+	panelName = \"fwConfigs/fwConversionConfigPopup.pnl\";
+	panelBarTitle = \"Conversion Configuration\";
+	
+	fwDevice_getModel(makeDynString($sDpName), model, exceptionInfo);
+	fwDevice_getConfigElements(dpTypeName($sDpName), index, elements, exceptionInfo, model);
+	fwDevice_getConfigObjects(dpTypeName($sDpName), index, objects, exceptionInfo, model);
+	
+	Table1.deleteAllLines();
+	Table1.selectByClick(TABLE_SELECT_LINE);
+	Table1.tableMode(TABLE_SELECT_MULTIPLE);	
+	
+	for (i = 1; i <= dynlen(elements[1]); i++) 
+	{
+//			DebugN(\"Element \" + $sDpName + elements[1][i]);
+		config = objects[i][fwDevice_CONFIG_MAX_INDEX + fwDevice_CONFIG_CONVERSION_TYPE];
+		dpGet($sDpName + elements[1][i] + \":_\" + config + \".._type\", configType);
+		if(configType == DPCONFIG_NONE)
+			Table1.appendLine(\"conf\", \"N\", \"elements\", elements[1][i], \"type\", config);
+		else
+			Table1.appendLine(\"conf\", \"Y\", \"elements\", elements[1][i], \"type\", config);
+	}
+	Table1.lineVisible(0);
+}
+
+updateRow(string table, int row)
+{
+	int configType;
+	shape tableShape = getShape(table);
+	dyn_string line = tableShape.getLineN(row);			
+	string config = line[TYPE_COLUMN];
+	//DebugN(\"Updatig row \" + row + \" \" + line);
+	
+	dpGet($sDpName + line[2] + \":_\" + config + \".._type\", configType);					
+
+	if(configType == DPCONFIG_NONE)
+		tableShape.cellValueRC(row, \"conf\", \"N\"); 
+	else
+		tableShape.cellValueRC(row, \"conf\", \"Y\"); 
+}
+
+configureElement(dyn_int lineNumbers)
+{
+	int i;
+	dyn_float returnedValues;
+	dyn_string elements, types, line, returnedText, exceptionInfo;
+
+	enableButtons(FALSE);
+
+	for (i = 1; i <= dynlen(lineNumbers); i++) 
+	{	
+		line = Table1.getLineN(lineNumbers[i]);			
+		dynAppend(elements, $sDpName + line[2]);
+		dynAppend(types, line[TYPE_COLUMN]);
+	}
+	
+	dynUnique(types);
+	if(dynlen(types) > 1)
+	{
+		fwException_raise(	exceptionInfo, 
+							\"WARNING\", 
+							\"All the elements selected should have the same conversion type.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		enableButtons(TRUE);
+		return;
+	}
+	
+	if(dynlen(elements) <= 0)
+	{
+		fwException_raise(	exceptionInfo, 
+							\"WARNING\", 
+							\"Select at least one element.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		enableButtons(TRUE);
+		return;
+	}
+	
+	if(getPath(PANELS_REL_PATH, panelName) == \"\")
+	{
+		fwException_raise(	exceptionInfo, 
+							\"WARNING\", 
+							\"The panel \\\"\" + panelName + \"\\\" \\ncould not be found\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		enableButtons(TRUE);
+		return;
+	}
+	ChildPanelOnCentralModalReturn(	panelName,
+									panelBarTitle,
+									makeDynString(	\"$sDpName:\" + $sDpName,
+													\"$sDpe:\" + elements,
+													\"$configType:\" + line[TYPE_COLUMN]),
+									returnedValues, 
+									returnedText);
+	
+	for (i = 1; i <= dynlen(lineNumbers); i++) 
+	{	
+		updateRow(\"Table1\", lineNumbers[i]);
+	}						
+	
+	enableButtons(TRUE);
+}
+
+enableButtons(bool enabled)
+{
+	apply.enabled(enabled);
+	applyAll.enabled(enabled);
+	close.enabled(enabled);
+}" 0
+ 2
+"CBRef""0"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"panelTitle"
+""
+1 10 27 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	//this.text = $sPanelTitle;
+}" 0
+ E 0 1 1 0 1 E U  0 E 12 12 225 34
+0 2 0 "s" 0 0 0 192 0 0  12 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 24 Conversion Configuration
+2 128
+"dpNameTitle"
+""
+1 33 90 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+126 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 27 42 69 58
+0 2 0 "s" 0 0 0 192 0 0  27 42
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 7 Device:
+25 78
+"Table1"
+""
+1 -333 -491 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+78 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+23 93 527 432
+E "main(int xpos,string columnName,string value)
+{
+	if(columnName == \"elements\")
+		configureElement(makeDynInt(xpos));
+}" 0
+ 1 0 1 3 1 "conf" 0 1 0 "s" 1
+LANG:1 4 Conf
+E1
+LANG:1 0 
+ 38 "elements" 0 1 0 "s" 1
+LANG:1 7 Element
+E1
+LANG:1 0 
+ 350 "type" 0 1 0 "s" 1
+LANG:1 4 Type
+E1
+LANG:1 0 
+ 48 22 22 "" 1 1
+LANG:1 2 #1
+8 30 1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 3 0
+1 0
+14 111
+"dpname"
+""
+1 70 40 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+111 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+68 38 662 65
+3 "s" 0 0 0 0 0 0 
+E
+"main()
+{
+	this.text = $sDpName;
+	this.editable = FALSE;
+}" 0
+
+E
+13 124
+"apply"
+""
+1 534 352 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+123 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+532 350 661 378
+T 
+1
+LANG:1 18 Configure selected
+"main()
+{
+	configureElement(Table1.getSelectedLines);
+}" 0
+ E E E
+13 125
+"applyAll"
+""
+1 534 384 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+124 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+532 382 661 410
+T 
+1
+LANG:1 13 Configure all
+"main()
+{
+	int i;
+	dyn_int lineNumbers;
+
+	for (i = 1; i <= Table1.lineCount(); i++) 
+	{
+		lineNumbers[i] = i - 1;
+	}
+	
+	configureElement(lineNumbers);
+}" 0
+ E E E
+13 126
+"close"
+""
+1 534 415 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+125 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+532 413 661 441
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E "main()
+{
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if($bHierarchyBrowser)
+		{
+			this.visible = FALSE;
+		}
+		else
+		{
+			this.visible = TRUE;
+		}
+	}
+}" 0
+
+1 127 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 520 100 T 126 1 0 1  113 -90  
+1
+"$sPanelRelativePath""fwDevice/fwDeviceConversionConfig"
+0

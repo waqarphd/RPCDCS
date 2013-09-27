@@ -1,0 +1,914 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 624 369 N "_3DFace" 4
+"$group"
+"$nodes"
+"$sDpName"
+"$view"
+"main()
+{
+  dyn_string nodes, oss;
+  string ipmiStatus, monitoringStatus, commStatus;
+  int commError;
+  string powerStatus;
+  string ipmiDp;
+  int ps;   //power status, numeric value.
+  string powerColor, commColor, cpuColor, memColor;
+  int on = 0, off = 0, psError = 0, unknown = 0;
+  float avCpu = 0.;
+  int cpuError = 0;
+  float usedMemory = 0.;
+  float usedSwap = 0;
+  int memoryError = 0;
+  string sUsedMemory, sUsedSwap, sAvCpu;
+  dyn_bool check = makeDynBool(false, false, false);
+  int refresh = 5;
+  dyn_int manNums;
+  string group;
+  int processCount;
+  int totalProcesses;
+
+  dyn_string dsIpmiDps;
+  dyn_string dsCommStatuses;
+  dyn_string dsPowerStatuses;
+  dyn_string dsAvCpu;
+  dyn_string dsUsedMemory;
+  dyn_string dsUsedSwap;
+  
+//  setValue(\"tblNodes\",\"deleteAllLines\");
+//  string systemName;
+
+  string title = \"\";
+  dyn_string exceptionInfo;
+ 
+  if(isDollarDefined(\"$view\") && $view == \"fsm\")
+  {
+     dyn_int internalTypes;
+     dyn_string children = fwCU_getChildren(internalTypes, $group);
+     for(int k = 1; k <= dynlen(children); k++)
+     {
+//       strreplace(children[k], \"FMC/\", \"\");
+       if(!fwFsm_isCU($group, children[k]))
+       {
+         strreplace(children[k], \"FMC/\", \"\");         
+         dynAppend(nodes, children[k]);
+       }
+     }
+    title = \"Nodes in FSM group \" + $group;
+  }
+  else if(isDollarDefined(\"$sDpName\") && $sDpName != \"\")
+  {
+    if(patternMatch(\"*:FMC\", $sDpName))//hardware view
+    {
+      systemName = dpSubStr($sDpName, DPSUB_SYS);    
+      title = \"Farm Monitoring and Control Nodes\";
+      fwFMC_getNodes(nodes, systemName);
+    }
+    else //Logical View
+    {
+      group = dpNameToAlias($sDpName + \".\");
+      fwDevice_getName(group, group, exceptionInfo); //get rid of the FMC/ prefix
+      if(dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return;}
+    
+      title = \"Nodes in group: \" + group;
+      fwFMC_getGroupNodes(group, nodes, exceptionInfo, systemName);
+      if(dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return;} 
+   
+    }
+  }
+  else if(isDollarDefined(\"$nodes\") && $nodes != \"\")
+  {
+    dyn_string ds = strsplit($nodes, \"|\");
+    for(int i = 1; i <= dynlen(ds); i++)
+      strreplace(ds[i], \" \", \"\");
+    
+    nodes = ds;
+  }
+  else
+    return;
+  
+  txTitle.text = title;
+  //DebugN(\"nodes in system: \", systemName, nodes);
+  
+  for(int i =1; i <= dynlen(nodes); i++)
+  {
+    dynAppend(oss, \" \"+fwFMC_getNodeOs(nodes[i], systemName));
+    if(fwFMCIpmi_exists(nodes[i], systemName))//Check if node implements IPMI:
+    {
+      ipmiDp = fwFMCIpmi_getDp(nodes[i], systemName);
+    }else
+    {
+      ipmiDp = \"\";
+    }
+    dynAppend(dsIpmiDps, ipmiDp);
+    dynAppend(dsCommStatuses, \"Initializing...\");
+    dynAppend(dsPowerStatuses, \"Initializing...\");
+    dynAppend(dsAvCpu, \"Initializing...\");
+    dynAppend(dsUsedMemory, \"Initializing...\");
+    dynAppend(dsUsedSwap, \"Initializing...\");
+    
+    //DebugN(\"appeding line: \", nodes[i], ipmiDp);
+  }
+  tblNodes.updateLines(1, \"node\", nodes, \"node\", nodes,
+                      \"os\", oss, 
+                      \"ipmiDp\", dsIpmiDps, 
+                      \"commStatus\", dsCommStatuses, 
+                      \"powerStatus\", dsPowerStatuses, 
+                      \"avCpu\", dsAvCpu, 
+                      \"usedMemory\", dsUsedMemory,
+                      \"usedSwap\", dsUsedSwap);
+
+  //Enter infinite loop for monitoring:
+  while(1)
+  {
+    if(cbAutoRefresh.state(0))
+    {
+      on = 0;
+      off = 0;
+      psError = 0;
+      commError = 0;
+      cpuError = 0;
+      memoryError = 0;
+      unknown = 0;
+      check[1] = false;
+      check[2] = false;
+      check[3] = false;
+      check[4] = false;
+      totalProcesses = 0;
+      processCount = 0;
+    
+      for(int i = 1; i <= tblNodes.lineCount(); i++)
+      {
+//         DebugN(\"Analyzing node: \" + nodes[i]);    
+//         if(!dpExists(fwFMC_getNodeDp(nodes[i])))//FSM Group    
+//         {
+//           DebugN(\"This is an FSM group: \" + nodes[i]);
+//           continue;
+//         }
+// 
+        commStatus = \"UNKNOWN\";
+        powerStatus = \"UNKNOWN\";
+      
+        getValue(\"tblNodes\", \"cellValueRC\", i-1, \"ipmiDp\", ipmiDp);
+          avCpu = fwFMCMonitoring_getAverageCpuLoad(nodes[i], systemName);
+          fwFMCMonitoring_getMemoryLoad(nodes[i], usedMemory, usedSwap, systemName);
+         
+          if(fwFMCIpmi_exists(nodes[i], systemName))
+            check[1] = true;
+      
+          if(fwFMCMonitoring_exists(nodes[i], systemName))
+            check[2] = true;
+      
+          if(fwFMCTaskManager_exists(nodes[i], systemName) || fwFMCLogger_exists(nodes[i], systemName))
+            check[3] = true;
+      
+          if(fwFMCProcess_exists(nodes[i], systemName))
+          {
+            ++processCount;
+            totalProcesses += dynlen(fwFMCProcess_getProcesses(nodes[i], systemName));
+            check[4] = true;
+          }
+      
+          if(avCpu != -1 && avCpu > 90.)
+          { 
+            ++cpuError;
+            cpuColor = \"FwAlarmWarnAck\";
+          }
+          else
+            cpuColor = \"_Window\";
+        
+          if(usedMemory > 80.)
+          {
+            ++memoryError;
+            memColor = \"FwAlarmWarnAck\";
+          }
+          else
+            memColor = \"_Window\";
+      
+      
+          if (usedMemory == -1.)
+          {
+            memColor = \"FwAlarmWarnAck\";
+            sUsedMemory = \"N/A\";
+            sUsedSwap = \"N/A\";
+          }
+          else
+          {
+            memColor = \"_Window\";
+            sUsedMemory = usedMemory;
+            sUsedSwap = usedSwap;
+          }
+        
+          if (avCpu == -1.)
+          {
+            cpuColor = \"FwAlarmWarnAck\";
+            sAvCpu = \"N/A\";
+          }
+          else
+          {
+            cpuColor = \"_Window\";
+            sAvCpu = avCpu;
+          }
+
+          commStatus = fwFMC_getNodeReadoutStatus(nodes[i], systemName);
+          powerStatus = fwFMC_getNodePowerStatus(nodes[i], systemName);
+
+          if(powerStatus == \"OFF\")
+          {
+            ++off;
+            powerColor = \"FwStateOKNotPhysics\";
+          }  
+          else if(powerStatus == \"ON\")
+          {
+            ++on;
+            powerColor = \"_Window\";
+          }
+          else if(powerStatus == \"UNKNOWN\" || powerStatus == \"ERROR\")
+          {
+            powerColor = \"FwAlarmFatalUnack\";
+            ++unknown;
+          }
+      
+          if(commStatus == \"ERROR\" ||
+             commStatus == \"UNKNOWN\") //powerStatus == \"ERROR\" || 
+          {
+            commColor = \"FwAlarmWarnAck\";
+            ++commError;
+          } 
+          else
+          {
+            commColor = \"_Window\";
+          }
+      
+        tblNodes.updateLine(1, \"node\", nodes[i], 
+                            \"commStatus\", commStatus, 
+                            \"powerStatus\", powerStatus,
+                            \"avCpu\", sAvCpu,
+                            \"usedMemory\", sUsedMemory,
+                            \"usedSwap\", sUsedSwap);
+          
+          tblNodes.cellBackColRC(i-1, \"commStatus\") = commColor;
+          tblNodes.cellBackColRC(i-1, \"powerStatus\") = powerColor;
+          tblNodes.cellBackColRC(i-1, \"avCpu\") = cpuColor;
+          tblNodes.cellBackColRC(i-1, \"usedMemory\") = memColor;
+          tblNodes.cellBackColRC(i-1, \"usedSwap\") = memColor;
+          
+        } 
+    
+      dpGet(systemName + \"_Connections.Device.ManNums\", manNums);
+      //DebugN(\"****\", check, manNums);
+
+      if(fwFMC_isEnabled())    
+      {
+        if(check[1])
+        {
+          if(dynContains(manNums, FW_FMC_IPMI_DIM) <= 0)
+          {
+           ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"IPMI DIM Manager \" + FW_FMC_IPMI_DIM + \" not running\")); 
+           delay(refresh);
+           continue;
+          }
+        }
+    
+        if(check[2])
+        {
+          if(dynContains(manNums, FW_FMC_TEMPORARY_MONITORING_DIM) <= 0 || dynContains(manNums, FW_FMC_CONTINUOUS_MONITORING_DIM) <= 0)
+          {
+           ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"Monitoring DIM Managers \" + FW_FMC_CONTINUOUS_MONITORING_DIM + \" and \" + FW_FMC_TEMPORARY_MONITORING_DIM + \" not running\")); 
+           delay(refresh);
+           continue;
+          }
+        }
+    
+        if(check[3])
+        {
+          if(dynContains(manNums, FW_FMC_TM_LOGGER_DIM) <= 0)
+          {
+           ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"Monitoring DIM Managers \" + FW_FMC_TM_LOGGER_DIM + \" not running\")); 
+           delay(refresh);
+           continue;
+          }
+        }     
+    
+        if(check[3])
+        {
+          if(dynContains(manNums, FW_FMC_PROCESS_DIM) <= 0)
+          {
+           ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"Monitoring DIM Managers \" + FW_FMC_PROCESS_DIM + \" not running\")); 
+           delay(refresh);
+           continue;
+          }
+        }     
+      }
+      txNodeCount.text = \"Total number of nodes: \" + dynlen(nodes);
+      txPsSummary.text = \"Power: \" + on  + \" nodes ON and \" + off + \" OFF and \" + unknown + \" UNKNOWN state.\";
+    
+      if(unknown > 0)
+        txPsSummary.foreCol = \"FwAlarmFatalAck\";
+      else if(off > 0)
+        txPsSummary.foreCol = \"FwStateOKNotPhysics\";
+      else
+        txPsSummary.foreCol = \"_3DText\";
+    
+      txCommSummary.text = \"Nodes with communication errors: \" + commError;
+      if(commError > 0)
+        txCommSummary.foreCol = \"FwAlarmFatalAck\";
+      else
+        txCommSummary.foreCol = \"_3DText\";
+    
+      txCpuSummary.text = \"Av. CPU load  of \" + cpuError + \" nodes exceeds 90%.\";
+      if(cpuError > 0)
+        txCpuSummary.foreCol = \"FwAlarmErrorAck\";
+      else
+        txCpuSummary.foreCol = \"_3DText\";
+    
+      txMemorySummary.text = \"Memory charge  of \" + memoryError + \" nodes exceeds 80%.\";    
+      if(memoryError > 0)
+        txMemorySummary.foreCol = \"FwAlarmErrorAck\";
+      else
+        txMemorySummary.foreCol = \"_3DText\";
+
+      //Process count:
+  //    dyn_string procsDps = dpNames(systemName + \"FMC/*/Process\", \"FwFMCProcess\");
+      dyn_string allHosts;
+      dyn_string allProcs;
+      dyn_string allCmd;
+      dyn_int allPid;
+      dyn_int allMemory;
+      dyn_float allCpu;
+      dyn_string allUser;
+
+  //    fwFMCProcess_getAllProcesses(allHosts, allProcs, allCmd, allPid, allMemory, allCpu, allUser);
+  //    txProcessSummary.text  = \" Process Monitoring enabled in \" + dynlen(procsDps) + \" hosts. Total number of processes: \" + dynlen(allProcs);
+        txProcessSummary.text  = \" Process Monitoring enabled in \" + processCount + \" hosts. Total number of processes: \" + totalProcesses;
+    
+        for(int i = 0; i < tblNodes.lineCount(); i++)
+          tblNodes.removeSelectLines(i);
+    }
+    
+    delay(refresh);
+  }//end of while(1)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  -1 0
+""0  1
+E "#uses \"fwFMC/fwFMC.ctl\"
+#uses \"fwFMC/fwFMCIpmi.ctl\"
+#uses \"fwFMC/fwFMCMonitoring.ctl\"
+
+ string systemName;" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tblNodes"
+""
+1 2 34.16297428062134 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"selectionChangedCB" "synchronized main()
+{
+
+}"
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  0 32 626 214
+"main()
+{
+  tblNodes.tableMode(TABLE_SELECT_MULTIPLE);
+  tblNodes.selectByClick(TABLE_SELECT_LINE);  
+ 
+}" 0
+E 1 0 1 8 0 "node" 21 1 0 "s" 1
+LANG:1 4 Node
+E
+1
+LANG:1 0 
+
+182 "os" 9 1 0 "s" 1
+LANG:1 2 OS
+E
+1
+LANG:1 0 
+
+80 "ipmiDp" -1 0 0 "s" 1
+LANG:1 6 IpmiDp
+E
+1
+LANG:1 0 
+
+0 "commStatus" 8 1 0 "s" 1
+LANG:1 11 Comm Status
+E
+1
+LANG:1 0 
+
+75 "powerStatus" 8 1 0 "s" 1
+LANG:1 12 Power status
+E
+1
+LANG:1 0 
+
+74 "avCpu" 5 1 0 "s" 1
+LANG:1 7 CPU (%)
+E
+1
+LANG:1 0 
+
+55 "usedMemory" 7 1 0 "s" 1
+LANG:1 10 Memory (%)
+E
+1
+LANG:1 0 
+
+70 "usedSwap" 7 1 0 "s" 1
+LANG:1 9 Swap (%)*
+E
+1
+LANG:1 0 
+
+66 
+14 14 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+2 1
+"txTitle"
+""
+1 -541 761.1864054693635 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1.05882352941176 -12 3.64705882352944 1 E 22 8 23 22
+0 2 2 "0s" 0 0 0 192 0 0  22 8 1
+1
+LANG:1 25 Arial,8,-1,5,75,1,0,0,0,0
+0 1
+LANG:1 0 
+30 2
+"FRAME1"
+""
+1 20 303 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+2 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.55 0 1.761194029850751 -31 -291.4230388166137 0 E 20 303 421 371
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Hosts Summary
+2 3
+"txPsSummary"
+""
+1 10 302.1176470588235 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 302.1176470588235 75 317
+0 2 2 "0s" 0 0 0 192 0 0  10 302.1176470588235 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+2 4
+"txCpuSummary"
+""
+1 362 283.2352941176459 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 362 283.2352941176459 427 298
+0 2 2 "0s" 0 0 0 192 0 0  362 283.2352941176459 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+2 5
+"txMemorySummary"
+""
+1 362 302.2352941176459 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 362 302.2352941176459 427 317
+0 2 2 "0s" 0 0 0 192 0 0  362 302.2352941176459 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+2 6
+"txCommSummary"
+""
+1 10 283.1176470588235 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 283.1176470588235 75 298
+0 2 2 "0s" 0 0 0 192 0 0  10 283.1176470588235 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+2 7
+"txNodeCount"
+""
+1 10 264.2352941176459 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 264.2352941176459 75 279
+0 2 2 "0s" 0 0 0 192 0 0  10 264.2352941176459 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+2 8
+"PRIMITIVE_TEXT1"
+""
+1 410 262.2352941176459 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 410 262.2352941176459 440 277
+0 2 2 "0s" 0 0 0 192 0 0  410 262.2352941176459 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Trend:
+22 9
+"cbTrend"
+""
+1 450 259.2352941176459 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  448 257 562 281
+3
+1
+LANG:1 12 Power status
+
+0
+1
+LANG:1 8 CPU Idle
+
+0
+1
+LANG:1 11 Memory Free
+
+0
+
+E
+E
+E
+ 1 0
+13 10
+"PUSH_BUTTON1"
+""
+1 581.538461538462 266.2352941176459 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  568 254 602 285
+
+P 
+4294967295
+"pictures/trend_enabled_32.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+E E "main()
+{
+
+  dyn_string dpes, labels;
+  string node;
+  dyn_int lines = tblNodes.getSelectedLines();
+  string type = cbTrend.text;
+  //string systemName = dpSubStr($sDpName, DPSUB_SYS);
+
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    getValue(\"tblNodes\", \"cellValueRC\", lines[i], \"node\", node);
+    dynAppend(labels, node);
+
+    if(strtoupper(type) == \"POWER STATUS\")
+      dynAppend(dpes, systemName + \"FMC/\" + node + \".readings.ipmi.power_status\");
+    else if(strtoupper(type) == \"CPU IDLE\")
+      dynAppend(dpes, systemName + \"FMC/\" + node + \"/Monitoring/Cpus.readings.averageLoad.idle\");      
+    else if(strtoupper(type) == \"MEMORY FREE\")
+      dynAppend(dpes, systemName + \"FMC/\" + node + \"/Monitoring/Memory.readings.free\");      
+  }
+
+  ChildPanelOnCentral(\"fwFMC/fwFMC_trendAnalogs.pnl\", strtoupper(type) + \" Trends\", makeDynString(\"$dpes:\" + dpes, \"$labels:\" + labels, \"$title: \" + strtoupper(type) + \" Trends\"));
+}" 0
+ E
+2 11
+"txProcessSummary"
+""
+1 10 322.1176470588235 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 322.1176470588235 75 337
+0 2 2 "0s" 0 0 0 192 0 0  10 322.1176470588235 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Please wait...
+13 12
+"PUSH_BUTTON5"
+""
+1 490 320.235294117647 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  488 318 602 352
+
+T 
+1
+LANG:1 16 Search Processes
+E E "main()
+{
+  dyn_string nodes;
+  int n = tblNodes.lineCount();
+  for(int i = 0; i < n; i++)
+  {
+    dynAppend(nodes, tblNodes.cellValueRC(i, \"node\"));
+  }
+
+  ChildPanelOnCentral(\"fwFMC/fwFMC_searchProcesses.pnl\", \"Search\", makeDynString(\"$nodes:\"+nodes));
+
+}
+
+
+
+
+
+" 0
+ E
+2 13
+"txMsg"
+""
+1 460 212.1176470588235 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 460 212.1176470588235 621 227
+0 2 2 "0s" 0 0 0 192 0 0  460 212.1176470588235 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 32 (Values are refreshed every min)
+20 14
+"cbAutoRefresh"
+""
+1 370 210.235294117647 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  368 208 452 232
+1
+T 
+1
+LANG:1 12 Auto refresh
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  if(state)
+  {
+    txMsg.foreCol(\"black\");
+    txMsg.text = \"(Values are refreshed every min)\";
+  }
+    else
+  {
+    txMsg.foreCol(\"disturbanceCamWentUna\");
+    txMsg.text = \"(Autorefresh is disabled)\";
+  }
+}" 0
+2 15
+"PRIMITIVE_TEXT2"
+""
+1 2 212.2352941176459 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 2 212.2352941176459 319 227
+0 2 2 "0s" 0 0 0 192 0 0  2 212.2352941176459 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 63 *  WIN nodes: FreeSpaceInPagingFiles/SizeStoredInPagingFiles % 
+2 16
+"txFMCDisabled"
+""
+1 470 10 E E E 1 E 0 E N "S7_sysMustWentUnq" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  while(1)
+  {
+    this.visible = !fwFMC_isEnabled();
+    delay(5);
+  }
+}
+
+
+
+
+
+
+" 0
+ E 0 1 1 2 1 E U  0 E 470 10 620 30
+0 2 2 "0s" 0 0 0 66 0 0  470 10 1
+1
+LANG:1 26 Arial,10,-1,5,75,1,0,0,0,0
+0 1
+LANG:1 17 FMC is disabled!!
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

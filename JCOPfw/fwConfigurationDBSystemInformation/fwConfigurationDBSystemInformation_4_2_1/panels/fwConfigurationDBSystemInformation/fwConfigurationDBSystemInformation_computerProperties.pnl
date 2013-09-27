@@ -1,0 +1,500 @@
+V 11
+1
+LANG:1 14 HostProperties
+PANEL,-1 -1 607 332 N "_3DFace" 1
+"$computer"
+"main()
+{
+  //Access Control:
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyHostAcCB\", ex);
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+  
+  if(isDollarDefined(\"$embedded\"))
+  {
+    btOk.visible = false;
+    btApply.visible = false;
+    btClose.visible = false;
+  }
+  
+  update();
+}
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  30 50
+""0  1
+E "#uses \"fwInstallationDB.ctl\"
+#uses \"fwSystemOverview/fwSystemOverview.ctl\"  
+void showPatches(int row)
+{
+  dyn_anytype values;
+  dyn_string patches;
+  
+  getValue(\"tbPvssVersions\", \"getLineN\", row, values); 
+  if (dynlen(values) > 1)
+  {
+    if(fwInstallationDB_getPatchList($computer, values[1], values[2], patches) != 0){
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not connect to the DB.\"));
+      return;
+    }
+  
+    slPatches.items(patches);
+  }
+}
+    
+void applyHostAcCB(string s1, string s2)
+{
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  {
+    string domain;
+    fwSysOverview_getACDomain(domain);
+  
+    // at first, disable whatever was enabled to this moment
+    disableAllInHostPanel();
+
+    if(domain == \"\") //AC not yet configured. Enable access 
+    {
+      hasExpertPrivilege = true;
+    }
+    else
+    {
+      string expertPrivilege = fwSysOverview_getExpertPrivilege(1);
+      // check the current  privilege level 
+      if (expertPrivilege == \"\")
+      {
+        DebugN(\"No expert privilege defined!\");
+        return;
+      }
+      fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+    
+  
+      // check and handle exceptions that might have been thrown by the function above
+      if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+    }
+  }
+  else
+    hasExpertPrivilege = true;
+  
+  // enable UI elements, depending on the access rights:
+  if (hasExpertPrivilege)
+  {
+    btOk.enabled = true;
+    btApply.enabled = true;
+    tfHostname.enabled = true;
+    tfIp.enabled = true;
+  }
+}
+
+void disableAllInHostPanel()
+{
+  btOk.enabled = false;
+  btApply.enabled = false;
+  tfHostname.enabled = false;
+  tfIp.enabled = false;
+}
+    
+    
+exportToDB()
+{
+  string hostname = tfHostname.text;
+  dyn_mixed hostInfo;
+  
+  if(hostname == \"\"){
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: Empty hostname\", makeDynString(\"$1:Please enter a valid hostname.\"));
+    return; 
+  }
+  hostname = strtoupper(hostname);
+  hostInfo[FW_INSTALLATION_DB_HOST_NAME_IDX] = hostname;
+  hostInfo[FW_INSTALLATION_DB_HOST_IP_1_IDX] = getHostByName(hostname);
+
+  string description = myPanelName() + \": Registering PC in the DB. Hostname: \" + hostname;
+  fwConfigurationDBSystemInformation_logAction(description);
+  
+  if(fwInstallationDB_registerPC(hostname, hostInfo) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: Empty hostname\", makeDynString(\"$1:Could not register PC in DB.\\nPlease check the connection parameters\"));
+    return;
+  }
+  
+  update(); 
+}
+
+void update()
+{
+  dyn_string versions, oss;
+  dyn_mixed hostInfo;
+  int id = -1;
+  string host = \"\";
+  
+  tbPvssVersions.tableMode(TABLE_SELECT_BROWSE);
+  tbPvssVersions.selectByClick(TABLE_SELECT_LINE);
+  
+  if(fwInstallationDB_connect() != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Connection failed.\\nPlease check DB connection parameters\"));
+  
+  }
+  
+  if(isDollarDefined(\"$computer\")&& $computer != \"\")
+    host = $computer;
+  else if(tfHostname.text != \"\" && fwInstallationDB_isPCRegistered(id, strtoupper(tfHostname.text)) == 0 && id > 0)
+    host = tfHostname.text;
+  
+  if(host != \"\")
+  {    
+    if(fwInstallationDB_getHostProperties(host, hostInfo) != 0) //ip, mac, ip2, mac2, bmc_ip, bmc_ip2) != 0)
+    {
+       ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Connection failed.\\nPlease check DB connection parameters\"));
+    }else{
+      tfHostname.text = host;
+      tfHostname.editable(false);
+      tfIp.text = hostInfo[FW_INSTALLATION_DB_HOST_IP_1_IDX];   
+    }
+    
+    if(fwInstallationDB_getPvssVersions(host, versions, oss) != 0)
+    {
+       ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Connection failed.\\nPlease check DB connection parameters\"));
+    }else{
+      for(int i = 1; i <= dynlen(versions); i++)
+        tbPvssVersions.appendLine(\"version\", versions[i], \"os\", oss[i]);
+    }
+    btApply.enabled = false;
+    btOk.enabled = false;
+  }
+  
+  showPatches(0);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 30 46 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 40 58 54
+0 2 2 "0s" 0 0 0 192 0 0  30 40 1
+1
+LANG:1 25 Arial,8,-1,5,75,1,0,0,0,0
+0 1
+LANG:1 5 Host:
+14 1
+"tfHostname"
+""
+1 60 37 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,75,1,0,0,0,0
+0  58 35 252 58
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  if($computer != \"\")
+    this.enabled = FALSE;
+  
+}
+" 0
+ E
+2 2
+"PRIMITIVE_TEXT2"
+""
+1 340 12 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 340 40 354 55
+0 2 2 "0s" 0 0 0 192 0 0  340 40 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 IP: 
+14 3
+"tfIp"
+""
+1 368 37 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  366 35 587 58
+3 "0s" 0 0 0 0 0 -1  E E E
+13 17
+"btClose"
+""
+1 478 290 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  476 288 588 316
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOffReturn(makeDynFloat(0.), makeDynString(\"Cancel\"));
+}" 0
+ E E E
+17 20
+"slPatches"
+""
+1 336 88 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  334 86 588 244
+0
+
+E
+E
+E
+
+0 0
+2 21
+"PRIMITIVE_TEXT9"
+""
+1 30 74 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 72 149 87
+0 2 2 "0s" 0 0 0 192 0 0  30 72 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Installed PVSS Versions:
+2 22
+"PRIMITIVE_TEXT10"
+""
+1 22 74 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 338 74 509 89
+0 2 2 "0s" 0 0 0 192 0 0  338 74 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 35 Patches applied to selected version
+25 23
+"tbPvssVersions"
+""
+1 28 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  26 88 250 248
+E"main(int row, string column, string value)
+{
+  showPatches(row);    
+}
+
+" 0
+ 1 0 1 2 0 "version" 9 1 0 "s" 1
+LANG:1 7 Version
+E
+1
+LANG:1 0 
+
+80 "os" 14 1 0 "s" 1
+LANG:1 2 OS
+E
+1
+LANG:1 0 
+
+120 
+16 16 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+13 24
+"btOk"
+""
+1 240 290 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  238 288 350 316
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  exportToDB();
+  PanelOffReturn(makeDynFloat(1.), makeDynString(\"OK\"));
+}" 0
+ E E E
+13 25
+"btApply"
+""
+1 358 290 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  356 288 468 316
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  exportToDB();
+}" 0
+ E E E
+2 26
+"PRIMITIVE_TEXT11"
+""
+1 -286 250 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 250 312 265
+0 2 2 "0s" 0 0 0 192 0 0  30 250 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 60 * Click on a PVSS version to see the list of patches applied
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

@@ -1,0 +1,4677 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 539 464 N "_3DFace" 0
+E E E E E 1 0 0 0  200 100
+""0  1
+E "void setI0Alarm(string dpe, float value){
+
+float diff1,diff2;
+dyn_string exceptionInfo;
+string channelName,channel;
+
+dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\");
+       
+dyn_float limits; 
+dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\");
+      
+string alertPanel; dyn_string summary,alertPanelParameters; string alertHelp;
+
+ if(value != 0)
+ {
+ diff1=value*0.05;//primo limite al 10%
+ diff2=value*0.1;//secondo limite al 20%
+ 
+  
+///Set  Alarm channel for Imon
+ channel= dpe+\".actual.iMon\";
+ 
+
+ fwAlertConfig_deactivate(channel,exceptionInfo);  
+  limits = makeDynFloat( value-diff2,value-diff1 );
+ fwAlertConfig_set(channel,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exceptionInfo);
+             if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+ fwAlertConfig_activate(channel,exceptionInfo);
+ }
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+13 1
+"Button2"
+""
+1 330 80 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 328 78 444 120
+
+T 
+1
+LANG:1 11 Settavalori
+"main()
+{
+
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+
+               
+string logName;
+float value; 
+dyn_string channels = dpNames(\"*\",\"FwCaenChannel\"); 
+
+for(int i = 1; i<=dynlen(channels);i++) 
+ { 
+  logName = fwDU_getLogicalName(channels[i]);
+  //DebugN(logName);
+  if(strpos(logName,\"HV\")>1)
+  	{
+  	HVChann(channels[i]);
+    }
+   else if((strpos(logName,\"ANA\")>1)||(strpos(logName,\"DIG\")>1))
+  	{
+  	LVChann(channels[i],logName);
+    }
+    else if(strpos(logName,\"LBB\")>1)
+  	{
+  	LBBChann(channels[i],logName);
+    }
+    //DebugN(channels[i]);  
+ } 
+DebugN(\"Fin\");
+}
+HVChann(string dpe)
+{
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+ 
+dyn_string value=makeDynString(\"50\",\"9600\",\"100\",\"100\",\"25\",\"100\");         
+for(int j=1;j<=dynlen(list);j++)
+   		{
+    	//dpGet(channels[i]+\".readBackSettings\"+list[j],value); 
+      //  DebugN(channels[i],value); 
+        dpSet(dpe+\".settings\"+list[j],value[j]);
+         DebugN(dpe,value[j]);  
+        //dpSet(dpe+\".readBackSettings\"+list[j],value[j]); 
+    	}
+
+}
+LVChann(string dpe,string logName)
+{
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",\".tripTime\");
+                              
+dyn_string value=makeDynString(\"2\",\"8\",\"7\",\"1\");
+	if(strpos(logName,\"DIG\")>1)
+          {
+          value[3] = 7.5;      
+   			value[1] = 3;
+                      }
+   else
+   	 value[1] = 2;
+// DebugN(dpe,value);         
+for(int j=1;j<=dynlen(list);j++)
+   		{
+   	
+    	//dpGet(channels[i]+\".readBackSettings\"+list[j],value); 
+        DebugN(logName,\"-->\",value); 
+        dpSet(dpe+\".settings\"+list[j],value[j]);
+         if(j==1)
+        setI0Alarm(dpe,value[j]);
+        //dpSet(dpe+\".readBackSettings\"+list[j],value[j]);  
+    	}
+    	
+
+}
+LBBChann(string dpe,string logName)
+{
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",\".tripTime\");
+                              
+dyn_string value=makeDynString(\"5\",\"3\",\"2.55\",\"1\");
+
+          
+for(int j=1;j<=dynlen(list);j++)
+   		{
+   		if(strpos(logName,\"33\")>1)
+   			{
+   			value[3] = 3.35;
+   			value[2] = 4;
+   			value[1] = 10;
+                          if((strpos(logName,\"S10\")>1)&&(strpos(logName,\"_1_\")>1))
+                  value[1] = 12;
+   			}
+              
+    	//dpGet(channels[i]+\".readBackSettings\"+list[j],value); 
+        DebugN(dpe,value); 
+        dpSet(dpe+\".settings\"+list[j],value[j]);
+         if(j==1)
+        setI0Alarm(dpe,value[j]); 
+       // dpSet(dpe+\".readBackSettings\"+list[j],value[j]); 
+    	}
+ dynClear(value);
+
+}" 0
+ E E E
+13 2
+"Button3"
+""
+1 322 24 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 320 22 432 66
+
+T 
+1
+LANG:1 10 copia read
+"main()
+{
+ 
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+
+float value; 
+dyn_string channels = dpNames(\"*\",\"FwCaenChannel\"); 
+DebugN(channels); 
+for(int i = 1; i<=dynlen(channels);i++) 
+ { 
+  for(int j=1;j<=dynlen(list);j++)
+   {
+    dpGet(channels[i]+\".readBackSettings\"+list[j],value); 
+        DebugN(channels[i],value); 
+        dpSet(channels[i]+\".settings\"+list[j],value); 
+    } 
+ }
+
+}" 0
+ E E E
+13 3
+"Button4"
+""
+1 180 132 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 178 130 288 170
+
+T 
+1
+LANG:1 5 Alarm
+"main()
+{
+  AlarmTemp();
+//SetAlarmDevice();
+//SetDeviceConditionDB();
+}
+void AlarmTemp(){
+dyn_string deviceList,exceptionInfo,summary;//=dpAliases(\"*/HV/*\",\"*\");
+dynAppend(deviceList,dpAliases(\"*/T/*\",\"*\"));
+
+for (int i=1;i<=dynlen(deviceList);i++)
+ {
+ dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\"),
+       aTexts = makeDynString(\"OK\", \"Bad\") ;
+ dyn_float limits; 
+ dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\"),
+       aClasses = makeDynString(\"\", \"_fwErrorAck.\");
+  string alertPanel; dyn_string alertPanelParameters; string alertHelp;
+ 
+ deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+ 
+ 
+///Set  Alarm channel for Imon
+string  channel= deviceList[i]+\".actual.temperature\";
+ summary = channel; 
+  fwAlertConfig_deactivate(channel,exceptionInfo);  
+  limits = makeDynFloat( 23,24 );
+  //DebugN(channel);
+ fwAlertConfig_set(channel,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exceptionInfo);
+             if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+ fwAlertConfig_activate(channel,exceptionInfo);
+}
+}
+void SetAlarmDevice(){
+
+float diff1,diff2,value;
+dyn_string exceptionInfo,split,splitt,summary;
+string channelName,channel;
+
+//******************** HV CHANNELS**************************
+
+dyn_string boolAlarms = makeDynString(\".actual.Trip\",\".actual.OvC\",\".actual.OvV\",
+                   \".actual.UnV\",\".actual.UnC\",\".actual.overHvMax\");
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+// dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+// dynAppend(deviceList,dpAliases(\"*/LBBLV/*\",\"*\"));
+for (int i=1;i<=dynlen(deviceList);i++)
+ {
+ dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\"),
+       aTexts = makeDynString(\"OK\", \"Bad\") ;
+ dyn_float limits; 
+ dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\"),
+       aClasses = makeDynString(\"\", \"_fwErrorAck.\");
+  string alertPanel; dyn_string alertPanelParameters; string alertHelp;
+ 
+ deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+ dpGet(deviceList[i]+\".settings.i0\", value);
+ if(value != 0)
+ {
+ diff1=value*0.1;//primo limite al 10%
+ diff2=value*0.2;//secondo limite al 20%
+ 
+  
+///Set  Alarm channel for Imon
+ channel= deviceList[i]+\".actual.iMon\";
+ 
+ dynAppend(summary,channel);
+ fwAlertConfig_deactivate(channel,exceptionInfo);  
+  limits = makeDynFloat( value-diff2,value-diff1 );
+  DebugN(channel);
+ fwAlertConfig_set(channel,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exceptionInfo);
+             if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+ fwAlertConfig_activate(channel,exceptionInfo);
+ }
+ //Set Digital alarm for channel
+ for(int j =1;j<=dynlen(boolAlarms);j++)
+  {
+  
+  fwAlertConfig_deactivate(deviceList[i]+boolAlarms[j],exceptionInfo); 
+  
+  fwAlertConfig_set(deviceList[i]+boolAlarms[j], DPCONFIG_ALERT_BINARYSIGNAL, aTexts, 
+      limits, aClasses, summary,  alertPanel, alertPanelParameters, alertHelp,  exceptionInfo);
+  
+  
+    
+    fwAlertConfig_activate(deviceList[i]+boolAlarms[j],exceptionInfo); 
+    dynAppend(summary, deviceList[i]+boolAlarms[j]) ;            
+    }
+  
+  fwAlertConfig_deactivate(deviceList[i]+\".\",exceptionInfo); 
+  fwAlertConfig_set(deviceList[i]+\".\",DPCONFIG_SUM_ALERT , aTexts, 
+      limits, aClasses, summary,  alertPanel, alertPanelParameters, alertHelp,  exceptionInfo); 
+ //DebugN(deviceList[i],exceptionInfo,summary);
+ fwAlertConfig_activate(deviceList[i]+\".\",exceptionInfo); 
+ dynClear(summary);
+  
+              
+ }
+
+//******************** BOARD Alarm**************************
+
+
+
+
+
+
+ DebugN(\"Set Alarm configuration\");
+}
+
+SetDeviceConditionDB(){
+// Ricorda che dovrebbe partire anche il manager ed essere settato
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+dynAppend(deviceList,dpAliases(\"*/LBB_LV/*\",\"*\"));
+bool configExists; 
+string archiveClassName=\"RDB-99) EVENT\"; //Archive's name
+int archiveType=DPATTR_ARCH_PROC_SIMPLESM,count=1,value,l;
+int smoothProcedure=DPATTR_VALUE_REL_SMOOTH ,pos;//set old/new comparition 
+float deadband=2;
+float timeInterval=0; 
+bool isActive; 
+dyn_string exceptionInfo,channels,boards;
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+/*
+fwArchive_setMultiple(deviceList[i]+\".actual.iMon\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".actual.vMon\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.i0\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.v0\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+					
+fwArchive_setMultiple(deviceList[i]+\".actual.status\" , archiveClassName,archiveType,DPATTR_COMPARE_OLD_NEW ,
+					deadband, timeInterval,exceptionInfo);*/
+					
+pos = strpos(deviceList[i],\"/chann\");
+boards[i] = substr(deviceList[i],0,pos); 
+}
+dynUnique(boards);
+DebugN(\"boar\", boards);
+
+
+for(int i=1;i<=dynlen(boards);i++)
+{
+
+fwArchive_setMultiple(boards[i]+\".Temp.Temp1\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+}
+
+dyn_string deviceListT=dpAliases(\"*/T/*\",\"*\");
+for(int i=1;i<=dynlen(deviceListT);i++)
+{
+deviceListT[i]=fwDU_getPhysicalName(deviceListT[i]);
+fwArchive_setMultiple(deviceListT[i]+\".actual.temp\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+
+}
+
+DebugN(\"Set archiving configuration\");
+}" 0
+ E E E
+13 4
+"Button5"
+""
+1 178 82 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 176 80 288 118
+
+T 
+1
+LANG:1 9 erase ref
+"main()
+{
+Cancella();
+dyn_string exInfo,ciao;
+/* = dpNames(\"*RPC_WP1_S10_RB4minus_H*\");
+//ciao[2]= dpTypeName(ciao[1]);
+DebugN(ciao);
+ ciao = dpNames(\"*RPC_WP1_S10_RB4plus_H*\");
+*/
+//fwDevice_getChildren(\"rpcdcs01:CAEN/SystemOne/branchController02/easyCrate0/easyBoard08\",fwDevice_HARDWARE,ciao,exInfo);
+
+DebugN(ciao);
+}
+
+
+
+
+void Cancella()
+{
+string parent,type;
+dyn_string systemName,parents,nodes,exInfo;
+DebugN(\"Finding references...\");
+fwTree_getAllNodes(nodes,exInfo);
+DebugN(\"Founded \",dynlen(nodes),\" nodes\");
+for (int i = 1; i<=dynlen(nodes); i++)
+	fwFsmTree_getChildrenRec(nodes[i],parents);
+	
+for (int i = 1; i<=dynlen(parents); i++)
+	if(strpos(parents[i],\"&\")>-1)
+		{
+		fwTree_getParent(parents[i],parent,exInfo);
+		//fwFsmTree_removeNode(parent,parents[i]);
+		DebugN(\"Reference: \",parents[i],\" deleted\");
+		}
+DebugN(\"References completely removed\");
+}" 0
+ E E E
+13 5
+"Button6"
+""
+1 176 24 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 174 22 290 68
+
+T 
+1
+LANG:1 15 cancella alarmi
+"main()
+{
+string  dpe;
+  bool   configExists;
+  int   alertConfigType;
+  dyn_string   alertTexts;  
+  dyn_float   alertLimits;
+  dyn_string   alertClasses;
+  dyn_string   summaryDpeList;  
+  string   alertPanel;
+  dyn_string   alertPanelParameters;  
+  string   alertHelp;  
+  bool  isActive;
+  dyn_string   exceptionInfo;
+
+
+dyn_string dplist= dpNames(\"*\",\"_FwFsmObject\");
+dynAppend(dplist,dpNames(\"*\",\"FwCaenChannel\"));
+//DebugN(\"sadfdf\",dplist);
+for(int i = 1; i<=dynlen(dplist);i++)
+{
+fwAlertConfig_get  (dplist[i]+\".\",configExists,  
+  alertConfigType,  
+   alertTexts,  
+ alertLimits,  
+  alertClasses,  
+ summaryDpeList,  
+ alertPanel,  
+  alertPanelParameters,  
+  alertHelp,  
+ isActive,  
+ exceptionInfo 
+ );  
+
+if(dynlen(summaryDpeList)==0)
+	{
+	fwAlertConfig_delete(dplist[i]+\".\",exceptionInfo);  
+	//DebugN(\"SSS:\",dplist[i]);
+	}
+
+}
+}" 0
+ E E E
+30 7
+"FRAME1"
+""
+1 48 247 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+4 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.917748917748918 -8 -28.6839826839827 0 E 48 247 255 479
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 3 USC
+30 8
+"FRAME2"
+""
+1 48 247 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+6 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.904761904761905 250 -22.4761904761898 0 E 48 247 255 479
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 3 UXC
+13 9
+"PUSH_BUTTON1"
+""
+1 80 230 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 78 228 204 266
+
+T 
+1
+LANG:1 12 Crea Logical
+"main()
+{
+dyn_string exInfo,nodes;
+
+// HV(numero canale, branch, crate, 1)
+//  completaHV(\"RPC_WP2_S01\",1,1,0,1);
+//  completaHV(\"RPC_WP2_S02\",9,1,0,1);
+//  completaHV(\"RPC_WP2_S03\",17,1,0,1);
+//  completaHV(\"RPC_WP2_S04\",25,1,0,1);
+//  completaHV(\"RPC_WP2_S05\",35,1,0,1);
+//  
+//  completaHV(\"RPC_WP2_S06\",43,1,2,1);
+//  completaHV(\"RPC_WP2_S07\",51,1,2,1);
+//  completaHV(\"RPC_WP2_S08\",59,1,2,1);
+//  completaHV(\"RPC_WP2_S09\",67,1,2,1);//Ricorda di aggiun
+//  completaHV(\"RPC_WP2_S10\",74,1,2,1);
+//  
+//  completaHV(\"RPC_WP2_S11\",82,1,1,1);
+//  completaHV(\"RPC_WP2_S12\",89,1,1,1);
+//  
+  completaW(0,0,\"RPC_WP2_\");
+  completaW(0,3,\"RPC_WP1_\");
+  completaW(1,0,\"RPC_W00_\");
+  completaW(1,3,\"RPC_WM1_\");
+  completaW(2,0,\"RPC_WM2_\");
+  
+//   completaW(0,3,\"RPC_WP1_\");
+//   completaW(1,0,\"RPC_W00_\");
+//   completaW(1,3,\"RPC_WM1_\");
+//   completaW(2,0,\"RPC_WM2_\");
+   
+ completaBoard(\"RPC_WP2_S1H06k\",0,0);
+ completaBoard(\"RPC_WP2_S1H06q\",0,1);
+ completaBoard(\"RPC_WP2_S1H06e\",0,2);
+ completaBoard(\"RPC_WP1_S1H05k\",0,3);
+ completaBoard(\"RPC_WP1_S1H05q\",0,4);
+ completaBoard(\"RPC_WP1_S1H05e\",0,5);
+ completaBoard(\"RPC_W00_S1H04k\",1,1);
+ completaBoard(\"RPC_W00_S1H04q\",1,0);
+ completaBoard(\"RPC_W00_S1H04e\",1,2);
+ completaBoard(\"RPC_WM1_S1H03k\",1,3);
+ completaBoard(\"RPC_WM1_S1H03q\",1,4);
+ completaBoard(\"RPC_WM1_S1H03e\",1,5);
+ completaBoard(\"RPC_WM2_S1H02k\",2,1);
+ completaBoard(\"RPC_WM2_S1H02q\",2,0);
+ completaBoard(\"RPC_WM2_S1H02e\",2,2);
+//  
+//  completaBoard(\"RPC_WP1_S1H05k\",0,3);
+//  completaBoard(\"RPC_WP1_S1H05q\",0,4);
+//  completaBoard(\"RPC_WP1_S1H05e\",0,5);
+//  
+//  completaBoard(\"RPC_W00_S1H04k\",1,1);
+//  completaBoard(\"RPC_W00_S1H04q\",1,0);
+//  completaBoard(\"RPC_W00_S1H04e\",1,2);
+//  
+//  completaBoard(\"RPC_WM1_S1H03k\",1,3);
+//  completaBoard(\"RPC_WM1_S1H03q\",1,4);
+//  completaBoard(\"RPC_WM1_S1H03e\",1,5);
+//  
+//  completaBoard(\"RPC_WM2_S1H02k\",2,1);
+//  completaBoard(\"RPC_WM2_S1H02q\",2,0);
+//  completaBoard(\"RPC_WM2_S1H02e\",2,2);
+ 
+ 
+ 
+ completaBC();
+ 
+ completaCrate();
+
+fwNode_initialize();
+
+fwNode_createLogical(\"RPCBarrel\",\"\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+
+fwNode_createLogical(\"HV\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+fwNode_createLogical(\"Crates\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+fwNode_createLogical(\"Boards\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+fwNode_createLogical(\"BCs\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+//fwNode_createLogical(\"MAO\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+
+}
+
+void completaW(int br, int firstCrate, string name){
+  
+  dyn_string nodes,anodes,exInfo;
+dyn_string cham;
+
+//fwTree_getChildren(\"RPC_WP1_S10\", nodes, exInfo);
+string init = name;
+//dyn_string deviceList=dpNames(\"*\"+br+\"/easyCrate*\",\"FwCaenChannel\");
+dyn_string deviceList = dpNames(\"*\"+br+\"/easyCrate\"+firstCrate+\"*\",\"FwCaenChannel\");
+dynAppend(deviceList,dpNames(\"*\"+br+\"/easyCrate\"+(firstCrate+1)+\"*\",\"FwCaenChannel\"));
+dynAppend(deviceList,dpNames(\"*\"+br+\"/easyCrate\"+(firstCrate+2)+\"*\",\"FwCaenChannel\"));
+int pos = 1;
+DebugN(deviceList);
+for(int k = 1; k<=12;k++)
+{
+  
+ if((k==11)||(k==9))
+cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4\",
+                                \"_RB4minusminus\",\"_RB4plusplus\");
+ else
+ cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4minus\",     
+\"_RB4plus\",\"_RB4minusminus\",\"_RB4plusplus\");
+   
+int dim = dynlen(cham)-2;
+if(k==4)
+{
+	dim = dynlen(cham);
+	 cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4minusminus\",\"_RB4minus\",     
+\"_RB4plus\",\"_RB4plusplus\");
+      }
+if(k<10)
+  name = name + \"S0\"+k;
+else
+  name = name +\"S\"+k;
+
+for (int i=1;i<=dim;i++)
+	{
+	nodes[i]=name+cham[i]+\"_HV\";
+	dpSetAlias (deviceList[pos]+\".\",\"RPCBarrel/HV/\"+nodes[i]);
+        pos++;
+        DebugN(nodes[i]);
+        }
+ name = init;//\"RPC_WP2_\"; 
+ dynClear(nodes); 
+  
+  }
+
+
+
+//dynAppend(deviceList,dpNames(\"*\"+br+\"/easyCrate\"+(cr+1)+\"/*\",\"FwCaenChannel\"));
+// int j = num;
+// for(int i=1;i<=dynlen(nodes);i++)
+// 	{
+// 	if(nHV == 1)
+// 		{
+// 		dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/HV/\"+nodes[i]);
+// 		j++;
+// 		}
+// 	else if(nHV==2)
+// 		{
+// 		dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/HV/\"+nodes[i]+\"_UP\");
+// 		j++;
+// 		dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/HV/\"+nodes[i]+\"_DOWN\");
+// 		j++;
+// 		}
+// 	//DebugN(re);
+// 	}
+DebugN(\"Fine HV\");
+  
+  
+  
+  
+  }
+
+
+void completaBC(){
+dyn_string bc = dpNames(\"*\",\"FwCaenBoardSY1527A1676\");
+//dyn_string names = makeDynString(\"USC\");
+for (int i=1;i<=dynlen(bc);i++)
+	{
+	//dyn_string name = strsplit(sys[i],\"/\");
+	dpSetAlias (bc[i]+\".\",\"RPCBarrel/BCs/RPC_USCBC0\"+i);
+	}
+
+
+
+}
+
+void completaCrate(){
+
+dyn_string sys = dpNames(\"*\",\"FwCaenCrateSY1527\");
+for (int i=1;i<=dynlen(sys);i++)
+	{
+	//dyn_string name = strsplit(sys[i],\"/\");
+	dpSetAlias (sys[i]+\".\",\"RPCBarrel/Crates/RPCHVSY1527Barrel\");
+	}
+
+}
+
+void completaMAO(string name, int br, int cr) { 
+dyn_string nodes,anodes,exInfo; 
+
+dyn_string deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/pow*\",\"FwCaenChannel\"); 
+int j=1; 
+
+for(int i=1;i<=dynlen(deviceList);i++) {
+	//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"1\");
+	dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/MAO/\"+name+\"MAOch0\"+i);
+	j++;
+	
+	}
+DebugN(\"Fine MAO\");
+}
+
+
+void completaBoard(string name, int br, int cr) { 
+dyn_string nodes,anodes,exInfo; 
+string nome;
+dyn_string deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/*\",\"FwCaenBoardEasy\"); 
+int j=1; 
+
+// for(int i=1;i<=dynlen(deviceList);i++) {
+// 	if(i==5)
+// 		nome = \"_MAO\";
+// 	else
+// 		nome = \"_B0\"+i;		
+// 	//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"1\");
+// 	dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/Boards/\"+name+nome);
+// 	j++;
+// 	
+// 	}
+for(int i=1;i<=dynlen(deviceList);i++) {
+	nome = \"_B0\"+i;		
+	//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"1\");
+	dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/Boards/\"+name+nome);
+	j++;
+	
+	}
+DebugN(\"Fine Board\");
+}
+
+
+void completaLVLBB(string name, int num,int br, int cr) { 
+dyn_string nodes,anodes,exInfo; 
+dyn_string cham=makeDynString(\"_LBB25_1\",\"_LBB33_1\",\"_LBB25_11\",\"_LBB33_11\");
+//fwTree_getChildren(\"RPC_WP1_S10\", nodes, exInfo);
+
+for (int i=1;i<=dynlen(cham);i++)
+	{
+	nodes[i]= name+cham[i]+\"_LV\";
+	}
+dyn_string deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/*\",\"FwCaenChannel\"); 
+int j=num; 
+
+for(int i=1;i<=dynlen(nodes);i++) {
+	//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"1\");
+	dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LBB_LV/\"+nodes[i]);
+	j++;
+	
+	}
+DebugN(\"Fine LBB\");
+}
+
+
+
+
+
+void completaHV(string name, int num,int br, int cr, int nHV) {
+
+
+dyn_string nodes,anodes,exInfo;
+dyn_string
+cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4minus\",     
+\"_RB4plus\",\"_RB4minusminus\",\"_RB4plusplus\");
+//fwTree_getChildren(\"RPC_WP1_S10\", nodes, exInfo);
+if((strpos(name,\"S11\")>1)||(strpos(name,\"S09\")>1))
+cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4\",
+                                \"_RB4minusminus\",\"_RB4plusplus\");
+int dim = dynlen(cham)-2;
+if(strpos(name,\"S04\")>1)
+	dim = dynlen(cham);
+	
+
+for (int i=1;i<=dim;i++)
+	{
+	nodes[i]=name+cham[i]+\"_HV\";
+	}
+
+dyn_string
+deviceList=dpNames(\"*\"+br+\"/easyCrate*\",\"FwCaenChannel\");
+//dynAppend(deviceList,dpNames(\"*\"+br+\"/easyCrate\"+(cr+1)+\"/*\",\"FwCaenChannel\"));
+int j = num;
+for(int i=1;i<=dynlen(nodes);i++)
+	{
+	if(nHV == 1)
+		{
+		dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/HV/\"+nodes[i]);
+		j++;
+		}
+	else if(nHV==2)
+		{
+		dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/HV/\"+nodes[i]+\"_UP\");
+		j++;
+		dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/HV/\"+nodes[i]+\"_DOWN\");
+		j++;
+		}
+	//DebugN(re);
+	}
+DebugN(\"Fine HV\");
+}
+
+void completaLV(string name, int num,int br, int cr) { dyn_string
+nodes,anodes,exInfo; dyn_string
+cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3\",\"_RB3\",\"_RB4\",
+                                \"_RB4\",\"_RB4minusminus\",\"_RB4plusplus\");
+//fwTree_getChildren(\"RPC_WP1_S10\", nodes, exInfo);
+
+for (int i=1;i<=(dynlen(cham)-2);i++)
+{
+nodes[i]= name+cham[i]+\"_LV\";
+}
+dyn_string
+deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/*\",\"FwCaenChannel\");
+int j=num;
+for(int i=1;i<=dynlen(nodes);i++)
+{
+if(i!=6&&i!=8)
+{
+//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"1\");
+dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+nodes[i]+\"_ANA\");
+j++;
+//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"2\");
+dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+nodes[i]+\"_DIG\");
+j++;
+}
+//DebugN(re);
+}
+DebugN(\"Fine LV\");
+}
+void completaT(string name, int num,int br, int cr, int tot)
+{
+
+dyn_string cham=makeDynString(\"_RB1in_T\",\"_RB1out_T\",\"_RB2_T\",\"_RB3_T\",\"_RB4minus_T\",\"_RB4plus_T\");
+if(tot== 5)
+	cham[5]=\"_RB4_T\";
+dyn_string deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/*\",\"FwCaenChannelADC\");
+int j = num;
+DebugN(dynlen(deviceList));
+ for(int i = tot;i>=1;i--)
+ 	{
+ 	DebugN(\"RPCBarrel/T/\"+name+cham[i]);
+ 	dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/T/\"+name+cham[i]);
+ 	j++;
+ 	}
+DebugN(\"Fine T\");
+}
+" 0
+ E E E
+13 10
+"PUSH_BUTTON2"
+""
+1 330 230 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 328 228 454 266
+
+T 
+1
+LANG:1 12 Crea Logical
+"main()
+{
+dyn_string exInfo;
+
+/* Il +1s10 
+*/
+// HV(numero canale, branch, crate, 1)
+// LV (nome,numero,branch,crate)
+
+ completaLV(\"RPC_WP2_S01\",1,1,2);
+ completaLV(\"RPC_WP2_S02\",13,1,2);
+ completaLV(\"RPC_WP2_S03\",25,1,2);
+ 
+  completaLV(\"RPC_WP2_S04\",1,1,3);
+  completaLV(\"RPC_WP2_S05\",13,1,3);
+  completaLV(\"RPC_WP2_S06\",25,1,3);
+  
+  completaLV(\"RPC_WP2_S07\",1,1,5);
+  completaLV(\"RPC_WP2_S08\",13,1,5);
+  completaLV(\"RPC_WP2_S09\",25,1,5);
+ 
+ completaLV(\"RPC_WP2_S10\",1,1,0);
+ completaLV(\"RPC_WP2_S11\",13,1,0);
+ completaLV(\"RPC_WP2_S12\",25,1,0);
+ 
+ //LBB
+ 
+ completaLVLBB(\"RPC_WP2_S10\",1,1,1);
+ completaLVLBB(\"RPC_WP2_S11\",5,1,1);
+ completaLVLBB(\"RPC_WP2_S12\",9,1,1);
+ completaLVLBB(\"RPC_WP2_S01\",13,1,1);
+ completaLVLBB(\"RPC_WP2_S02\",17,1,1);
+ completaLVLBB(\"RPC_WP2_S03\",21,1,1);
+ 
+ 
+  completaLVLBB(\"RPC_WP2_S07\",1,1,4);
+  completaLVLBB(\"RPC_WP2_S08\",5,1,4);
+  completaLVLBB(\"RPC_WP2_S09\",9,1,4);
+  completaLVLBB(\"RPC_WP2_S04\",13,1,4);
+  completaLVLBB(\"RPC_WP2_S05\",17,1,4);
+  completaLVLBB(\"RPC_WP2_S06\",21,1,4);
+
+
+
+//completaT(\"RPC_WP1_S10\",32,1,0,6);//2 LV + 1 pl = 30ch.
+
+completaT(\"RPC_WP2_S01\",3,1,0,5);
+completaT(\"RPC_WP2_S02\",10,1,0,5);
+completaT(\"RPC_WP2_S03\",17,1,0,5);
+completaT(\"RPC_WP2_S10\",34,1,0,6);
+completaT(\"RPC_WP2_S11\",42,1,0,5);
+completaT(\"RPC_WP2_S12\",49,1,0,5);
+
+// 
+ completaT(\"RPC_WP2_S04\",1,1,5,6);
+ completaT(\"RPC_WP2_S05\",7,1,5,5);
+ completaT(\"RPC_WP2_S06\",12,1,5,5);
+ completaT(\"RPC_WP2_S07\",17,1,5,5);
+ completaT(\"RPC_WP2_S08\",22,1,5,5);
+ completaT(\"RPC_WP2_S09\",27,1,5,5);
+
+// Boards
+
+
+ completaBoard(\"RPC_WP2_X2N\",1,0);
+ completaBoard(\"RPC_WP2_X3N\",1,1);
+ completaBoard(\"RPC_WP2_X4N\",1,2);
+ completaBoard(\"RPC_WP2_X2F\",1,5);
+ completaBoard(\"RPC_WP2_X3F\",1,4);
+ completaBoard(\"RPC_WP2_X4F\",1,3);
+ 
+ // MAO
+ completaMAO(\"RPC_WP2_X3N\",1,1);
+ completaMAO(\"RPC_WP2_X3F\",1,4);
+ 
+ completaBC();
+ 
+ completaCrate();
+
+fwNode_initialize();
+// 
+ fwNode_createLogical(\"RPCBarrel\",\"\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+// DebugN(\"1\",exInfo);
+ fwNode_createLogical(\"LV\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+//DebugN(\"2\",exInfo);
+fwNode_createLogical(\"LBB_LV\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+//DebugN(\"3\",exInfo);
+ fwNode_createLogical(\"Crates\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+// DebugN(\"4\",exInfo);
+ fwNode_createLogical(\"T\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+// DebugN(\"5\",exInfo);
+ fwNode_createLogical(\"Boards\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+// DebugN(\"6\",exInfo);
+ fwNode_createLogical(\"BCs\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+// DebugN(\"7\",exInfo);
+ fwNode_createLogical(\"MAO\",\"RPCBarrel\",makeDynString(\"fwDevice/fwDeviceManage\"),makeDynString(\"fwDevice/fwDeviceManage\"),exInfo);
+// DebugN(\"8\",exInfo);
+
+}
+
+void completaBC(){
+dyn_string bc = dpNames(\"*\",\"FwCaenBoardSY1527A1676\");
+dyn_string names = makeDynString(\"UXC_WP2\");
+for (int i=1;i<=dynlen(names);i++)
+	{
+	//dyn_string name = strsplit(sys[i],\"/\");
+	dpSetAlias (bc[i]+\".\",\"RPCBarrel/BCs/RPC_\"+names[i]+\"_BC\");
+	}
+
+
+
+}
+
+void completaCrate(){
+
+dyn_string sys = dpNames(\"*\",\"FwCaenCrateSY1527\");
+for (int i=1;i<=dynlen(sys);i++)
+	{
+	//dyn_string name = strsplit(sys[i],\"/\");
+	dpSetAlias (sys[i]+\".\",\"RPCBarrel/Crates/RPCSY1527BarrelUXC\");
+	}
+
+}
+
+void completaMAO(string name, int br, int cr) { 
+dyn_string nodes,anodes,exInfo; 
+
+dyn_string deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/pow*\",\"FwCaenChannel\"); 
+int j=1; 
+
+for(int i=1;i<=dynlen(deviceList);i++) {
+	//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"1\");
+	dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/MAO/\"+name+\"MAOch0\"+i);
+	j++;
+	
+	}
+DebugN(\"Fine MAO\");
+}
+
+
+void completaBoard(string name, int br, int cr) { 
+dyn_string nodes,anodes,exInfo; 
+string nome;
+dyn_string deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/*\",\"FwCaenBoardEasy\"); 
+int j=1; 
+
+for(int i=1;i<=dynlen(deviceList);i++) {
+	if(i==5)
+		nome = \"_MAO\";
+	else
+		nome = \"_B0\"+i;		
+	//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"1\");
+	dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/Boards/\"+name+nome);
+	j++;
+	
+	}
+DebugN(\"Fine Board\");
+}
+
+
+void completaLVLBB(string name, int num,int br, int cr) { 
+dyn_string nodes,anodes,exInfo; 
+dyn_string cham=makeDynString(\"_LBB25_1\",\"_LBB33_1\",\"_LBB25_11\",\"_LBB33_11\");
+//fwTree_getChildren(\"RPC_WP1_S10\", nodes, exInfo);
+
+for (int i=1;i<=dynlen(cham);i++)
+	{
+	nodes[i]= name+cham[i]+\"_LV\";
+	}
+dyn_string deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/*\",\"FwCaenChannel\"); 
+int j=num; 
+
+for(int i=1;i<=dynlen(nodes);i++) {
+	//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"1\");
+	dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LBB_LV/\"+nodes[i]);
+	j++;
+	
+	}
+DebugN(\"Fine LBB\");
+}
+
+
+
+
+
+void completaHV(string name, int num,int br, int cr, int nHV) {
+
+
+dyn_string nodes,anodes,exInfo;
+dyn_string
+cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4minus\",     
+\"_RB4plus\",\"_RB4minusminus\",\"_RB4plusplus\");
+//fwTree_getChildren(\"RPC_WP1_S10\", nodes, exInfo);
+if((strpos(name,\"S11\")>1)||(strpos(name,\"S09\")>1))
+cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4\",
+                                \"_RB4minusminus\",\"_RB4plusplus\");
+int dim = dynlen(cham)-2;
+if(strpos(name,\"S04\")>1)
+	dim = dynlen(cham);
+	
+
+for (int i=1;i<=dim;i++)
+	{
+	nodes[i]=name+cham[i]+\"_HV\";
+	}
+
+dyn_string
+deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/*\",\"FwCaenChannel\");
+dynAppend(deviceList,dpNames(\"*\"+br+\"/easyCrate\"+(cr+1)+\"/*\",\"FwCaenChannel\"));
+int j = num;
+for(int i=1;i<=dynlen(nodes);i++)
+	{
+	if(nHV == 1)
+		{
+		dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/HV/\"+nodes[i]);
+		j++;
+		}
+	else if(nHV==2)
+		{
+		dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/HV/\"+nodes[i]+\"_UP\");
+		j++;
+		dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/HV/\"+nodes[i]+\"_DOWN\");
+		j++;
+		}
+	//DebugN(re);
+	}
+DebugN(\"Fine HV\");
+}
+
+void completaLV(string name, int num,int br, int cr) { dyn_string
+nodes,anodes,exInfo; dyn_string
+cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3\",\"_RB3\",\"_RB4\",
+                                \"_RB4\",\"_RB4minusminus\",\"_RB4plusplus\");
+//fwTree_getChildren(\"RPC_WP1_S10\", nodes, exInfo);
+
+for (int i=1;i<=(dynlen(cham)-2);i++)
+{
+nodes[i]= name+cham[i]+\"_LV\";
+}
+dyn_string
+deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/*\",\"FwCaenChannel\");
+int j=num;
+for(int i=1;i<=dynlen(nodes);i++)
+{
+if(i!=6&&i!=8)
+{
+//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"1\");
+dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+nodes[i]+\"_ANA\");
+j++;
+//dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+anodes[2]+\"2\");
+dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/LV/\"+nodes[i]+\"_DIG\");
+j++;
+}
+//DebugN(re);
+}
+DebugN(\"Fine LV\");
+}
+void completaT(string name, int num,int br, int cr, int tot)
+{
+
+dyn_string cham=makeDynString(\"_RB1in_T\",\"_RB1out_T\",\"_RB2_T\",\"_RB3_T\",\"_RB4minus_T\",\"_RB4plus_T\");
+if(tot== 5)
+	cham[5]=\"_RB4_T\";
+dyn_string deviceList=dpNames(\"*\"+br+\"/easyCrate\"+cr+\"/*\",\"FwCaenChannelADC\");
+int j = num;
+DebugN(deviceList);
+ for(int i = tot;i>=1;i--)
+ 	{
+ 	DebugN(\"RPCBarrel/T/\"+name+cham[i]);
+ 	dpSetAlias (deviceList[j]+\".\",\"RPCBarrel/T/\"+name+cham[i]);
+ 	j++;
+ 	}
+DebugN(\"Fine T\");
+}
+" 0
+ E E E
+13 11
+"PUSH_BUTTON3"
+""
+1 78 279 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 76 277 198 325
+
+T 
+1
+LANG:1 8 Crea FSM
+"main()
+{
+DebugN(\"START\");
+//Start Database Connection and recive hardware and Logical schema
+
+//ConfigurationDBRecive();
+
+
+// Generate the FSM Device Tree
+generateTreeforDevice();
+
+// Insert the device node using hardware created
+// 
+// InsertLV();
+ InsertHV();
+// InsertT(); 
+// InsertLBB(); 
+InsertBoards(); 
+InsertBcMaoCrate(); 
+// Set Alarm for devices
+ SetAlarmDevice();
+
+DebugN(\"FINE\");
+
+// Set archive for devices
+// SetDeviceConditionDB();
+
+}
+void ConfigurationDBRecive()
+{
+dyn_string exceptionInfo,
+            hierarchyType=makeDynString(fwDevice_HARDWARE, fwDevice_LOGICAL);
+dyn_dyn_mixed recipeObject;
+dyn_string list;
+dyn_string topDevice=makeDynString(getSystemName()+\"CAEN\",\"\");
+dyn_string recipeName=makeDynString(\"HW030506\",\"LW030506\");
+string g_system;
+
+//check if the connection is properly initialized
+fwConfigurationDB_checkInit(exceptionInfo);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;  
+dyn_string tmp=strsplit(getSystemName(),\":\");
+//download hierarchy from ConfigDB
+//first hardware then logical
+for(int i=1;i<=2;i++)
+	{
+	
+	if (dynlen(tmp)>1) {
+		// means: we have system name embedded
+		g_system=tmp[1]+\":\";
+	} else {
+		// we have no system name...
+		if (hierarchyType[i]==fwDevice_LOGICAL)
+			g_system=\"\";
+		else
+			g_system=getSystemName();
+	}
+	
+	
+	DebugN(i+\"++++++++++++++++++++++++++\");
+	fwConfigurationDB_openProgressDialog(
+	makeDynInt(	fwConfigurationDB_OPER_LoadHierachyFromDB,
+			fwConfigurationDB_OPER_ApplyHierarchyToSystem),
+	makeDynString(	\"Loading Hierarchy from DB\",
+			\"Updating hierarchy in system\"));
+
+	fwConfigurationDB_updateDeviceHierarchyFromDB(topDevice[i],hierarchyType[i],exceptionInfo,g_system);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+	DebugN(\"Hierarchy created\");
+	fwConfigurationDB_getRecipeFromDB (\"\",list, hierarchyType[i],recipeName[i],  
+																			recipeObject,exceptionInfo);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+	DebugN(\"Recipe download created\");
+	
+	fwConfigurationDB_ApplyRecipe( recipeObject, hierarchyType,exceptionInfo); 
+  if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+  DebugN(\"Recipe Applied created\");
+
+	  
+	}
+
+//get recipe from ConfigBD and copy it to cache
+/*
+fwConfigurationDB_getHierarchyFromPVSS(HvRootNode, fwDevice_LOGICAL,  
+ 																					HvDeviceList,exceptionInfo,\"\",FALSE);  
+fwConfigurationDB_getHierarchyFromPVSS(LvRootNode, fwDevice_LOGICAL,  
+ 																					LvDeviceList,exceptionInfo,\"\",FALSE); 
+dynAppend(deviceList,HvDeviceList);
+dynAppend(deviceList,LvDeviceList); 	
+																		
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;  
+	for(int i=1;i<=3;i++)
+	{
+	if(i==3)list=deviceList;
+	else list=HvDeviceList;
+	
+	fwConfigurationDB_getRecipeFromDB (\"\",list, fwDevice_LOGICAL,recipeName[i],  
+																			recipeObject,exceptionInfo);
+	fwConfigurationDB_storeRecipeInCache(recipeObject,recipeName[i],fwDevice_LOGICAL,exceptionInfo);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;   
+	}
+*/	
+}
+
+
+void generateTreeforDevice()
+{
+dyn_string nodes, exInfo;
+string chamber_node,ring_node,disc_node, top_node;
+int chamberNum;
+
+dyn_string discs=makeDynString(\"_WM2\",\"_WM1\",\"_W00\",\"_WP1\",\"_WP2\");
+dyn_string rings=makeDynString(\"_S01\",\"_S02\",\"_S03\",\"_S04\",\"_S05\",\"_S06\",\"_S07\",
+				\"_S08\",\"_S09\",\"_S10\",\"_S11\",\"_S12\");
+dyn_string cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4minus\",
+				\"_RB4plus\",\"_RB4minusminus\",\"_RB4plusplus\");
+//remove top node if already exists (all children are removed too)
+//fwFsmTree_removeNode(\"CMS_RPC\",\"RPC_BARREL\");
+//create top node (type DCSNode)
+fwTree_getRootNodes(nodes,exInfo);
+//DebugN(nodes, exInfo);
+if(!fwFsmTree_isNode(\"RPC_BARREL_HW\"))
+top_node=fwFsmTree_addNode(\"FSM\",\"RPC_BARREL_HW\",\"RPC_Device\",1);
+if(fwFsmTree_isNode(\"RPC_HV\"))
+  fwFsmTree_removeNode(\"RPC_BARREL_HW\",\"RPC_HV\");
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_HV\",\"RPC_Device\",0);
+
+if(!fwFsmTree_isNode(\"RPC_Boards\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_Boards\",\"RPC_Device\",0);
+if(!fwFsmTree_isNode(\"RPC_BCs\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_BCs\",\"RPC_BC\",0);
+if(!fwFsmTree_isNode(\"RPC_MAO\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_MAO\",\"RPC_Device\",0);
+if(!fwFsmTree_isNode(\"RPC_Crates\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_Crates\",\"RPC_SY1527\",0);
+fwTree_getRootNodes(nodes, exInfo);
+
+//add list of children CU (type DiscNode)
+
+for(int i=1; i<=dynlen(discs);i++)
+	{
+	//disc_node=fwFsmTree_addNode(top_node,\"RPC\"+discs[i],\"WheelNode\",1);
+	if(i==5)
+	{
+	//add list of children CU(type RingNode)
+        //chamber_node=fwFsmTree_addNode(\"RPC_MAO\",\"RPC\"+discs[i]+\"_MAO\",\"RPC_MAO\",0);
+	//chamber_node=fwFsmTree_addNode(\"RPC_Boards\",\"RPC_RB_BAL\"+discs[i]+\"_Boards\",\"RPC_Boards\",0);
+          if(fwFsmTree_isNode(\"RPC_RB_USC_S1H0\"+(i+1)+discs[i]+\"_Bd\"))
+            fwFsmTree_removeNode(\"RPC_Boards\",\"RPC_RB_USC_S1H0\"+(7-i)+discs[i]+\"_Bd\");
+	chamber_node=fwFsmTree_addNode(\"RPC_Boards\",\"RPC_RB_USC\"+discs[i]+\"_S1H0\"+(7-i)+\"_Bd\",\"RPC_Boards\",0);
+	for(int j=1;j<=dynlen(rings);j++)
+		{
+		//ring_node=fwFsmTree_addNode(disc_node,\"RPC\"+discs[i]+rings[j],\"SectorNode\",1);
+		
+		//add list of children CU (type ChamberNode)
+		if(j==4) 
+			chamberNum=10;
+		else if(j==9||j==11)
+			{
+			chamberNum=7;
+			cham[7]=\"_RB4\";
+			}
+		else
+			{
+			chamberNum=8;
+			cham[7]=\"_RB4minus\";
+			}
+			
+		//chamber_node=fwFsmTree_addNode(\"RPC_LBB\",\"RPC\"+discs[i]+rings[j]+\"_LBB\",\"RPC_LBBLV\",0);	
+		for(int k=1;k<=chamberNum;k++)
+			{
+			//chamber_node=fwFsmTree_addNode(\"RPC_T\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_T\",\"RPC_T\",0);
+			chamber_node=fwFsmTree_addNode(\"RPC_HV\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_HV\",\"RPC_HV\",0);
+			//chamber_node=fwFsmTree_addNode(\"RPC_LV\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_LV\",\"RPC_LV\",0);
+			
+			}
+		}
+	}
+	}
+	
+
+DebugN(\"Structure ready\");
+//generate and refresh tree
+fwFsmTree_generateAll();
+//fwFsmTree_refreshTree();
+}
+
+
+string getCU(string name)
+{
+ int type;
+ string parent;
+ parent =  fwCU_getParent(type,name);
+ DebugN(parent,name);
+  if(type==0)
+    return getCU(parent);
+  else
+    return parent;
+      
+  
+}
+void InsertHV()
+{dyn_string exInfo;
+
+// Add HV
+
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+//DebugN(deviceList);
+int pos;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		//DebugN(\"cHc\",names);
+		if (fwTree_isNode(names,exInfo)!=0)
+                  {
+		  if (fwTree_isNode(deviceList[i],exInfo)==0) 
+                  fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelHV\", 0);
+                   DebugN(\"we\",names,deviceList[i] );
+                  }
+	}
+}
+DebugN(\"HV ready\");
+
+}
+void InsertLV()
+{
+  dyn_string deviceList=dpAliases(\"*/LV/*\",\"*\");
+  dyn_string exInfo;
+//DebugN(\"cc\",deviceList);
+int len;
+int pos;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		len = strlen(names);
+		names = substr(names,0,len-4);
+		DebugN(\"cc\",names);		
+	        if (fwTree_isNode(names,exInfo)!=0)
+                  {
+		  if (fwTree_isNode(deviceList[i],exInfo)==0)
+			fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelLV\", 0);
+              	}
+                else if((strpos(names,\"RB3\")>-1)||(strpos(names,\"RB4\")>-1))
+                {
+                  strreplace(names,\"_LV\",\"plus_LV\");
+                  if (fwTree_isNode(names,exInfo)!=0)
+                    {
+		    if (fwTree_isNode(deviceList[i],exInfo)==0)
+                     {
+			fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelLV\", 0);
+                        strreplace(names,\"plus\",\"minus\");
+                        fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelLV\", 0);
+                        DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+                        if(strpos(names,\"S04\")>-1)
+                          {
+                          strreplace(names,\"minus\",\"minusminus\");
+                          fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelLV\", 0);
+                          strreplace(names,\"minusminus\",\"plusplus\");
+                          fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelLV\", 0);
+                                             
+                          }
+                      }
+              	    } 
+                  
+                }
+	}
+}
+
+	DebugN(\"LV ready\");
+  
+  
+  }
+void InsertT()
+{
+dyn_string exInfo;
+int pos,pos1;
+string names;
+//Add ADCTemp
+
+dyn_string deviceList=dpAliases(\"*/T/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+ pos =strpos(deviceList[i],\"RPC_W\");
+ if(pos>-1)
+ {
+   names = substr(deviceList[i],pos);
+   DebugN(\"cHc\",names,names[pos1+2]);
+   pos1 = strpos(names,\"RB\");
+   
+   switch(names[pos1+2])
+   {
+   case \"1\":
+     if (fwTree_isNode(names,exInfo)!=0)
+         {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            //strreplace(names,\"plus\",\"minus\");
+            //fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            DebugN(\"we\",names);
+            }
+          }  
+         
+    break;   
+   case \"2\":
+     strreplace(names,\"_T\",\"in_T\");
+     if (fwTree_isNode(names,exInfo)!=0)
+     {
+	if (fwTree_isNode(deviceList[i],exInfo)==0)
+        {
+	fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        strreplace(names,\"in\",\"out\");
+        fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+        }
+      }
+     break;
+    case \"3\":
+      strreplace(names,\"_T\",\"plus_T\");
+     if (fwTree_isNode(names,exInfo)!=0)
+     {
+	if (fwTree_isNode(deviceList[i],exInfo)==0)
+        {
+	fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        strreplace(names,\"plus\",\"minus\");
+        fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        //DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+        }
+      }
+     break;
+     case \"4\":
+       if((strpos(names,\"S11\")==-1)&&(strpos(names,\"S09\")==-1)&&(strpos(names,\"S10\")==-1)&&(strpos(names,\"S04\")==-1))
+       {
+        strreplace(names,\"_T\",\"plus_T\");
+         if (fwTree_isNode(names,exInfo)!=0)
+         {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            strreplace(names,\"plus\",\"minus\");
+            fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+            }
+          } 
+           
+        }
+       else  if(strpos(names,\"S04\")!=-1)
+         {
+          if (fwTree_isNode(names,exInfo)!=0)
+          {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            if(names[pos1+3]==\"p\")
+            strreplace(names,\"plus\",\"plusplus\");
+            else
+              strreplace(names,\"minus\",\"minusminus\");
+            fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+            }
+          }          
+         }
+       else
+       {
+        if (fwTree_isNode(names,exInfo)!=0)
+         {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            //strreplace(names,\"plus\",\"minus\");
+            //fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+            }
+          }  
+         
+         }
+       break;
+     
+   }
+ }
+}                
+                 
+     
+ DebugN(\"T ready\");
+  
+  
+  }
+void InsertLBB()
+{
+dyn_string exInfo; 
+dyn_string deviceList=dpAliases(\"*/LBB_LV/*\",\"*\"); 
+ int pos,pos1;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		pos1 = strpos(names,\"LBB\");
+		names = substr(names,0,pos1+3);
+		//DebugN(\"cHc\",names);
+		if (fwTree_isNode(deviceList[i],exInfo)==0)
+		 fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelLBBLV\", 0);
+	}
+}
+DebugN(\"LBB ready\"); }
+void InsertBoards()
+{
+   int pos,pos1;
+string names;
+  //Add Boards
+  dyn_string exInfo;
+dyn_string deviceList=dpAliases(\"*/Boards/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	pos =strpos(deviceList[i],\"_S1H\");
+	if(pos>-1)
+	{
+	names = substr(deviceList[i],pos-3,9);
+        DebugN(\"RPC_RB_USC_\"+names+\"_Bd\",deviceList[i] );
+		//pos1 = strpos(names,\"LBB\");
+		//names = substr(names,0,pos1+3);
+	fwFsmTree_addNode(\"RPC_RB_USC_\"+names+\"_Bd\",deviceList[i] ,\"FwCaenBoardEasy\", 0);
+	}
+	}
+
+
+DebugN(\"BOARDS ready\");
+}
+void InsertBcMaoCrate()
+{
+  //Add BC
+ int pos,pos1;
+string names;
+dyn_string exInfo;
+dyn_string deviceList=dpAliases(\"*/BCs/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	fwFsmTree_addNode(\"RPC_BCs\",deviceList[i] ,\"FwCaenBoardSY1527A1676\", 0);
+	}
+DebugN(\"BC ready\");
+//Add MAO
+
+dyn_string deviceList=dpAliases(\"*/MAO/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+        pos =strpos(deviceList[i],\"PC_\");
+        names = substr(deviceList[i],pos-1);
+        DebugN(\"ss\",names,deviceList);
+        pos =strpos(names,\"_X\");
+        names = substr(names,0,pos);
+        DebugN(names,deviceList);
+	fwFsmTree_addNode(names+\"_MAO\",deviceList[i] ,\"FwCaenChannelHV\", 0);
+	}
+
+DebugN(\"mao ready\");
+
+//Add Crate
+dyn_string deviceList=dpAliases(\"*/Crates/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	fwFsmTree_addNode(\"RPC_Crates\",deviceList[i] ,\"FwCaenCrateSY1527Basic\", 0);
+	}
+
+DebugN(\"crate ready\");
+}
+
+void SetAlarmDevice(){
+
+
+float diff1,diff2,value;
+dyn_string exceptionInfo,split,splitt;
+string channelName,channel;
+
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+
+for (int i=1;i<=dynlen(deviceList);i++)
+	{
+	deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+	dpGet(deviceList[i]+\".readBackSettings.i0\", value);
+	
+	diff1=value*0.1;//primo limite al 10%
+	diff2=value*0.2;//secondo limite al 20%
+	
+ 	
+///Set  Alarm channel for Imon
+
+	channel= deviceList[i]+\".actual.iMon\";
+	//DebugN(channel);
+	dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\") ;
+	dyn_float limits = makeDynFloat( value+diff1,value+diff2 ); 
+	dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\");
+ 	string alertPanel; dyn_string alertPanelParameters; string alertHelp;
+	
+	fwAlertConfig_setAnalog(channel,alertTexts,limits, alertClasses,alertPanel,alertPanelParameters,
+													alertHelp,exceptionInfo);
+	fwAlertConfig_activate(channel,exceptionInfo);
+	//DebugN(channel,exceptionInfo);												 
+	}
+}
+SetDeviceConditionDB(){
+// Ricorda che dovrebbe partire anche il manager ed essere settato
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+
+bool configExists; 
+string archiveClassName=\"RDB-99) EVENT\"; //Archive's name
+int archiveType=3,count=1,value,l;
+int smoothProcedure=4;//set old/new comparition 
+float deadband=0;
+float timeInterval=0; 
+bool isActive; 
+dyn_string exceptionInfo,channels;
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+fwArchive_configMultiple(deviceList[i]+\".actual.iMon\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+fwArchive_configMultiple(deviceList[i]+\".actual.vMon\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+}
+
+
+
+}  
+" 0
+ E E E
+13 12
+"PUSH_BUTTON4"
+""
+1 334 277 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 332 275 454 323
+
+T 
+1
+LANG:1 8 Crea FSM
+"main()
+{
+DebugN(\"START\");
+//Start Database Connection and recive hardware and Logical schema
+
+//ConfigurationDBRecive();
+
+
+// Generate the FSM Device Tree
+generateTreeforDevice();
+
+// Insert the device node using hardware created
+// 
+  InsertLV();
+ 
+  InsertT(); 
+  InsertLBB(); 
+  InsertBoards(); 
+InsertBcMaoCrate(); 
+// Set Alarm for devices
+// SetAlarmDevice();
+
+DebugN(\"FINE\");
+// Set archive for devices
+// SetDeviceConditionDB();
+
+}
+void ConfigurationDBRecive()
+{
+dyn_string exceptionInfo,
+            hierarchyType=makeDynString(fwDevice_HARDWARE, fwDevice_LOGICAL);
+dyn_dyn_mixed recipeObject;
+dyn_string list;
+dyn_string topDevice=makeDynString(getSystemName()+\"CAEN\",\"\");
+dyn_string recipeName=makeDynString(\"HW030506\",\"LW030506\");
+string g_system;
+
+//check if the connection is properly initialized
+fwConfigurationDB_checkInit(exceptionInfo);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;  
+dyn_string tmp=strsplit(getSystemName(),\":\");
+//download hierarchy from ConfigDB
+//first hardware then logical
+for(int i=1;i<=2;i++)
+	{
+	
+	if (dynlen(tmp)>1) {
+		// means: we have system name embedded
+		g_system=tmp[1]+\":\";
+	} else {
+		// we have no system name...
+		if (hierarchyType[i]==fwDevice_LOGICAL)
+			g_system=\"\";
+		else
+			g_system=getSystemName();
+	}
+	
+	
+	//DebugN(i+\"++++++++++++++++++++++++++\");
+	fwConfigurationDB_openProgressDialog(
+	makeDynInt(	fwConfigurationDB_OPER_LoadHierachyFromDB,
+			fwConfigurationDB_OPER_ApplyHierarchyToSystem),
+	makeDynString(	\"Loading Hierarchy from DB\",
+			\"Updating hierarchy in system\"));
+
+	fwConfigurationDB_updateDeviceHierarchyFromDB(topDevice[i],hierarchyType[i],exceptionInfo,g_system);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+	DebugN(\"Hierarchy created\");
+	fwConfigurationDB_getRecipeFromDB (\"\",list, hierarchyType[i],recipeName[i],  
+																			recipeObject,exceptionInfo);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+	DebugN(\"Recipe download created\");
+	
+	fwConfigurationDB_ApplyRecipe( recipeObject, hierarchyType,exceptionInfo); 
+  if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+  DebugN(\"Recipe Applied created\");
+
+	  
+	}
+
+//get recipe from ConfigBD and copy it to cache
+/*
+fwConfigurationDB_getHierarchyFromPVSS(HvRootNode, fwDevice_LOGICAL,  
+ 																					HvDeviceList,exceptionInfo,\"\",FALSE);  
+fwConfigurationDB_getHierarchyFromPVSS(LvRootNode, fwDevice_LOGICAL,  
+ 																					LvDeviceList,exceptionInfo,\"\",FALSE); 
+dynAppend(deviceList,HvDeviceList);
+dynAppend(deviceList,LvDeviceList); 	
+																		
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;  
+	for(int i=1;i<=3;i++)
+	{
+	if(i==3)list=deviceList;
+	else list=HvDeviceList;
+	
+	fwConfigurationDB_getRecipeFromDB (\"\",list, fwDevice_LOGICAL,recipeName[i],  
+																			recipeObject,exceptionInfo);
+	fwConfigurationDB_storeRecipeInCache(recipeObject,recipeName[i],fwDevice_LOGICAL,exceptionInfo);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;   
+	}
+*/	
+}
+
+
+void generateTreeforDevice()
+{
+dyn_string nodes, exInfo;
+string chamber_node,ring_node,disc_node, top_node;
+int chamberNum;
+
+dyn_string discs=makeDynString(\"_WM2\",\"_WM1\",\"_W00\",\"_WP1\",\"_WP2\");
+dyn_string rings=makeDynString(\"_S01\",\"_S02\",\"_S03\",\"_S04\",\"_S05\",\"_S06\",\"_S07\",
+				\"_S08\",\"_S09\",\"_S10\",\"_S11\",\"_S12\");
+dyn_string cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4minus\",
+				\"_RB4plus\",\"_RB4minusminus\",\"_RB4plusplus\");
+//remove top node if already exists (all children are removed too)
+//fwFsmTree_removeNode(\"CMS_RPC\",\"RPC_BARREL\");
+//create top node (type DCSNode)
+fwTree_getRootNodes(nodes,exInfo);
+//DebugN(nodes, exInfo);
+top_node=fwFsmTree_addNode(\"FSM\",\"RPC_BARREL_HW\",\"RPC_Device\",1);
+if(fwFsmTree_isNode(\"RPC_LV\"))
+  fwFsmTree_removeNode(\"RPC_BARREL_HW\",\"RPC_LV\");
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_LV\",\"RPC_Device\",0);
+if(fwFsmTree_isNode(\"RPC_LBB\"))
+  fwFsmTree_removeNode(\"RPC_BARREL_HW\",\"RPC_LBB\");
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_LBB\",\"RPC_Device\",0);
+if(fwFsmTree_isNode(\"RPC_T\"))
+  fwFsmTree_removeNode(\"RPC_BARREL_HW\",\"RPC_T\");
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_T\",\"RPC_T\",0);
+if(!fwFsmTree_isNode(\"RPC_Boards\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_Boards\",\"RPC_Device\",0);
+if(!fwFsmTree_isNode(\"RPC_BCs\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_BCs\",\"RPC_BC\",0);
+if(!fwFsmTree_isNode(\"RPC_MAO\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_MAO\",\"RPC_Device\",0);
+if(!fwFsmTree_isNode(\"RPC_Crates\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_Crates\",\"RPC_SY1527\",0);
+fwTree_getRootNodes(nodes, exInfo);
+
+//add list of children CU (type DiscNode)
+
+for(int i=1; i<=dynlen(discs);i++)
+	{
+	//disc_node=fwFsmTree_addNode(top_node,\"RPC\"+discs[i],\"WheelNode\",1);
+	if(i==5)
+	{
+	//add list of children CU(type RingNode)
+        chamber_node=fwFsmTree_addNode(\"RPC_MAO\",\"RPC\"+discs[i]+\"_MAO\",\"RPC_MAO\",0);
+	chamber_node=fwFsmTree_addNode(\"RPC_Boards\",\"RPC_RB_UXC\"+discs[i]+\"_Bd\",\"RPC_Boards\",0);
+	//chamber_node=fwFsmTree_addNode(\"RPC_Boards\",\"RPC_RB_SCX\"+discs[i]+\"_Boards\",\"RPC_Boards\",0);
+	for(int j=1;j<=dynlen(rings);j++)
+		{
+		//ring_node=fwFsmTree_addNode(disc_node,\"RPC\"+discs[i]+rings[j],\"SectorNode\",1);
+		
+		//add list of children CU (type ChamberNode)
+		if(j==4) 
+			chamberNum=10;
+		else if(j==9||j==11)
+			{
+			chamberNum=7;
+			cham[7]=\"_RB4\";
+			}
+		else
+			{
+			chamberNum=8;
+			cham[7]=\"_RB4minus\";
+			}
+			
+		chamber_node=fwFsmTree_addNode(\"RPC_LBB\",\"RPC\"+discs[i]+rings[j]+\"_LBB\",\"RPC_LBBLV\",0);	
+		for(int k=1;k<=chamberNum;k++)
+			{
+			chamber_node=fwFsmTree_addNode(\"RPC_T\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_T\",\"RPC_T\",0);
+			//chamber_node=fwFsmTree_addNode(\"RPC_HV\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_HV\",\"RPC_HV\",0);
+			chamber_node=fwFsmTree_addNode(\"RPC_LV\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_LV\",\"RPC_LV\",0);
+			
+			}
+		}
+	}
+	}
+	
+
+DebugN(\"Structure ready\");
+//generate and refresh tree
+fwFsmTree_generateAll();
+//fwFsmTree_refreshTree();
+}
+
+void InsertDeviceInFSMe()
+{
+dyn_string exInfo;
+int pos;
+string names;
+
+//Add Temp
+
+//  dyn_string deviceList=dpAliases(\"*/T/*\",\"*\");
+//  for(int i=1;i<=dynlen(deviceList);i++)
+//  	{
+//          pos =strpos(deviceList[i],\"RPC_W\");
+//  	if(pos>-1)
+//  	{
+//  		names = substr(deviceList[i],pos);
+//  		DebugN(\"cHc\",names);
+//                  pos1 = strpos(name,\"RB\");
+//                  switch(names[pos1+3])
+//                  {
+//                    case \"2\":
+//                      
+//                    
+//                    }
+//                  
+//                  
+//                  
+//  		if (fwTree_isNode(names,exInfo)!=0)
+//                    {
+//  		   fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelHV\", 0);
+//                     DebugN(\"we\",names,deviceList[i] );
+//                    }
+//  	}
+//    
+//    
+//  	fwFsmTree_addNode(\"RPC_T\",deviceList[i] ,\"FwCaenChannelTemp\", 0);
+//  	}
+//  
+//  DebugN(\"T ready\");
+}
+
+string getCU(string name)
+{
+ int type;
+ string parent;
+ parent =  fwCU_getParent(type,name);
+ //DebugN(parent,name);
+  if(type==0)
+    return getCU(parent);
+  else
+    return parent;
+      
+  
+}
+void InsertHV()
+{dyn_string exInfo;
+
+// Add HV
+
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+//DebugN(deviceList);
+int pos;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		//DebugN(\"cHc\",names);
+		if (fwTree_isNode(names,exInfo)!=0)
+                  {
+		  if (fwTree_isNode(deviceList[i],exInfo)==0) 
+                  fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelHV\", 0);
+                   //DebugN(\"we\",names,deviceList[i] );
+                  }
+	}
+}
+DebugN(\"HV ready\");
+
+}
+void InsertLV()
+{
+  dyn_string deviceList=dpAliases(\"*/LV/*\",\"*\");
+  dyn_string exInfo;
+//DebugN(\"cc\",deviceList);
+int len;
+int pos;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		len = strlen(names);
+		names = substr(names,0,len-4);
+		//DebugN(\"cc\",names);		
+	        if (fwTree_isNode(names,exInfo)!=0)
+                  {
+		  if (fwTree_isNode(deviceList[i],exInfo)==0)
+			fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelLV\", 0);
+              	}
+                else if((strpos(names,\"RB3\")>-1)||(strpos(names,\"RB4\")>-1))
+                {
+                  strreplace(names,\"_LV\",\"plus_LV\");
+                  if (fwTree_isNode(names,exInfo)!=0)
+                    {
+		    if (fwTree_isNode(deviceList[i],exInfo)==0)
+                     {
+			fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelLV\", 0);
+                        strreplace(names,\"plus\",\"minus\");
+                        fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelLV\", 0);
+                        //DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+                        if(strpos(names,\"S04\")>-1)
+                          {
+                          strreplace(names,\"minus\",\"minusminus\");
+                          fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelLV\", 0);
+                          strreplace(names,\"minusminus\",\"plusplus\");
+                          fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelLV\", 0);
+                                             
+                          }
+                      }
+              	    } 
+                  
+                }
+	}
+}
+
+	DebugN(\"LV ready\");
+  
+  
+  }
+void InsertT()
+{
+dyn_string exInfo;
+int pos,pos1;
+string names;
+//Add ADCTemp
+
+dyn_string deviceList=dpAliases(\"*/T/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+ pos =strpos(deviceList[i],\"RPC_W\");
+ if(pos>-1)
+ {
+   names = substr(deviceList[i],pos);
+   //DebugN(\"cHc\",names,names[pos1+2]);
+   pos1 = strpos(names,\"RB\");
+   
+   switch(names[pos1+2])
+   {
+   case \"1\":
+     if (fwTree_isNode(names,exInfo)!=0)
+         {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            //strreplace(names,\"plus\",\"minus\");
+            //fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            //DebugN(\"we\",names);
+            }
+          }  
+         
+    break;   
+   case \"2\":
+     strreplace(names,\"_T\",\"in_T\");
+     if (fwTree_isNode(names,exInfo)!=0)
+     {
+	if (fwTree_isNode(deviceList[i],exInfo)==0)
+        {
+	fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        strreplace(names,\"in\",\"out\");
+        fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        //DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+        }
+      }
+     break;
+    case \"3\":
+      strreplace(names,\"_T\",\"plus_T\");
+     if (fwTree_isNode(names,exInfo)!=0)
+     {
+	if (fwTree_isNode(deviceList[i],exInfo)==0)
+        {
+	fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        strreplace(names,\"plus\",\"minus\");
+        fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        //DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+        }
+      }
+     break;
+     case \"4\":
+       
+       if((strpos(names,\"S11\")==-1)&&(strpos(names,\"S09\")==-1)&&(strpos(names,\"S10\")==-1)&&(strpos(names,\"S04\")==-1))
+       {
+         DebugN(\"case 1: -->\",names);
+        strreplace(names,\"_T\",\"plus_T\");
+         if (fwTree_isNode(names,exInfo)!=0)
+         {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            strreplace(names,\"plus\",\"minus\");
+            fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+           // DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+            }
+          } 
+           
+        }
+       else  if(strpos(names,\"S04\")!=-1)
+         {
+         DebugN(\"case 2: -->\",names);
+          if (fwTree_isNode(names,exInfo)!=0)
+          {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            if(names[pos1+3]==\"p\")
+            strreplace(names,\"plus\",\"plusplus\");
+            else
+              strreplace(names,\"minus\",\"minusminus\");
+            fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            //DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+            }
+          }          
+         }
+       else
+       {
+         DebugN(\"case 3: -->\",names);
+        if (fwTree_isNode(names,exInfo)!=0)
+         {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            //strreplace(names,\"plus\",\"minus\");
+            //fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+           // DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+            }
+          }  
+         
+         }
+       break;
+     
+   }
+ }
+}                
+                 
+     
+ DebugN(\"T ready\");
+  
+  
+  }
+void InsertLBB()
+{
+dyn_string exInfo; 
+dyn_string deviceList=dpAliases(\"*/LBB_LV/*\",\"*\"); 
+ int pos,pos1;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		pos1 = strpos(names,\"LBB\");
+		names = substr(names,0,pos1+3);
+		//DebugN(\"cHc\",names);
+		if (fwTree_isNode(deviceList[i],exInfo)==0)
+		 fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelLBBLV\", 0);
+	}
+}
+DebugN(\"LBB ready\"); }
+void InsertBoards()
+{
+   int pos,pos1;
+string names;
+  //Add Boards
+  dyn_string exInfo;
+dyn_string deviceList=dpAliases(\"*/Boards/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	pos =strpos(deviceList[i],\"_X\");
+	if(pos>-1)
+	{
+	names = substr(deviceList[i],pos);
+        //DebugN(pos,deviceList[i][22],deviceList[i][pos-1]);
+		//pos1 = strpos(names,\"LBB\");
+		//names = substr(names,0,pos1+3);
+	fwFsmTree_addNode(\"RPC_RB_UXC_W\"+deviceList[i][pos-2]+deviceList[i][pos-1]+\"_Bd\",deviceList[i] ,\"FwCaenBoardEasy\", 0);
+	}
+	}
+
+
+DebugN(\"BOARDS ready\");
+}
+void InsertBcMaoCrate()
+{
+  //Add BC
+ int pos,pos1;
+string names;
+dyn_string exInfo;
+dyn_string deviceList=dpAliases(\"*/BCs/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	fwFsmTree_addNode(\"RPC_BCs\",deviceList[i] ,\"FwCaenBoardSY1527A1676\", 0);
+	}
+DebugN(\"BC ready\");
+//Add MAO
+
+dyn_string deviceList=dpAliases(\"*/MAO/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+        if(fwFsm_isLogicalDeviceName(deviceList[i]))
+          DebugN(\"SIIIIIII\");
+        
+        pos =strpos(deviceList[i],\"PC_\");
+        names = substr(deviceList[i],pos-1);
+        //DebugN(\"ss\",names,deviceList);
+        pos =strpos(names,\"_X\");
+        names = substr(names,0,pos);
+       DebugN(names,deviceList);
+	fwFsmTree_addNode(names+\"_MAO\",deviceList[i] ,\"FwCaenChannelHV\", 0);
+	}
+
+DebugN(\"mao ready\");
+
+//Add Crate
+dyn_string deviceList=dpAliases(\"*/Crates/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	fwFsmTree_addNode(\"RPC_Crates\",deviceList[i] ,\"FwCaenCrateSY1527Basic\", 0);
+	}
+
+DebugN(\"crate ready\");
+}
+
+void SetAlarmDevice(){
+
+
+float diff1,diff2,value;
+dyn_string exceptionInfo,split,splitt;
+string channelName,channel;
+
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+
+for (int i=1;i<=dynlen(deviceList);i++)
+	{
+	deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+	dpGet(deviceList[i]+\".readBackSettings.i0\", value);
+	
+	diff1=value*0.1;//primo limite al 10%
+	diff2=value*0.2;//secondo limite al 20%
+	
+ 	
+///Set  Alarm channel for Imon
+
+	channel= deviceList[i]+\".actual.iMon\";
+	//DebugN(channel);
+	dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\") ;
+	dyn_float limits = makeDynFloat( value+diff1,value+diff2 ); 
+	dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\");
+ 	string alertPanel; dyn_string alertPanelParameters; string alertHelp;
+	
+	fwAlertConfig_setAnalog(channel,alertTexts,limits, alertClasses,alertPanel,alertPanelParameters,
+													alertHelp,exceptionInfo);
+	fwAlertConfig_activate(channel,exceptionInfo);
+	//DebugN(channel,exceptionInfo);												 
+	}
+}
+SetDeviceConditionDB(){
+// Ricorda che dovrebbe partire anche il manager ed essere settato
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+
+bool configExists; 
+string archiveClassName=\"RDB-99) EVENT\"; //Archive's name
+int archiveType=3,count=1,value,l;
+int smoothProcedure=4;//set old/new comparition 
+float deadband=0;
+float timeInterval=0; 
+bool isActive; 
+dyn_string exceptionInfo,channels;
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+fwArchive_configMultiple(deviceList[i]+\".actual.iMon\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+fwArchive_configMultiple(deviceList[i]+\".actual.vMon\" , archiveClassName,archiveType,smoothProcedure,
+					deadband, timeInterval,exceptionInfo);
+}
+
+
+
+}  
+" 0
+ E E E
+30 17
+"FRAME4"
+""
+1 40 221 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+22 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.47428571428571 -8 -153.817142857143 0 E 40 221 531 397
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 6 Barrel
+13 26
+"PUSH_BUTTON12"
+""
+1 328 134 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 326 132 428 166
+
+T 
+1
+LANG:1 2 DB
+"main()
+{
+//SetAlarmDevice();
+DebugN(\"Start Archiving...\");
+  SetDeviceConditionDB();
+DebugN(\"Archiving Complete\");
+  }
+
+void setRDBManager()
+{
+ 
+   string value;
+  dyn_string name = makeDynString(\"omds\",\"CMS_RPC_PVSS_CONDITION\",\"take_data\");
+  //dpGet(getSystemName()+\"CMS_RPCfwSupervisor.ConfDB.RDBparam\",value);
+  //name = strsplit(value,\";\");
+  string user = fwRDBConfig_getUser();
+  if((dynlen(name)==3)&&(user==\"\"))
+  {
+  DebugN(\"Setting parameters for oracle database\");
+      fwRDBConfig_setHost(name[1]);
+      fwRDBConfig_setUser(name[2]);
+      fwRDBConfig_setPassword(name[3]);
+  }
+  else 
+     DebugN(\"Setting parameter for Oracle DB not found or already set for user \",user,\", starting with default settings\");
+}
+void SetDeviceConditionDB(){
+// Ricorda che dovrebbe partire anche il manager ed essere settato
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+//setRDBManager();
+bool configExists; 
+string archiveClassName=\"RDB-99) EVENT\"; //\"ValueArchive_0000\";//Archive's name
+int archiveType=DPATTR_ARCH_PROC_SIMPLESM,count=1,value,l;
+int smoothProcedure=DPATTR_TIME_AND_VALUE_SMOOTH ,pos;//set old/new comparition 
+float deadband=0.2;
+float timeInterval=3600; 
+bool isActive; 
+dyn_string exceptionInfo,channels,boards;
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+
+fwArchive_setMultiple(deviceList[i]+\".actual.iMon\" , archiveClassName,archiveType,smoothProcedure,
+					0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".actual.vMon\" , archiveClassName,archiveType,smoothProcedure,
+					10, timeInterval,exceptionInfo);
+
+// Every 3 hours
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.i0\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 10000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.v0\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 10000,exceptionInfo);
+
+
+// Every 6 hours
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.rDwn\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 20000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.rUp\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 20000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.tripTime\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 20000,exceptionInfo);
+					
+// Every Hour
+fwArchive_setMultiple(deviceList[i]+\".actual.status\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, timeInterval,exceptionInfo);
+					
+// pos = strpos(deviceList[i],\"/chann\");
+// boards[i] = substr(deviceList[i],0,pos); 
+}
+dynClear(deviceList);
+
+dynAppend(deviceList,dpAliases(\"*/Boards/*\",\"*\"));
+
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+fwArchive_setMultiple(deviceList[i]+\".Temp.Temp1\" , archiveClassName,archiveType,DPATTR_TIME_AND_VALUE_SMOOTH,
+					0.2, 7200,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".Information.SerNum\" , archiveClassName,archiveType,DPATTR_COMPARE_OLD_NEW,
+					0.2, 7200,exceptionInfo);
+}
+
+
+
+DebugN(\"Set archiving configuration\");
+}" 0
+ E E E
+13 27
+"PUSH_BUTTON13"
+""
+1 454 20 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 452 18 532 62
+
+T 
+1
+LANG:1 13 refresh cache
+"main()
+{
+
+loadFromConfigDB();
+//fwFsmTree_generateAll();
+//fwFsmTree_startTree();
+}
+
+void loadFromConfigDB()
+{
+dbConnection dbCon; 
+dyn_string deviceList,exceptionInfo,recipeSettings; 
+string defaultConnectString, recipeName,on,stb; 
+string setupName = \"\";
+dyn_dyn_mixed recipeSTANDBY,recipeON,recipe; 
+//DebugN(\"IOPP\",device,command,recipeName);
+
+
+fwConfigurationDB_checkInit(exceptionInfo);
+
+DebugN(\"Initialization completed\"); 
+
+// Ricorda che se le device non ci sono su questo pc non funziona!!
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+
+//load recipe from DB  
+// dpGet(\"CMS_RPCfwSupervisor.ConfDB.On\",on);
+// dpGet(\"CMS_RPCfwSupervisor.ConfDB.Stb\",stb);
+// fwConfigurationDB_getRecipeFromDB(\"\",deviceList,fwDevice_LOGICAL,stb,recipeSTANDBY,exceptionInfo); 
+// fwConfigurationDB_getRecipeFromDB(\"\",deviceList,fwDevice_LOGICAL,on,recipeON,exceptionInfo); 
+// 
+// 
+// DebugN(\"Finished loading recipe from DB.\"); 
+//  
+//Apply recipe to cache 
+// fwConfigurationDB_storeRecipeInCache(recipeSTANDBY,\"cacheSTANDBY\", fwDevice_LOGICAL, exceptionInfo);
+// fwConfigurationDB_storeRecipeInCache(recipeON,\"cacheON\", fwDevice_LOGICAL, exceptionInfo);
+//fwConfigurationDB_ApplyRecipe (recipeObject, \"LOGICAL\", exceptionInfo); 
+
+dyn_string type = makeDynString(\"stateON\",\"stateSTB\",\"i0high\",\"i0low\");
+dyn_string cacheName = makeDynString(\"cacheON\",\"cacheSTB\",\"I0Ramp\",\"I0Stable\");
+for(int i = 1;i<=dynlen(type);i++)
+{
+  fwConfigurationDB_getRecipeFromDB(\"\",deviceList,fwDevice_LOGICAL,type[i],recipe,exceptionInfo); 
+  fwConfigurationDB_storeRecipeInCache(recipe,cacheName[i], fwDevice_LOGICAL, exceptionInfo);
+    DebugN(\"loaded recipe \"+ cacheName[i] + \" from DB\"); 
+  }
+
+}
+
+
+" 0
+ E E E
+30 28
+"FRAME8"
+""
+1 20 3 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+41 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.898203592814371 0 17.3053892215569 0 E 20 3 171 171
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 6 recipe
+13 29
+"PUSH_BUTTON14"
+""
+1 30 40 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 28 38 152 62
+
+T 
+1
+LANG:1 3 on
+
+"  main()
+{
+
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+
+               
+string logName;
+float value; 
+dyn_string channels = dpNames(\"*\",\"FwCaenChannel\"); 
+
+for(int i = 1; i<=dynlen(channels);i++) 
+ { 
+  logName = fwDU_getLogicalName(channels[i]);
+  //DebugN(logName);
+  if(strpos(logName,\"HV\")>1)
+  	{
+  	HVChann(channels[i]);
+    }
+    //DebugN(channels[i]);  
+ } 
+DebugN(\"Fin\");
+}
+HVChann(string dpe)
+{
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+ 
+dyn_string value=makeDynString(\"50\",\"9600\",\"9200\",\"100\",\"25\",\"100\");         
+for(int j=1;j<=dynlen(list);j++)
+	{
+    	//dpGet(channels[i]+\".readBackSettings\"+list[j],value); 
+        //DebugN(channels[i],value); 
+        dpSet(dpe+\".settings\"+list[j],value[j]);
+        DebugN(dpe,value[j]);
+        ///ALERT
+        if(j==1)
+        setI0Alarm(dpe,value[j]);
+    	}
+}" 0
+ E E E
+13 30
+"PUSH_BUTTON15"
+""
+1 30 70 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 28 68 152 92
+
+T 
+1
+LANG:1 3 stb
+"  main()
+{
+
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+
+               
+string logName;
+float value; 
+dyn_string channels = dpNames(\"*\",\"FwCaenChannel\"); 
+
+for(int i = 1; i<=dynlen(channels);i++) 
+ { 
+  logName = fwDU_getLogicalName(channels[i]);
+  //DebugN(logName);
+  if(strpos(logName,\"HV\")>1)
+  	{
+  	HVChann(channels[i]);
+    }
+    //DebugN(channels[i]);  
+ } 
+DebugN(\"Fin\");
+}
+HVChann(string dpe)
+{
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+ 
+dyn_string value=makeDynString(\"50\",\"9600\",\"6000\",\"100\",\"25\",\"100\");         
+for(int j=1;j<=dynlen(list);j++)
+   		{
+    	//dpGet(channels[i]+\".readBackSettings\"+list[j],value); 
+      //  DebugN(channels[i],value); 
+        dpSet(dpe+\".settings\"+list[j],value[j]);
+         DebugN(dpe,value[j]); 
+           if(j==1)
+        setI0Alarm(dpe,value[j]); 
+        //dpSet(dpe+\".readBackSettings\"+list[j],value[j]); 
+    	}
+}
+" 0
+ E E E
+13 31
+"PUSH_BUTTON16"
+""
+1 30 100 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 28 98 152 122
+
+T 
+1
+LANG:1 4 high
+"  main()
+{
+
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+
+               
+string logName;
+float value; 
+dyn_string channels = dpNames(\"*\",\"FwCaenChannel\"); 
+
+for(int i = 1; i<=dynlen(channels);i++) 
+ { 
+  logName = fwDU_getLogicalName(channels[i]);
+  //DebugN(logName);
+  if(strpos(logName,\"HV\")>1)
+  	{
+  	HVChann(channels[i]);
+    }
+    //DebugN(channels[i]);  
+ } 
+DebugN(\"Fin\");
+}
+HVChann(string dpe)
+{
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+ 
+dyn_string value=makeDynString(\"50\",\"9600\",\"9200\",\"100\",\"25\",\"100\");         
+for(int j=1;j<=dynlen(list);j++)
+   		{
+    	//dpGet(channels[i]+\".readBackSettings\"+list[j],value); 
+      //  DebugN(channels[i],value); 
+        dpSet(dpe+\".settings\"+list[j],value[j]);
+         DebugN(dpe,value[j]);  
+           if(j==1)
+        setI0Alarm(dpe,value[j]);
+        //dpSet(dpe+\".readBackSettings\"+list[j],value[j]); 
+    	}
+}
+" 0
+ E E E
+13 32
+"PUSH_BUTTON17"
+""
+1 30 130 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 28 128 152 152
+
+T 
+1
+LANG:1 7 stable
+
+"  main()
+{
+
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+
+               
+string logName;
+float value; 
+dyn_string channels = dpNames(\"*\",\"FwCaenChannel\"); 
+
+for(int i = 1; i<=dynlen(channels);i++) 
+ { 
+  logName = fwDU_getLogicalName(channels[i]);
+  //DebugN(logName);
+  if(strpos(logName,\"HV\")>1)
+  	{
+  	HVChann(channels[i]);
+    }
+    //DebugN(channels[i]);  
+ } 
+DebugN(\"Fin\");
+}
+HVChann(string dpe)
+{
+dyn_string list=makeDynString(\".i0\",\".vMaxSoftValue\",\".v0\",
+               \".tripTime\",\".rUp\",\".rDwn\");
+ 
+dyn_string value=makeDynString(\"10\",\"9600\",\"9200\",\"20\",\"25\",\"100\");         
+for(int j=1;j<=dynlen(list);j++)
+   		{
+    	//dpGet(channels[i]+\".readBackSettings\"+list[j],value); 
+      //  DebugN(channels[i],value); 
+        dpSet(dpe+\".settings\"+list[j],value[j]);
+         DebugN(dpe,value[j]);
+           if(j==1)
+        setI0Alarm(dpe,value[j]);  
+        //dpSet(dpe+\".readBackSettings\"+list[j],value[j]); 
+    	}
+}
+" 0
+ E E E
+13 33
+"PUSH_BUTTON18"
+""
+1 80 340 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 78 338 202 372
+
+T 
+1
+LANG:1 9 INIT FILE
+"/*
+* Created by Giovanni Polese (Lappeenranta University of Technology
+*	date:08/03/2007
+*	LastChange:09/08/2007
+*
+*
+*/
+ #uses \"fwRDBArchiving/fwRDBConfig.ctl\"
+main()
+{
+DebugN(\"START\");
+//Start Database Connection and recive hardware and Logical schema
+
+//ConfigurationDBRecive();
+Debug(\"Importing Configuration...\");
+bool ok = true;
+ImportConfig(ok);
+string panel;
+delay(2,0);
+dpGet(getSystemName()+\"CMS_RPCfwSupervisor.Status.panels\",panel);
+DebugN(panel,\"<---\");
+//ok = true;
+if((panel==\"OK\")&&(ok))
+ {
+ //ConfigurationDBRecive(ok);
+ DebugN(\"Start to generate tree: \",ok);
+ //DebugN(ok,\"sss\");
+  // Generate the FSM Device Tree
+ if(ok)
+ {
+ generateTreeforDevice();
+
+// Insert the device node using hardware created
+// 
+//Debug(\"Se...\");
+ InsertHV();
+ 
+ InsertBoards(); 
+ InsertBcMaoCrate(); 
+ fwFsmTree_generateAll();
+ fwFsmTree_refreshTree();
+
+// Set Alarm for devices
+ Debug(\"Set alarm...\");
+ SetAlarmDevice();
+ DebugN(\" Done\");
+
+
+// Set archive for devices
+Debug(\"Set archiving...\");
+SetDeviceConditionDB();
+DebugN(\" Done\");
+DebugN(\"Component Installed\");
+fwInstallation_appendManager(TRUE, \"StartUp\", \"PVSS00ctrl\", \"once\", 30, 2, 2, \"CMS_RPCfwHardwareBarrel/CMS_RPCfwHardwareDownloadRecipeFromConfDB.ctl\");
+fwInstallation_appendManager(TRUE, \"StartUp\", \"PVSS00ctrl\", \"once\", 30, 2, 2, \"CMS_RPCfwHardwareBarrel/CMS_RPCfwHardwareUSCStartUp.ctl\");
+}
+else
+  DebugN(\"Generating system failure, component not properly installed\");
+}
+  else
+  DebugN(\"Generating system failure, component not properly installed\");
+}
+void MovingHierarchy(string hName)
+{
+ dyn_string deviceList;
+
+dyn_string exceptionInfo,exInfo;
+dyn_dyn_mixed recipeObject;
+
+
+dyn_string topDevice=makeDynString(getSystemName()+\"CAEN\",\"\");
+
+
+  
+ fwConfigurationDB_getDeviceConfigurationFromDB(hName,fwDevice_HARDWARE, recipeObject, exceptionInfo);
+  if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return; }
+
+
+  //DebugTN(recipeObject[fwConfigurationDB_DLO_DPNAME]);
+  DebugN(\"Checking Hierarchy consistency in DB\");	
+  // find the system name in the db.
+  dyn_string temp = strsplit(recipeObject[fwConfigurationDB_DLO_DPNAME][1], \":\");
+  string sysName = temp[1]+\":\";
+
+ //fwConfigurationDB_extractHierarchyFromDB(topDevice[2],hierarchyType[1], recipeObject,exceptionInfo,\"rpcdcs03:\");
+  //DebugTN(sysName);
+  string localSys = getSystemName();
+  if(sysName != localSys)
+  {
+  fwConfigurationDB_reconnectDevices(recipeObject[1],hName,fwDevice_HARDWARE,localSys,exInfo);
+   if (dynlen(exInfo)) { fwExceptionHandling_display(exInfo); return; }
+  DebugN(\"Hierarchy Correctly Moved\");
+  }
+  else
+    DebugN(\"DB Hierarchy consistets with SystemName\");
+  
+  }
+
+void ImportConfig(bool & ok){
+ string path;
+
+ string paths = findPath();
+// fwInstallation_getProjPaths(paths);
+ // DebugN(\"proj paths \", paths);
+ string fname=\"/config/CMS_RPCfwHardwareBarrel/CMS_RPCfwHardwareBarrelUSCConfig.csv\",st;
+ bool is = false;
+    //DebugN(paths[i] + fname);
+    if ((access(paths + fname, F_OK) == 0)) {
+    fname = paths + fname;
+    is = true;
+     }
+
+ if(is)
+ {
+//DebugN(sps,fname); 
+file f;
+int i = 1; 
+string dummy;
+dyn_dyn_string elenco;
+f=fopen(fname,\"r\");//
+//DebugN(i);
+while (feof(f)==0) // so long as it is not at the end
+{
+ 
+fgets(dummy,100,f);  // reads from the file in dummy
+elenco[i]=strsplit(dummy,\",\"); 
+//DebugN(dummy);
+i = i+1;
+}
+ 
+fclose(f);
+// DebugN(elenco);
+for(int j = 1; j<=dynlen(elenco);j++)
+{
+  //DebugN(elenco[j]);
+  if(elenco[j]!=\"\")
+  dpSet(getSystemName()+\"CMS_RPCfwSupervisor.\"+elenco[j][1],elenco[j][2]);
+  
+  }
+}
+ else
+ {
+   DebugN(\"Configuration File not found, Installation aborted\");
+   ok = false;
+   }
+}
+
+string findPath()
+{
+  dyn_dyn_string comp;
+  fwInstallation_getInstalledComponents(comp);
+  for(int i =1;i<=dynlen(comp);i++)
+    if(comp[i][1]==\"fwCore\")
+      return comp[i][3];  
+  }
+
+void ConfigurationDBRecive(bool & ok)
+{
+string setupName=\"RPCConfig\";
+dyn_string deviceList;
+
+dyn_string exceptionInfo,exInfo,
+hierarchyType=makeDynString(fwDevice_HARDWARE, fwDevice_LOGICAL);
+dyn_dyn_mixed recipeObject;
+dyn_string list,HvDeviceList, LvDeviceList;
+dyn_string topDevice=makeDynString(getSystemName()+\"CAEN\",\"\");
+dyn_string recipeName=makeDynString(\"Bue\",\"RPCUSCGeneral\");
+dyn_string configurationName=makeDynString(\"RPCHWUSC\",\"RPCLWUSC\");
+
+
+ dpGet(getSystemName()+\"CMS_RPCfwSupervisor.ConfDB.General\",recipeName[2]);
+ dpGet(getSystemName()+\"CMS_RPCfwSupervisor.ConfDB.HardHierarchy\",configurationName[1]);
+ dpGet(getSystemName()+\"CMS_RPCfwSupervisor.ConfDB.LogHierarchy\",configurationName[2]);
+// DebugN();
+//check if the connection is properly initialized
+fwConfigurationDB_initialize(setupName,exceptionInfo);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) 
+  {
+  ok = false;
+  return;  
+}
+
+//download hierarchy from ConfigDB
+//first hardware then logical
+MovingHierarchy(configurationName[1]);
+for(int i=1;i<=2;i++)
+{
+	DebugN(\"Hard : 1, Logical: 2\",i);
+	
+	fwConfigurationDB_updateDeviceConfigurationFromDB(configurationName[i],hierarchyType[i],exceptionInfo,0,\"\",\"\",fwConfigurationDB_deviceConfig_ALLDEVPROPS);
+	//DebugN(\"muori\",exceptionInfo);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+          //DebugN(\"muori2\",exceptionInfo);
+        ok = false;
+        return;  
+        }
+
+	if(i==2)
+	{
+	fwConfigurationDB_getHierarchyFromPVSS(\"\", hierarchyType[i], list,exceptionInfo,\"\",FALSE);
+ 	  if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+          ok = false;
+          return;  
+          }
+
+ 	fwConfigurationDB_getRecipeFromDB(\"\",list, hierarchyType[i],recipeName[i], recipeObject,exceptionInfo);
+	  if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+          ok = false;
+        return;  
+        }
+
+	fwConfigurationDB_ApplyRecipe( recipeObject, hierarchyType[i],exceptionInfo); 
+        if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+          ok = false;
+          return;  
+          }
+        }
+}
+	DebugN(\"Hierarchy Applied\");
+DebugN(\"Recipe Applied created\");
+	
+}
+
+void generateTreeforDevice()
+{
+dyn_string nodes, exInfo;
+string chamber_node,ring_node,disc_node, top_node;
+int chamberNum;
+
+dyn_string discs=makeDynString(\"_WM2\",\"_WM1\",\"_W00\",\"_WP1\",\"_WP2\");
+dyn_string rings=makeDynString(\"_S01\",\"_S02\",\"_S03\",\"_S04\",\"_S05\",\"_S06\",\"_S07\",
+				\"_S08\",\"_S09\",\"_S10\",\"_S11\",\"_S12\");
+dyn_string cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4minus\",
+				\"_RB4plus\",\"_RB4minusminus\",\"_RB4plusplus\");
+//remove top node if already exists (all children are removed too)
+//fwFsmTree_removeNode(\"CMS_RPC\",\"RPC_BARREL\");
+//create top node (type DCSNode)
+fwTree_getRootNodes(nodes,exInfo);
+//DebugN(nodes, exInfo);
+if(fwFsmTree_isNode(\"RPC_BARREL_HWUSC\"))
+  fwFsmTree_removeNode(\"RPC_BARREL_HWUSC\",\"FSM\");
+top_node=fwFsmTree_addNode(\"FSM\",\"RPC_BARREL_HWUSC\",\"RPC_Boards\",1);
+
+
+
+if(!fwFsmTree_isNode(\"RPC_BCsUSC\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HWUSC\",\"RPC_BCsUSC\",\"RPC_BC\",0);
+if(!fwFsmTree_isNode(\"RPC_CratesUSC\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HWUSC\",\"RPC_CratesUSC\",\"RPC_SY1527\",0);
+fwTree_getRootNodes(nodes, exInfo);
+
+//add list of children CU (type DiscNode)
+
+for(int i=1; i<=dynlen(discs);i++)
+	{
+	//disc_node=fwFsmTree_addNode(top_node,\"RPC\"+discs[i],\"WheelNode\",1);
+    if(fwFsmTree_isNode(\"RPC_USC\"+discs[i]))
+      fwFsmTree_removeNode(\"RPC_BARREL_HWUSC\",\"RPC_USC\"+discs[i]);
+      top_node=fwFsmTree_addNode(\"RPC_BARREL_HWUSC\",\"RPC_USC\"+discs[i],\"RPC_Device\",1);
+	//if(i==5)
+	{
+	//add list of children CU(type RingNode)
+        
+        if(fwFsmTree_isNode(\"RPC_RB_USC_S1H0\"+(i+1)+discs[i]+\"_Bd\"))
+            fwFsmTree_removeNode(\"RPC_USC\"+discs[i],\"RPC_RB_USC_S1H0\"+(i+1)+discs[i]+\"_Bd\");
+	  chamber_node=fwFsmTree_addNode(\"RPC_USC\"+discs[i],\"RPC_RB_USC_S1H0\"+(i+1)+\"_Bd\",\"RPC_Boards\",0);
+	
+          for(int j=1;j<=dynlen(rings);j++)
+		{
+		//ring_node=fwFsmTree_addNode(disc_node,\"RPC\"+discs[i]+rings[j],\"SectorNode\",1);
+		
+		//add list of children CU (type ChamberNode)
+		if(j==4) 
+			chamberNum=10;
+		else if(j==9||j==11)
+			{
+			chamberNum=7;
+			cham[7]=\"_RB4\";
+			}
+		else
+			{
+			chamberNum=8;
+			cham[7]=\"_RB4minus\";
+			}
+			
+		//chamber_node=fwFsmTree_addNode(\"RPC_LBB\",\"RPC\"+discs[i]+rings[j]+\"_LBB\",\"RPC_LBBLV\",0);	
+		for(int k=1;k<=chamberNum;k++)
+			{
+			//chamber_node=fwFsmTree_addNode(\"RPC_T\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_T\",\"RPC_T\",0);
+			chamber_node=fwFsmTree_addNode(\"RPC_USC\"+discs[i],\"RPC\"+discs[i]+rings[j]+cham[k]+\"_HV\",\"RPC_HV\",0);
+			//chamber_node=fwFsmTree_addNode(\"RPC_LV\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_LV\",\"RPC_LV\",0);
+			
+			}
+		}
+	}
+	}
+	
+
+DebugN(\"Structure ready\");
+//generate and refresh tree
+fwFsmTree_generateAll();
+//fwFsmTree_refreshTree();
+}
+
+string getCU(string name)
+{
+ int type;
+ string parent;
+ parent =  fwCU_getParent(type,name);
+ //DebugN(parent,name);
+  if(type==0)
+    return getCU(parent);
+  else
+    return parent;
+      
+  
+}
+void InsertHV()
+{dyn_string exInfo;
+
+// Add HV
+
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+//DebugN(deviceList);
+int pos;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		//DebugN(\"cHc\",names);
+		if (fwTree_isNode(names,exInfo)!=0)
+                  {
+		  if (fwTree_isNode(deviceList[i],exInfo)==0) 
+                  fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelHV\", 0);
+                   //DebugN(\"we\",names,deviceList[i] );
+                  }
+	}
+}
+DebugN(\"HV ready\");
+
+}
+void InsertBoards()
+{
+   int pos,pos1;
+string names;
+  //Add Boards
+  dyn_string exInfo;
+dyn_string deviceList=dpAliases(\"*/Boards/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	pos =strpos(deviceList[i],\"_S1H\");
+	if(pos>-1)
+	{
+	names = substr(deviceList[i],pos,6);
+        //DebugN(\"RPC_RB_USC\"+names+\"_Bd\",deviceList[i] );
+		//pos1 = strpos(names,\"LBB\");
+		//names = substr(names,0,pos1+3);
+	fwFsmTree_addNode(\"RPC_RB_USC\"+names+\"_Bd\",deviceList[i] ,\"FwCaenBoardEasy\", 0);
+	}
+	}
+
+
+DebugN(\"BOARDS ready\");
+}
+
+void InsertBcMaoCrate()
+{
+  //Add BC
+ int pos,pos1;
+string names;
+dyn_string exInfo;
+dyn_string deviceList=dpAliases(\"*/BCs/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+        //DebugN(\"RPC_BCsUSC\",deviceList[i]);
+        if(strpos(deviceList[i],\"USC\")>-1)
+	fwFsmTree_addNode(\"RPC_BCsUSC\",deviceList[i] ,\"FwCaenBoardSY1527A1676\", 0);
+	}
+DebugN(\"BC ready\");
+
+
+
+//Add Crate
+dyn_string deviceList=dpAliases(\"*/Crates/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+        //DebugN(\"RPC_Crates\",deviceList[i]);
+	fwFsmTree_addNode(\"RPC_CratesUSC\",deviceList[i] ,\"FwCaenCrateSY1527Basic\", 0);
+	}
+
+DebugN(\"crate ready\");
+}
+
+void SetAlarmDevice(){
+
+float diff1,diff2,value;
+dyn_string exceptionInfo,split,splitt,summary;
+string channelName,channel;
+dyn_string boolAlarms = makeDynString(\".actual.Trip\",\".actual.OvC\",\".actual.OvV\",
+                   \".actual.UnV\",\".actual.UnC\",\".actual.overHvMax\");
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+// dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+// dynAppend(deviceList,dpAliases(\"*/LBBLV/*\",\"*\"));
+for (int i=1;i<=dynlen(deviceList);i++)
+ {
+ dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\"),
+       aTexts = makeDynString(\"OK\", \"Bad\") ;
+ dyn_float limits; 
+ dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\"),
+       aClasses = makeDynString(\"\", \"_fwErrorAck.\");
+  string alertPanel; dyn_string alertPanelParameters; string alertHelp;
+ 
+ deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+ dpGet(deviceList[i]+\".settings.i0\", value);
+ if(value != 0)
+ {
+ diff1=value*0.1;//primo limite al 10%
+ diff2=value*0.2;//secondo limite al 20%
+ 
+  
+///Set  Alarm channel for Imon
+ channel= deviceList[i]+\".actual.iMon\";
+ 
+ dynAppend(summary,channel);
+ fwAlertConfig_deactivate(channel,exceptionInfo);  
+  limits = makeDynFloat( value-diff2,value-diff1 );
+  DebugN(channel);
+ fwAlertConfig_set(channel,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exceptionInfo);
+             if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+ fwAlertConfig_activate(channel,exceptionInfo);
+ }
+ //Set Digital alarm for channel
+ for(int j =1;j<=dynlen(boolAlarms);j++)
+  {
+  
+  fwAlertConfig_deactivate(deviceList[i]+boolAlarms[j],exceptionInfo); 
+  
+  fwAlertConfig_set(deviceList[i]+boolAlarms[j], DPCONFIG_ALERT_BINARYSIGNAL, aTexts, 
+      limits, aClasses, summary,  alertPanel, alertPanelParameters, alertHelp,  exceptionInfo);
+  
+  
+    
+    fwAlertConfig_activate(deviceList[i]+boolAlarms[j],exceptionInfo); 
+    dynAppend(summary, deviceList[i]+boolAlarms[j]) ;            
+    }
+  
+  fwAlertConfig_deactivate(deviceList[i]+\".\",exceptionInfo); 
+  fwAlertConfig_set(deviceList[i]+\".\",DPCONFIG_SUM_ALERT , aTexts, 
+      limits, aClasses, summary,  alertPanel, alertPanelParameters, alertHelp,  exceptionInfo); 
+ //DebugN(deviceList[i],exceptionInfo,summary);
+ fwAlertConfig_activate(deviceList[i]+\".\",exceptionInfo); 
+ dynClear(summary);
+  
+              
+ }
+ DebugN(\"Set Alarm configuration\");
+}
+void setRDBManager()
+{
+ 
+   string value;
+  dyn_string name = makeDynString(\"omds\",\"CMS_RPC_PVSS_CONDITION\",\"take_data\");
+  //dpGet(getSystemName()+\"CMS_RPCfwSupervisor.ConfDB.RDBparam\",value);
+  //name = strsplit(value,\";\");
+  string user = fwRDBConfig_getUser();
+  if((dynlen(name)==3)&&(user==\"\"))
+  {
+  DebugN(\"Setting parameters for oracle database\");
+      fwRDBConfig_setHost(name[1]);
+      fwRDBConfig_setUser(name[2]);
+      fwRDBConfig_setPassword(name[3]);
+  }
+  else 
+     DebugN(\"Setting parameter for Oracle DB not found or already set for user \",user,\", starting with default settings\");
+}
+void SetDeviceConditionDB(){
+// Ricorda che dovrebbe partire anche il manager ed essere settato
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+setRDBManager();
+bool configExists; 
+string archiveClassName=\"RDB-99) EVENT\"; //\"ValueArchive_0000\";//Archive's name
+int archiveType=DPATTR_ARCH_PROC_SIMPLESM,count=1,value,l;
+int smoothProcedure=DPATTR_TIME_AND_VALUE_SMOOTH ,pos;//set old/new comparition 
+float deadband=0.2;
+float timeInterval=3600; 
+bool isActive; 
+dyn_string exceptionInfo,channels,boards;
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+
+fwArchive_setMultiple(deviceList[i]+\".actual.iMon\" , archiveClassName,archiveType,smoothProcedure,
+					0.3, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".actual.vMon\" , archiveClassName,archiveType,smoothProcedure,
+					10, timeInterval,exceptionInfo);
+
+// Every 3 hours
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.i0\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 10000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.v0\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 10000,exceptionInfo);
+
+
+// Every 6 hours
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.rDwn\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 20000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.rUp\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 20000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.tripTime\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 20000,exceptionInfo);
+					
+// Every Hour
+fwArchive_setMultiple(deviceList[i]+\".actual.status\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, timeInterval,exceptionInfo);
+					
+// pos = strpos(deviceList[i],\"/chann\");
+// boards[i] = substr(deviceList[i],0,pos); 
+}
+dynClear(deviceList);
+
+//dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+//dynAppend(deviceList,dpAliases(\"*/LBB_LV/*\",\"*\"));
+/*
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+
+fwArchive_setMultiple(deviceList[i]+\".actual.iMon\" , archiveClassName,archiveType,smoothProcedure,
+					0.2, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".actual.vMon\" , archiveClassName,archiveType,smoothProcedure,
+					1, timeInterval,exceptionInfo);
+
+
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.i0\" , archiveClassName,archiveType,DPATTR_COMPARE_OLD_NEW,
+					deadband, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.v0\" , archiveClassName,archiveType,DPATTR_COMPARE_OLD_NEW,
+					deadband, timeInterval,exceptionInfo);
+					
+fwArchive_setMultiple(deviceList[i]+\".actual.status\" , archiveClassName,archiveType,DPATTR_COMPARE_OLD_NEW ,
+					deadband, timeInterval,exceptionInfo);
+					
+// pos = strpos(deviceList[i],\"/chann\");
+// boards[i] = substr(deviceList[i],0,pos); 
+}
+
+dynClear(deviceList);
+
+*/
+dynAppend(deviceList,dpAliases(\"*/T/*\",\"*\"));
+/*
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+
+fwArchive_setMultiple(deviceList[i]+\".actual.temperature\" , archiveClassName,archiveType,DPATTR_TIME_AND_VALUE_SMOOTH,
+					0.2, 7200,exceptionInfo);
+}
+
+
+*/
+dynClear(deviceList);
+dynAppend(deviceList,dpAliases(\"*/Boards/*\",\"*\"));
+
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+fwArchive_setMultiple(deviceList[i]+\".Temp.Temp1\" , archiveClassName,archiveType,DPATTR_TIME_AND_VALUE_SMOOTH,
+					0.2, 7200,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".Information.SerNum\" , archiveClassName,archiveType,DPATTR_COMPARE_OLD_NEW,
+					0.2, 7200,exceptionInfo);
+}
+
+
+
+DebugN(\"Set archiving configuration\");
+}
+" 0
+ E E E
+13 34
+"PUSH_BUTTON19"
+""
+1 80 380 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 78 378 202 402
+
+T 
+1
+LANG:1 6 delete
+"/*
+* Created by Giovanni Polese (Lappeenranta University of Technology
+*	date:08/05/2007
+*	LastChange:08/08/2007
+*
+*
+*/
+main()
+{
+  deleteAlarm();
+  DeleteFSM();
+  DeleteHW();
+  DeleteLogical();
+  //DeleteDps();
+  DebugN(\"FSM USC component successfully deleted\");
+}
+void DeleteLogical()
+{
+  string type;
+  dyn_string exInfo;
+  dyn_string deviceList = dpNames(\"*\",\"FwNode\");
+  //DebugN(deviceList);
+  fwDevice_initialize();  
+  for(int i = 1 ;i<=dynlen(deviceList);i++)
+    {
+    dpGet(deviceList[i]+\".type\",type);
+    if(strpos(type,\"LOGICAL\")>-1)
+    {
+    //  DebugN(deviceList[i]);
+    dpDelete(deviceList[i]);  
+    }
+  }
+}
+
+void DeleteHW(){
+   fwDevice_initialize();   
+  dyn_string exceptionInfo;
+  dyn_string localCrates = dpNames(getSystemName()+\"*CAEN?*\", \"FwCaenCrateSY1527\");
+  
+  DebugN(localCrates);
+  for(int i = 1;i<=dynlen(localCrates);i++)
+  {
+   if(strpos(localCrates[1],\"hv\")>-1)
+       fwDevice_delete(localCrates[i], exceptionInfo);  
+  }
+  
+  DebugN(\"---Caen hardware deleted.\"); 
+  
+  }
+
+void deleteAlarm()
+{
+string  dpe;
+  bool   configExists;
+  int   alertConfigType;
+  dyn_string   alertTexts;  
+  dyn_float   alertLimits;
+  dyn_string   alertClasses;
+  dyn_string   summaryDpeList;  
+  string   alertPanel;
+  dyn_string   alertPanelParameters;  
+  string   alertHelp;  
+  bool  isActive;
+  dyn_string   exceptionInfo;
+
+
+dyn_string dplist= dpNames(\"*\",\"_FwFsmObject\");
+dynAppend(dplist,dpNames(\"*\",\"FwCaenChannel\"));
+//DebugN(\"sadfdf\",dplist);
+for(int i = 1; i<=dynlen(dplist);i++)
+{
+fwAlertConfig_get  (dplist[i]+\".\",configExists,  
+  alertConfigType,  
+   alertTexts,  
+ alertLimits,  
+  alertClasses,  
+ summaryDpeList,  
+ alertPanel,  
+  alertPanelParameters,  
+  alertHelp,  
+ isActive,  
+ exceptionInfo 
+ );  
+
+if(dynlen(summaryDpeList)==0)
+	{
+	fwAlertConfig_delete(dplist[i]+\".\",exceptionInfo);  
+	//DebugN(\"SSS:\",dplist[i]);
+	}
+
+}
+}
+
+void DeleteFSM()
+{
+  dyn_string nodes,nnodes,exInfo,type = makeDynString(\"HV\",\"USC\"),nodesTypes;
+  bool find = false, delAll = false;
+  int f =1;
+  fwTree_getChildren(\"RPC_BARREL_HWUSC\",nodes,exInfo);
+  DebugN(nodes);
+  DebugN(\"This operation could be longer\");
+  for(int i = 1; i<=dynlen(nodes);i++ )
+  {
+    for(int j = 1;j<=dynlen(type);j++)
+    {
+      if(strpos(nodes[i],type[j])>-1)
+      {
+        fwFsmTree_removeNode(\"RPC_BARREL_HWUSC\",nodes[i]);
+        fwCU_getDp(nodes[i], nodesTypes[f]);
+        f++;
+      }
+      else if(strpos(nodes[i],\"oard\")>-1)
+      {
+        fwTree_getChildren(nodes[i],nnodes,exInfo);
+        for(int k = 1; k<=dynlen(nnodes);k++)
+          if(strpos(nnodes[k],\"USC\")>-1)
+          {
+            fwFsmTree_removeNode(nodes[i],nnodes[k]);
+        fwCU_getDp(nodes[i], nodesTypes[f]);
+        f++;
+      }
+        fwTree_getChildren(nodes[i],nnodes,exInfo);
+        if(dynlen(nnodes)==0)
+        {
+          fwFsmTree_removeNode(\"RPC_BARREL_HWUSC\",nodes[i]);
+          fwCU_getDp(nodes[i], nodesTypes[f]);
+        f++;
+      }
+          
+        }
+        
+              
+      }
+   }
+  fwTree_getChildren(\"RPC_BARREL_HWUSC\",nodes,exInfo);
+  if(dynlen(nodes)==0)
+  {
+          fwFsmTree_removeNode(\"FSM\",\"RPC_BARREL_HWUSC\");
+           fwCU_getDp(\"RPC_BARREL_HWUSC\", nodesTypes[f]);
+        f++;
+        delAll = true;
+        }
+  dynUnique(nodesTypes);
+  if(delAll)
+  {
+      for (int i = 1; i <= dynlen(nodesTypes); i++)
+  {
+    DebugN(\"Starting delete all nodes type \", nodesTypes[i]);  
+        dpDelete(nodesTypes[i]); 
+  }
+  
+    }
+   
+  
+  }
+" 0
+ E E E
+13 35
+"PUSH_BUTTON20"
+""
+1 330 340 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 328 338 452 372
+
+T 
+1
+LANG:1 9 INIT FILE
+"/*
+* Created by Giovanni Polese (Lappeenranta University of Technology
+*	date:08/03/2007
+*	LastChange:06/06/2007
+*
+*
+*/
+ #uses \"fwRDBArchiving/fwRDBConfig.ctl\"
+main()
+{
+DebugN(\"START\");
+//Start Database Connection and recive hardware and Logical schema
+bool error = false;
+//ConfigurationDBRecive(error);
+Debug(\"Importing Configuration...\");
+ ImportConfig(error);
+DebugN(\"Imported\");
+  string panel;
+delay(2,0);
+  dpGet(getSystemName()+\"CMS_RPCfwSupervisor.Status.panels\",panel);
+	DebugN(panel,\"<---\");
+  if((panel==\"OK\")&&(!error))
+  {
+  bool opcOn;
+  dpGet(getSystemName()+\"_CAENOPCServer.Connected\",opcOn);  
+    if(opcOn)
+      ConfigurationDBRecive(error);
+    else
+    {
+      DebugN(\"OPC client not connected, please check if the manager is ON\");
+    error = true;
+    }
+// Generate the FSM Device Tree
+if(!error)
+ generateTreeforDevice();
+
+// Insert the device node using hardware created
+// 
+if(!error)
+{
+ InsertLV();
+ InsertT(); 
+ InsertLBB(); 
+ InsertBoards(); 
+ InsertBcMaoCrate(); 
+
+ Debug(\"Setting Alarm ....\"); 
+SetAlarmDevice();
+DebugN(\"Done\");
+ Debug(\"Setting Archiving ....\"); 
+  SetDeviceConditionDB();
+  Debug(\"Done\"); 
+
+ }
+else
+  DebugN(\"Installation interrupted, downloading configuration failed\");
+// Set Alarm for devices
+}
+  fwInstallation_appendManager(TRUE, \"StartUp\", \"PVSS00ctrl\", \"once\", 30, 2, 2, \"CMS_RPCfwHardwareBarrel/CMS_RPCfwHardwareUXCStartUp.ctl\");
+DebugN(\"UXC Component succesfully installed\");
+// Set archive for devices
+
+
+}
+string findPath()
+{
+  dyn_dyn_string comp;
+  fwInstallation_getInstalledComponents(comp);
+  for(int i =1;i<=dynlen(comp);i++)
+    if(comp[i][1]==\"fwCore\")
+      return comp[i][3];  
+  }
+
+void AlarmTemp(){
+dyn_string deviceList,exceptionInfo,summary;//=dpAliases(\"*/HV/*\",\"*\");
+dynAppend(deviceList,dpAliases(\"*/T/*\",\"*\"));
+
+for (int i=1;i<=dynlen(deviceList);i++)
+ {
+ dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\"),
+       aTexts = makeDynString(\"OK\", \"Bad\") ;
+ dyn_float limits; 
+ dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\"),
+       aClasses = makeDynString(\"\", \"_fwErrorAck.\");
+  string alertPanel; dyn_string alertPanelParameters; string alertHelp;
+ 
+ deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+ 
+  
+///Set  Alarm channel for Imon
+string  channel= deviceList[i]+\".actual.temperature\";
+ 
+  fwAlertConfig_deactivate(channel,exceptionInfo);  
+  limits = makeDynFloat( 23,24 );
+  //DebugN(channel);
+ fwAlertConfig_set(channel,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exceptionInfo);
+             if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+ fwAlertConfig_activate(channel,exceptionInfo);
+}
+  
+  
+  
+  
+}
+void ImportConfig(bool error){
+ string path;
+
+ string paths = findPath();
+ //fwInstallation_getProjPaths(paths);
+ // DebugN(\"proj paths \", paths);
+ string fname=\"/config/CMS_RPCfwHardwareBarrel/CMS_RPCfwHardwareBarrelUXCConfig.csv\",st;
+ bool is = false;
+    //DebugN(paths[i] + fname);
+    if ((access(paths + fname, F_OK) == 0)) {
+    fname = paths + fname;
+    is = true;
+    
+    }
+ 
+
+ if(is)
+ {
+//DebugN(sps,fname); 
+file f;
+int i = 1; 
+string dummy;
+dyn_dyn_string elenco;
+f=fopen(fname,\"r\");//
+//DebugN(i);
+while (feof(f)==0) // so long as it is not at the end
+{
+ 
+fgets(dummy,100,f);  // reads from the file in dummy
+elenco[i]=strsplit(dummy,\",\"); 
+//DebugN(dummy);
+i = i+1;
+}
+ 
+fclose(f);
+// DebugN(elenco);
+for(int j = 1; j<=dynlen(elenco);j++)
+{
+  //DebugN(elenco[j]);
+  if(elenco[j]!=\"\")
+  dpSet(getSystemName()+\"CMS_RPCfwSupervisor.\"+elenco[j][1],elenco[j][2]);
+  
+  }
+}
+ else
+ {
+   DebugN(\"Configuration File not found, Installation aborted\");
+   error = true;
+   }
+}
+void MovingHierarchy(string hName)
+{
+ dyn_string deviceList;
+
+dyn_string exceptionInfo,exInfo;
+dyn_dyn_mixed recipeObject;
+
+
+dyn_string topDevice=makeDynString(getSystemName()+\"CAEN\",\"\");
+
+
+  
+ fwConfigurationDB_getDeviceConfigurationFromDB(hName,fwDevice_HARDWARE, recipeObject, exceptionInfo);
+  if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return; }
+
+
+  //DebugTN(recipeObject[fwConfigurationDB_DLO_DPNAME]);
+  DebugN(\"Checking Hierarchy consistency in DB\");	
+  // find the system name in the db.
+  dyn_string temp = strsplit(recipeObject[fwConfigurationDB_DLO_DPNAME][1], \":\");
+  string sysName = temp[1]+\":\";
+
+ //fwConfigurationDB_extractHierarchyFromDB(topDevice[2],hierarchyType[1], recipeObject,exceptionInfo,\"rpcdcs03:\");
+  //DebugTN(sysName);
+  string localSys = getSystemName();
+  if(sysName != localSys)
+  {
+  fwConfigurationDB_reconnectDevices(recipeObject[1],hName,fwDevice_HARDWARE,localSys,exInfo);
+   if (dynlen(exInfo)) { fwExceptionHandling_display(exInfo); return; }
+  DebugN(\"Hierarchy Correctly Moved\");
+  }
+  else
+    DebugN(\"DB Hierarchy consistets with SystemName\");
+  
+  }
+
+void ConfigurationDBRecive(bool & error)
+{
+string setupName=\"RPCConfig\";
+dyn_string deviceList;
+
+dyn_string exceptionInfo,exInfo,
+hierarchyType=makeDynString(fwDevice_HARDWARE, fwDevice_LOGICAL);
+dyn_dyn_mixed recipeObject;
+dyn_string list,HvDeviceList, LvDeviceList;
+dyn_string topDevice=makeDynString(getSystemName()+\"CAEN\",\"\");
+dyn_string recipeName=makeDynString(\"Bue\",\"RPCUXCGeneral\");
+dyn_string configurationName=makeDynString(\"RPCHWUXC\",\"RPCLWUXC\");
+
+
+ dpGet(getSystemName()+\"CMS_RPCfwSupervisor.ConfDB.General\",recipeName[2]);
+ dpGet(getSystemName()+\"CMS_RPCfwSupervisor.ConfDB.HardHierarchy\",configurationName[1]);
+ dpGet(getSystemName()+\"CMS_RPCfwSupervisor.ConfDB.LogHierarchy\",configurationName[2]);
+// DebugN();
+//check if the connection is properly initialized
+fwConfigurationDB_initialize(setupName,exceptionInfo);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) 
+{
+  error = true;
+  return;
+  }  
+
+//download hierarchy from ConfigDB
+//first hardware then logical
+MovingHierarchy(configurationName[1]);
+for(int i=1;i<=2;i++)
+	{
+	DebugN(\"Hard : 1, Logical: 2\",i);
+	
+	fwConfigurationDB_updateDeviceConfigurationFromDB(configurationName[i],hierarchyType[i],exceptionInfo,0,\"\",\"\",fwConfigurationDB_deviceConfig_ALLDEVPROPS);
+	
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+  error = true;
+  return;
+  }    
+	
+	if(i==2)
+	{
+	fwConfigurationDB_getHierarchyFromPVSS(\"\", hierarchyType[i], list,exceptionInfo,\"\",FALSE);
+  if (fwConfigurationDB_handleErrors(exceptionInfo)){
+  error = true;
+  return;
+  }	
+ 	fwConfigurationDB_getRecipeFromDB(\"\",list, hierarchyType[i],recipeName[i], recipeObject,exceptionInfo);
+	 if (fwConfigurationDB_handleErrors(exceptionInfo)){
+  error = true;
+  return;
+  }
+	fwConfigurationDB_ApplyRecipe( recipeObject, hierarchyType[i],exceptionInfo); 
+  if (fwConfigurationDB_handleErrors(exceptionInfo)){
+  error = true;
+  return;
+  }
+  DebugN(\"Recipe Applied\");  
+  }
+	}
+	DebugN(\"Hierarchy Applied\");
+		
+}
+
+
+void generateTreeforDevice()
+{
+dyn_string nodes, exInfo;
+string chamber_node,ring_node,disc_node, top_node;
+int chamberNum;
+
+dyn_string discs=makeDynString(\"_WM2\",\"_WM1\",\"_W00\",\"_WP1\",\"_WP2\");
+dyn_string rings=makeDynString(\"_S01\",\"_S02\",\"_S03\",\"_S04\",\"_S05\",\"_S06\",\"_S07\",
+				\"_S08\",\"_S09\",\"_S10\",\"_S11\",\"_S12\");
+dyn_string cham=makeDynString(\"_RB1in\",\"_RB1out\",\"_RB2in\",\"_RB2out\",\"_RB3minus\",\"_RB3plus\",\"_RB4minus\",
+				\"_RB4plus\",\"_RB4minusminus\",\"_RB4plusplus\");
+//remove top node if already exists (all children are removed too)
+//fwFsmTree_removeNode(\"CMS_RPC\",\"RPC_BARREL\");
+//create top node (type DCSNode)
+fwTree_getRootNodes(nodes,exInfo);
+//DebugN(nodes, exInfo);
+if(!fwFsmTree_isNode(\"RPC_BARREL_HW\"))
+top_node=fwFsmTree_addNode(\"FSM\",\"RPC_BARREL_HW\",\"RPC_Device\",1);
+if(fwFsmTree_isNode(\"RPC_LV\"))
+  fwFsmTree_removeNode(\"RPC_BARREL_HW\",\"RPC_LV\");
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_LV\",\"RPC_Device\",0);
+if(fwFsmTree_isNode(\"RPC_LBB\"))
+  fwFsmTree_removeNode(\"RPC_BARREL_HW\",\"RPC_LBB\");
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_LBB\",\"RPC_Device\",0);
+if(fwFsmTree_isNode(\"RPC_T\"))
+  fwFsmTree_removeNode(\"RPC_BARREL_HW\",\"RPC_T\");
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_T\",\"RPC_T\",0);
+if(!fwFsmTree_isNode(\"RPC_Boards\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_Boards\",\"RPC_Boards\",0);
+if(!fwFsmTree_isNode(\"RPC_BCsUXC\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_BCsUXC\",\"RPC_BC\",0);
+if(!fwFsmTree_isNode(\"RPC_MAO\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_MAO\",\"RPC_Device\",0);
+if(!fwFsmTree_isNode(\"RPC_CratesUXC\"))
+top_node=fwFsmTree_addNode(\"RPC_BARREL_HW\",\"RPC_CratesUXC\",\"RPC_SY1527\",0);
+fwTree_getRootNodes(nodes, exInfo);
+
+//add list of children CU (type DiscNode)
+
+for(int i=1; i<=dynlen(discs);i++)
+	{
+	//disc_node=fwFsmTree_addNode(top_node,\"RPC\"+discs[i],\"WheelNode\",1);
+	if(i==5)
+	{
+	//add list of children CU(type RingNode)
+        chamber_node=fwFsmTree_addNode(\"RPC_MAO\",\"RPC\"+discs[i]+\"_MAO\",\"RPC_MAO\",0);
+	chamber_node=fwFsmTree_addNode(\"RPC_Boards\",\"RPC_RB_UXC\"+discs[i]+\"_Bd\",\"RPC_Boards\",0);
+	//chamber_node=fwFsmTree_addNode(\"RPC_Boards\",\"RPC_RB_SCX\"+discs[i]+\"_Boards\",\"RPC_Boards\",0);
+	for(int j=1;j<=dynlen(rings);j++)
+		{
+		//ring_node=fwFsmTree_addNode(disc_node,\"RPC\"+discs[i]+rings[j],\"SectorNode\",1);
+		
+		//add list of children CU (type ChamberNode)
+		if(j==4) 
+			chamberNum=10;
+		else if(j==9||j==11)
+			{
+			chamberNum=7;
+			cham[7]=\"_RB4\";
+			}
+		else
+			{
+			chamberNum=8;
+			cham[7]=\"_RB4minus\";
+			}
+			
+		chamber_node=fwFsmTree_addNode(\"RPC_LBB\",\"RPC\"+discs[i]+rings[j]+\"_LBB\",\"RPC_LBBLV\",0);	
+		for(int k=1;k<=chamberNum;k++)
+			{
+			chamber_node=fwFsmTree_addNode(\"RPC_T\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_T\",\"RPC_T\",0);
+			//chamber_node=fwFsmTree_addNode(\"RPC_HV\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_HV\",\"RPC_HV\",0);
+			chamber_node=fwFsmTree_addNode(\"RPC_LV\",\"RPC\"+discs[i]+rings[j]+cham[k]+\"_LV\",\"RPC_LV\",0);
+			
+			}
+		}
+	}
+	}
+	
+
+DebugN(\"Structure ready\");
+//generate and refresh tree
+fwFsmTree_generateAll();
+//fwFsmTree_refreshTree();
+}
+
+string getCU(string name)
+{
+ int type;
+ string parent;
+ parent =  fwCU_getParent(type,name);
+ //DebugN(parent,name);
+  if(type==0)
+    return getCU(parent);
+  else
+    return parent;
+      
+  
+}
+void InsertHV()
+{dyn_string exInfo;
+
+// Add HV
+
+dyn_string deviceList=dpAliases(\"*/HV/*\",\"*\");
+//DebugN(deviceList);
+int pos;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		//DebugN(\"cHc\",names);
+		if (fwTree_isNode(names,exInfo)!=0)
+                  {
+		  if (fwTree_isNode(deviceList[i],exInfo)==0) 
+                  fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelHV\", 0);
+                   //DebugN(\"we\",names,deviceList[i] );
+                  }
+	}
+}
+DebugN(\"HV ready\");
+
+}
+void InsertLV()
+{
+  dyn_string deviceList=dpAliases(\"*/LV/*\",\"*\");
+  dyn_string exInfo;
+//DebugN(\"cc\",deviceList);
+int len;
+int pos;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		len = strlen(names);
+		names = substr(names,0,len-4);
+		//DebugN(\"cc\",names);		
+	        if (fwTree_isNode(names,exInfo)!=0)
+                  {
+		  if (fwTree_isNode(deviceList[i],exInfo)==0)
+			fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelLV\", 0);
+              	}
+                else if((strpos(names,\"RB3\")>-1)||(strpos(names,\"RB4\")>-1))
+                {
+                  strreplace(names,\"_LV\",\"plus_LV\");
+                  if (fwTree_isNode(names,exInfo)!=0)
+                    {
+		    if (fwTree_isNode(deviceList[i],exInfo)==0)
+                     {
+			fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelLV\", 0);
+                        strreplace(names,\"plus\",\"minus\");
+                        fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelLV\", 0);
+                        //DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+                        if(strpos(names,\"S04\")>-1)
+                          {
+                          strreplace(names,\"minus\",\"minusminus\");
+                          fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelLV\", 0);
+                          strreplace(names,\"minusminus\",\"plusplus\");
+                          fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelLV\", 0);
+                                             
+                          }
+                      }
+              	    } 
+                  
+                }
+	}
+}
+
+	DebugN(\"LV ready\");
+  
+  
+  }
+void InsertT()
+{
+dyn_string exInfo;
+int pos,pos1;
+string names;
+//Add ADCTemp
+
+dyn_string deviceList=dpAliases(\"*/T/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+ pos =strpos(deviceList[i],\"RPC_W\");
+ if(pos>-1)
+ {
+   names = substr(deviceList[i],pos);
+   //DebugN(\"cHc\",names,names[pos1+2]);
+   pos1 = strpos(names,\"RB\");
+   
+   switch(names[pos1+2])
+   {
+   case \"1\":
+     if (fwTree_isNode(names,exInfo)!=0)
+         {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            //strreplace(names,\"plus\",\"minus\");
+            //fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            //DebugN(\"we\",names);
+            }
+          }  
+         
+    break;   
+   case \"2\":
+     strreplace(names,\"_T\",\"in_T\");
+     if (fwTree_isNode(names,exInfo)!=0)
+     {
+	if (fwTree_isNode(deviceList[i],exInfo)==0)
+        {
+	fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        strreplace(names,\"in\",\"out\");
+        fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        //DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+        }
+      }
+     break;
+    case \"3\":
+      strreplace(names,\"_T\",\"plus_T\");
+     if (fwTree_isNode(names,exInfo)!=0)
+     {
+	if (fwTree_isNode(deviceList[i],exInfo)==0)
+        {
+	fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        strreplace(names,\"plus\",\"minus\");
+        fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+        //DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+        }
+      }
+     break;
+     case \"4\":
+       
+       if((strpos(names,\"S11\")==-1)&&(strpos(names,\"S09\")==-1)&&(strpos(names,\"S10\")==-1)&&(strpos(names,\"S04\")==-1))
+       {
+         DebugN(\"case 1: -->\",names);
+        strreplace(names,\"_T\",\"plus_T\");
+         if (fwTree_isNode(names,exInfo)!=0)
+         {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            strreplace(names,\"plus\",\"minus\");
+            fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+           // DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+            }
+          } 
+           
+        }
+       else  if(strpos(names,\"S04\")!=-1)
+         {
+         DebugN(\"case 2: -->\",names);
+          if (fwTree_isNode(names,exInfo)!=0)
+          {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            if(names[pos1+3]==\"p\")
+            strreplace(names,\"plus\",\"plusplus\");
+            else
+              strreplace(names,\"minus\",\"minusminus\");
+            fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            //DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+            }
+          }          
+         }
+       else
+       {
+         DebugN(\"case 3: -->\",names);
+        if (fwTree_isNode(names,exInfo)!=0)
+         {
+	    if (fwTree_isNode(deviceList[i],exInfo)==0)
+            {
+  	    fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+            //strreplace(names,\"plus\",\"minus\");
+            //fwFsmTree_addNode(names,getCU(names)+\"::\"+deviceList[i] ,\"FwCaenChannelADCTemp\", 0);
+           // DebugN(\"we\",names,getCU(names)+\"::\"+deviceList[i]);
+            }
+          }  
+         
+         }
+       break;
+     
+   }
+ }
+}                
+                 
+     
+ DebugN(\"T ready\");
+  
+  
+  }
+void InsertLBB()
+{
+dyn_string exInfo; 
+dyn_string deviceList=dpAliases(\"*/LBB_LV/*\",\"*\"); 
+ int pos,pos1;
+string names;
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],\"RPC_W\");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		pos1 = strpos(names,\"LBB\");
+		names = substr(names,0,pos1+3);
+		//DebugN(\"cHc\",names);
+		if (fwTree_isNode(deviceList[i],exInfo)==0)
+		 fwFsmTree_addNode(names,deviceList[i] ,\"FwCaenChannelLBBLV\", 0);
+	}
+}
+DebugN(\"LBB ready\"); }
+void InsertBoards()
+{
+   int pos,pos1;
+string names;
+  //Add Boards
+  dyn_string exInfo;
+dyn_string deviceList=dpAliases(\"*/Boards/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	pos =strpos(deviceList[i],\"_X\");
+	if(pos>-1)
+	{
+	names = substr(deviceList[i],pos);
+        //DebugN(pos,deviceList[i][22],deviceList[i][pos-1]);
+		//pos1 = strpos(names,\"LBB\");
+		//names = substr(names,0,pos1+3);
+	fwFsmTree_addNode(\"RPC_RB_UXC_W\"+deviceList[i][pos-2]+deviceList[i][pos-1]+\"_Bd\",deviceList[i] ,\"FwCaenBoardEasy\", 0);
+	}
+	}
+
+
+DebugN(\"BOARDS ready\");
+}
+void InsertBcMaoCrate()
+{
+  //Add BC
+ int pos,pos1;
+string names;
+dyn_string exInfo;
+dyn_string deviceList=dpAliases(\"*/BCs/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	fwFsmTree_addNode(\"RPC_BCsUXC\",deviceList[i] ,\"FwCaenBoardSY1527A1676\", 0);
+	}
+DebugN(\"BC ready\");
+//Add MAO
+
+dyn_string deviceList=dpAliases(\"*/MAO/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+        if(fwFsm_isLogicalDeviceName(deviceList[i]))
+          DebugN(\"SIIIIIII\");
+        
+        pos =strpos(deviceList[i],\"PC_\");
+        names = substr(deviceList[i],pos-1);
+        //DebugN(\"ss\",names,deviceList);
+        pos =strpos(names,\"_X\");
+        names = substr(names,0,pos);
+       DebugN(names,deviceList);
+	fwFsmTree_addNode(names+\"_MAO\",deviceList[i] ,\"FwCaenChannelMAO\", 0);
+	}
+
+DebugN(\"mao ready\");
+
+//Add Crate
+dyn_string deviceList=dpAliases(\"*/Crates/*\",\"*\");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	fwFsmTree_addNode(\"RPC_CratesUXC\",deviceList[i] ,\"FwCaenCrateSY1527Basic\", 0);
+	}
+
+DebugN(\"crate ready\");
+}
+
+void SetAlarmDevice(){
+
+float diff1,diff2,value;
+dyn_string exceptionInfo,split,splitt,summary;
+string channelName,channel;
+dyn_string boolAlarms = makeDynString(\".actual.Trip\",\".actual.OvC\",\".actual.OvV\",
+                   \".actual.UnV\",\".actual.UnC\",\".actual.overHvMax\");
+dyn_string deviceList;//=dpAliases(\"*/HV/*\",\"*\");
+dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+dynAppend(deviceList,dpAliases(\"*/LBB_LV/*\",\"*\"));
+for (int i=1;i<=dynlen(deviceList);i++)
+ {
+ dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\"),
+       aTexts = makeDynString(\"OK\", \"Bad\") ;
+ dyn_float limits; 
+ dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\"),
+       aClasses = makeDynString(\"\", \"_fwErrorAck.\");
+  string alertPanel; dyn_string alertPanelParameters; string alertHelp;
+ 
+ deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+ dpGet(deviceList[i]+\".settings.i0\", value);
+ if(value != 0)
+ {
+ diff1=value*0.05;//primo limite al 10%
+ diff2=value*0.10;//secondo limite al 20%
+ 
+  
+///Set  Alarm channel for Imon
+ channel= deviceList[i]+\".actual.iMon\";
+ 
+ dynAppend(summary,channel);
+ fwAlertConfig_deactivate(channel,exceptionInfo);  
+  limits = makeDynFloat( value-diff2,value-diff1 );
+  DebugN(channel);
+ fwAlertConfig_set(channel,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exceptionInfo);
+             if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+ fwAlertConfig_activate(channel,exceptionInfo);
+ }
+ //Set Digital alarm for channel
+ for(int j =1;j<=dynlen(boolAlarms);j++)
+  {
+  
+  fwAlertConfig_deactivate(deviceList[i]+boolAlarms[j],exceptionInfo); 
+  
+  fwAlertConfig_set(deviceList[i]+boolAlarms[j], DPCONFIG_ALERT_BINARYSIGNAL, aTexts, 
+      limits, aClasses, summary,  alertPanel, alertPanelParameters, alertHelp,  exceptionInfo);
+  
+  
+    
+    fwAlertConfig_activate(deviceList[i]+boolAlarms[j],exceptionInfo); 
+    dynAppend(summary, deviceList[i]+boolAlarms[j]) ;            
+    }
+  
+  fwAlertConfig_deactivate(deviceList[i]+\".\",exceptionInfo); 
+  fwAlertConfig_set(deviceList[i]+\".\",DPCONFIG_SUM_ALERT , aTexts, 
+      limits, aClasses, summary,  alertPanel, alertPanelParameters, alertHelp,  exceptionInfo); 
+ //DebugN(deviceList[i],exceptionInfo,summary);
+ fwAlertConfig_activate(deviceList[i]+\".\",exceptionInfo); 
+ dynClear(summary);
+  
+              
+ }
+  AlarmTemp();
+ DebugN(\"Set Alarm configuration\");
+}
+void setRDBManager()
+{
+ 
+   string value;
+  dyn_string name = makeDynString(\"omds\",\"CMS_RPC_PVSS_CONDITION\",\"take_data\");
+  //dpGet(getSystemName()+\"CMS_RPCfwSupervisor.ConfDB.RDBparam\",value);
+  //name = strsplit(value,\";\");
+  string user = fwRDBConfig_getUser();
+  if((dynlen(name)==3)&&(user==\"\"))
+  {
+  DebugN(\"Setting parameters for oracle database\");
+      fwRDBConfig_setHost(name[1]);
+      fwRDBConfig_setUser(name[2]);
+      fwRDBConfig_setPassword(name[3]);
+  }
+  else 
+     DebugN(\"Setting parameter for Oracle DB not found or already set for user \",user,\", starting with default settings\");
+}
+  
+  
+  
+
+
+void SetDeviceConditionDB(){
+// Ricorda che dovrebbe partire anche il manager ed essere settato
+dyn_string deviceList;//=dpAliases(\"*/HV/*\",\"*\");
+setRDBManager();
+bool configExists; 
+string archiveClassName=\"RDB-99) EVENT\"; //\"ValueArchive_0000\";//Archive's name
+int archiveType=DPATTR_ARCH_PROC_SIMPLESM,count=1,value,l;
+int smoothProcedure=DPATTR_TIME_AND_VALUE_SMOOTH ,pos;//set old/new comparition 
+float deadband=0.2;
+float timeInterval=3600; 
+bool isActive; 
+dyn_string exceptionInfo,channels,boards;
+
+
+//dynClear(deviceList);
+dynAppend(deviceList,dpAliases(\"*/LV/*\",\"*\"));
+dynAppend(deviceList,dpAliases(\"*/LBB_LV/*\",\"*\"));
+dynAppend(deviceList,dpAliases(\"*/MAO/*\",\"*\"));
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+
+fwArchive_setMultiple(deviceList[i]+\".actual.iMon\" , archiveClassName,archiveType,smoothProcedure,
+					0.2, timeInterval,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".actual.vMon\" , archiveClassName,archiveType,smoothProcedure,
+					1, timeInterval,exceptionInfo);
+					
+// pos = strpos(deviceList[i],\"/chann\");
+// boards[i] = substr(deviceList[i],0,pos); 
+
+////************************Slow parameter
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.i0\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 10000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.v0\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 10000,exceptionInfo);
+
+
+// Every 6 hours
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.rDwn\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 20000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.rUp\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 20000,exceptionInfo);
+fwArchive_setMultiple(deviceList[i]+\".readBackSettings.tripTime\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, 20000,exceptionInfo);
+					
+// Every Hour
+fwArchive_setMultiple(deviceList[i]+\".actual.status\" , archiveClassName,archiveType,DPATTR_OLD_NEW_AND_TIME_SMOOTH,
+					deadband, timeInterval,exceptionInfo);
+					
+}
+
+dynClear(deviceList);
+dynAppend(deviceList,dpAliases(\"*/T/*\",\"*\"));
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+
+fwArchive_setMultiple(deviceList[i]+\".actual.temperature\" , archiveClassName,archiveType,DPATTR_TIME_AND_VALUE_SMOOTH,
+					0.2, 7200,exceptionInfo);
+}
+
+
+
+dynClear(deviceList);
+dynAppend(deviceList,dpAliases(\"*/Boards/*\",\"*\"));
+
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+fwArchive_setMultiple(deviceList[i]+\".Temp.Temp1\" , archiveClassName,archiveType,DPATTR_TIME_AND_VALUE_SMOOTH,
+					0.2, 7200,exceptionInfo);
+
+fwArchive_setMultiple(deviceList[i]+\".Information.SerNum\" , archiveClassName,archiveType,DPATTR_COMPARE_OLD_NEW,
+					0.2, 7200,exceptionInfo);
+
+}
+dynClear(deviceList);
+
+
+DebugN(\"Set archiving configuration\");
+}
+" 0
+ E E E
+13 36
+"PUSH_BUTTON21"
+""
+1 330 380 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 328 378 452 402
+
+T 
+1
+LANG:1 6 delete
+"/*
+* Created by Giovanni Polese (Lappeenranta University of Technology
+*	date:08/05/2007
+*	LastChange:14/05/2007
+*
+*
+*/
+main()
+{
+  DeleteFSM();
+  DeleteHW();
+  deleteAlarm();
+  //DeleteDps();
+  DebugN(\"FSM UXC component successfully deleted\");
+}
+void DeleteHW(){
+   fwDevice_initialize();   
+  dyn_string exceptionInfo;
+  dyn_string localCrates = dpNames(getSystemName()+\"*CAEN?*\", \"FwCaenCrateSY1527\");
+  
+  DebugN(localCrates);
+  for(int i = 1;i<=dynlen(localCrates);i++)
+  {
+   if(strpos(localCrates[1],\"lv\")>-1)
+       fwDevice_delete(localCrates[i], exceptionInfo);  
+  }
+  
+  DebugN(\"---Caen hardware deleted.\"); 
+  
+  }
+
+void deleteAlarm()
+{
+string  dpe;
+  bool   configExists;
+  int   alertConfigType;
+  dyn_string   alertTexts;  
+  dyn_float   alertLimits;
+  dyn_string   alertClasses;
+  dyn_string   summaryDpeList;  
+  string   alertPanel;
+  dyn_string   alertPanelParameters;  
+  string   alertHelp;  
+  bool  isActive;
+  dyn_string   exceptionInfo;
+
+
+dyn_string dplist= dpNames(\"*\",\"_FwFsmObject\");
+dynAppend(dplist,dpNames(\"*\",\"FwCaenChannel\"));
+//DebugN(\"sadfdf\",dplist);
+for(int i = 1; i<=dynlen(dplist);i++)
+{
+fwAlertConfig_get  (dplist[i]+\".\",configExists,  
+  alertConfigType,  
+   alertTexts,  
+ alertLimits,  
+  alertClasses,  
+ summaryDpeList,  
+ alertPanel,  
+  alertPanelParameters,  
+  alertHelp,  
+ isActive,  
+ exceptionInfo 
+ );  
+
+if(dynlen(summaryDpeList)==0)
+	{
+	fwAlertConfig_delete(dplist[i]+\".\",exceptionInfo);  
+	//DebugN(\"SSS:\",dplist[i]);
+	}
+
+}
+}
+
+
+void DeleteFSM()
+{
+  dyn_string nodes,nnodes,exInfo,type = makeDynString(\"LV\",\"MAO\",\"T\",\"LBB\",\"UXC\"),nodesTypes;
+  bool find = false, delAll = false;
+  int f =1;
+  fwTree_getChildren(\"RPC_BARREL_HW\",nodes,exInfo);
+  for(int i = 1; i<=dynlen(nodes);i++ )
+  {
+    DebugN(\"Deleting \",nodes[i]);
+    for(int j = 1;j<=dynlen(type);j++)
+    {
+      if(strpos(nodes[i],type[j])>-1)
+      {
+        fwFsmTree_removeNode(\"RPC_BARREL_HW\",nodes[i]);
+        fwCU_getDp(nodes[i], nodesTypes[f]);
+        f++;
+      }
+      else if(strpos(nodes[i],\"oard\")>-1)
+      {
+        fwTree_getChildren(nodes[i],nnodes,exInfo);
+        for(int k = 1; k<=dynlen(nnodes);k++)
+          if(strpos(nnodes[k],\"UXC\")>-1)
+          {
+            fwFsmTree_removeNode(nodes[i],nnodes[k]);
+        fwCU_getDp(nodes[i], nodesTypes[f]);
+        f++;
+      }
+        fwTree_getChildren(nodes[i],nnodes,exInfo);
+        if(dynlen(nnodes)==0)
+        {
+          fwFsmTree_removeNode(\"RPC_BARREL_HW\",nodes[i]);
+          fwCU_getDp(nodes[i], nodesTypes[f]);
+        f++;
+      }
+          
+        }
+        
+              
+      }
+   }
+  fwTree_getChildren(\"RPC_BARREL_HW\",nodes,exInfo);
+  if(dynlen(nodes)==0)
+  {
+          fwFsmTree_removeNode(\"FSM\",\"RPC_BARREL_HW\");
+           fwCU_getDp(\"RPC_BARREL_HW\", nodesTypes[f]);
+        f++;
+        delAll = true;
+        }
+  dynUnique(nodesTypes);
+  if(delAll)
+  {
+      for (int i = 1; i <= dynlen(nodesTypes); i++)
+  {
+    DebugN(\"Starting delete all nodes type \", nodesTypes[i]);  
+     //   dpDelete(nodesTypes[i]); 
+  }
+  
+    }
+   
+  
+  }" 0
+ E E E
+13 37
+"PUSH_BUTTON22"
+""
+1 460 110 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 458 108 512 152
+
+T 
+1
+LANG:1 13 PUSH_BUTTON22
+"main()
+{
+   dyn_string nodes,exInfo;
+  fwTree_getChildren(\"FSM\",nodes,exInfo);
+  string domain = fwFsm_getDimDnsNode();
+ if(domain != \"\")
+  {              
+  for (int i =1;i<=dynlen(nodes);i++)
+    fwFsmTree_startTreeNode(nodes[i], 1);
+  }
+ else
+   DebugN(\"DNS domain not found, please set and start tree manually\");
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

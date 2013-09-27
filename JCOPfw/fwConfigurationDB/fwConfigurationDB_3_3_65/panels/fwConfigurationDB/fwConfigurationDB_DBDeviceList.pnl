@@ -1,0 +1,769 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 676 608 N "_3DFace" 3
+"$hierarchy"
+"$system"
+"$topDevice"
+"main()
+{
+PopulatePanel();
+}" 0
+ E E E E 1 -1 -1 0  68 40
+""0  1
+E "global string g_system=\"\";
+global dyn_string g_devConfNames, g_devConfDescs;
+global dyn_int g_devConfIds;
+global dyn_dyn_mixed g_deviceListObject;
+global string g_configurationName=\"\";
+
+
+void PopulatePanel()
+{
+
+/*
+	//find out system name information...
+	dyn_string tmp=strsplit($topDevice,\":\");
+	if (dynlen(tmp)>1) {
+		// means: we have system name embedded
+		g_system=tmp[1]+\":\";
+	} else {
+		// we have no system name...
+		if ($hierarchy==fwDevice_LOGICAL) 
+			g_system=\"\";
+		else
+			g_system=getSystemName();
+	}
+*/
+	g_system=$system;
+        System.appendItem(\"(all)\");
+        System.appendItem(g_system);
+        System.text=g_system;
+
+	if ($hierarchy==fwDevice_LOGICAL) {
+		RefDpName.visible=TRUE;
+		RefFrame.visible=TRUE;
+		RefId.visible=TRUE;
+		Properties.visible=FALSE;
+		PropertiesFrame.visible=FALSE;
+		MoveDevicesButton.visible=FALSE;
+	} else {
+		RefDpName.visible=FALSE;
+		RefFrame.visible=FALSE;
+		RefId.visible=FALSE;
+		Properties.visible=TRUE;
+		PropertiesFrame.visible=TRUE;
+		MoveDevicesButton.visible=TRUE;
+	}
+
+	MoveDevicesButton.enabled=FALSE;
+
+	Devices.deleteAllLines;
+	DeviceConfigurations.deleteAllItems();
+	DeviceConfigurations.text=\"\";
+	DevConfId.text=\"\";
+	DevConfDesc.text=\"\";
+        DevConfValid.text=\"(current)\";
+
+	dyn_string exceptionInfo;
+
+	dyn_string configurationNames,descriptions;
+	dyn_int configIds;
+	fwConfigurationDB_getDeviceConfigurations($hierarchy,
+		g_devConfNames, g_devConfDescs, g_devConfIds,
+    		exceptionInfo);
+	if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo); return;}
+        dyn_string confs=g_devConfNames;
+        dynInsertAt(confs,\"(Please select)\",1);        
+        dynInsertAt(confs,\"(all)\",2);
+        DeviceConfigurations.items=confs;
+        DeviceConfigurations.selectedPos(1);
+
+}
+
+
+void DeviceConfigurationSelected(string configuration)
+{
+DebugN(\"DeviceConfigurationSelected\",configuration);
+  	MoveDevicesButton.enabled=FALSE;
+	dyn_string exceptionInfo;
+	DevConfDesc.text=\"\";
+	DevConfId.text=\"\";
+	g_configurationName=configuration;
+	if ( configuration==\"(all)\") {
+	  DevConfDesc.text=\"(All devices)\";
+	  DevConfId.text=\"\";
+	  DevConfValid.visible=FALSE;
+	  DevConfValidLabel.visible=FALSE;
+	} else {
+
+	  int idx=dynContains(g_devConfNames, configuration);
+	  if (idx<1) {
+		fwException_raise(exceptionInfo,\"ERROR\",
+		\"unknown device configuration selected:\"+configuration,\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		DeviceConfigurations.text=\"\";
+		return;
+	  }
+
+	  DevConfDesc.text=g_devConfDescs[idx];
+	  DevConfId.text=g_devConfIds[idx];
+	  DevConfValid.visible=TRUE;
+	  DevConfValidLabel.visible=TRUE;
+	}
+	Refresh();
+}
+
+void Refresh()
+{
+
+	dyn_dyn_mixed dbDeviceListObject;
+	dyn_string exceptionInfo;
+	Devices.deleteAllLines;
+
+	string configurationName=DeviceConfigurations.text;
+
+
+	if ((configurationName==\"\") || (configurationName==\"(all)\")) {
+
+	  fwConfigurationDB_extractHierarchyFromDB($topDevice, $hierarchy,
+			g_deviceListObject,
+			exceptionInfo,g_system);
+	  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo); return;}
+
+
+	} else {
+
+	string validOn=DevConfValid.text;
+	time tValidOn=0;
+	if ((validOn!=\"\") && (validOn!=\"(current)\")) tValidOn=validOn;
+
+
+	fwConfigurationDB_getDeviceConfigurationFromDB(configurationName,
+		$hierarchy, g_deviceListObject, exceptionInfo,validOn,\"\",g_system);
+
+
+	}
+
+	if (dynlen(g_deviceListObject)<1) return;
+	if (dynlen(g_deviceListObject[fwConfigurationDB_DLO_DPNAME])<1) return;
+
+	Devices.appendLines( dynlen(g_deviceListObject[fwConfigurationDB_DLO_DPNAME]),
+			\"Id\",(dyn_int)g_deviceListObject[fwConfigurationDB_DLO_ITEMID],
+			\"DpName\",(dyn_string)g_deviceListObject[fwConfigurationDB_DLO_DPNAME]
+			);
+
+}
+
+
+void DeviceSelected(string dpname)
+{
+  
+  	Properties.deleteAllLines;
+	DPType.text=\"\";
+	Comment.text=\"\";
+	RefDpName.text=\"\";
+	RefId.text=\"\";
+
+        if(dpname==\"\") return;
+        
+	int idx=dynContains(g_deviceListObject[fwConfigurationDB_DLO_DPNAME],dpname);
+	if (idx<1) return;
+
+	Comment.text=g_deviceListObject[fwConfigurationDB_DLO_COMMENT][idx];
+	DPType.text=g_deviceListObject[fwConfigurationDB_DLO_DPTYPE][idx];
+	MoveDevicesButton.enabled=TRUE;
+	if ($hierarchy==fwDevice_LOGICAL) {
+		int refid=g_deviceListObject[fwConfigurationDB_DLO_REFID][idx];
+		if (refid){
+			RefDpName.text=g_deviceListObject[fwConfigurationDB_DLO_REFDP][idx];
+			RefId.text=refid;
+		}
+	} else {
+		dyn_int propIds=g_deviceListObject[fwConfigurationDB_DLO_PROPIDS][idx];
+		dyn_string propNames=g_deviceListObject[fwConfigurationDB_DLO_PROPNAMES][idx];
+
+
+		if (dynlen(propIds)<1) return;
+
+		Properties.appendLines( dynlen(propIds),
+			\"PropId\",propIds,
+			\"PropName\",propNames);
+	}
+}
+
+
+void SystemChanged(string sys)
+{
+	g_system=sys;
+	Refresh();
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 1
+"CloseButton"
+""
+1 540 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 540 570 620 600
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+22 11
+"DeviceConfigurations"
+""
+1 80 59.9999999999999 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 80 60 340 87
+0
+
+E
+"main()
+{
+string conf=this.text;
+if (conf==\"(Please select)\") conf=\"\";
+DeviceConfigurationSelected(conf);
+}" 0
+
+E
+ 0 0
+14 12
+"DevConfId"
+""
+1 362.6086956521739 58 E E E 1 E 1 E N "_WindowText" E N "FwBackground" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 363 58 422 85
+2 "0s" 0 0 0 0 0 -1  E E E
+30 14
+"FRAME1"
+""
+1 20 110 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+34 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 2.450907367280608 0 2.493660185967879 -29.01814734561216 -234.3026204564667 0 E 20 110 280 150
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22 Device configurations:
+2 15
+"PRIMITIVE_TEXT1"
+""
+1 35 64 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 35 70 71 87
+0 2 2 "0s" 0 0 0 192 0 0  35 70 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 name:
+2 16
+"PRIMITIVE_TEXT1"
+""
+1 30 73.9999999999999 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 350 69.9999999999999 363 87
+0 2 2 "0s" 0 0 0 192 0 0  350 69.9999999999999 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 id:
+2 17
+"PRIMITIVE_TEXT1"
+""
+1 40 63.9999999999999 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 40 109.9999999999999 106 127
+0 2 2 "0s" 0 0 0 192 0 0  40 109.9999999999999 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 description:
+14 18
+"DevConfDesc"
+""
+1 91.95652173913049 103 E E E 1 E 1 E N "_WindowText" E N "FwBackground" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 113 103 647 130
+2 "0s" 0 0 0 0 0 -1  E E E
+2 19
+"DevConfValidLabel"
+""
+1 -2 82 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 440 70 489 87
+0 2 2 "0s" 0 0 0 192 0 0  440 70 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 valid on:
+14 20
+"DevConfValid"
+""
+1 483.2608695652174 58 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 58 647 85
+2 "0s" 0 0 0 0 0 -1  E E E
+25 25
+"Properties"
+""
+1 40 420 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 40 420 400 580
+EE 1 0 1 2 1 "PropId" 2 1 0 "s" 1
+LANG:1 2 Id
+E
+1
+LANG:1 0 
+
+40 "PropName" 26 1 0 "s" 1
+LANG:1 8 Property
+E
+1
+LANG:1 0 
+
+300 
+17 17 "?" 0 10 84
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+25 29
+"Devices"
+""
+1 30 170 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+125 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 30 170 440 380
+"main()
+{
+this.tableMode=TABLE_SELECT_MULTIPLE;
+this.selectByClick=TABLE_SELECT_LINE;
+
+}" 0
+"main(int row, string column, string value)
+{
+string dpname=this.cellValueRC(row,\"DpName\");
+DeviceSelected(dpname);
+}" 0
+ 1 0 1 2 1 "Id" 2 1 0 "s" 1
+LANG:1 2 Id
+E
+1
+LANG:1 0 
+
+40 "DpName" 49 1 0 "s" 1
+LANG:1 6 DpName
+E
+1
+LANG:1 0 
+
+550 
+17 17 "?" 0 10 84
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+30 31
+"FRAME1"
+""
+1 20 110 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+85 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.653846153846154 0 5.988159590819553 -13.07692307692307 -508.6975549901508 0 E 20 110 280 150
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 Devices in Database
+14 33
+"Comment"
+""
+1 453.6086956521739 260 E E E 1 E 1 E N "_WindowText" E N "FwBackground" E E
+ E E
+101 0 0 0 0 0
+E E E
+0
+1
+LANG:1 14 Device Comment
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 460 260 657 287
+2 "0s" 0 0 0 0 0 -1  E E E
+14 36
+"DPType"
+""
+1 453.6086956521739 290 E E E 1 E 1 E N "_WindowText" E N "FwBackground" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 13 Device DPType
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 460 290 657 317
+2 "0s" 0 0 0 0 0 -1  E E E
+30 37
+"PropertiesFrame"
+""
+1 20 110 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+110 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.653846153846153 0 4.990132992349627 -13.07692307692306 -148.914629158459 0 E 20 110 280 150
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Device elements
+13 38
+"MoveDevicesButton"
+""
+1 526 326 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+111 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 526 326 606 357
+
+T 
+1
+LANG:1 8 Move ...
+"main()
+{
+dyn_string exceptionInfo;
+dyn_int selectedLines=Devices.getSelectedLines();
+if (dynlen(selectedLines)==0) {
+	fwException_raise(exceptionInfo,\"INFORMATION\",
+		\"Please select devices first\",\"\");
+	fwExceptionHandling_display(exceptionInfo);
+	this.enabled=FALSE;
+	return;
+}
+
+dyn_string deviceList;
+for (int i=1;i<=dynlen(selectedLines);i++) {
+	string device=Devices.cellValueRC(selectedLines[i],\"DpName\");
+	dynAppend(deviceList,device);
+}
+
+dyn_float df;
+dyn_string ds;
+ChildPanelOnCentralReturn(\"fwGeneral/fwGeneralReadStringValue.pnl\",
+	\"Move devices...\",
+	makeDynString(\"$sTitle:Move devices\",
+		\"$sDescription: type in the name of the target system\"),
+	df,ds);
+if (dynlen(df)<1) return; // cancel;
+if (df[1]!=1) return;// also cancelled;
+
+string targetSystem=ds[1];
+if (targetSystem==\"\") {
+	fwException_raise(exceptionInfo,\"ERROR\",\"Empty name specified...\",\"\");
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+}
+//fwOpenProgressBar(\"Move devices:\", \"Moving devices to system \"+targetSystem,1);
+fwConfigurationDB_openProgressDialog(makeDynInt(99),makeDynString(\"Moving devices to system \"+targetSystem));
+
+//DebugN(\"move to \"+targetSystem,deviceList);
+fwConfigurationDB_reconnectDevices(deviceList, g_configurationName,
+        $hierarchy, targetSystem, exceptionInfo);
+
+if (dynlen(exceptionInfo)) {
+  fwConfigurationDB_closeProgressDialog();
+//	fwCloseProgressBar(\"ERROR\");
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+}
+//refresh:
+DeviceConfigurationSelected(g_configurationName);
+//fwCloseProgressBar(\"OK\");
+fwConfigurationDB_closeProgressDialog();
+}" 0
+ E E E
+14 40
+"RefDpName"
+""
+1 76.86956521739128 500 E E E 1 E 1 E N "_WindowText" E N "FwBackground" E E
+ E E
+112 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 90 500 442 527
+2 "0s" 0 0 0 0 0 -1  E E E
+14 41
+"RefId"
+""
+1 30 500 E E E 1 E 1 E N "_WindowText" E N "FwBackground" E E
+ E E
+114 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 30 500 80 527
+2 "0s" 0 0 0 0 0 -1  E E E
+30 42
+"RefFrame"
+""
+1 20 110 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+117 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.653846153846153 0 2.245559846557332 -13.07692307692306 212.9884168786934 0 E 20 110 280 150
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Referenced device:
+22 43
+"System"
+""
+1 495.3478260869566 160 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+121 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 500 160 657 187
+0
+
+E
+"main()
+{
+  string sys=this.text;
+if (sys==\"(all)\") sys=\"\";
+SystemChanged(sys);
+}" 0
+
+E
+ 1 0
+2 44
+"PRIMITIVE_TEXT1"
+""
+1 460 165 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+122 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 460 165 484 182
+0 2 2 "0s" 0 0 0 192 0 0  460 165 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 Sys:
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

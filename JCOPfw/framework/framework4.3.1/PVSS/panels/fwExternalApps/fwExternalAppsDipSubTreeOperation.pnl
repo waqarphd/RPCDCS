@@ -1,0 +1,686 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 840 640 N "_3DFace" 0
+E E E E E 1 -1 -1 0  270 340
+""0  1
+E "
+int numbEntries;
+
+
+dyn_int    dipSelected;
+dyn_string dipRootSel;
+dyn_int    dipSelPos;
+dyn_string dipSelStr;
+dyn_int    dipMaxChd;
+
+
+void enableToggles(bool state)
+{
+  setValue(\"DipConfig\",\"enabled\",state);
+  setValue(\"DipRoot\",\"enabled\",state);
+  setValue(\"ScanTree\",\"enabled\",state);
+  
+  setValue(\"save_csv\",\"enabled\",state);
+  setValue(\"save_txt\",\"enabled\",state);
+}
+
+
+void scanDipTree ( int selection )
+{
+int dipTimeout;
+dyn_string exceptionInfo;
+dyn_string dipItems, dipNames, dipTypes;
+string dipConfig;
+
+  fwOpenProgressBar ( \"Information\" , \"Getting publications\" , 1 );      
+  
+  Table.deleteAllLines();
+
+  numbEntries = 0;
+  
+  dipConfig = DipConfig.selectedText();
+  dpGet ( dipConfig+\".queryTimeout\" , dipTimeout );      
+  // DebugN(\"Config '\"+dipConfig+\"' timeout=\"+dipTimeout);
+  
+  for ( int index = 1 ; index <= dynlen(dipSelected) ; ++index )
+  {
+    if ( selection == dipSelected[index] )
+    {
+      // DebugN(\"Calling queryDipServer\",dipConfig , dipRootSel[index] , dipSelPos[index] , dipSelStr[index] , dipMaxChd[index] );
+
+      queryDipServer ( dipConfig , dipRootSel[index] , 1 , dipSelPos[index] , dipSelStr[index] , dipMaxChd[index] ,
+                       dipItems , dipNames , dipTypes , 1 , dipTimeout , exceptionInfo );
+      
+      if ( dynlen(exceptionInfo ) != 0 ) { break; }
+    }
+  }
+
+  if ( dynlen(exceptionInfo ) != 0 )
+  {
+    if ( strpos(exceptionInfo[2],\"Timeout occured when trying to query for DIP address\") >= 0 )
+       ChildPanelOnCentral(\"/fwGeneral/fwMessageInfo1.pnl\",\"\", 
+                           makeDynString(\"$1: DIP-Manager Must be running to get Publications\"));                 
+    else 
+       ChildPanelOnCentral(\"/fwGeneral/fwMessageInfo1.pnl\",\"\", 
+                           makeDynString(\"$1: There are No Publications Available!\"));
+  }
+  else
+  {
+    Table.appendLines(dynlen(dipItems),\"DnsItem\",dipItems,\"DnsName\",dipNames,\"DnsType\",dipTypes);
+  }    
+  
+  fwCloseProgressBar ( \"Done\" );
+}
+    
+
+void queryDipServer ( string dipConfig , string queryStr , int depth , int matchPos , string matchStr , int maxChd ,
+                      dyn_string & dipItems , dyn_string & dipNames , dyn_string & dipTypes , 
+                      int nodeType , int timeout , dyn_string & exceptionInfo )
+{
+string dpetype;
+string dpConfig;
+string queryStrLeaf;
+dyn_int childTypes, fieldTypes;
+dyn_string childNames, fieldNames;
+dyn_int childTypesLeaf, fieldTypesLeaf;
+dyn_string childNamesLeaf, fieldNamesLeaf;
+
+  // DebugN(\"Querying \"+queryStr);
+  
+  int rtn = fwDIP_DipQuery ( dipConfig , queryStr ,
+                             childNames , childTypes,
+                             fieldNames , fieldTypes,
+                             exceptionInfo , timeout );   
+ 
+  // Checking the Consistency of the Returned Data
+  int cn=dynlen(childNames); int ct=dynlen(childTypes); int fn=dynlen(fieldNames); int ft=dynlen(fieldTypes);
+
+  if ( ( cn != ct ) || ( fn != ft ) || ( ( fn != 0 ) && ( nodeType == 1 ) ) )
+  {
+    DebugN(\"Inconsistancy: query=\"+queryStr+\" cn=\"+cn+\" ct=\"+ct+\" fn=\"+fn+\" ft=\"+ft);
+  }
+  
+  for ( int idx = 1 ; idx <= dynlen(childNames) ; ++idx )
+  {
+    // Checking the Consistency of the Returned Data
+    if ( childTypes[idx] & ~3 )
+    {
+      DebugN(\"ChildLeafElem: query=\"+queryStr+\" cn=\"+cn+\" ct=\"+ct+\" fn=\"+fn+\" ft=\"+ft);
+      DebugN(\"               idx=\"+idx+\" child=\"+childNames[idx]+\" childType=\"+childTypes[idx]);
+    }
+
+    if ( childTypes[idx] & 2 )
+    {
+      if (  ( matchPos == 0 )
+         || ( ( matchPos > 0 ) && ( ( depth != matchPos ) || ( childNames[idx] == matchStr ) ) )
+         || ( ( matchPos < 0 ) && ( ( depth != -matchPos ) || ( strpos(childNames[idx],matchStr) >= 0 ) ) ) )
+      { 
+        queryStrLeaf = queryStr+\"/\"+childNames[idx];
+        // DebugN(\"DIP Variable \"+queryStrLeaf);
+      
+        int rtn = fwDIP_DipQuery ( dipConfig , queryStrLeaf ,
+                                   childNamesLeaf , childTypesLeaf,
+                                   fieldNamesLeaf , fieldTypesLeaf,
+                                   exceptionInfo , timeout );       
+        
+        // Checking the Consistency of the Returned Data
+        int cnf=dynlen(childNamesLeaf); int ctf=dynlen(childTypesLeaf); int fnf=dynlen(fieldNamesLeaf); int ftf=dynlen(fieldTypesLeaf);
+        if ( ( cnf != ctf ) || ( fnf != ftf ) || ( ( cnf != 0 ) && ( childTypes[idx] == 2 ) ) )
+        {
+          DebugN(\"Inconsistancy: query=\"+queryStrLeaf+\" cnf=\"+cnf+\" ctf=\"+ctf+\" fnf=\"+fnf+\" ftf=\"+ftf);
+        }
+
+        if ( fnf == 0 ) { fieldNamesLeaf[1] = \"nonexisting\"; ++fnf; fieldTypesLeaf[1] = -1; ++ftf; }
+      
+        if ( fnf > maxChd )
+        {
+          DebugN(\"Questionable: query=\"+queryStrLeaf +\" cnf=\"+cnf+\" ctf=\"+ctf+\" fnf=\"+fnf+\" ftf=\"+ftf);
+        }
+        
+        for ( int sub = 1 ; sub <= dynlen(fieldNamesLeaf) ; ++sub )
+        {
+          ++numbEntries;
+        
+          dynAppend ( dipItems , queryStrLeaf );
+          dynAppend ( dipNames , fieldNamesLeaf[sub] );
+          switch ( fieldTypesLeaf[sub] )
+          {
+            case DPEL_INT:          dpetype = \"Integer\";       break;
+            case DPEL_FLOAT:        dpetype = \"Float\";         break;
+            case DPEL_BOOL:         dpetype = \"Boolean\";       break;
+            case DPEL_STRING:       dpetype = \"String\";        break;
+            case DPEL_DYN_INT:      dpetype = \"DynInteger\";    break;
+            case DPEL_DYN_FLOAT:    dpetype = \"DynFloat\";      break;
+            case DPEL_DYN_BOOL:     dpetype = \"DynBoolean\";    break;
+            case DPEL_DYN_STRING:   dpetype = \"DynString\";     break;
+            case -1:                dpetype = \"Undefined!\";    break;
+            default:                dpetype = \"Unrecognised!\";
+                                    DebugN(\"Unrecognised DPE-Type = '\"+fieldTypesLeaf[sub]+\"'\");
+                                    break;
+          }
+          dynAppend ( dipTypes , dpetype );
+        }
+      }        
+    }
+    
+    if ( childTypes[idx] & 1 )
+    {
+      if (  ( matchPos == 0 )
+         || ( ( matchPos > 0 ) && ( ( depth != matchPos ) || ( childNames[idx] == matchStr ) ) )
+         || ( ( matchPos < 0 ) && ( ( depth != -matchPos ) || ( strpos(childNames[idx],matchStr) >= 0 ) ) ) )
+      { 
+        queryDipServer ( dipConfig , queryStr+\"/\"+childNames[idx] , depth + 1 , matchPos , matchStr , maxChd ,
+                         dipItems , dipNames , dipTypes , childTypes[idx] , timeout , exceptionInfo );
+      }
+    }    
+  }
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"PUSH_BUTTON1"
+""
+1 740 597 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 738 595 832 629
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+25 1
+"Table"
+""
+1 10 170 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 168 832 582
+EE 1 0 1 3 0 "DnsItem" 52 1 0 "s" 1
+LANG:1 13 DNS Item Name
+E
+1
+LANG:1 0 
+
+580 "DnsName" 9 1 0 "s" 1
+LANG:1 8 DNS Name
+E
+1
+LANG:1 0 
+
+110 "DnsType" 9 1 0 "s" 1
+LANG:1 8 DNS Type
+E
+1
+LANG:1 0 
+
+110 
+20 20 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+2 2
+"TextHeader"
+""
+1 8 8 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 10 219 33
+0 2 0 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 External Application Data
+13 26
+"save_csv"
+""
+1 10 597 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 595 182 629
+
+T 
+1
+LANG:1 16 Save to CSV File
+"main()
+{
+int rtn;
+int length;
+file filed;
+string filename;
+dyn_anytype items;
+string directory = getPath(DATA_REL_PATH);
+
+  rtn = fileSelector(filename,directory,FALSE,\"*.csv\",FALSE);
+  if ( strpos(filename,\".csv\") < 0 ) filename += \".csv\";
+  // DebugN(\"Filename '\"+filename+\"'\");
+  
+  if ( rtn == 0 )
+  {
+    if ( ( filed = fopen(filename,\"w\") ) == 0 ) return;
+    
+    enableToggles(FALSE);
+    
+    length = Table.lineCount();
+    
+    fputs(\"DNS Item Name,DNS Name,DNS Type\\n\",filed);
+    
+    for ( int idx = 0 ; idx < length ; ++idx )
+    {
+      items = Table.getLineN(idx);
+      if ( dynlen(items) != 3 ) { DebugN(\"DNS Item Name Table entry \"+(string)(idx+1)+\" Must have '3' Items\"); }
+    
+      for ( int itm = 1 ; itm <= dynlen(items) ; ++itm )
+      {
+        if ( itm > 1 ) fputs(\",\",filed);
+        fputs(items[itm],filed);
+      }
+      fputs(\"\\n\",filed);
+    }
+    
+    fclose(filed);
+    
+    enableToggles(TRUE);
+  }
+}" 0
+ E E E
+13 27
+"save_txt"
+""
+1 210 597 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 208 595 382 629
+
+T 
+1
+LANG:1 18 Save to Plain Text
+"main()
+{
+int rtn;
+int length;
+file filed;
+string values;
+string filename;
+dyn_anytype items;
+string directory = getPath(DATA_REL_PATH);
+
+  rtn = fileSelector(filename,directory,FALSE,\"*.txt\",FALSE);
+  if ( strpos(filename,\".txt\") < 0 ) filename += \".txt\";
+  // DebugN(\"Filename '\"+filename+\"'\");
+  
+  if ( rtn == 0 )
+  {
+    if ( ( filed = fopen(filename,\"w\") ) == 0 ) return;
+    
+    enableToggles(FALSE);
+    
+    length = Table.lineCount();
+    // DebugN(\"Length \"+length);
+    
+    fputs(\"DNS Type        DNS Name    DNS Item Name\\n\",filed);
+    
+    for ( int idx = 0 ; idx < length ; ++idx )
+    {
+      items = Table.getLineN(idx);
+      
+      sprintf(values,\"%-16s%-12s%s\\n\",items[3],items[2],items[1]);
+      fputs(values,filed);
+    }
+    
+    fclose(filed);
+    
+    enableToggles(TRUE);
+  }
+}" 0
+ E E E
+22 34
+"DipRoot"
+""
+1 240 130 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 238 118 552 146
+0
+
+"main()
+{
+int sequenceNumber = 0;
+
+  this.appendItem(\"Select...\");
+  
+  this.appendItem(\"LHC Accelerator\"); dynAppend ( dipSelected , ++sequenceNumber );
+
+  dynAppend ( dipRootSel , makeDynString ( \"dip/acc/LHC\" ) );
+  dynAppend ( dipSelPos ,  makeDynInt    (             0 ) );
+  dynAppend ( dipSelStr ,  makeDynString (            \"\" ) );
+  dynAppend ( dipMaxChd ,  makeDynInt    (            21 ) );
+
+  this.appendItem(\"CSAM ATLAS\");         dynAppend ( dipSelected , ++sequenceNumber ); dynAppend ( dipSelected , sequenceNumber );
+  this.appendItem(\"CSAM ALICE\");         dynAppend ( dipSelected , ++sequenceNumber ); dynAppend ( dipSelected , sequenceNumber );
+  this.appendItem(\"CSAM CMS\");           dynAppend ( dipSelected , ++sequenceNumber ); dynAppend ( dipSelected , sequenceNumber );
+  this.appendItem(\"CSAM LHCb\");          dynAppend ( dipSelected , ++sequenceNumber ); dynAppend ( dipSelected , sequenceNumber );
+  
+  dynAppend ( dipRootSel , makeDynString ( \"dip/ts/CSAM\" , \"dip/ts/CSAM\" , \"dip/ts/CSAM\" , \"dip/ts/CSAM\" , \"dip/ts/CSAM\" , \"dip/ts/CSAM\" , \"dip/ts/CSAM\" , \"dip/ts/CSAM\" ) );
+  dynAppend ( dipSelPos ,  makeDynInt    (            -1 ,             2 ,            -1 ,             2 ,            -1 ,             2 ,            -1 ,             2 ) );
+  dynAppend ( dipSelStr ,  makeDynString (         \"L01\" ,         \"L01\" ,         \"L02\" ,         \"L02\" ,         \"L05\" ,         \"L05\" ,         \"L08\" ,         \"L08\" ) );
+  dynAppend ( dipMaxChd ,  makeDynInt    (             2 ,             2 ,             2 ,             2 ,             2 ,             2 ,             2 ,             2 ) );
+  
+  this.appendItem(\"LACS ATLAS\");         dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"LACS ALICE\");         dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"LACS CMS\");           dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"LACS LHCb\");          dynAppend ( dipSelected , ++sequenceNumber );
+  
+  dynAppend ( dipRootSel , makeDynString ( \"dip/ts/TIM/ACCE/ZORA/L01\" , \"dip/ts/TIM/ACCE/ZORA/L02\" , \"dip/ts/TIM/ACCE/ZORA/L05\" , \"dip/ts/TIM/ACCE/ZORA/L08\" ) );
+  dynAppend ( dipSelPos ,  makeDynInt    (                          0 ,                          0 ,                          0 ,                          0 ) );
+  dynAppend ( dipSelStr ,  makeDynString (                         \"\" ,                         \"\" ,                         \"\" ,                         \"\" ) );
+  dynAppend ( dipMaxChd ,  makeDynInt    (                         12 ,                         12 ,                         12 ,                         12 ) );
+
+  this.appendItem(\"COOLING ATLAS\");      dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"COOLING ALICE\");      dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"COOLING CMS\");        dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"COOLING LHCb\");       dynAppend ( dipSelected , ++sequenceNumber );
+  
+  dynAppend ( dipRootSel , makeDynString ( \"dip/ts/TIM/EAU\" , \"dip/ts/TIM/EAU\" , \"dip/ts/TIM/EAU\" , \"dip/ts/TIM/EAU\" ) );
+  dynAppend ( dipSelPos ,  makeDynInt    (                2 ,                2 ,                2 ,                2 ) );
+  dynAppend ( dipSelStr ,  makeDynString (            \"L01\" ,            \"L02\" ,            \"L05\" ,            \"L08\" ) );
+  dynAppend ( dipMaxChd ,  makeDynInt    (                1 ,                1 ,                1 ,                1 ) );
+
+  this.appendItem(\"ELECTRICITY ATLAS\");  dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"ELECTRICITY ALICE\");  dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"ELECTRICITY CMS\");    dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"ELECTRICITY LHCb\");   dynAppend ( dipSelected , ++sequenceNumber );
+
+  dynAppend ( dipRootSel , makeDynString ( \"dip/ts/TIM/ELEC\" , \"dip/ts/TIM/ELEC\" , \"dip/ts/TIM/ELEC\" , \"dip/ts/TIM/ELEC/BT/L08\" ) );
+  dynAppend ( dipSelPos ,  makeDynInt    (                 2 ,                 2 ,                 2 ,                        0 ) );
+  dynAppend ( dipSelStr ,  makeDynString (             \"L01\" ,             \"L02\" ,             \"L05\" ,                       \"\" ) );
+  dynAppend ( dipMaxChd ,  makeDynInt    (                 1 ,                 1 ,                 1 ,                        1 ) );
+
+  this.appendItem(\"PRIMARY-GAS ATLAS\");  dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"PRIMARY-GAS ALICE\");  dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"PRIMARY-GAS CMS\");    dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"PRIMARY-GAS LHCb\");   dynAppend ( dipSelected , ++sequenceNumber );
+
+  dynAppend ( dipRootSel , makeDynString ( \"dip/ATLAS/GCS\" , \"dip/ALICE/GCS\" , \"dip/CMS/GCS\" , \"dip/LHCb/GCS\" ) );
+  dynAppend ( dipSelPos ,  makeDynInt    (               2 ,               2 ,             2 ,              2 ) );
+  dynAppend ( dipSelStr ,  makeDynString (       \"Primary\" ,       \"Primary\" ,     \"Primary\" ,      \"Primary\" ) );
+  dynAppend ( dipMaxChd ,  makeDynInt    (              18 ,              18 ,            18 ,             18 ) );
+
+  this.appendItem(\"RAMSES ATLAS\"); dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"RAMSES ALICE\"); dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"RAMSES CMS\");   dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"RAMSES LHCb\");  dynAppend ( dipSelected , ++sequenceNumber );
+  this.appendItem(\"RAMSES TOTEM\"); dynAppend ( dipSelected , ++sequenceNumber );
+
+  dynAppend ( dipRootSel , makeDynString ( \"dip/RAMSES/ATLAS\" , \"dip/RAMSES/ALICE\" , \"dip/RAMSES/CMS\" , \"dip/RAMSES/LHC_B\" , \"dip/RAMSES/LHC_P5\" ) );
+  dynAppend ( dipSelPos ,  makeDynInt    (                  0 ,                  0 ,                0 ,                  0 ,                   0 ) );
+  dynAppend ( dipSelStr ,  makeDynString (                 \"\" ,                 \"\" ,               \"\" ,                 \"\" ,                  \"\" ) );
+  dynAppend ( dipMaxChd ,  makeDynInt    (                  8 ,                  8 ,                8 ,                  8 ,                   8 ) );
+
+  this.appendItem(\"VACUUM LHC\"); dynAppend ( dipSelected , ++sequenceNumber );
+
+  dynAppend ( dipRootSel , makeDynString ( \"dip/VAC/LHC\" ) );
+  dynAppend ( dipSelPos ,  makeDynInt    (             0 ) );
+  dynAppend ( dipSelStr ,  makeDynString (            \"\" ) );
+  dynAppend ( dipMaxChd ,  makeDynInt    (             1 ) );
+}" 0
+
+E
+E
+ 0 0
+2 37
+"PRIMITIVE_TEXT8"
+""
+1 10 123 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 10 123 220 143
+0 2 2 "0s" 0 0 0 64 0 0  10 123 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 Dip-Tree Pattern Matching
+13 42
+"ScanTree"
+""
+1 590 120 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 588 118 812 146
+
+T 
+1
+LANG:1 13 Scan Sub-Tree
+"main()
+{
+  int selection = DipRoot.selectedPos();
+  // DebugN(\"Selection \"+selection);
+  
+  --selection;
+  
+  if ( selection > 0 )
+  {
+    enableToggles ( FALSE );
+    scanBusy.text = \"Loading...\";
+
+    scanDipTree ( selection );
+    
+    scanBusy.text = \"Rows: \"+(string)numbEntries;
+    enableToggles ( TRUE );
+  }
+  
+  // Don't do it - otherwise one does not know what was selected...
+  // DipRoot.selectedPos(1);
+}" 0
+ E E E
+2 47
+"PRIMITIVE_TEXT13"
+""
+1 10 43 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 10 43 410 63
+0 2 2 "0s" 0 0 0 64 0 0  10 43 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 55 Note that the DIP manager must be running for the scan!
+22 48
+"DipConfig"
+""
+1 240 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 238 78 552 106
+0
+
+"main()
+{
+int position = 1;
+dyn_string configs = dpNames(\"*:*\",\"_FwDipConfig\");
+  
+  for ( int idx = 1 ; idx <= dynlen(configs) ; ++idx )
+  {
+    if ( strpos(configs[idx],\"ExternalApps\") >= 0 ) { position = idx; break; }
+  }
+  
+  DipConfig.items = configs;
+  DipConfig.selectedPos = position;
+}" 0
+
+E
+E
+ 0 0
+2 49
+"PRIMITIVE_TEXT14"
+""
+1 10 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 10 80 220 100
+0 2 2 "0s" 0 0 0 64 0 0  10 80 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Dip Configuration
+2 50
+"scanBusy"
+""
+1 966.1519381891322 80 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.19402985074627 0 1 -94.02985074626859 0 0 E 600 80 730 100
+0 2 2 "0s" 0 0 0 64 0 0  600 80 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

@@ -1,0 +1,1130 @@
+V 12
+1
+LANG:10001 0 
+PANEL,-1 -1 690 400 N "_3DFace" 9
+"$bDateAndTime"
+"$bEnabled"
+"$bShowTimeZone"
+"$iTimePeriod"
+"$sEndDate"
+"$sEndTime"
+"$sStartDate"
+"$sStartTime"
+"$sTimeZone"
+"main()
+{
+  dyn_int di_panelSize; 
+  
+  // set size and position of background that is shown while the calendar chooser is in use  
+  busyBackground.position(0,0);
+  di_panelSize = getPanelSize(panelFileName(myModuleName(), myPanelName()));
+  busyBackground.size(di_panelSize[1], di_panelSize[2]);
+  
+  // process dollar parameters
+  arrangeWidgetElements(\"$bDateAndTime\");
+  enableWidget(\"$bEnabled\");
+  showTimeZone(\"$bShowTimeZone\");  
+  setTimeZone(\"$sTimeZone\");
+  setTimePeriod(\"$iTimePeriod\");
+  setInitialDate(\"$sStartDate\", \"$sEndDate\");
+  setInitialTime(\"$sStartTime\", \"$sEndTime\");
+}
+
+// ------------------------------------------------------------------------------------------------
+
+arrangeWidgetElements(string sDollarParam)
+{
+  int iX, iY;
+  bool bDateAndTime;
+  
+  if(isDollarDefined(sDollarParam)
+    && (getDollarValue(sDollarParam) == \"TRUE\" || getDollarValue(sDollarParam) == \"true\"
+        || getDollarValue(sDollarParam) == \"1\"))
+  {
+    bDateAndTime = $bDateAndTime; 
+    dateAndTimeShownField.text = bDateAndTime;   
+
+    startDateButton.visible(FALSE);
+    endDateButton.visible(FALSE);
+    
+    getValue(\"dateTimeSeparator\", \"position\", iX, iY);
+    dateTimeSeparator.position(iX-27, iY);
+    getValue(\"startTimeField\", \"position\", iX, iY);
+    startTimeField.position(iX-26, iY);
+    getValue(\"endTimeField\", \"position\", iX, iY);
+    endTimeField.position(iX-26, iY);
+    getValue(\"startTimeSpin\", \"position\", iX, iY);
+    startTimeSpin.position(iX-26, iY);
+    getValue(\"endTimeSpin\", \"position\", iX, iY);
+    endTimeSpin.position(iX-26, iY);
+    getValue(\"startDateChooserButton\", \"position\", iX, iY);
+    startDateChooserButton.position(iX-26, iY);
+    getValue(\"endDateChooserButton\", \"position\", iX, iY);
+    endDateChooserButton.position(iX-26, iY);
+    getValue(\"startNowButton\", \"position\", iX, iY);
+    startNowButton.position(iX-26, iY);
+    getValue(\"endNowButton\", \"position\", iX, iY);
+    endNowButton.position(iX-26, iY);
+    getValue(\"timeZoneLabel\", \"position\", iX, iY);
+    timeZoneLabel.position(iX-26, iY);
+    getValue(\"selectedTimeZone\", \"position\", iX, iY);
+    selectedTimeZone.position(iX-26, iY);
+  }
+  else
+  {
+    dateAndTimeShownField.text = FALSE;
+    
+    startDateChooserButton.visible(FALSE);
+    endDateChooserButton.visible(FALSE);
+    startNowButton.visible(FALSE);
+    endNowButton.visible(FALSE);
+    startTimeField.visible(FALSE);
+    endTimeField.visible(FALSE);
+    startTimeSpin.visible(FALSE);
+    endTimeSpin.visible(FALSE);
+    dateTimeSeparator.visible(FALSE);
+    
+    getValue(\"timeZoneLabel\", \"position\", iX, iY);
+    timeZoneLabel.position(iX-214, iY);
+    getValue(\"selectedTimeZone\", \"position\", iX, iY);
+    selectedTimeZone.position(iX-214, iY);
+    
+    // set position of date choosers
+    getValue(\"startDateButton\", \"position\", iX, iY);
+    calendarChooser.position(iX+27,iY+2);
+    calendarChooser2.position(iX+27,iY+31);
+  }
+}
+
+// ------------------------------------------------------------------------------------------------
+
+enableWidget(string sDollarParam)
+{
+  if(isDollarDefined(sDollarParam) && 
+     (getDollarValue(sDollarParam) == \"TRUE\" || getDollarValue(sDollarParam) == \"true\"
+      || getDollarValue(sDollarParam) == \"FALSE\" || getDollarValue(sDollarParam) == \"false\"
+      || getDollarValue(sDollarParam) == \"1\" || getDollarValue(sDollarParam) == \"0\"))
+  {
+    fwGeneral_dateTimeWidget_setEnabled($bEnabled);
+  }
+  else
+  {
+    fwGeneral_dateTimeWidget_setEnabled(TRUE);   
+  }   
+}
+
+// ------------------------------------------------------------------------------------------------
+
+showTimeZone(string sDollarParam)
+{
+  if(isDollarDefined(sDollarParam) && 
+     (getDollarValue(sDollarParam) == \"FALSE\" || getDollarValue(sDollarParam) == \"false\"
+      || getDollarValue(sDollarParam) == \"0\"))
+  {
+    timeZoneLabel.visible($bShowTimeZone);
+    selectedTimeZone.visible($bShowTimeZone);
+    timeZoneShownField.text = $bShowTimeZone;
+  }
+  else
+  {
+    timeZoneLabel.visible(TRUE);
+    selectedTimeZone.visible(TRUE); 
+    timeZoneShownField.text = TRUE;
+  }  
+}
+
+// ------------------------------------------------------------------------------------------------
+
+setTimeZone(string sDollarParam)
+{
+  if(isDollarDefined(sDollarParam) && getDollarValue(sDollarParam) != \"\")
+  {
+    selectedTimeZone.text = $sTimeZone;
+  }
+  else
+  {
+    selectedTimeZone.text = FW_GENERAL_TIMEZONE_LOCAL;
+  }    
+}
+
+// ------------------------------------------------------------------------------------------------
+
+setTimePeriod(string sDollarParam)
+{
+  if(isDollarDefined(sDollarParam) && getDollarValue(sDollarParam) != \"\")
+  {
+    g_iTimePeriod = $iTimePeriod;
+  }
+  else
+  {
+    g_iTimePeriod = 86400*7;
+  } 
+}
+
+// ------------------------------------------------------------------------------------------------
+
+setInitialDate(string sStartDollarParam, string sEndDollarParam)
+{
+  string sStartDate, sEndDate, sEndTime;
+  dyn_string dsEndDate, dsEndTime;
+  time tNow;
+  long qNow, qBegin;
+  
+  tNow = getTimeZoneConformCurrentTime();
+  sEndDate = formatTime(\"%d/%m/%Y\", tNow);
+  sEndTime = formatTime(\"%H:%M:%S\", tNow);
+  
+  if(isDollarDefined(sEndDollarParam) && (getDollarValue(sEndDollarParam) != \"\")
+    && fwGeneral_hasCorrectDateFormat(getDollarValue(sEndDollarParam)))
+  {
+    sEndDate = $sEndDate;    
+  } 
+  if(isDollarDefined(\"$sEndTime\") && (getDollarValue(\"$sEndTime\") != \"\") 
+    && fwGeneral_hasCorrectTimeFormat(getDollarValue(\"$sEndTime\")))
+  {
+    sEndTime = $sEndTime;   
+  }
+  
+  dsEndDate = strsplit(sEndDate, \"/\");
+  dsEndTime = strsplit(sEndTime, \":\");
+  qNow = makeTime(dsEndDate[3], dsEndDate[2], dsEndDate[1], dsEndTime[1], dsEndTime[2], dsEndTime[3]);
+  qBegin = qNow - g_iTimePeriod;
+  sStartDate = formatTime(\"%d/%m/%Y\", (time)qBegin); 
+
+  if(isDollarDefined(sStartDollarParam) && (getDollarValue(sStartDollarParam) != \"\")
+    && fwGeneral_hasCorrectDateFormat(getDollarValue(sStartDollarParam)))
+  {
+    sStartDate = $sStartDate;
+  }
+    
+  startDateField.text = sStartDate;
+  endDateField.text = sEndDate;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+setInitialTime(string sStartDollarParam, string sEndDollarParam)
+{
+  string sStartTime, sEndTime, sEndDate;
+  dyn_string dsEndTime, dsEndDate;
+  time tNow;
+  long qNow, qBegin;
+
+  tNow = getTimeZoneConformCurrentTime();  
+  sEndTime = formatTime(\"%H:%M:%S\", tNow);
+  sEndDate = formatTime(\"%d/%m/%Y\", tNow);
+ 
+  if(isDollarDefined(sEndDollarParam) && (getDollarValue(sEndDollarParam) != \"\") 
+    && fwGeneral_hasCorrectTimeFormat(getDollarValue(sEndDollarParam)))
+  {
+    sEndTime = $sEndTime;   
+  }
+  if(isDollarDefined(\"$sEndDate\") && (getDollarValue(\"$sEndDate\") != \"\")
+    && fwGeneral_hasCorrectDateFormat(getDollarValue(\"$sEndDate\")))
+  {
+    sEndDate = $sEndDate;    
+  } 
+  
+  dsEndTime = strsplit(sEndTime, \":\");
+  dsEndDate = strsplit(sEndDate, \"/\");
+  qNow = makeTime(dsEndDate[3], dsEndDate[2], dsEndDate[1], dsEndTime[1], dsEndTime[2], dsEndTime[3]);
+  qBegin = qNow - g_iTimePeriod;
+  sStartTime = formatTime(\"%H:%M:%S\", (time)qBegin);
+
+  if(isDollarDefined(sStartDollarParam) && (getDollarValue(sStartDollarParam) != \"\") 
+    && fwGeneral_hasCorrectTimeFormat(getDollarValue(sStartDollarParam)))
+  {
+    sStartTime = $sStartTime;
+  } 
+  
+  startTimeField.text = sStartTime;  
+  endTimeField.text = sEndTime;
+
+}
+
+
+
+" 0
+ E E E E 1 -1 -1 0  10 10
+""0  1
+E "// --------------------------------------------------------------------------------------------- //
+// ------------------------------------- USER INSTRUCTIONS ------------------------------------- //
+// --------------------------------------------------------------------------------------------- //
+// 
+// This widget is intended to be used via \"addSymbol()\"
+// 
+// A list of $-parameters are at hand during initialization:
+// 1. sStartDate    Custom start date (dd/mm/yyyy) - Default: Current date minus iTimePeriod
+// 2. sEndDate      Custom end date (dd/mm/yyyy) - Default: Current date
+// 3. sStartTime    Custom start time (hh:mm:ss) - Default: Current time minus iTimePeriod
+// 4. sEndTime      Custom end time (hh:mm:ss) - Default: Current time
+// 5. bDateAndTime  TRUE: Date and time is visible; FALSE: Only dates can be chosen - Default: Only dates
+// 6. bShowTimeZone TRUE: Shows time zone; FALSE: Hides time zone - Default: Timezone shown
+// 7. bEnabled      TRUE: Enable UI elements at startup; FALSE: Disable them - Default: Enabled
+// 8. sTimeZone     Timezone for the widget's times (constants provided in fwGeneral) - Default: FW_GENERAL_TIMEZONE_LOCAL
+// 9. iTimePeriod   Custom time period (seconds) between start/end - Default: 7 days[604800s]; if no custom dates/times provided
+//
+// (\"Default\" means no data provided via $-parameter)
+//
+// --------------------------------------------------------------------------------------------- //
+//
+// !!! Attention !!! 
+// Please use one of the following methods ...
+//
+// - fwGeneral_hasCorrectFormat(string sDateTime)
+// - fwGeneral_hasCorrectDateFormat(string sDate)
+// - fwGeneral_hasCorrectTimeFormat(string sTime)
+//
+// ... to make sure the provided dates and times have the correct format.
+//
+//
+// Following functions give back the user's input for start and end date/times. For convenience reasons,
+//
+// - fwGeneral_dateTimeWidget_getEndDateTime(bool &bOk, dyn_string exceptionInfo)
+//
+// and
+//
+// - fwGeneral_dateTimeWidget_getStartDateTime(bool &bOk, dyn_string exceptionInfo)
+//
+// do not only give back the asked start and end time, but perform a conformity check at the same time. But it is you who
+// has to catch it later on in your code.
+//
+// --------------------------------------------------------------------------------------------- //
+//
+// !!! Additional functions !!!
+// 1. Convert a string in \"natural\" date/time format into a WinCC-compatible \"time\" variable by calling
+//
+// - fwGeneral_stringToDate(string sDateTime)
+//
+//
+// 2. You can set start and end date/time after the initialization of the widget by calling
+//
+// - fwGeneral_dateTimeWidget_setEndDateTime(time tDateTime)
+// - fwGeneral_dateTimeWidget_setStartDateTime(time tDateTime)
+//
+//
+// 3. You can alter the timezone after the initialization of the widget by calling
+//
+// - fwGeneral_dateTimeWidget_setTimeZone(string sTimeZone)
+//
+// and read it by calling
+//
+// - fwGeneral_dateTimeWidget_getTimeZone()
+//
+//
+// 4. You can as well enable or disable the functionalities of the date/time widget after its init by calling
+//
+// - fwGeneral_dateTimeWidget_setEnabled(bool bState)
+//
+//
+// 5. If you need to check whether a selected period is positive or negative, use
+//
+// - fwGeneral_dateTimeWidget_positivePeriodSelected(dyn_string exceptionInfo)
+//
+//    It checks if the start time is later than the end time and also handles wrong formats.
+//
+// --------------------------------------------------------------------------------------------- //
+// --------------------------------------------------------------------------------------------- //
+
+int g_iTimePeriod;
+
+// ------------------------------------------------------------------------------------------------
+
+time getTimeZoneConformCurrentTime()
+{
+  time tNow;
+  
+  tNow = getCurrentTime(); 
+  if(fwGeneral_dateTimeWidget_getTimeZone() == FW_GENERAL_TIMEZONE_UTC)
+  {
+    tNow = formatTimeUTC(FW_GENERAL_GENERIC_TIME_FORMAT, tNow);
+  }
+  
+  return tNow;
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/* sStartOrEnd (string) has to be \"START\" if the given time is the start time, 
+ or \"END\" if it represents the end time. */
+void setTimeToSpinButton(string sTime, string sStartOrEnd)
+{
+  dyn_string timeElements;
+  int iTime = 0;
+  
+  timeElements = strsplit(sTime, \":\");
+  
+  if(dynlen(timeElements) == 3)
+  {
+    iTime = ((int)timeElements[1]*60)+((int)timeElements[2]);
+  }
+  
+  if(sStartOrEnd == \"START\")
+  {
+    startTimeSpin.text(iTime);
+  }
+  else
+  {
+    endTimeSpin.text(iTime);
+  }
+}
+
+// ------------------------------------------------------------------------------------------------
+
+dyn_string showDateTimeChooser(string sSelectedDate)
+{
+  int iX, iY;
+  dyn_float dfResult;
+  dyn_string dsResult = makeDynString();
+  time tChoosenDate, tSelectedDate;
+  bool bOk;
+  
+  bOk = fwGeneral_hasCorrectFormat(sSelectedDate);
+
+  if(bOk)
+  {
+    tSelectedDate = fwGeneral_stringToDate(sSelectedDate);
+    getCursorPosition(iX, iY);
+    ChildPanelOnModalReturn(\"fwGeneral/fwGeneralGenericDateChooser.pnl\", \"DATE_TIME_CHOOSER\", 
+                            makeDynString(\"$sSelectedDate:\"+(string) tSelectedDate,
+                                          \"$sTimeZone:\"+selectedTimeZone.text), iX, iY, dfResult, dsResult);
+
+    if(dynlen(dsResult) > 0)
+    {
+      tChoosenDate = dsResult[1];
+      dsResult[1] = formatTime(\"%d/%m/%Y\", tChoosenDate);
+      dsResult[2] = formatTime(\"%H:%M:%S\", tChoosenDate);
+    }
+  }
+  else
+  {
+     ChildPanelOnCentralModal(
+        \"vision/MessageInfo1\", 
+        \"Error\",
+        makeDynString(\"$1:Wrong date or time format.\\nPlease correct.\")
+     );
+  }
+  
+  return dsResult;
+}
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:10001 0 
+14 29
+"selectedTimeZone"
+""
+1 413 40 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 26 Current selected time zone
+
+0
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  411 38 494 64
+2 "0s" 0 0 0 1 0 -1  E E E
+13 31
+"startNowButton"
+""
+1 343 9 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 26 Set start date/time to now
+
+0
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  341 7 394 35
+
+T 
+1
+LANG:10001 3 Now
+"main()
+{
+  time tNow;
+
+  tNow = getTimeZoneConformCurrentTime();
+
+  startDateField.text = formatTime(\"%d/%m/%Y\", tNow);
+  startTimeField.text = formatTime(\"%H:%M:%S\", tNow); 
+}
+
+" 0
+ E E E
+13 32
+"endNowButton"
+""
+1 343 39 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 24 Set end date/time to now
+
+0
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  341 37 394 65
+
+T 
+1
+LANG:10001 3 Now
+"main()
+{
+  time tNow;
+
+  tNow = getTimeZoneConformCurrentTime();
+
+  endDateField.text = formatTime(\"%d/%m/%Y\", tNow);
+  endTimeField.text = formatTime(\"%H:%M:%S\", tNow);
+
+}
+
+" 0
+ E E E
+13 27
+"startDateChooserButton"
+""
+1 297 9 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 22 Open date/time chooser
+LANG:1 39 Tool to set Archive on System Alarm dpe
+
+0
+2
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  295 7 324 36
+
+P 
+4294967295
+"pictures/StandardIcons/Calendar_20.png"
+2
+LANG:10001 0 
+LANG:1 0 
+"main()
+{
+  dyn_string dsDateTime;
+  string sSelectedDate;
+
+  busyBackground.visible(TRUE);
+  
+  sSelectedDate = startDateField.text + \" \" + startTimeField.text;
+  dsDateTime = showDateTimeChooser(sSelectedDate);
+  if(dynlen(dsDateTime) == 2)
+  {
+    startDateField.text = dsDateTime[1];
+    startTimeField.text = dsDateTime[2];
+  }
+  
+  busyBackground.visible(FALSE);
+}
+
+" 0
+ E E E
+13 28
+"endDateChooserButton"
+""
+1 297 38 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 22 Open date/time chooser
+LANG:1 39 Tool to set Archive on System Alarm dpe
+
+0
+2
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  295 36 324 65
+
+P 
+4294967295
+"pictures/StandardIcons/Calendar_20.png"
+2
+LANG:10001 0 
+LANG:1 0 
+"main()
+{
+  dyn_string dsDateTime;
+  string sSelectedDate;
+  
+  busyBackground.visible(TRUE);
+  
+  sSelectedDate = endDateField.text + \" \" + endTimeField.text;
+  dsDateTime = showDateTimeChooser(sSelectedDate);
+  if(dynlen(dsDateTime) == 2)
+  {
+    endDateField.text = dsDateTime[1];
+    endTimeField.text = dsDateTime[2];
+  }
+  
+  busyBackground.visible(FALSE);
+}
+
+
+
+
+
+" 0
+ E E E
+21 20
+"startTimeSpin"
+""
+1 171 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 0 
+
+0
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  255 8 288 34
+0
+
+E
+"main()
+{  
+  int iHour, iMinute;
+  string sHour, sMinute;
+  int iTime = this.text();
+  
+  iHour = iTime / 60;
+  iMinute = iTime - (iHour * 60);
+  
+  // add leading 0
+  if(iHour < 10)
+  {
+    sHour = \"0\" + iHour;
+  }
+  else
+  {
+    sHour = (string)iHour;
+  }
+  if(iMinute < 10)
+  {
+    sMinute = \"0\" + iMinute;
+  }
+  else
+  {
+    sMinute = (string)iMinute;
+  }
+  
+  startTimeField.text(sHour + \":\" + sMinute + \":00\");
+}" 0
+
+E
+
+N 0 1439 1 0 1 1
+13 0
+"startDateButton"
+""
+1 153 9 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 17 Choose start date
+LANG:1 39 Tool to set Archive on System Alarm dpe
+
+1
+"isToggle" ""
+2
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  151 7 180 36
+
+P 
+4294967295
+"pictures/StandardIcons/Calendar_20.png"
+2
+LANG:10001 0 
+LANG:1 0 
+"main()
+{
+  if(this.toggleState())
+  {
+    calendarChooser.visible(TRUE);
+    calendarChooser.showSelectedDate();
+    calendarChooser2.visible(FALSE);
+    endDateButton.toggleState(FALSE);
+    
+    busyBackground.visible(TRUE);   
+  }
+  else
+  {
+    calendarChooser.visible(FALSE);    
+    busyBackground.visible(FALSE);
+  }
+}
+
+
+" 0
+ E E E
+13 1
+"endDateButton"
+""
+1 153 38 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 15 Choose end date
+LANG:1 39 Tool to set Archive on System Alarm dpe
+
+1
+"isToggle" ""
+2
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  151 36 180 65
+
+P 
+4294967295
+"pictures/StandardIcons/Calendar_20.png"
+2
+LANG:10001 0 
+LANG:1 0 
+"main()
+{
+  if(this.toggleState())
+  {
+    calendarChooser2.visible(TRUE);
+    calendarChooser2.showSelectedDate();
+    calendarChooser.visible(FALSE);
+    startDateButton.toggleState(FALSE);
+    
+    busyBackground.visible(TRUE);
+  }
+  else
+  {
+    calendarChooser2.visible(FALSE);    
+    busyBackground.visible(FALSE);
+  }
+}
+
+
+" 0
+ E E E
+2 14
+"startTimeLabel"
+""
+1 10 14 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 10 14 42 30
+0 2 2 "0s" 0 0 0 192 0 0  10 14 1
+2
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 2
+LANG:10001 6 Start:
+LANG:1 11 Start time:
+2 15
+"endTimeLabel"
+""
+1 10 44 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 10 44 37 60
+0 2 2 "0s" 0 0 0 192 0 0  10 44 1
+2
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 2
+LANG:10001 4 End:
+LANG:1 9 End time:
+14 19
+"startTimeField"
+""
+1 64 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 19 Edit to change time
+
+1
+"textChangedCB" "main(string newText)
+{
+  if(fwGeneral_hasCorrectTimeFormat(newText))
+  {
+    this.backCol(\"_Window\");
+    setTimeToSpinButton(newText, \"START\");
+  }
+  else
+  {
+    this.backCol(\"unLine_WRL\");
+  }
+}
+
+
+"
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  198 8 271 34
+3 "0s" 0 0 0 0 0 -1  E E E
+14 21
+"startDateField"
+""
+1 50 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 19 Edit to change date
+
+1
+"textChangedCB" "main(string newText)
+{
+  if(fwGeneral_hasCorrectDateFormat(newText))
+  {
+    this.backCol(\"_Window\");
+  }
+  else
+  {
+    this.backCol(\"unLine_WRL\");
+  }
+}
+"
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  48 8 151 34
+3 "0s" 0 0 0 0 0 -1  E E E
+14 22
+"endDateField"
+""
+1 50 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 19 Edit to change date
+
+1
+"textChangedCB" "main(string newText)
+{
+  if(fwGeneral_hasCorrectDateFormat(newText))
+  {
+    this.backCol(\"_Window\");
+  }
+  else
+  {
+    this.backCol(\"unLine_WRL\");
+  }
+}
+"
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  48 38 151 64
+3 "0s" 0 0 0 0 0 -1  E E E
+21 23
+"endTimeSpin"
+""
+1 78 210 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 0 
+
+0
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  255 38 288 64
+0
+
+E
+"main()
+{  
+  int iHour, iMinute;
+  string sHour, sMinute;
+  int iTime = this.text();
+  
+  iHour = iTime / 60;
+  iMinute = iTime - (iHour * 60);
+  
+  // add leading 0
+  if(iHour < 10)
+  {
+    sHour = \"0\" + iHour;
+  }
+  else
+  {
+    sHour = (string)iHour;
+  }
+  if(iMinute < 10)
+  {
+    sMinute = \"0\" + iMinute;
+  }
+  else
+  {
+    sMinute = (string)iMinute;
+  }
+  
+  endTimeField.text(sHour + \":\" + sMinute + \":00\");
+}" 0
+
+E
+
+N 0 1439 1 0 1 1
+14 24
+"endTimeField"
+""
+1 48 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 19 Edit to change time
+
+1
+"textChangedCB" "main(string newText)
+{
+  if(fwGeneral_hasCorrectTimeFormat(newText))
+  {
+    this.backCol(\"_Window\");
+    setTimeToSpinButton(newText, \"END\");
+  }
+  else
+  {
+    this.backCol(\"unLine_WRL\");
+  }
+}
+
+
+"
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  198 38 271 64
+3 "0s" 0 0 0 0 0 -1  E E E
+4 25
+"dateTimeSeparator"
+""
+1 184 10 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E  189 10 189 63
+13 18
+"busyBackground"
+""
+1 0 0 E E E 1 E 0 E N "_Transparent" E N {0,0,0,148} E E
+ E E
+28 0 0 0 0 0
+E E E
+1
+1
+LANG:10001 0 
+
+0
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  -2 -2 16 16
+
+T 
+1
+LANG:10001 30 Button used as background pane
+"main()
+{
+  startDateButton.toggleState(FALSE);
+  endDateButton.toggleState(FALSE);
+  calendarChooser.visible(FALSE);
+  calendarChooser2.visible(FALSE);
+  busyBackground.visible(FALSE);
+}" 0
+ E E E
+29 16
+"calendarChooser"
+""
+1 10 80 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 0 
+
+1
+"firstDayOfWeek" "enum 1"
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  10 80 334 279
+8 Calendar
+1
+0 "clicked" "(time date)"
+"  this.visible(FALSE);
+  startDateButton.toggleState(FALSE);
+  busyBackground.visible(FALSE);
+
+  startDateField.text = formatTime(\"%d/%m/%Y\", date);"
+E29 17
+"calendarChooser2"
+""
+1 350 80 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 0 
+
+7
+"firstDayOfWeek" "enum 1"
+"horizontalHeaderFormat" "enum 2"
+"layoutDirection" "enum 0"
+"verticalHeaderFormat" "enum 1"
+"selectionMode" "enum 1"
+"contextMenuPolicy" "enum 1"
+"inputMethodHints" "enum 0"
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  350 80 674 279
+8 Calendar
+1
+0 "clicked" "(time date)"
+"  this.visible(FALSE);
+  endDateButton.toggleState(FALSE);
+  busyBackground.visible(FALSE);
+
+  endDateField.text = formatTime(\"%d/%m/%Y\", date);"
+E2 30
+"timeZoneLabel"
+""
+1 413 20 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 413 20 477 36
+0 2 2 "0s" 0 0 0 192 0 0  413 20 1
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:10001 10 Time zone:
+14 33
+"timeZoneShownField"
+""
+1 650 10 E E E 1 E 0 E N "_WindowText" E N "red" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 0 
+
+0
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  648 8 674 34
+3 "0s" 0 0 0 0 0 -1  E E E
+14 34
+"dateAndTimeShownField"
+""
+1 620 10 E E E 1 E 0 E N "_WindowText" E N "red" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:10001 0 
+
+0
+1
+LANG:10001 26 Arial,10,-1,5,50,0,0,0,0,0
+0  618 8 644 34
+3 "0s" 0 0 0 0 0 -1  E E E
+0
+LAYER, 1 
+1
+LANG:10001 0 
+0
+LAYER, 2 
+1
+LANG:10001 0 
+0
+LAYER, 3 
+1
+LANG:10001 0 
+0
+LAYER, 4 
+1
+LANG:10001 0 
+0
+LAYER, 5 
+1
+LANG:10001 0 
+0
+LAYER, 6 
+1
+LANG:10001 0 
+0
+LAYER, 7 
+1
+LANG:10001 0 
+0
+0

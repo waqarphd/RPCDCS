@@ -1,0 +1,855 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,363 486 177 61 N "_3DFace" 4
+"$1"
+"$2"
+"$3"
+"$4"
+EEE E E 1 -1 -1 0  30 20
+"" 0 1
+EE 2
+"CBRef""0"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+13 27
+"lock6"
+""
+1 90 20 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+88 18 115 48
+P 
+4294967295
+"27.bmp"
+1
+LANG:1 0 
+"
+main()
+{
+	string mode;
+	int x,y;
+	dyn_float res;
+	dyn_string ret;
+	string error;
+	int i, pos;
+	
+	if(isPanelOpen(\"Modes\"))
+	{
+		PanelOffPanel(\"Modes\");
+	}
+	mode = $3;
+	if($3 == \"\")
+		mode = $1+\"_FWM\";
+	getValue(\"\",\"position\",x,y);
+	ChildPanelOnReturn(\"fwFSM/ui/fwFsmModes.pnl\",\"Modes\",
+			makeDynString($1, $2, mode), x+25, y, res, ret);
+	for(i = 1; i <= dynlen(ret); i++)
+	{
+		error = ret[i];	
+		pos = strpos(error,\" - \");
+		error = substr(error, pos+3);
+			fwUi_report(error);
+	}		
+}" 0
+ E E "string State, RealState, Mode, OwnerId, Domain, Obj;
+int Complete, Owner, Shared, Enabled;
+
+changeLayer(int num)
+{
+	int i;
+	
+	for(i = 1; i <= 5; i++)
+		setValue(\"lock\"+i,\"visible\",0);
+	if(num)	
+	{
+		setValue(\"lock\"+num,\"visible\",1);
+		if(num != 5)
+		{
+			if(Complete)
+				setValue(\"lock\"+num,\"backCol\",\"_3DFace\");
+			else
+				setValue(\"lock\"+num,\"backCol\",\"FwModeTreeIncomplete\");
+		}
+		else
+				setValue(\"lock\"+num,\"backCol\",\"_3DFace\");
+	}
+}
+
+main()
+{
+	string label;
+
+	changeLayer(0);
+	Complete = 1;
+	OwnerId = \"none\";
+
+DebugN($1, $2, $3, $4);
+	Mode = $3;
+	if($3 == \"\")
+		Mode = $1+\"_FWM\";
+	else
+	{
+		fwUi_connectCurrentState(\"show_comp_state\", $1, $2+\"_FWCNM\");
+	}
+	if(fwFsm_isAssociated($2))
+	{
+		Domain = fwFsm_getAssociatedDomain($2);
+		Obj = fwFsm_getAssociatedObj($2);
+//		if(fwFsm_isDomain(Domain))
+//		if(Domain == Obj)
+		if(fwFsm_isCU($1, $2))
+		{
+//			Obj = fwFsm_getAssociatedObj($2);
+			fwUi_connectCurrentState(\"show_real_state\",$1,Domain+\"::\"+Domain+\"_FWM\");
+		}
+//		else
+//			Domain = \"\";
+	}
+	else
+		Domain = \"\";
+	fwUi_connectCurrentState(\"show_state\", $1, Mode);
+	fwUi_connectOwnerExclusivity(\"show_ownership\",$1, Mode);
+}
+
+show_state(string dp, string state)
+{
+DebugN(\"state\",state);
+	State = state;
+   	fwUi_convertObjState($1, Mode, State);
+	if(Domain == \"\")
+		RealState = State;
+	show_it();
+}
+
+show_real_state(string dp, string state)
+{
+DebugN(\"real_state\",state);
+	RealState = state;
+   	fwUi_convertObjState($1,Domain+\"::\"+Domain+\"_FWM\", RealState);
+	show_it();
+}
+
+show_ownership(string dp1, string owned, string dp2, bool value)
+{
+	int exclusive, enabled;
+	string owner;
+	
+	fwUi_getOwnerExclusivity($1, Mode, exclusive, enabled);
+	Owner = (enabled == 2);
+	Shared = !exclusive;
+	Enabled = enabled;
+DebugN(\"ownership\",enabled);
+	show_it();
+}
+
+show_comp_state(string dp, string state)
+{
+string color, obj;
+dyn_string actions;
+
+DebugN(\"Complete\",state);
+	obj = $2+\"_FWCNM\";
+   	fwUi_convertObjState($1, obj, state);
+   	if(state == \"Incomplete\")
+   		Complete = 0;
+   	else
+   		Complete = 1;
+	show_it();
+}
+
+show_it()
+{
+string color;
+dyn_string actions;
+int i, index;
+
+	if(Owner)
+	{
+		if(Shared)
+		{
+			if(State != RealState)
+				changeLayer(3);
+			else
+				changeLayer(2);
+		}
+		else
+		{
+			if(State != RealState)
+				changeLayer(4);
+			else
+				changeLayer(1);
+		}
+	}
+	else
+	{
+//		Complete = 1;
+		if(Enabled)
+				changeLayer(5);
+		else
+		{
+			if(Shared)
+				changeLayer(3);
+			else
+				changeLayer(4);
+		}
+	}
+}
+" 0
+
+13 28
+"lock7"
+""
+1 140 20 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+138 18 165 48
+P 
+4294967295
+"28.bmp"
+1
+LANG:1 0 
+"
+main()
+{
+	string mode;
+	int x,y;
+	dyn_float res;
+	dyn_string ret;
+	string error;
+	int i, pos;
+	
+	if(isPanelOpen(\"Modes\"))
+	{
+		PanelOffPanel(\"Modes\");
+	}
+	mode = $3;
+	if($3 == \"\")
+		mode = $1+\"_FWM\";
+	getValue(\"\",\"position\",x,y);
+	ChildPanelOnReturn(\"fwFSM/ui/fwFsmModes.pnl\",\"Modes\",
+			makeDynString($1, $2, mode), x+25, y, res, ret);
+	for(i = 1; i <= dynlen(ret); i++)
+	{
+		error = ret[i];	
+		pos = strpos(error,\" - \");
+		error = substr(error, pos+3);
+			fwUi_report(error);
+	}		
+}" 0
+ E E "string State, RealState, Mode, OwnerId, Domain, Obj;
+int Complete, Owner, Shared, Enabled;
+
+changeLayer(int num)
+{
+	int i;
+	
+	for(i = 1; i <= 5; i++)
+		setValue(\"lock\"+i,\"visible\",0);
+	if(num)	
+	{
+		setValue(\"lock\"+num,\"visible\",1);
+		if(num != 5)
+		{
+			if(Complete)
+				setValue(\"lock\"+num,\"backCol\",\"_3DFace\");
+			else
+				setValue(\"lock\"+num,\"backCol\",\"FwModeTreeIncomplete\");
+		}
+		else
+				setValue(\"lock\"+num,\"backCol\",\"_3DFace\");
+	}
+}
+
+main()
+{
+	string label;
+
+	changeLayer(0);
+	Complete = 1;
+	OwnerId = \"none\";
+
+DebugN($1, $2, $3, $4);
+	Mode = $3;
+	if($3 == \"\")
+		Mode = $1+\"_FWM\";
+	else
+	{
+		fwUi_connectCurrentState(\"show_comp_state\", $1, $2+\"_FWCNM\");
+	}
+	if(fwFsm_isAssociated($2))
+	{
+		Domain = fwFsm_getAssociatedDomain($2);
+		Obj = fwFsm_getAssociatedObj($2);
+//		if(fwFsm_isDomain(Domain))
+//		if(Domain == Obj)
+		if(fwFsm_isCU($1, $2))
+		{
+//			Obj = fwFsm_getAssociatedObj($2);
+			fwUi_connectCurrentState(\"show_real_state\",$1,Domain+\"::\"+Domain+\"_FWM\");
+		}
+//		else
+//			Domain = \"\";
+	}
+	else
+		Domain = \"\";
+	fwUi_connectCurrentState(\"show_state\", $1, Mode);
+	fwUi_connectOwnerExclusivity(\"show_ownership\",$1, Mode);
+}
+
+show_state(string dp, string state)
+{
+DebugN(\"state\",state);
+	State = state;
+   	fwUi_convertObjState($1, Mode, State);
+	if(Domain == \"\")
+		RealState = State;
+	show_it();
+}
+
+show_real_state(string dp, string state)
+{
+DebugN(\"real_state\",state);
+	RealState = state;
+   	fwUi_convertObjState($1,Domain+\"::\"+Domain+\"_FWM\", RealState);
+	show_it();
+}
+
+show_ownership(string dp1, string owned, string dp2, bool value)
+{
+	int exclusive, enabled;
+	string owner;
+	
+	fwUi_getOwnerExclusivity($1, Mode, exclusive, enabled);
+	Owner = (enabled == 2);
+	Shared = !exclusive;
+	Enabled = enabled;
+DebugN(\"ownership\",enabled);
+	show_it();
+}
+
+show_comp_state(string dp, string state)
+{
+string color, obj;
+dyn_string actions;
+
+DebugN(\"Complete\",state);
+	obj = $2+\"_FWCNM\";
+   	fwUi_convertObjState($1, obj, state);
+   	if(state == \"Incomplete\")
+   		Complete = 0;
+   	else
+   		Complete = 1;
+	show_it();
+}
+
+show_it()
+{
+string color;
+dyn_string actions;
+int i, index;
+
+	if(Owner)
+	{
+		if(Shared)
+		{
+			if(State != RealState)
+				changeLayer(3);
+			else
+				changeLayer(2);
+		}
+		else
+		{
+			if(State != RealState)
+				changeLayer(4);
+			else
+				changeLayer(1);
+		}
+	}
+	else
+	{
+//		Complete = 1;
+		if(Enabled)
+				changeLayer(5);
+		else
+		{
+			if(Shared)
+				changeLayer(3);
+			else
+				changeLayer(4);
+		}
+	}
+}
+" 0
+
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+13 22
+"lock5"
+""
+1 30 20 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+23 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+28 18 55 48
+P 
+13434828
+"pictures/lock_unlocked.bmp"
+1
+LANG:1 0 
+"
+main()
+{
+	string mode;
+	int x,y;
+	dyn_float res;
+	dyn_string ret;
+	string error;
+	int i, pos;
+	
+	if(isPanelOpen(\"Modes\"))
+	{
+		PanelOffPanel(\"Modes\");
+	}
+	mode = $3;
+	if($3 == \"\")
+		mode = $1+\"_FWM\";
+	getValue(\"\",\"position\",x,y);
+	ChildPanelOnReturn(\"fwFSM/ui/fwFsmModes.pnl\",\"Modes\",
+			makeDynString($1, $2, mode), x+25, y, res, ret);
+	for(i = 1; i <= dynlen(ret); i++)
+	{
+		error = ret[i];	
+		pos = strpos(error,\" - \");
+		error = substr(error, pos+3);
+			fwUi_report(error);
+	}		
+}" 0
+ E E E
+13 23
+"lock1"
+""
+1 30 20 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+28 18 55 48
+P 
+13434828
+"pictures/lock_green.bmp"
+1
+LANG:1 0 
+"
+main()
+{
+	string mode;
+	int x,y;
+	dyn_float res;
+	dyn_string ret;
+	string error;
+	int i, pos;
+	
+	if(isPanelOpen(\"Modes\"))
+	{
+		PanelOffPanel(\"Modes\");
+	}
+	mode = $3;
+	if($3 == \"\")
+		mode = $1+\"_FWM\";
+	getValue(\"\",\"position\",x,y);
+	ChildPanelOnReturn(\"fwFSM/ui/fwFsmModes.pnl\",\"Modes\",
+			makeDynString($1, $2, mode), x+25, y, res, ret);
+	for(i = 1; i <= dynlen(ret); i++)
+	{
+		error = ret[i];	
+		pos = strpos(error,\" - \");
+		error = substr(error, pos+3);
+			fwUi_report(error);
+	}		
+}" 0
+ E E E
+13 24
+"lock2"
+""
+1 30 20 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+28 18 55 48
+P 
+13434828
+"pictures/lock_blue.bmp"
+1
+LANG:1 0 
+"
+main()
+{
+	string mode;
+	int x,y;
+	dyn_float res;
+	dyn_string ret;
+	string error;
+	int i, pos;
+	
+	if(isPanelOpen(\"Modes\"))
+	{
+		PanelOffPanel(\"Modes\");
+	}
+	mode = $3;
+	if($3 == \"\")
+		mode = $1+\"_FWM\";
+	getValue(\"\",\"position\",x,y);
+	ChildPanelOnReturn(\"fwFSM/ui/fwFsmModes.pnl\",\"Modes\",
+			makeDynString($1, $2, mode), x+25, y, res, ret);
+	for(i = 1; i <= dynlen(ret); i++)
+	{
+		error = ret[i];	
+		pos = strpos(error,\" - \");
+		error = substr(error, pos+3);
+			fwUi_report(error);
+	}		
+}" 0
+ E E E
+13 25
+"lock4"
+""
+1 30 20 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+28 18 55 48
+P 
+13434828
+"pictures/lock_red.bmp"
+1
+LANG:1 0 
+"
+main()
+{
+	string mode;
+	int x,y;
+	dyn_float res;
+	dyn_string ret;
+	string error;
+	int i, pos;
+	
+	if(isPanelOpen(\"Modes\"))
+	{
+		PanelOffPanel(\"Modes\");
+	}
+	mode = $3;
+	if($3 == \"\")
+		mode = $1+\"_FWM\";
+	getValue(\"\",\"position\",x,y);
+	ChildPanelOnReturn(\"fwFSM/ui/fwFsmModes.pnl\",\"Modes\",
+			makeDynString($1, $2, mode), x+25, y, res, ret);
+	for(i = 1; i <= dynlen(ret); i++)
+	{
+		error = ret[i];	
+		pos = strpos(error,\" - \");
+		error = substr(error, pos+3);
+			fwUi_report(error);
+	}		
+}" 0
+ E E E
+13 26
+"lock3"
+""
+1 30 20 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+27 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+28 18 55 48
+P 
+13434828
+"pictures/lock_yellow.bmp"
+1
+LANG:1 0 
+"
+main()
+{
+	string mode;
+	int x,y;
+	dyn_float res;
+	dyn_string ret;
+	string error;
+	int i, pos;
+	
+	if(isPanelOpen(\"Modes\"))
+	{
+		PanelOffPanel(\"Modes\");
+	}
+	mode = $3;
+	if($3 == \"\")
+		mode = $1+\"_FWM\";
+	getValue(\"\",\"position\",x,y);
+	ChildPanelOnReturn(\"fwFSM/ui/fwFsmModes.pnl\",\"Modes\",
+			makeDynString($1, $2, mode), x+25, y, res, ret);
+	for(i = 1; i <= dynlen(ret); i++)
+	{
+		error = ret[i];	
+		pos = strpos(error,\" - \");
+		error = substr(error, pos+3);
+			fwUi_report(error);
+	}		
+}" 0
+ E E "string State, RealState, Mode, OwnerId, Domain, Obj;
+int Complete, Owner, Shared, Enabled, DeviceEnabled, Init, Ninits;
+
+changeLayer(int num)
+{
+	int i;
+	
+	for(i = 1; i <= 5; i++)
+		setValue(\"lock\"+i,\"visible\",0);
+	if(num)	
+	{
+		setValue(\"lock\"+num,\"visible\",1);
+		if(num < 5)
+		{
+			if(!DeviceEnabled)
+				setValue(\"lock\"+num,\"backCol\",\"FwStateAttention2\");
+			else if(Complete)
+				setValue(\"lock\"+num,\"backCol\",\"_3DFace\");
+			else
+				setValue(\"lock\"+num,\"backCol\",\"FwModeTreeIncomplete\");
+		}
+		else
+				setValue(\"lock\"+num,\"backCol\",\"_3DFace\");
+	}
+}
+
+main()
+{
+	string label;
+
+DebugN($1, $2, $3, $4, Init);
+	changeLayer(0);
+	Complete = 1;
+	OwnerId = \"none\";
+	DeviceEnabled = -1;
+	Init == 0;
+	Ninits = 2;
+	Mode = $3;
+	if($3 == \"\")
+		Mode = $1+\"_FWM\";
+	else
+	{
+		Ninits++;
+		fwUi_connectCurrentState(\"show_comp_state\", $1, $2+\"_FWCNM\");
+	}
+	if(fwFsm_isAssociated($2))
+	{
+		Domain = fwFsm_getAssociatedDomain($2);
+		Obj = fwFsm_getAssociatedObj($2);
+//		if(fwFsm_isDomain(Domain))
+//		if(Domain == Obj)
+		if(fwFsm_isCU($1, $2))
+		{
+//			Obj = fwFsm_getAssociatedObj($2);
+			Ninits++;
+			fwUi_connectCurrentState(\"show_real_state\",$1,Domain+\"::\"+Domain+\"_FWM\");
+		}
+//		else
+//			Domain = \"\";
+	}
+	else
+	{
+		Domain = \"\";
+		Ninits++;
+		fwUi_connectEnable(\"show_enable\",$1,$2);
+	}
+	fwUi_connectCurrentState(\"show_state\", $1, Mode);
+	fwUi_connectOwnerExclusivity(\"show_ownership\",$1, Mode);
+}
+
+show_state(string dp, string state)
+{
+DebugN(\"state\",state);
+	State = state;
+   	fwUi_convertObjState($1, Mode, State);
+	if(Domain == \"\")
+		RealState = State;
+	if(Init >= nInits)
+		show_it();
+	else
+		Init++;
+}
+
+show_real_state(string dp, string state)
+{
+DebugN(\"real_state\",state);
+	RealState = state;
+   	fwUi_convertObjState($1,Domain+\"::\"+Domain+\"_FWM\", RealState);
+	if(Init >= nInits)
+		show_it();
+	else
+		Init++;
+}
+
+show_ownership(string dp1, string owned, string dp2, bool value)
+{
+	int exclusive, enabled;
+	string owner;
+	
+	fwUi_getOwnerExclusivity($1, Mode, exclusive, enabled);
+	Owner = (enabled == 2);
+	Shared = !exclusive;
+	Enabled = enabled;
+DebugN(\"ownership\",enabled);
+	if(Init >= nInits)
+		show_it();
+	else
+		Init++;
+}
+
+show_comp_state(string dp, string state)
+{
+string color, obj;
+dyn_string actions;
+
+DebugN(\"Complete\",state);
+	obj = $2+\"_FWCNM\";
+   	fwUi_convertObjState($1, obj, state);
+   	if(state == \"Incomplete\")
+   		Complete = 0;
+   	else
+   		Complete = 1;
+	if(Init >= nInits)
+		show_it();
+	else
+		Init++;
+}
+
+show_enable(string dp, int enabled)
+{
+DebugN(\"dev enabled\",enabled);
+	DeviceEnabled = enabled;
+	if(Init >= nInits)
+		show_it();
+	else
+		Init++;
+}
+
+show_it()
+{
+string color;
+dyn_string actions;
+int i, index;
+
+	if(Owner)
+	{
+		if(Shared)
+		{
+			if(State != RealState)
+				changeLayer(3);
+			else
+				changeLayer(2);
+		}
+		else
+		{
+			if(State != RealState)
+				changeLayer(4);
+			else
+				changeLayer(1);
+		}
+	}
+	else
+	{
+//		Complete = 1;
+		if(Enabled)
+				changeLayer(5);
+		else
+		{
+			if(Shared)
+				changeLayer(3);
+			else
+				changeLayer(4);
+		}
+	}
+}
+" 0
+
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

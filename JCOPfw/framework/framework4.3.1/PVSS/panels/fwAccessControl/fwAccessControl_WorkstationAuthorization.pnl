@@ -1,0 +1,966 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 609 521 N "_3DFace" 0
+"main()
+{
+  PopulatePanel();
+  SwitchTableMode(\"Basic\");
+}" 0
+ E E E E 1 -1 -1 0  340 330
+""0  1
+E "global int editedLine=-1;
+
+synchronized void PopulatePanel()
+{
+  PermissionTable.deleteAllLines();
+  if (CheckPermissionWorkstation.text==\"\") CheckPermissionWorkstation.text=myDisplayName();
+
+
+  dyn_string exceptionInfo;
+  dyn_int pos;
+  dyn_dyn_bool permissions;
+  dyn_bit32 wsPermissions;
+  dyn_string workstationNames,groupNames;
+  fwAccessControl_getWorkstationPermissions(workstationNames,
+                                            groupNames,
+                                            wsPermissions,
+                                            exceptionInfo,\"*\");
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}  
+
+  // reformat the wsPermissions bitmasks to have columns with bools
+  for (int i=1;i<=dynlen(workstationNames);i++) {
+    for (int j=21;j<=28;j++) {
+      permissions[j][i]=getBit(wsPermissions[i],j-1);
+    }
+    // for LoginAllowed
+    permissions[1][i]=getBit(wsPermissions[i],0);
+    // for AutoLogin
+    permissions[32][i]=getBit(wsPermissions[i],31);
+  }  
+
+  if (dynlen(permissions)) {  
+  PermissionTable.appendLines(dynlen(workstationNames),
+                            \"Workstation\",workstationNames,
+                            \"Group\",groupNames,
+                            \"LoginAllowed\",permissions[1],
+                            \"AutoLoginAllowed\",permissions[32],
+                            \"#1\",permissions[21],
+                            \"#2\",permissions[22],
+                            \"#3\",permissions[23],
+                            \"#4\",permissions[24],
+                            \"#5\",permissions[25],
+                            \"#6\",permissions[26],
+                            \"#7\",permissions[27],
+                            \"#8\",permissions[28]
+                            );
+  }
+  
+  dyn_string allUserNames,allUserFullNames;
+  fwAccessControl_getAllUsers(allUserNames,allUserFullNames,exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}  
+  dynSortAsc(allUserNames);
+  CheckPermissionUser.items=allUserNames;
+  if (CheckPermissionUser.text==\"\") CheckPermissionUser.text=getUserName();
+
+  dyn_string groupList=groupList();
+  dynInsertAt(groupList,\"*\",1);
+  dynInsertAt(groupList,false,1);
+  for (int j=1;j<=dynlen(workstationNames);j++) {
+    PermissionTable.cellWidgetRC(j-1,\"Group\",\"ComboBox\",groupList);
+  }
+}
+
+void CheckPermission(string userName,string workstation)
+{
+  CurrentUserPermissionTable.deleteAllLines();
+  if (userName==\"\") return;
+  if (workstation==\"\") return;
+
+
+  
+  dyn_string exceptionInfo;
+  bit32 permissions;  
+  string groupName;
+  int groupId;
+  _fwAccessControl_checkWorkstationPermissions(workstation,userName,permissions, groupName,groupId,exceptionInfo);
+if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}  
+  
+
+  CurrentUserPermissionTable.appendLine(
+                            \"Workstation\",workstation,
+                            \"Group\",groupName,
+                            \"LoginAllowed\",permissions[0],
+                            \"AutoLoginAllowed\",permissions[31],
+                            \"#1\",permissions[20],
+                            \"#2\",permissions[21],
+                            \"#3\",permissions[22],
+                            \"#4\",permissions[23],
+                            \"#5\",permissions[24],
+                            \"#6\",permissions[25],
+                            \"#7\",permissions[26],
+                            \"#8\",permissions[27]
+                            );
+}
+
+
+
+synchronized void  PermissionTableDoubleClicked(int rownum, string column)
+{
+  int columnCount=PermissionTable.columnCount();
+  for (int i=0;i<columnCount;i++) PermissionTable.columnEditable(i,true);
+  PermissionTable.selectColors(\"yellow\",\"_3DText\");
+  editedLine=rownum;
+
+}
+
+synchronized void PermissionTableSelectionChanged()
+{
+  // check if we are editing the same line...
+  dyn_int selLines=PermissionTable.getSelectedLines();
+
+  if (dynlen(selLines)<1) return; // this is unselect of the previous line leading to nowhere.
+  if (selLines[1]==editedLine) return;  // keep edit mode, if the selected line does not change
+  
+  int columnCount=PermissionTable.columnCount();
+  for (int i=0;i<columnCount;i++) PermissionTable.columnEditable(i,false);
+    PermissionTable.selectColors(\"{85,152,215}\",\"_3DText\");
+  editedLine=-1;
+}
+
+dyn_string groupList()
+{
+  dyn_string groupNames,groupFullNames,exceptionInfo;
+  fwAccessControl_getAllGroups(groupNames,groupFullNames,exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}
+  dynSortAsc(groupNames);
+  return groupNames;
+}
+
+
+void getLine(int lineNum,string &workstation, string &group, 
+             bool &loginAllowed,bool &autoLoginAllowed, dyn_bool &privs)
+{
+  privs[8]=false; // initialize to have correct size...
+  getMultiValue(\"PermissionTable\",\"cellValueRC\",lineNum,\"Workstation\",workstation,
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"Group\",group,
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"LoginAllowed\",loginAllowed,
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"AutoLoginAllowed\",autoLoginAllowed,
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#1\",privs[1],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#2\",privs[2],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#3\",privs[3],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#4\",privs[4],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#5\",privs[5],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#6\",privs[6],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#7\",privs[7],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#8\",privs[8]);
+}
+
+
+
+void setLine(int lineNum, string workstation, string group,
+             bool loginAllowed,bool autoLoginAllowed, dyn_bool privs)
+{
+  setMultiValue(\"PermissionTable\",\"cellValueRC\",lineNum,\"Workstation\",workstation,
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"Group\",group,
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"LoginAllowed\",loginAllowed,
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"AutoLoginAllowed\",autoLoginAllowed,
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#1\",privs[1],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#2\",privs[2],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#3\",privs[3],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#4\",privs[4],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#5\",privs[5],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#6\",privs[6],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#7\",privs[7],
+                \"PermissionTable\",\"cellValueRC\",lineNum,\"#8\",privs[8]);
+  
+  dyn_string groupList=groupList();
+  dynInsertAt(groupList,\"*\",1);
+  dynInsertAt(groupList,false,1);
+  PermissionTable.cellWidgetRC(lineNum,\"Group\",\"ComboBox\",groupList);
+}
+
+synchronized void AppendNew()
+{
+  int currentLine=PermissionTable.lineCount()-1; // initialize with last line
+  dyn_int selectedLines=PermissionTable.getSelectedLines();
+  if (dynlen(selectedLines)) {
+    currentLine=selectedLines[1];
+  }
+  int newLine=currentLine+1;
+  PermissionTable.insertLineN(newLine);
+  delay(0,100); // just in case...
+  setLine(newLine,myDisplayName(),\"*\",true,false,
+          makeDynBool(true,true,true,true,true,true,true,true) );
+  
+  // force edit mode for this new line
+  PermissionTable.selectLineN(newLine);
+  delay(0,100);// just in case...
+  editedLine=-1;
+  PermissionTableDoubleClicked(newLine, \"\");
+}
+
+
+synchronized void DeleteSelected()
+{
+  dyn_int selectedLines=PermissionTable.getSelectedLines();
+  if (dynlen(selectedLines)<1) return;
+  PermissionTable.deleteLineN(selectedLines[1]);
+}
+
+synchronized void MoveUp()
+{
+  dyn_int selectedLines=PermissionTable.getSelectedLines();
+  if (dynlen(selectedLines)<1) return;
+
+  int lineNum=selectedLines[1];
+  
+  if (lineNum==0) return; // already at the top
+
+  // get the values of the moved line
+  string workstation, group;
+  bool loginAllowed,autoLoginAllowed;
+  dyn_bool privs;
+
+  getLine(lineNum,workstation,group,loginAllowed,autoLoginAllowed,privs);
+  // add a line before the one that is above the selected line
+  int newLine=lineNum-1;
+  PermissionTable.insertLineN(newLine);
+  // and push the values there
+  setLine(newLine,workstation,group,loginAllowed,autoLoginAllowed,privs);
+  
+  // and finally, drop the original line
+  PermissionTable.deleteLineN(lineNum+1);
+
+  // and update the selected line
+  PermissionTable.selectLineN(newLine);  
+}
+
+synchronized void MoveDown()
+{
+  dyn_int selectedLines=PermissionTable.getSelectedLines();
+  if (dynlen(selectedLines)<1) return;
+
+  int lineNum=selectedLines[1];
+  
+  int numLines=PermissionTable.lineCount();
+  if (lineNum>=(numLines-1)) return; // already at the bottom
+
+  // get the values of the moved line
+  string workstation, group;
+  bool loginAllowed,autoLoginAllowed;
+  dyn_bool privs;
+
+  getLine(lineNum,workstation,group,loginAllowed,autoLoginAllowed,privs);
+  // add a line after the one that is below the selected line
+  int newLine=lineNum+2;
+  PermissionTable.insertLineN(newLine);
+  // and push the values there
+  setLine(newLine,workstation,group,loginAllowed,autoLoginAllowed,privs);
+  
+  // and finally, drop the original line
+  PermissionTable.deleteLineN(lineNum);
+
+  // and update the selected line
+  PermissionTable.selectLineN(newLine-1);  
+  
+}
+
+void SwitchTableMode(string mode)
+{
+  if (mode==\"Basic\") {
+    DisplayMode.text=\"Extended\";
+    for (int i=4;i<=11;i++) PermissionTable.columnVisibility(i,false);
+    PermissionTable.columnHeader(2,\"Login\");
+    PermissionTable.columnHeader(3,\"AutoLogin\");
+    PermissionTable.columnWidth(2,100);
+    PermissionTable.columnWidth(3,100);
+    for (int i=4;i<=11;i++) CurrentUserPermissionTable.columnVisibility(i,false);        
+    CurrentUserPermissionTable.columnHeader(2,\"Login\");
+    CurrentUserPermissionTable.columnHeader(3,\"AutoLogin\");
+    CurrentUserPermissionTable.columnWidth(2,100);
+    CurrentUserPermissionTable.columnWidth(3,100);
+  } else if (mode==\"Extended\") {
+    DisplayMode.text=\"Basic\";
+    PermissionTable.columnHeader(2,\"L\");
+    PermissionTable.columnHeader(3,\"S\");
+    PermissionTable.columnWidth(2,20);
+    PermissionTable.columnWidth(3,20);
+    CurrentUserPermissionTable.columnHeader(2,\"L\");
+    CurrentUserPermissionTable.columnHeader(3,\"S\");
+    CurrentUserPermissionTable.columnWidth(2,20);
+    CurrentUserPermissionTable.columnWidth(3,20);
+    for (int i=4;i<=11;i++) PermissionTable.columnVisibility(i,true);
+    for (int i=4;i<=11;i++) CurrentUserPermissionTable.columnVisibility(i,true);
+  }
+}
+
+
+bool Apply()
+{
+  dyn_string workstationNames;
+  dyn_string groupNames;
+  dyn_bit32 workstationPermissions;  
+  
+  int max=PermissionTable.lineCount();
+  for (int i=1;i<=max;i++) {
+    dyn_mixed line=PermissionTable.getLineN(i-1);
+    workstationNames[i]=line[1];
+    groupNames[i]=line[2];
+    bit32 permissions=\"11111111111111111111111111111111\";
+    setBit(permissions,0,line[3]);
+    setBit(permissions,31,line[4]);
+    for (int j=0;j<8;j++) setBit(permissions,20+j,line[5+j]);
+    workstationPermissions[i]=permissions;
+  }
+  
+  dyn_string exceptionInfo;
+  fwAccessControl_setWorkstationPermissions(
+        workstationNames,groupNames,workstationPermissions, exceptionInfo);
+  
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return false;};
+  return true;
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"CheckPermissionButton"
+""
+1 329.9999999999999 357 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  328 355 452 384
+
+T 
+1
+LANG:1 16 Check Permission
+"main()
+{
+  CheckPermission(CheckPermissionUser.text,CheckPermissionWorkstation.text);
+}" 0
+ E E E
+30 2
+"FRAME1"
+""
+1 20 302 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+2 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.127659574468085 0 1.76470588235294 -12.5531914893617 -212.9411764705881 0 E 20 302 491 371
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Check Permission
+14 3
+"CheckPermissionWorkstation"
+""
+1 20 360.0000000000002 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  18 358 172 382
+3 "0s" 0 0 0 0 0 -1  E E E
+2 4
+"PRIMITIVE_TEXT1"
+""
+1 180 340.0000000000002 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 180 340.0000000000002 249 356
+0 2 2 "0s" 0 0 0 192 0 0  180 340.0000000000002 1
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 User name:
+2 5
+"PRIMITIVE_TEXT2"
+""
+1 20 340.0000000000002 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 20 340.0000000000002 95 356
+0 2 2 "0s" 0 0 0 192 0 0  20 340.0000000000002 1
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Workstation:
+25 6
+"PermissionTable"
+""
+1 19.99999999999999 110 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  PermissionTableDoubleClicked(row,column);
+}" 0
+
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"selectionChangedCB" "synchronized main()
+{
+  PermissionTableSelectionChanged();
+}"
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  18 108 542 292
+"main()
+{
+  this.tableMode(TABLE_SELECT_BROWSE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  this.sortOnClick(false);
+}" 0
+E 1 0 1 12 0 "Workstation" 14 1 0 "s" 1
+LANG:1 11 Workstation
+E
+1
+LANG:1 0 
+
+150 "Group" 14 1 0 "s" 1
+LANG:1 10 Group Name
+E
+1
+LANG:1 0 
+
+150 "LoginAllowed" 1 1 1 "s" 1
+LANG:1 1 L
+E
+1
+LANG:1 20 Permission for login
+
+20 "AutoLoginAllowed" 1 1 1 "s" 1
+LANG:1 1 S
+E
+1
+LANG:1 31 Permission for auto-login (SSO)
+
+20 "#1" 1 1 1 "s" 1
+LANG:1 1 1
+E
+1
+LANG:1 29 Mask for "monitor" privileges
+
+20 "#2" 1 1 1 "s" 1
+LANG:1 1 2
+E
+1
+LANG:1 43 Mask for "operator" or "control" privileges
+
+20 "#3" 1 1 1 "s" 1
+LANG:1 1 3
+E
+1
+LANG:1 39 Mask for "expert" or "debug" privileges
+
+20 "#4" 1 1 1 "s" 1
+LANG:1 1 4
+E
+1
+LANG:1 39 Mask for "admin" or "modify" privileges
+
+20 "#5" 1 1 1 "s" 1
+LANG:1 1 5
+E
+1
+LANG:1 28 Mask for 5th privilege level
+
+20 "#6" 1 1 1 "s" 1
+LANG:1 1 6
+E
+1
+LANG:1 28 Mask for 6th privilege level
+
+20 "#7" 1 1 1 "s" 1
+LANG:1 1 7
+E
+1
+LANG:1 28 Mask for 7th privilege level
+
+20 "#8" 1 1 1 "s" 1
+LANG:1 1 8
+E
+1
+LANG:1 28 Mask for 8th privilege level
+
+20 
+18 18 10 10
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+1 33 0 "" 2
+0
+1 34 0 "" 1
+0
+1 35 0 "" 4
+0
+25 11
+"CurrentUserPermissionTable"
+""
+1 19.99999999999996 389.9999999999999 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  18 388 522 432
+EE 1 0 1 12 1 "Workstation" 14 1 0 "s" 1
+LANG:1 11 Workstation
+E
+1
+LANG:1 0 
+
+150 "Group" 14 1 0 "s" 1
+LANG:1 10 Group Name
+E
+1
+LANG:1 0 
+
+150 "LoginAllowed" 1 1 0 "s" 1
+LANG:1 1 L
+E
+1
+LANG:1 20 Permission for login
+
+20 "AutoLoginAllowed" 1 1 0 "s" 1
+LANG:1 1 S
+E
+1
+LANG:1 31 Permission for auto-login (SSO)
+
+20 "#1" 1 1 0 "s" 1
+LANG:1 1 1
+E
+1
+LANG:1 29 Mask for "monitor" privileges
+
+20 "#2" 1 1 0 "s" 1
+LANG:1 1 2
+E
+1
+LANG:1 43 Mask for "operator" or "control" privileges
+
+20 "#3" 1 1 0 "s" 1
+LANG:1 1 3
+E
+1
+LANG:1 39 Mask for "expert" or "debug" privileges
+
+20 "#4" 1 1 0 "s" 1
+LANG:1 1 4
+E
+1
+LANG:1 39 Mask for "admin" or "modify" privileges
+
+20 "#5" 1 1 0 "s" 1
+LANG:1 1 5
+E
+1
+LANG:1 28 Mask for 5th privilege level
+
+20 "#6" 1 1 0 "s" 1
+LANG:1 1 6
+E
+1
+LANG:1 28 Mask for 6th privilege level
+
+20 "#7" 1 1 0 "s" 1
+LANG:1 1 7
+E
+1
+LANG:1 28 Mask for 7th privilege level
+
+20 "#8" 1 1 0 "s" 1
+LANG:1 1 8
+E
+1
+LANG:1 28 Mask for 8th privilege level
+
+20 
+16 16 "" 1 1
+LANG:1 2 #1
+10 10
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 0 0 0 1 7
+1 0
+22 12
+"CheckPermissionUser"
+""
+1 180 360 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  178 358 322 382
+0
+
+E
+E
+E
+ 1 0
+13 13
+"MoveUp"
+""
+1 560 140 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  558 138 592 167
+
+P 
+4294967295
+"pictures/up_en.gif"
+1
+LANG:1 12 PUSH_BUTTON3
+"main()
+{
+  MoveUp();
+}" 0
+ E E E
+13 14
+"MoveDown"
+""
+1 560 170 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  558 168 592 197
+
+P 
+4294967295
+"pictures/down_en.gif"
+1
+LANG:1 12 PUSH_BUTTON3
+"main()
+{
+  MoveDown();
+}" 0
+ E E E
+13 17
+"ApplyButton"
+""
+1 330 480 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  328 478 412 507
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  Apply();
+  PopulatePanel();
+}" 0
+ E E E
+13 18
+"OKButton"
+""
+1 420 480 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  418 478 502 507
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  if (Apply()) PanelOff();
+}" 0
+ E E E
+13 19
+"CancelButton"
+""
+1 510 480 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  508 478 592 507
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+13 20
+"ReloadButton"
+""
+1 9.999999999999979 480 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  8 478 92 507
+
+T 
+1
+LANG:1 6 Reload
+"main()
+{
+  PopulatePanel();
+}" 0
+ E E E
+13 21
+"AppendNew"
+""
+1 560 220 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  558 218 592 247
+
+P 
+4294967295
+"pictures/insertA_en.gif"
+1
+LANG:1 13 PUSH_BUTTON11
+"main()
+{
+  AppendNew();
+}" 0
+ E E E
+13 23
+"Delete"
+""
+1 560 250 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  558 248 592 277
+
+P 
+4294967295
+"pictures/del_en.gif"
+1
+LANG:1 13 PUSH_BUTTON11
+"main()
+{
+  DeleteSelected();
+}" 0
+ E E E
+2 27
+"PRIMITIVE_TEXT4"
+""
+1 20 70 E E E 1 E 1 E N "red" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 70 409 104
+1 2 2 "0s" 0 0 0 192 0 0  20 70 2
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 61 double click the line to enable editing; Group "*" means all;
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 63 Workstation is a regexp (use *,?) and aliases: @ccc, @localhost
+13 28
+"DisplayMode"
+""
+1 460 290 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  458 288 542 317
+
+T 
+1
+LANG:1 8 Extended
+"main()
+{
+  SwitchTableMode(this.text);
+}" 0
+ E E E
+2 32
+"Text9"
+""
+1 -318 -104 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 10 255 52
+0 2 2 "0s" 0 0 0 192 0 0  20 10 2
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 29 JCOP Framework Access Control
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 25 Workstation authorization
+1 36 1 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "PANEL_REF0" -1
+"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl" 282 8 T 7 1 0 1 70 -10
+0
+3 1 "PANEL_REF1" -1
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 25 1 0 1 238 -11
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_WorkstationAuthorization"
+0

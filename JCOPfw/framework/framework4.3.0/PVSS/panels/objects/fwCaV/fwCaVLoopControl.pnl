@@ -1,0 +1,649 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 345 183 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+	string         aStatus;
+	string         aControl;
+	string         deviceDpType, deviceModel;
+	dyn_dyn_string elements;
+	dyn_string     exceptionInfo;
+        string         parentDpName;
+        
+	deviceDpType = dpTypeName($sDpName);
+        
+	fwDevice_getModel(makeDynString($sDpName), deviceModel, exceptionInfo);
+	fwDevice_getConfigElements(deviceDpType, fwDevice_ALL, elements, exceptionInfo, deviceModel, $sDpName);
+        
+	aStatus =  elements[fwDevice_USER_DATA_INDEX][1]; //\"1;1;1;0;1;1;1;0;1;0;0;0;0;1;1;0\";
+	aControl = elements[fwDevice_USER_DATA_INDEX][1]; //\"1;1;1;0;1;1;1;0;1;1;0;0;0;0;0;1\";
+
+
+	// Convert to dyn_string - easier to handle	
+	fwGeneral_stringToDynString(aStatus,allowedStatus,\";\");
+	fwGeneral_stringToDynString(aControl,allowedControl,\";\");	
+		
+	// Initialize the possibleLoopStates dyn_dyn_string
+	dynAppend(possibleLoopStates, makeDynString(\"0\",\"0\", \"Loop OFF\"));
+	dynAppend(possibleLoopStates, makeDynString(\"0\",\"0\", \"Stand-by mode\"));
+	dynAppend(possibleLoopStates, makeDynString(\"0\",\"0\", \"Loop ON\"));
+	dynAppend(possibleLoopStates, makeDynString(\"0\",\"0\", \"Locked\"));
+	dynAppend(possibleLoopStates, makeDynString(\"0\",\"0\", \"Purge\"));
+        
+	for(int i=6; i<=16; i++)
+        {
+		dynAppend(possibleLoopStates, makeDynString(\"0\",\"0\", \"\"));
+        }
+	
+	// initialize the allowed bits
+        for(int i=1; i<=16; i++)
+	{
+		possibleLoopStates[i][1] = allowedControl[i];
+		possibleLoopStates[i][2] = allowedStatus[i];
+	}
+	
+	// enable the rest of controls
+	for(int i=6; i<=9; i++)
+	{
+		if(possibleLoopStates[i][2]==1)
+		{
+			setValue(\"bit\"+(i-1), \"visible\", \"1\");
+			setValue(\"bitText\"+(i-1), \"visible\", \"1\");
+		}
+	}
+	
+	// populate the command list
+	for(int i=1; i<=5; i++)
+        {
+		if(possibleLoopStates[i][1]==\"1\")
+                {
+			stateSetting.appendItem(possibleLoopStates[i][3]);
+                }
+		else
+                {
+			stateSetting.appendItem(\"- - - - - - -\");
+                }
+        }
+        
+	stateSetting.selectedPos = 1;
+        
+        fwDevice_getParent($sDpName,parentDpName,exceptionInfo);
+        
+ 	if(!dpExists(parentDpName+\".Connection\") || !dpExists(parentDpName+\".ReadBackSettings.control\"))
+	{
+              DebugN(\"ERROR: You should reinstall your CaV component to get all DPs you need: \",parentDpName+\".Connection\",parentDpName+\".ReadBackSettings.control\"); 
+              return 1;
+        }
+        
+        // watchdog for the PLC connection       
+        dpConnect(\"connection_status\", 
+                  parentDpName+\".Connection.driverStatus:_online.._value\",
+                  parentDpName+\".Connection.dataValid:_online.._value\",
+                  parentDpName+\".Connection.plcConnection:_online.._value\");  
+              
+        // display the actual state	
+	dpConnect(\"actual_state\", $sDpName+\".Actual.status:_online.._value\");
+        
+        // display the readback state
+        dpConnect(\"readback_state\", $sDpName+\".ReadBackSettings.control:_online.._value\");
+                
+
+}" 0
+ E E E E 1 0 0 0  0 0
+""0  1
+E "
+/* Stores the information about possible main states and their names
+ * Main states are: ON, stand-by, OFF, Recovering
+ */
+dyn_dyn_string possibleLoopStates;
+
+/* Stores the information about the bits which are used in
+ * the plants status and control words
+ */
+dyn_string allowedStatus;
+dyn_string allowedControl;
+
+// This function display the current state of the system
+actual_state(string dp, anytype val)
+{
+        // Set the current state
+        dyn_string current;
+	for(int i=0; i<4; i++)
+	{
+		if(getBit(val,i))			
+			dynInsertAt(current, possibleLoopStates[i+1][3],1);
+	}  
+        if(dynlen(current)==0 || dynlen(current)>1)
+	{
+		stateStatus.backCol=\"FwDead\";
+		stateStatus.text=\"Invalid combination\";
+	}	
+        else
+	{
+		stateStatus.backCol=\"_3DFace\";
+		stateStatus.text = current[1];		
+	}
+
+        if(!getBit(val,2))
+        {
+	    for(int i=5; i<=8; i++)
+		 setValue(\"bit\"+i,\"backCol\", \"FwDead\");          
+            return;
+        }
+        
+	for(int i=5; i<=8; i++)
+	{
+		if(!getBit(val,i))
+                    setValue(\"bit\"+i, \"backCol\", \"_3DFace\");
+		else
+		    setValue(\"bit\"+i, \"backCol\",\"FwStateOKPhysics\");
+      	}                
+}
+
+// This function check if there is a PLC connection, that the modbus driver is running 
+// and if there are invalid data in the (plant).Actual.status value
+connection_status(string dp1, bool driverStatus, string dp2, bool dataValid, string dp3, bool plcConn)
+{
+        if((!dataValid) || (!driverStatus) || (!plcConn))
+        {
+                stateStatus.backCol=\"FwDead\";
+                stateReadback.backCol=\"FwDead\"; 
+        }
+
+	if(!dataValid)
+        {
+                stateReadback.text=\"Invalid data\";
+                stateStatus.text=\"Invalid data\";
+        }
+        else if(!driverStatus)
+        {
+                stateReadback.text=\"Modbus driver not running\";
+                stateStatus.text=\"Modbus driver not running\";
+        }          
+        else if(!plcConn)
+        {
+                stateReadback.text=\"No PLC connection\";
+                stateStatus.text=\"No PLC connection\";
+        }             
+        
+        // everything is ok, call the actual state function
+        if(dataValid && driverStatus && plcConn)
+        {
+                int val;
+                dpGet($sDpName+\".Actual.status:_online.._value\",val);
+                actual_state($sDpName+\".Actual.status:_online.._value\",val);
+        }  
+        else
+        {
+          	for(int i=5; i<=8; i++)
+          		setValue(\"bit\"+i,\"backCol\", \"FwDead\");
+        }
+}
+
+// The function display the readback state of the system
+readback_state(string dp, anytype val)
+{
+        // Set the current state
+        dyn_string current;
+	for(int i=0; i<4; i++)
+	{
+		if(getBit(val,i))			
+	          dynInsertAt(current, possibleLoopStates[i+1][3],1);
+	}
+               
+	if(dynlen(current)==0 || dynlen(current)>1)
+	{
+		stateReadback.backCol=\"FwDead\";
+		stateReadback.text=\"Invalid combination\";
+	}
+	else
+	{
+		stateReadback.backCol=\"_3DFace\";
+		stateReadback.text = current[1];		
+	}
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+1
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+6 59
+"bit5"
+""
+1 10 107 E E E 1 E 0 E N "_WindowText" E N "DpDoesNotExist" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 0 3 1 E 10 97 20 107
+2 68
+"bitText5"
+""
+1 30 95 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 32 97 168 113
+0 2 0 "0s" 0 0 0 64 0 0  32 97 1
+1
+LANG:1 84 -*-Arial-*-i-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,1,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Reserved
+6 69
+"bit6"
+""
+1 10 127 E E E 1 E 0 E N "_WindowText" E N "DpDoesNotExist" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 0 3 1 E 10 117 20 127
+2 70
+"bitText6"
+""
+1 30 115 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 32 117 168 133
+0 2 0 "0s" 0 0 0 64 0 0  32 117 1
+1
+LANG:1 84 -*-Arial-*-i-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,1,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Reserved
+6 71
+"bit7"
+""
+1 10 147 E E E 1 E 0 E N "_WindowText" E N "DpDoesNotExist" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 0 3 1 E 10 137 20 147
+2 72
+"bitText7"
+""
+1 30 135 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 32 137 168 153
+0 2 0 "0s" 0 0 0 64 0 0  32 137 1
+1
+LANG:1 84 -*-Arial-*-i-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,1,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Reserved
+6 79
+"bit8"
+""
+1 10 167 E E E 1 E 0 E N "_WindowText" E N "DpDoesNotExist" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 0 3 1 E 10 157 20 167
+2 80
+"bitText8"
+""
+1 30 155 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 32 157 168 173
+0 2 0 "0s" 0 0 0 64 0 0  32 157 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 Maintenance allowed
+2 87
+"Text11"
+""
+1 0 1 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 2 3 48 19
+0 2 0 "0s" 0 0 0 64 0 0  2 3 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 State:
+2 88
+"Text12"
+""
+1 0 52 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 2 54 118 68
+0 2 0 "0s" 0 0 0 64 0 0  2 54 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Command received:
+2 93
+"Text13"
+""
+1 0 27 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 2 29 118 45
+0 2 0 "0s" 0 0 0 64 0 0  2 29 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Command to send:
+30 94
+"Frame1"
+""
+1 0 180 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+59 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 0 80 180 180
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Status
+30 111
+"Frame3"
+""
+1 190 180 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+65 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.887573964497041 0 1 21.3609467455621 0 0 E 190 90 360 180
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Commands
+14 89
+"stateStatus"
+""
+1 119 0 E E E 1 E 1 E N "_WindowText" E N "DpDoesNotExist" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 117 -2 273 25
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+
+}" 0
+ E
+22 90
+"stateSetting"
+""
+1 119 26 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 117 24 272 51
+0
+
+E
+E
+E
+ 0 0
+13 91
+"stateApplyChange"
+""
+1 279 22 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 277 20 341 54
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	if(possibleLoopStates[stateSetting.selectedPos][1]==\"0\")
+	{
+		DebugN(\"Not allowed state\");
+		return;
+	}
+
+	bit32 current_state;
+	// Do we want to get data from Actual or Readback ?
+	dpGet($sDpName+\".Actual.status\", current_state);	
+	
+	// Zero the exclusive bits
+	setBit(current_state,0,0);
+	setBit(current_state,1,0);
+	setBit(current_state,2,0);
+	setBit(current_state,3,0);
+	// Set new state
+	setBit(current_state,(stateSetting.selectedPos-1),1);
+	
+	dpSet($sDpName+\".Settings.control\",current_state);
+}" 0
+ E E E
+14 92
+"stateReadback"
+""
+1 119 51 E E E 1 E 1 E N "_WindowText" E N "DpDoesNotExist" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 117 49 274 76
+2 "0s" 0 0 0 0 0 -1  E E E
+13 108
+"clearAlarms"
+""
+1 205 112 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 203 110 327 138
+
+T 
+1
+LANG:1 12 Clear alarms
+E E E E
+13 112
+"actions"
+""
+1 206 143 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 204 141 328 169
+
+T 
+1
+LANG:1 7 Actions
+"// SimpleCtrlScriptStart {invalid}
+main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentral(\"fwCaV/fwCaVControlActions.pnl\",
+      $sDpName + \" Actions\",
+      makeDynString(\"$sDpName:\" + $sDpName));
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnCentral}
+// File {fwCaV/fwCaVControlActions.pnl}
+// Panel {$sDpName+Actions}
+// Parent {}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// PanelPara1 {$sDpName:$sDpName}
+// PanelPara2 {$sMyReferenceName:$sMyReferenceName}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

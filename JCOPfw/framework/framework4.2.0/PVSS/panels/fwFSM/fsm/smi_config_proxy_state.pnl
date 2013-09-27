@@ -1,0 +1,208 @@
+V 9
+1
+LANG:1 0 
+PANEL,292 76 650 575 N "_3DFace" 1
+"$1"
+"put_state(int n, string device, string state, string color, string label)
+{
+	int ret;
+
+	ret = addSymbol(myModuleName(),myPanelName(),
+		\"fwFSM/fsm/config_device_states.pnl\",
+		\"fwFSM/fsm/config_state\", 
+		makeDynString(device,state,color,label, n+1),
+		20,50+n*90,0,0,1);
+}
+
+main()
+{
+	int i;
+	dyn_string state_list;
+	string state, color, label;
+
+	addGlobal(\"_GlobalStatesText\", DYN_DYN_STRING_VAR);
+//	dpGet($1+\".state_list:_online.._value\",state_list);
+//	fwFsm_getObjectStates($1, state_list);
+	state_list = ObjStateNames;
+	for(i = 1; i <= dynlen(state_list); i++)
+	{
+//		dpGet(state_list[i]+\".state:_online.._value\",state);
+//		dpGet(state_list[i]+\".color:_online.._value\",color);
+		state = state_list[i];
+//		fwFsm_getObjectStateColor($1,state,color);
+		color = ObjStateColors[i];
+		if(i == 1)
+			label = \"if\";
+		else if(i == dynlen(state_list))
+			label = \"else\";
+		else
+			label = \"else if\";
+		put_state(i-1, $1, state, color, label);
+	}
+}
+
+" 0
+ E E E E 1 -1 -1 0  50 80
+"" ""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+13 0
+"Button1"
+""
+1 548 528 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+0 0 0 0 0 9
+EE E
+1
+LANG:1 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+548 528 638 558
+T 
+2
+LANG:1 5 Close
+LANG:0 9 Abbrechen
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+13 1
+"komplex"
+""
+1 338 528 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 9
+EE E
+1
+LANG:1 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+338 528 528 558
+T 
+2
+LANG:1 23 Complex Parametrization
+LANG:0 23 Komplexe Parametrierung
+"main()
+{
+  ChildPanelOn(\"fwFSM/fsm/device_state_editor\",\"device_state_editor\",makeDynString($1),0,0);
+}
+" 0
+ E E E
+13 2
+"Button2"
+""
+1 228 528 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 9
+EE E
+1
+LANG:1 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+228 528 318 558
+T 
+2
+LANG:1 5 Apply
+LANG:0 2 OK
+"main()
+{
+	dyn_string action_text_in;
+	string text, aux;
+	int i, j, more, n, pos;
+	dyn_string state_list;
+	string state, typ;
+	dyn_string items, item_types;
+
+//	fwFsm_readDeviceStateComps($1, items, item_types);
+	
+	items = ObjStateComps;
+	item_types = ObjStateCompTypes;
+	text = $1+\"_valueChanged( string device\"; 
+
+	for(i = 1; i <= dynlen(items); i++)
+	{
+		text += \",\\n\";
+		strreplace(items[i],\".\",\"_\");
+      		text += \"      \"+item_types[i]+\" \"+items[i]; 
+//      	if(i != dynlen(items))
+//      	{
+//			text += \",\\n\";
+//		}
+	}
+   	text += \", string &fwState )\\n{\\n\"; 
+	n = 0;
+//	dpGet($1+\".state_list:_online.._value\",state_list);
+//	fwFsm_getObjectStates($1,state_list);
+	state_list = ObjStateNames;
+	for(i = 1; i <= dynlen(state_list); i++)
+	{
+		more = 0;
+//		dpGet(state_list[i]+\".state:_online.._value\",state);
+		state = state_list[i];		
+		action_text_in = _GlobalStatesText[i];
+		n += dynlen(action_text_in);
+		text += \"\\t\"+action_text_in[1]+\" \";
+		if(dynlen(action_text_in) > 3)
+		{
+			more = 1;
+			text += \"(\\n\\t\";
+		}
+		if(dynlen(action_text_in) == 1)
+			text += \"\\n\";
+		for(j = 2 ; j < dynlen(action_text_in); j++)
+		{
+			strreplace(action_text_in[j],\".\",\"_\");
+			text += \"(\"+action_text_in[j]+\")\";
+			if(more)
+			{
+				j++;
+				if(action_text_in[j] != \"then\")
+					text += \" \"+action_text_in[j]+\"\\n\\t\";
+				else
+					text += \" )\\n\";
+			}
+			else
+				text += \"\\n\";
+		}
+		text += \"\\t{\\n\\t\\tfwState = \\\"\"+state+\"\\\";\\n\\t}\\n\";
+
+//		text += \"\\t{\\n\\t\\treturn(\\\"\"+state+\"\\\");\\n\\t}\\n\";
+	}
+   	text += \"}\\n\\n\"; 
+	if(n > 3)
+//		dpSet($1+\".state_text:_original.._value\",text);
+//		fwFsm_writeDeviceStateScript($1, text);
+		ObjStateScript = text;
+//    	propPut(\"ptext\",\"Text\",text);
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

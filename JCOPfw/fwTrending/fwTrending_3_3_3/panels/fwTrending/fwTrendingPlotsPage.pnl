@@ -1,0 +1,710 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,356 213 640 480 N "_3DFace" 3
+"$Command"
+"$PageName"
+"$WorkPageName"
+"main() {
+	workPageName = $WorkPageName;
+	regColsRowsCallback();
+	regPlotDpesCallback();
+}
+
+void delCB(string _dpName, int _dpVal) {
+	//DebugN(\"delCB\");
+	if(_dpVal == 2) {
+		//DebugN(\"fakeVal is 2, trying to delete\");
+		deleteAnchorWorkCopies();
+	}
+}
+" 0
+EE E E 1 -1 -1 0  0 0
+"" 0 1
+E"const int MAX_COLS = 6;
+const int MAX_ROWS = 6;
+const int START_X = 20;
+const int START_Y = 120;
+const int REF_WIDTH = 100;
+const int REF_HEIGHT = 50;
+
+int nCols = 0, nRows = 0;
+
+string workPageName;
+
+// Order: X ~ i Y ~ j
+
+void addRef(int _x, int _y) {
+	addSymbol(myModuleName(), myPanelName(), \"fwTrending/fwTrendingSinglePlot.pnl\", \"Plot_\" + _x + \"_\" + _y,
+		makeDynString(\"$AnchorName:\" + workPageName + \"_\" + _x + \"_\" + _y, \"$WorkPageName:\" + workPageName,
+		\"$Col:\" + _x, \"$Row:\" + _y), 
+		START_X + (_x - 1) * REF_WIDTH, START_Y + (_y - 1) * REF_HEIGHT, 0, 1, 1);
+}
+
+void remRef(int _x, int _y) {
+	removeSymbol(myModuleName(), myPanelName(), \"Plot_\" + _x + \"_\" + _y);
+}
+
+void repositionRefs() {
+	int i, j;
+	for(i = 1; i <= nCols; i++)
+		for(j = 1; j <= nRows; j++) {
+			setValue(\"Plot_\" + i + \"_\" + j, \"position\", 
+				START_X + (i - 1) * REF_WIDTH + (MAX_COLS - nCols) * REF_WIDTH / 2, 
+				START_Y + (j - 1) * REF_HEIGHT + (MAX_ROWS - nRows) * REF_HEIGHT / 2);
+		}
+}
+
+void checkRanges() {
+	if(nCols >= MAX_COLS)
+		ButtonIncrCols.enabled = false;
+	else
+		ButtonIncrCols.enabled = true;
+	if(nCols <= 0)
+		ButtonDecrCols.enabled = false;
+	else
+		ButtonDecrCols.enabled = true;
+	if(nRows >= MAX_ROWS)
+		ButtonIncrRows.enabled = false;
+	else
+		ButtonIncrRows.enabled = true;
+	if(nRows <= 0)
+		ButtonDecrRows.enabled = false;
+	else
+		ButtonDecrRows.enabled = true;
+}
+
+void colsCallback(string _colsDP, int _nCols) {
+	int i, j;
+	dyn_string plots;
+//	DebugN(_colsDP + \" is \" + _nCols + \", \" + _rowsDP + \" is \" + _nRows);
+	if(nCols < _nCols)
+		for(i = nCols + 1; i <= _nCols; i++) 
+			for(j = 1; j <= nRows; j++) {
+//				fwTrendingWorkCopies_CreateNewPlotAnchor(workPageName, i, j);
+				addRef(i, j);
+			}
+	else if(nCols > _nCols)
+		for(i = _nCols + 1; i <= nCols; i++)
+			for(j = 1; j <= nRows; j++)
+				remRef(i, j);
+	nCols = _nCols;
+	ColsTextField.text = _nCols;
+	dpGet(workPageName + fwTrending_PAGE_PLOTS + fwTrending_ON_VAL, plots);
+	plotDpesCallback(workPageName + fwTrending_PAGE_PLOTS + fwTrending_ON_VAL, plots);
+	repositionRefs();
+	checkRanges();
+}
+
+void rowsCallback(string _rowsDP, int _nRows) {
+	int i, j;
+	dyn_string plots;
+//	DebugN(_colsDP + \" is \" + _nCols + \", \" + _rowsDP + \" is \" + _nRows);
+	if(nRows < _nRows)
+		for(j = nRows + 1; j <= _nRows; j++)
+			for(i = 1; i <= nCols; i++) {
+//				fwTrendingWorkCopies_CreateNewPlotAnchor(workPageName, i, j);
+				addRef(i, j);
+			}
+	else if(nRows > _nRows)
+		for(j = _nRows + 1; j <= nRows; j++)
+			for(i = 1; i <= nCols; i++)
+				remRef(i, j);
+	nRows = _nRows;
+	RowsTextField.text = _nRows;
+	dpGet(workPageName + fwTrending_PAGE_PLOTS + fwTrending_ON_VAL, plots);
+	plotDpesCallback(workPageName + fwTrending_PAGE_PLOTS + fwTrending_ON_VAL, plots);
+	repositionRefs();
+	checkRanges();
+}
+
+/* registering colsRowsCallback
+ */
+void regColsRowsCallback() {
+	dpConnect(\"colsCallback\", true, workPageName+fwTrending_PAGE_NCOLS + fwTrending_ON_VAL);
+	dpConnect(\"rowsCallback\", true, workPageName+fwTrending_PAGE_NROWS + fwTrending_ON_VAL);
+}
+
+void plotDpesCallback(string _plotsDP, dyn_string _plots) {
+	int i, j;
+//	DebugN(\"plotDpesCallback\", nCols, nRows);
+//	DebugN(_plots);
+	for(j = 1; j <= nRows; j++) {
+		for(i = 1; i <= nCols; i++) {
+			if(6 * (j - 1) + i <= dynlen(_plots)) {
+				string title, color;
+//				DebugN(\"setting the text\");
+				if(dpExists(_plots[6 * (j - 1) + i] + fwTrending_PLOT_TITLE + fwTrending_ON_VAL)) {
+					dpGet(_plots[6 * (j - 1) + i] + fwTrending_PLOT_TITLE + fwTrending_ON_VAL, title);
+					if(title != \"\")
+						setValue(\"Plot_\" + i + \"_\" + j + \".Text1\", \"text\", title);
+					else
+						setValue(\"Plot_\" + i + \"_\" + j + \".Text1\", \"text\", _plots[6 * (j - 1) + i]);
+				} else
+					setValue(\"Plot_\" + i + \"_\" + j + \".Text1\", \"text\", _plots[6 * (j - 1) + i]);
+				if(dpExists(_plots[6 * (j - 1) + i] + fwTrending_PLOT_BACK_COLOR + fwTrending_ON_VAL)) {
+					dpGet(_plots[6 * (j - 1) + i] + fwTrending_PLOT_BACK_COLOR + fwTrending_ON_VAL, color);
+					setValue(\"Plot_\" + i + \"_\" + j + \".Text1\", \"backCol\", color);
+					setValue(\"Plot_\" + i + \"_\" + j + \".Polyline1\", \"backCol\", color);
+				}
+			}
+		}
+	}
+}
+
+void regPlotDpesCallback() {
+	dpConnect(\"plotDpesCallback\", true, workPageName + fwTrending_PAGE_PLOTS + fwTrending_ON_VAL);
+}
+" 0
+ 2
+"CBRef""0"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 14
+"TextPageName"
+""
+1 20 50 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 52 108 78
+0 2 0 "s" 0 0 0 64 0 0  22 52
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 9 Page Name
+2 17
+"TextPageTitle"
+""
+1 20 80 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 82 108 108
+0 2 0 "s" 0 0 0 64 0 0  22 82
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 10 Page Title
+2 23
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 388 38
+0 2 0 "s" 0 0 0 64 0 0  12 12
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 11 Page Layout
+2 27
+"Text2"
+""
+1 440 50 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 442 52 497 68
+0 2 0 "s" 0 0 0 192 0 0  442 52
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 8 Columns:
+2 28
+"Text3"
+""
+1 622 198 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 532 52 568 68
+0 2 0 "s" 0 0 0 192 0 0  532 52
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 5 Rows:
+2 31
+"Text5"
+""
+1 30 440 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 32 442 228 458
+0 2 0 "s" 0 0 0 64 0 0  32 442
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 29 Individual controls for plots
+30 32
+"Frame1"
+""
+1 10 110 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 10 40 620 110
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 0 
+30 33
+"Frame2"
+""
+1 10 430 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 10 110 630 430
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 0 
+14 15
+"TextFieldPageName"
+""
+1 110 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+108 48 412 75
+3 "s" 0 0 0 0 0 0 
+E
+"main() {
+	if($Command == \"new\") {
+	} else if($Command == \"edit\") {
+		this.text = $PageName;
+		this.editable = false;
+		this.enabled = false;
+	}
+}" 0
+
+E
+14 16
+"TextFieldPageTitle"
+""
+1 110 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E"main() {
+	dpSet(workPageName + fwTrending_PAGE_TITLE + fwTrending_ORIG_VAL, this.text);
+}" 0
+ E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+108 78 412 105
+3 "s" 0 0 0 0 0 0 
+E
+"main() {
+		dpConnect(\"titleCB\", workPageName + fwTrending_PAGE_TITLE + fwTrending_ON_VAL);
+}
+
+void titleCB(string _dp, string _val) {
+	this.text = _val;
+}" 0
+
+"main() {
+	dpSet(workPageName + fwTrending_PAGE_TITLE + fwTrending_ORIG_VAL, this.text);
+}" 0
+
+14 25
+"ColsTextField"
+""
+1 460 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E"main()
+{
+	dpSet(workPageName + fwTrending_PAGE_NCOLS + fwTrending_ORIG_VAL, this.text);
+}" 0
+ E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+458 68 492 95
+3 "s" 0 0 0 0 0 0 
+E
+"main() {
+	dpConnect(\"colsCB\", true, workPageName + fwTrending_PAGE_NCOLS);
+}
+
+void colsCB(string _dp, int _val) {
+	this.text = _val;
+}" 0
+
+"main() {
+	dpSet(workPageName + fwTrending_PAGE_NCOLS + fwTrending_ORIG_VAL, this.text);
+}" 0
+
+13 11
+"ButtonIncrCols"
+""
+1 500 60 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+498 58 522 82
+T 
+1
+LANG:1 1 +
+"main() {
+//	addCol();
+//	repositionRefs();
+//	checkRanges();
+	int actCols;
+	dpGet(workPageName + fwTrending_PAGE_NCOLS + fwTrending_ON_VAL, actCols);
+	if(actCols < MAX_COLS) {
+		++actCols;
+		dpSet(workPageName + fwTrending_PAGE_NCOLS + fwTrending_ORIG_VAL, actCols);
+		if(actCols == 1)
+			dpSet(workPageName + fwTrending_PAGE_NROWS + fwTrending_ORIG_VAL, 1);
+	}
+}" 0
+ E E E
+13 10
+"ButtonDecrCols"
+""
+1 500 80 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+498 78 522 102
+T 
+1
+LANG:1 1 –
+"main() {
+/*	remCol();
+	repositionRefs();
+	checkRanges();*/
+	int actCols;
+	dpGet(workPageName + fwTrending_PAGE_NCOLS + fwTrending_ON_VAL, actCols);
+	if(actCols > 0) {
+		--actCols;
+		dpSet(workPageName + fwTrending_PAGE_NCOLS + fwTrending_ORIG_VAL, actCols);
+		if(actCols == 0)
+			dpSet(workPageName + fwTrending_PAGE_NROWS + fwTrending_ORIG_VAL, 0);
+	}
+}" 0
+ E E E
+14 26
+"RowsTextField"
+""
+1 550 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E"main() {
+	dpSet(workPageName + fwTrending_PAGE_NROWS + fwTrending_ORIG_VAL, this.text);
+}" 0
+ E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+548 68 582 95
+3 "s" 0 0 0 0 0 0 
+E
+"main()
+{
+	dpConnect(\"rowsCB\", true, workPageName + fwTrending_PAGE_NROWS);
+}
+
+void rowsCB(string _dp, int _val) {
+	this.text = _val;
+}
+" 0
+
+"main() {
+	dpSet(workPageName + fwTrending_PAGE_NROWS + fwTrending_ORIG_VAL, this.text);
+}" 0
+
+13 12
+"ButtonIncrRows"
+""
+1 590 60 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+588 58 612 82
+T 
+1
+LANG:1 1 +
+"main() {
+	int actRows;
+	dpGet(workPageName + fwTrending_PAGE_NROWS + fwTrending_ON_VAL, actRows);
+	if(actRows < MAX_ROWS) {
+		++actRows;
+		dpSet(workPageName + fwTrending_PAGE_NROWS + fwTrending_ORIG_VAL, actRows);
+/*		if(actRows == MAX_ROWS)
+			this.enabled = false;*/
+		if(actRows == 1)	
+			dpSet(workPageName + fwTrending_PAGE_NCOLS + fwTrending_ORIG_VAL, 1);
+	}
+
+}" 0
+ E E E
+13 13
+"ButtonDecrRows"
+""
+1 590 80 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+588 78 612 102
+T 
+1
+LANG:1 1 –
+"main() {
+	int actRows;
+	dpGet(workPageName + fwTrending_PAGE_NROWS + fwTrending_ON_VAL, actRows);
+	if(actRows > 0) {
+		--actRows;
+		dpSet(workPageName + fwTrending_PAGE_NROWS + fwTrending_ORIG_VAL, actRows);
+		if(actRows == 0)
+			dpSet(workPageName + fwTrending_PAGE_NCOLS + fwTrending_ORIG_VAL, 0);
+	}
+}
+" 0
+ E E E
+13 21
+"Button1"
+""
+1 440 440 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+438 438 532 472
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_string exceptionInfo;
+/*	switch($Command) {
+		case \"new\": {
+			string name;
+			name = TextFieldPageName.text;
+			//dpSet(workPageName + fwTrendingWorkCopies_WORK_DATA + fwTrendingWorkCopies_PAGE_TITLE + fwTrendingWorkCopies_ORIG_VAL, TextFieldPageTitle.text);
+//			fwTrendingWorkCopies_StorePage(workPageName, name, true, exceptionInfo);
+			break;
+		}
+		case \"edit\": {
+			//dpSet(workPageName + fwTrendingWorkCopies_WORK_DATA + fwTrendingWorkCopies_PAGE_TITLE + fwTrendingWorkCopies_ORIG_VAL, TextFieldPageTitle.text);
+//			fwTrendingWorkCopies_StorePage(workPageName, $PageName, false, exceptionInfo);
+			break;
+		}
+	}*/
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		PanelOffReturn(makeDynFloat(0.0), makeDynString(\"OK\", TextFieldPageName.text));
+}" 0
+ E E E
+13 22
+"Button2"
+""
+1 540 440 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+538 438 632 472
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOffReturn(makeDynFloat(0.0), makeDynString(\"Cancel\"));
+}" 0
+ E E E
+20 29
+"ControlsCheckButton"
+""
+1 10 440 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E"main() {
+	bool state;
+	getValue(\"\", \"state\", 0, state);
+	dpSet(workPageName + fwTrending_PAGE_CONTROLS + fwTrending_ORIG_VAL, state);
+}" 0
+ E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+8 438 22 462
+1
+T 
+1
+LANG:1 12 CheckButton1
+ 1
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+1
+E E 
+"main() {
+	controlsCallbackReg();
+}
+
+void controlsCallback(string _controlsDP, bool _controls) {
+	setValue(\"\", \"state\", 0, _controls);
+}
+
+void controlsCallbackReg() {
+	dpConnect(\"controlsCallback\", true, workPageName + fwTrending_PAGE_CONTROLS + fwTrending_ON_VAL);
+}" 0
+"main(int button, bool state) {
+	dpSet(workPageName + fwTrending_PAGE_CONTROLS + fwTrending_ORIG_VAL, state);
+}" 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

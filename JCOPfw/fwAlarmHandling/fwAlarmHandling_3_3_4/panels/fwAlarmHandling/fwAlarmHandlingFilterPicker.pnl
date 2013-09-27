@@ -1,0 +1,477 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 308 427 N "_3DFace" 1
+"$mode"
+"main()
+{
+	int i, length;
+	dyn_string configDpNames, configNames;
+	
+	configDpNames = dpNames(fwAlarmHandlingScreen_FILTER_DP_PREFIX + \"*\", fwAlarmHandlingScreen_FILTER_DP_TYPE);
+	
+	length = dynlen(configDpNames);
+	
+	for(i=1; i<=length; i++)
+	{
+		configDpNames[i] = dpSubStr(configDpNames[i], DPSUB_DP);
+		strreplace(configDpNames[i], fwAlarmHandlingScreen_FILTER_DP_PREFIX, \"\");
+	}
+		
+	savedConfigsTable.deleteAllLines();
+	savedConfigsTable.appendLines(dynlen(configDpNames), \"filterName\", configDpNames);
+		
+//	savedConfigsList.items = configDpNames;
+//	savedConfigsList.selectedPos(0);
+	
+	switch(strtolower($mode))
+	{
+		case \"save\":
+			title.text = \"Save filter as...\";
+			okButton.text = \"Save\";
+			filterFieldCaption.text = \"Save filter as:\";
+                        showAsQuickFilter.visible = TRUE;
+                        accessControlOn.visible = TRUE;
+                        accessRight.visible = TRUE;
+                        accessRightSelection.visible = TRUE;
+			break;
+		case \"delete\":
+			title.text = \"Choose a filter to delete...\";
+			okButton.text = \"Delete\";
+			filterFieldCaption.text = \"Filter to delete:\";
+                        moveObjects();
+			break;
+		default:
+			title.text = \"Choose a filter to load...\";
+			okButton.text = \"Load\";
+			filterFieldCaption.text = \"Filter to load:\";
+                        moveObjects();
+			break;
+	}
+}
+
+moveObjects()
+{
+  int x, y;
+  
+  getValue(\"filterField\", \"position\", x, y);
+  setValue(\"filterField\", \"position\", x, y + 90);
+
+  getValue(\"filterFieldCaption\", \"position\", x, y);
+  setValue(\"filterFieldCaption\", \"position\", x, y + 90);
+
+  getValue(\"savedConfigsTable\", \"size\", x, y);
+  setValue(\"savedConfigsTable\", \"size\", x, y + 90);
+}" 0
+ "main()
+{
+	int i;
+}" 0
+ E E E 1 0 0 0  10 10
+""0  1
+E "setAccessControls()
+{
+  accessControlOn.enabled = showAsQuickFilter.state(0);
+  accessRight.enabled = (accessControlOn.state(0) && showAsQuickFilter.state(0));
+  accessRightSelection.enabled = (accessControlOn.state(0) && showAsQuickFilter.state(0));
+}
+  
+okButtonCode()
+{
+	string filter, filterDp;
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+
+	filter = filterField.text;
+	filterDp = fwAlarmHandlingScreen_FILTER_DP_PREFIX + filter;
+	
+	switch(strtolower($mode))
+	{
+		case \"save\":
+			if(dpExists(filterDp))
+			{
+				ChildPanelOnCentralReturn(\"fwGeneral/fwOkCancel.pnl\", \"Overwrite existing filter...\",
+																		makeDynString(\"$text:Are you sure you want to overwrite this filter (\" + filter + \")?\"), df, ds);
+				if(ds[1] == \"cancel\")
+					return;
+			}
+			else
+			{
+				if(dpIsLegalName(filterDp))
+					dpCreate(filterDp, fwAlarmHandlingScreen_FILTER_DP_TYPE);
+				else
+					fwException_raise(exceptionInfo, \"ERROR\", \"The chosen filter name contains invalid characters e.g. spaces, tabs or .:;,[]{}?* \\\\ / %!()$@\", \"\");
+			}
+			break;
+		case \"delete\":
+			if(dpExists(filterDp))
+			{
+				ChildPanelOnCentralReturn(\"fwGeneral/fwOkCancel.pnl\", \"Delete filter...\",
+																		makeDynString(\"$text:Are you sure you want to delete this filter (\" + filter + \")?\"), df, ds);
+				if(ds[1] == \"cancel\")
+					return;
+			}
+			else
+					fwException_raise(exceptionInfo, \"ERROR\", \"The filter to delete does not exist.\", \"\");
+			break;
+		default:
+			if(!dpExists(filterDp))
+				fwException_raise(exceptionInfo, \"ERROR\", \"The chosen filter does not exist.\", \"\");
+			break;
+	}
+	
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		PanelOffReturn(makeDynFloat(1), makeDynString(filterDp, showAsQuickFilter.state(0), accessControlOn.state(0), accessRight.text));
+}" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 1
+"title"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 78 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 (TITLE)
+2 2
+"Text2"
+""
+1 20 40 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 42 188 58
+0 2 0 "0s" 0 0 0 64 0 0  22 42 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Existing filters:
+2 3
+"filterFieldCaption"
+""
+1 20 230 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 232 188 248
+0 2 0 "0s" 0 0 0 64 0 0  22 232 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 (Save Filter As:)
+14 4
+"filterField"
+""
+1 20 250 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 248 292 275
+3 "0s" 0 0 0 0 0 -1  E E E
+13 5
+"cancelButton"
+""
+1 210 380 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 27 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 208 378 292 412
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOffReturn(makeDynFloat(0), makeDynString());
+}" 0
+ E E E
+13 6
+"okButton"
+""
+1 120 380 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 118 378 202 412
+
+T 
+1
+LANG:1 9 Save/Load
+"main()
+{
+	okButtonCode();
+}" 0
+ E E E
+25 7
+"savedConfigsTable"
+""
+1 20 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main()
+{
+	okButtonCode();
+}" 0
+
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 58 292 232
+"main()
+{
+	this.tableMode(TABLE_SELECT_BROWSE);
+	this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+"main(int row, string column, string value)
+{
+        bool isQuickFilter;
+        string accessRightRequired, dpName;
+        dyn_string exceptionInfo;
+        
+	filterField.text = value;
+        
+        if(showAsQuickFilter.visible)
+        {
+          if(dpExists(fwAlarmHandlingScreen_FILTER_DP_PREFIX + value))
+            dpName = fwAlarmHandlingScreen_FILTER_DP_PREFIX + value;
+          else
+            dpName = value;
+          
+          fwAlarmHandlingScreen_loadQuickFilterOptions(dpName, isQuickFilter, accessRightRequired, exceptionInfo);
+          showAsQuickFilter.state(0) = isQuickFilter;
+          accessControlOn.state(0) = (accessRightRequired != \"\");
+          accessRight.text = accessRightRequired;
+          setAccessControls();
+        }
+}" 0
+ 0 0 1 1 1 "filterName" 20 1 0 "s" 1
+LANG:1 11 Filter Name
+E
+1
+LANG:1 0 
+
+230 
+16 16 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 0 0 7
+1 0
+20 8
+"showAsQuickFilter"
+""
+1 20 277 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 275 182 302.225806451613
+1
+T 
+1
+LANG:1 25 Show in Quick Filter list
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  setAccessControls();
+}" 0
+14 9
+"accessRight"
+""
+1 44 330 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 42 328 216 355
+2 "0s" 0 0 0 0 0 -1  E E E
+13 10
+"accessRightSelection"
+""
+1 220 327 E E E 0 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 27 0
+E E E
+0
+1
+LANG:1 22 Leave filter unchanged
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 218 325 292 359
+
+T 
+1
+LANG:1 6 Choose
+"main()
+{
+  dyn_string privileges, exceptionInfo;
+		
+  privileges[1] = accessRight.text;
+  if(isFunctionDefined(\"fwAccessControl_selectPrivileges\"))
+  {
+    fwAccessControl_selectPrivileges(privileges, \"Please choose access right\");
+    if(dynlen(privileges))
+      accessRight.text = privileges[1];    
+  }
+  else
+  {
+    fwException_raise(exceptionInfo, \"ERROR\", \"The access control component is not installed.\", \"\");
+    fwExceptionHandling_display(exceptionInfo); 
+  }
+}" 0
+ E E E
+20 12
+"accessControlOn"
+""
+1 20 302 E E E 0 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 300 242 327
+1
+T 
+1
+LANG:1 33 Only for users with access right:
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  setAccessControls();
+}" 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

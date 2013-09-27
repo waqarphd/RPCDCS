@@ -1,0 +1,437 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 589 536 N "_3DFace" 0
+E E E E E 1 -1 -1 0  80 70
+""0  1
+E "update(string deviceType)
+{
+  dyn_string dps;
+  switch(strtolower(deviceType ))
+  {
+    case \"hosts\": dps = dpNames(\"FMC/*\", \"FwFMCNode\");
+                  break;
+    case \"projects\": dps = dpNames(\"SystemOverview/*\", \"FwSystemOverviewProject\");
+                  break;
+    case \"plcs\": dps = dpNames(\"*\", \"IcemonPlc\");
+                  break;
+                  
+  }
+  
+  for(int i = 1; i <= dynlen(dps); i++)
+  {
+    string alias = dpGetAlias(dps[i] + \".\");
+      tbDeviceDps.appendLine(\"deviceDp\", dps[i], \"alias\", alias);
+      
+  }
+  txCount.text = \"Devices selected: 0 of \" + dynlen(dps);  
+}
+
+
+applyDefaultConfig(string config, string deviceType, dyn_string dps)
+{
+  dyn_string ex;
+  int n = dynlen(dps);
+  openProgressBar(\"Applying default \" + config, \"copy.gif\", \"Applying default \" + config, \"Total devices:\" + n, \"\", 1); 
+  switch(strtolower(config))
+  {
+    case \"archive\":
+                   for(int i = 1; i <= n; i++) 
+                   {
+                     showProgressBar(\"Applying default archive\", \"copy.gif\", \"Applying default archive\", \"Current Device: \" + dps[i], n-i); 
+                     fwDevice_setArchive(dps[i], \"RDB-99) EVENT\", fwDevice_ARCHIVE_SET, ex);
+                   }
+                   break;
+    case \"alarms\": 
+                   if(strtolower(deviceType) == \"hosts\")
+                   {
+                     for(int i = 1; i <= n; i++) 
+                     {
+                       showProgressBar(\"Applying default alarms\", \"copy.gif\", \"Applying default alarms\", \"Current Device: \" + dps[i], n-i); 
+                       fwDevice_setAlert(dps[i], fwDevice_ALERT_SET, ex);
+/*                       
+                       if(dpTypeName(dps[i]) != \"FwFMCNode\")
+                         continue;
+                       
+                       string node = fwFMC_getNodeName(dps[i]);
+                       showProgressBar(\"Applying default alarms\", \"copy.gif\", \"Applying default alarms\", \"Current Device: \" + node, n-i); 
+                       fwFMC_setDefaultAlarms(node, ex);
+*/                       
+                     }
+                   }
+                   else if(strtolower(deviceType) == \"projects\")
+                   {
+                     for(int i = 1; i <= n; i++) 
+                     {
+                       if(dpTypeName(dps[i]) != \"FwSystemOverviewProject\")
+                         continue;
+                       
+                       string project = \"\";
+                       string host = \"\";
+                       fwSysOverview_getProjectDb(dps[i], project, ex);
+                       dyn_mixed projectData;
+                       fwSysOverview_getProjAccessData(dps[i], projectData);
+                       host = projectData[fwSysOverview_PROJECT_HOST_IDX];
+                       showProgressBar(\"Applying default alarms\", \"copy.gif\", \"Applying default alarms\", \"Current Device: \" + project + \"@\" + host, n-i); 
+                       fwSysOverview_setProjectAlert(project, host, true, ex);
+                       dyn_string managerDps = fwSysOverview_getProjectManagerDPs(dps[i]);
+                       for(int j = 1; j <= dynlen(managerDps); j++)
+                       {
+                         fwSysOverview_setManagerAlert(j, dps[i], true, ex);
+                       }
+                     }
+                   }
+                   else if(strtolower(deviceType) == \"plcs\")
+                   {
+                     for(int i = 1; i <= n; i++) 
+                     {
+                       showProgressBar(\"Applying default alarms\", \"copy.gif\", \"Applying default alarms\", \"Current Device: \" + dps[i], n-i); 
+DebugN(\"Applying default alarms to: \" + dps[i]);                       
+                       fwDevice_setAlert(dps[i], fwDevice_ALERT_SET, ex);
+                     }
+                     
+                   }
+                   break;
+                   
+  }
+  
+  closeProgressBar();
+  
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+22 0
+"cbDeviceType"
+""
+1 92 32 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  90 30 214 54
+3
+1
+LANG:1 5 Hosts
+
+0
+1
+LANG:1 8 Projects
+
+0
+1
+LANG:1 4 PLCs
+
+0
+
+"main()
+{
+  update(\"hosts\");
+}
+" 0
+
+"main()
+{
+  tbDeviceDps.deleteAllLines();
+  update(this.text);
+}
+" 0
+
+E
+ 1 0
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 22 34 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 34 182 64
+0 2 2 "0s" 0 0 0 64 0 0  22 34 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Device Type
+25 2
+"tbDeviceDps"
+""
+1 22 72 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  20 70 572 484
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  
+}
+" 0
+"main(int row, string column, string value)
+{
+  txCount.text = \"Devices selected:\" + dynlen(this.getSelectedLines()) + \" of \" + this.lineCount();
+}
+
+" 0
+ 1 0 1 2 0 "deviceDp" 39 1 0 "s" 1
+LANG:1 9 Device DP
+E
+1
+LANG:1 0 
+
+400 "alias" 12 1 0 "s" 1
+LANG:1 5 Alias
+E
+1
+LANG:1 0 
+
+129 
+16 16 10 10
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+22 3
+"cbConfig"
+""
+1 322 32.00000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  320 30 444 54
+2
+1
+LANG:1 7 Archive
+
+0
+1
+LANG:1 6 Alarms
+
+0
+
+E
+E
+E
+ 1 0
+2 4
+"PRIMITIVE_TEXT2"
+""
+1 244 34 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 244 34 404 64
+0 2 2 "0s" 0 0 0 64 0 0  244 34 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Default Config
+13 5
+"PUSH_BUTTON1"
+""
+1 340 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  338 488 452 522
+
+T 
+1
+LANG:1 5 Apply
+E E "main()
+{
+  string config = cbConfig.text;
+  string deviceType = cbDeviceType.text;
+  dyn_int lines = tbDeviceDps.getSelectedLines();
+  dyn_string dps;
+  
+  if(dynlen(lines) <= 0)  
+    return;
+  
+  dyn_string ds;
+  dyn_float df;
+  ChildPanelOnCentralModalReturn(\"fwInstallation/fwInstallationDB_question.pnl\", \"Apply default config\", makeDynString(\"$txt:Are you sure you want to re-apply the\\ndefault \" + config + \" configuration?\"), df, ds);
+
+  if(dynlen(df) <= 0 || df[1] <= 0)  
+    return;
+  
+  string deviceDp = \"\";
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    deviceDp = tbDeviceDps.cellValueRC(lines[i], \"deviceDp\");
+    dynAppend(dps, deviceDp);
+    dynAppend(dps,dpNames(deviceDp + \"/*\"));
+  }    
+  
+  applyDefaultConfig(config, deviceType, dps);
+}
+
+
+
+
+
+
+
+
+" 0
+ E
+13 6
+"PUSH_BUTTON2"
+""
+1 460 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  458 488 572 522
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}
+" 0
+ E E E
+2 7
+"PRIMITIVE_TEXT3"
+""
+1 20 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 20 10 269 25
+0 2 2 "0s" 0 0 0 192 0 0  20 10 1
+1
+LANG:1 25 Arial,9,-1,5,75,1,0,0,0,0
+0 1
+LANG:1 41 FW System Overview: Default Configuration
+2 8
+"txCount"
+""
+1 20 490 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 20 490 160 510
+0 2 2 "0s" 0 0 0 64 0 0  20 490 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 txCount
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

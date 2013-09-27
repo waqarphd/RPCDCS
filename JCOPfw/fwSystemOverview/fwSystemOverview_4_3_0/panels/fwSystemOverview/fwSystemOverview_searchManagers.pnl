@@ -1,0 +1,1930 @@
+V 11
+1
+LANG:1 21 Managers Filter Panel
+PANEL,-1 -1 784 814 N "_3DFace" 1
+"$embedded"
+"main()
+{
+  dyn_string exceptionInfo;
+  
+  if(dpExists(\"fwInstallation_fwAccessControl\"))
+  {
+    //Access control callback function
+    fwAccessControl_setupPanel(\"appyAccessControl\",exceptionInfo);
+	
+    // check and handle exceptions that might have been thrown by the functions above
+    if (dynlen(exceptionInfo)) 
+    {
+      fwAccessControl_displayException(exceptionInfo);
+      return;
+    }    
+  }
+ 
+  if(isDollarDefined(\"$embedded\"))
+    btClose.visible = false;
+  
+}
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+#uses \"fwSystemOverview/fwSystemOverviewUi.ctl\"
+#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+
+dyn_string projectIds;
+bool isPrivilegeGranted;
+setManagers(shape searchTree, string managerTypeSelected,string managerStateSelected, string systemPattern, string managerOptions, string managerStartModeSelect, string projectStateSelect)
+{
+  dyn_string managerList, alias, sysName, sds, projName;
+  int i,rc;
+  dyn_int manStates;
+  dyn_dyn_anytype result;
+  string dpquery, where = \"\", from = \"\";
+  dyn_string systems;
+  string pvssPattern;
+  string dbSystemName;
+  dyn_string projectDpNames, exceptionInfo;
+  dyn_string projectStatuses;
+  
+  int projNum = 0, manNum = 0, sysNum = 0;
+  
+  dynClear(managerList);
+  dynClear(manStates);
+  dynClear(sysName);
+  
+  searchTree.clear();
+  
+  if(!searchTree.itemExists(managerTypeSelected)&& managerTypeSelected!=\"\")
+      searchTree.appendItem(\"\", \"managerList\", managerTypeSelected);
+  else if(!searchTree.itemExists(managerTypeSelected)&& managerStateSelected!=\"\")
+          searchTree.appendItem(\"\", \"managerList\", \"In state:\"+managerStateSelected);
+
+  searchTree.setOpen(\"managerList\" ,true); 
+  cbSelect.state(0) = false;
+//  cbExpand.state(0) = false;
+  
+  if(systemPattern!= \"\")
+  {
+    strreplace(systemPattern, \" \", \"\"); // to avoid spaces passed by user
+  
+    fwSysOverview_convertDbName(systemPattern, \"system\", pvssPattern, exceptionInfo);
+    if(dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return;}
+
+    systems = dpNames(fwSysOverview_SYSTEM_DP + fwSysOverview_SYSTEM_PREFIX + \"*\"+ pvssPattern + \"*\", \"FwSystemOverviewSystem\");
+  }
+  
+  else
+    systems = dpNames(fwSysOverview_SYSTEM_DP + fwSysOverview_SYSTEM_PREFIX + \"*\", \"FwSystemOverviewSystem\");
+  
+  dyn_string projMonitored;
+  
+  openProgressBar(\"\",\"\",\"Searching for Managers...\", \"\",\"\", 2);
+
+  for(int i=1; i<=dynlen(systems); i++)
+  {       
+    dynClear(projectDpNames);
+    dynClear(projMonitored);
+        
+    fwSysOverview_getSystemProjects(systems[i], projectDpNames, exceptionInfo);
+    if(dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); continue;}
+
+    for(int j=1; j<=dynlen(projectDpNames); j++)
+    {
+      int state;
+      
+      if(dpExists(projectDpNames[j] + fwSysOverview_STATE))
+        dpGet(projectDpNames[j] + fwSysOverview_STATE, state);
+      
+      if(state != fwSysOverview_MONITORING_STOPPED)
+        dynAppend(projMonitored, projectDpNames[j]);
+    }
+    for(int k=1; k<=dynlen(projMonitored); k++)
+    {
+      if(i==1 && k>1)
+        from += \"','\";        
+      else if(i>1)
+        from += \"','\";
+        
+      from += projMonitored[k] + \"/Manager*\" + fwSysOverview_STATE;   
+    }
+  }          
+
+  if(from != \"\")
+  {
+  dpquery = \"SELECT '_online.._value' FROM '{\" + from + \"}'\";
+
+  where += \" (_DPT=\\\"FwSystemOverviewManager\\\") \";
+  
+  //only managers that are being updated
+  where += \"AND ('\" + fwSysOverview_MANAGER_UPDATED + \":_online.._value' == \\\"TRUE\\\") \";
+  
+  if(managerTypeSelected!=\"\" && managerTypeSelected!=\"ANY\")
+    where += \"AND ('\" + fwSysOverview_MANAGER_TYPE + \":_online.._value' == \\\"\" + managerTypeSelected + \"\\\") \";
+  
+  if(managerStateSelected!=\"\" && managerStateSelected!=\"ANY\")
+    where += \"AND ('\" + fwSysOverview_STATE + \":_online.._value' == \\\"\"+getStateFromString(managerStateSelected) + \"\\\") \";
+  
+  if(managerStartModeSelect != \"\"  && managerStartModeSelect != \"ANY\")
+    where += \"AND ('\" + fwSysOverview_MANAGER_READINGS_STARTMODE_VALUE + \":_online.._value' == \\\"\" + getStartModeFromString(managerStartModeSelect) + \"\\\") \";
+  
+  if(managerOptions !=\"\")
+    where += \"AND ('\" + fwSysOverview_MANAGER_OPTIONS + \":_online.._value' LIKE \\\"*\" + managerOptions + \"*\\\") \";
+  
+  if (where!=\"\") dpquery+= \" WHERE\" + where;
+
+  rc=dpQuery(dpquery,result);   
+  }     
+  for (i=2;i<=dynlen(result);i++) 
+  {
+    showProgressBar(\"Calculating results.\", \"\", \"\", (100*i)/dynlen(result));
+    string managerDp, projectDp, hostDp, systemDp, descrDp;
+    string manager, managerDescr;
+    string dbProjectName, dbHostName, dbSystemName;
+    string projState;
+    string d = result[i][1];
+    
+    managerDp = dpSubStr(d,DPSUB_DP);
+    
+    if (managerDp != \"\") 
+    {  
+      projectDp = managerDp;
+      fwSysOverview_getDeviceName(managerDp, manager);
+      strreplace(projectDp, \"/\" + manager, \"\");
+
+      dpGet(projectDp + fwSysOverview_STATE, projState,
+            managerDp + fwSysOverview_MANAGER_PROJECT, dbProjectName);
+
+      if(fwSysOverview_getStrFromState(projState) != projectStateSelect && projectStateSelect != \"ANY\")
+        continue;
+      
+      fwSysOverview_getProjectPc(projectDp, hostDp, exceptionInfo);
+      if(dynlen(exceptionInfo)){continue;}        
+
+      fwSysOverview_getHostDb(hostDp, dbHostName, exceptionInfo);
+      if(dynlen(exceptionInfo)){continue;}
+        
+      fwSysOverview_getProjectSystem(projectDp, systemDp, exceptionInfo);
+      if(dynlen(exceptionInfo)){continue;}
+        
+      fwSysOverview_getSystemDb(systemDp, dbSystemName, exceptionInfo);
+      if(dynlen(exceptionInfo)){continue;}
+
+      dynAppend(managerList,managerDp);
+      dynAppend(projName, dbProjectName + \":\" + dbHostName);
+      dynAppend(sysName,dbSystemName); 
+      
+      managerDescr = fwSysOverview_getManagerDescription(managerDp, descrDp);
+      dynAppend(alias, managerDescr);
+
+
+      dynAppend(projectStatuses, projState);
+    }
+// if project state != X then dynRemove whatever was appended above  
+    dynAppend(manStates,result[i][2]);   
+  }
+//DebugN(\"alias\",alias);  
+//  alias = dpGetDescription(managerList);
+
+  manNum = dynlen(managerList);
+
+  for(i=1;i<=dynlen(managerList);i++)
+   { 
+     if(!searchTree.itemExists(sysName[i]))
+      {
+       searchTree.appendItem(\"managerList\", sysName[i], sysName[i]);           
+       searchTree.setIcon(sysName[i], 0, PROJ_PATH + \"pictures/fwSystemOverview/system.bmp\");
+       searchTree.setOpen(sysName[i], true);   
+       searchTree.setColumnWidth(0,550);  
+      } 
+     if(!searchTree.itemExists(projName[i]))
+     {
+       searchTree.appendItem(sysName[i], projName[i], projName[i]);           
+       searchTree.setIcon(projName[i], 0, PROJ_PATH + \"pictures/fwSystemOverview/console.gif\");
+       searchTree.setIcon(projName[i], 1, fwSysOverviewUi_getIconState(projectStatuses[i]));
+       searchTree.setText(projName[i], 1, \"Project: \" + fwSysOverview_getStrFromState(projectStatuses[i]));
+       searchTree.setOpen(projName[i], true);   
+       searchTree.setColumnWidth(0,550);  
+     }
+
+/*     
+     if(cbExpand.itemEnabled() == false)
+       searchTree.setOpen(projName[i]);
+     else
+       searchTree.setOpen(projName[i], false);
+*/     
+
+     collapseItem(searchTree, projName[i]);
+     
+        
+     string manType = getManagerTypeAndOptions(alias[i]);
+     searchTree.appendItem(projName[i],managerList[i],manType);
+     searchTree.setIcon(managerList[i], 0, PROJ_PATH + \"pictures/fwSystemOverview/manager.gif\");
+     searchTree.setIcon(managerList[i], 1, fwSysOverviewUi_getIconState(manStates[i]));
+     searchTree.setText(managerList[i], 1, fwSysOverview_getStrFromState(manStates[i]));
+   }
+  
+  closeProgressBar();   
+
+  sysNum = dynUnique(sysName);
+  projNum = dynUnique(projName);
+
+  dynClear(projectIds);  
+  
+  projectIds = projName;
+  
+  tfProjNum.text = projNum;
+  tfManNum.text = manNum; 
+  tfSysNum.text = sysNum;
+}  
+
+int getStateFromString(string managerState)
+{
+  int state;
+  
+  switch(managerState){
+    case \"STOPPED\":
+      state = fwSysOverview_STOPPED_NORMAL;
+      break;
+    case \"RUNNING\":
+      state = fwSysOverview_RUNNING;
+      break;
+    case \"BLOCKED\":
+      state = fwSysOverview_BLOCKED;
+      break;
+    case \"ABNORMALLY STOPPPED\":
+      state  = fwSysOverview_STOPPED_ABNORMAL;
+      break;
+    case \"NOT MONITORED\":
+      state  = fwSysOverview_MONITORING_STOPPED;
+      break;
+    case \"NAME MISMATCH\":
+      state  = fwSysOverview_PROJNAME_MISMATCH;
+      break;
+    case \"PMON NO RESPONSE\":
+      state  = fwSysOverview_PMON_NO_RESPONSE;
+      break;
+      
+    default:
+      state = -1;
+      break;
+   }  
+  return state;  
+}
+
+void collapseItem(shape tree, string itemId)
+{
+  if(tree.itemExists(itemId))
+  {
+    if(cbExpand.state(0) == false)
+      tree.setOpen(itemId, true);
+    else if(cbExpand.state(0) == true)
+      tree.setOpen(itemId, false);
+  }
+}
+
+int getStartModeFromString(string managerStartMode)
+{
+  int startMode;
+  
+  switch(managerStartMode)
+  {
+    case \"ALWAYS\":
+      startMode = 2;
+      break;
+    case \"MANUAL\":
+      startMode = 0;
+      break;
+    case \"ONCE\":
+      startMode = 1;
+      break;
+    
+    default:
+      startMode = -1;
+      break;
+   }  
+  return startMode;  
+}
+
+DisableAllInPanel(bool disable = false)
+{  
+  btStop.enabled = disable;
+  btStart.enabled = disable;
+  btKill.enabled = disable;
+  btProperties.enabled = disable; 
+  
+}
+
+void applyAC()
+{
+  string domain;
+  dyn_string ex;
+  string expertPrivilege = fwSysOverview_getExpertPrivilege(3);
+  dyn_string rows = searchTree.selectedItems();
+  rows = dynPatternMatch(fwSysOverview_SYSTEM_DP+\"*\",rows);
+  bool granted;
+  for(int i=1; i<=dynlen(rows); i++)
+  {
+    string projectDp;
+    fwSysOverview_getManagerProjectDp(rows[i], projectDp);
+    if(projectDp == \"\")
+    {
+      DebugN(\"Cannot find project dp for manager: \" + rows[i]);
+      return;
+    }
+    fwSysOverview_getACDomain(domain, projectDp);
+    fwAccessControl_isGranted(domain +\":\"+ expertPrivilege, granted, ex);
+    if(!granted)
+    {
+      break;
+    }
+  }
+  
+  DisableAllInPanel(granted);
+}
+
+
+appyAccessControl(string s1, string s2)
+{
+  applyAC();
+}
+string getManagerTypeAndOptions(string description)
+{
+  string typeAndOptions;
+  if (isFunctionDefined(\"fwAtlas\")) 
+  {
+    dyn_string sds = strsplit(description,\" \");
+    if (dynlen(sds) > 3)
+    {
+      for( int i=4; i<=dynlen(sds);i++)
+      {
+        typeAndOptions += sds[i] + \" \";
+      }
+    }
+    else
+      typeAndOptions = description; 
+  }
+  else
+  {
+     dyn_string sds = strsplit(description,\":\");
+
+     if(dynlen(sds)>1)
+       typeAndOptions = sds[dynlen(sds)];
+     else
+       typeAndOptions = description;
+  }
+  return typeAndOptions;
+}
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+22 0
+"managerTypeSelect"
+""
+1 160 29.47321428571424 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  158 27 322 54
+21
+1
+LANG:1 3 ANY
+
+0
+1
+LANG:1 11 PVSS00ascii
+
+0
+1
+LANG:1 15 PVSS00CMWClient
+
+0
+1
+LANG:1 15 PVSS00CMWServer
+
+0
+1
+LANG:1 10 PVSS00ctrl
+
+0
+1
+LANG:1 10 PVSS00data
+
+0
+1
+LANG:1 9 PVSS00dim
+
+0
+1
+LANG:1 16 PVSS00DimErrInfo
+
+0
+1
+LANG:1 9 PVSS00dip
+
+0
+1
+LANG:1 10 PVSS00dist
+
+0
+1
+LANG:1 11 PVSS00event
+
+0
+1
+LANG:1 11 PVSS00Laser
+
+0
+1
+LANG:1 16 PVSS00LHCLogging
+
+0
+1
+LANG:1 9 PVSS00mod
+
+0
+1
+LANG:1 9 PVSS00opc
+
+0
+1
+LANG:1 9 PVSS00rdb
+
+0
+1
+LANG:1 10 PVSS00redu
+
+0
+1
+LANG:1 8 PVSS00s7
+
+0
+1
+LANG:1 9 PVSS00sim
+
+0
+1
+LANG:1 8 PVSS00ui
+
+0
+1
+LANG:1 13 PVSS00valarch
+
+0
+
+E
+E
+E
+ 1 0
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 50.00000000000314 -897.8571428571393 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 -0.0684931506848967 -40.71428571428561 1 E 50 75 118 89
+0 2 2 "0s" 0 0 0 192 0 0  50 75 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Manager type:
+30 2
+"FRAME1"
+""
+1 31 34 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+5 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.6390134529148 0 3.187772925764191 -30.8094170403588 -98.38427947598302 0 E 31 34 478 264
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Search
+29 5
+"searchTree"
+""
+1 30 170 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+8
+"frameShadow" "enum 48"
+"backgroundOrigin" "enum 0"
+"defaultRenameAction" "enum 0"
+"frameShape" "enum 6"
+"vScrollBarMode" "enum 0"
+"hScrollBarMode" "enum 0"
+"resizeMode" "enum 1"
+"selectionMode" "enum 2"
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  30 170 740 700
+10 TreeWidget
+2
+0 "clicked" "(string id, int column)"
+"//  DebugN(\"this.currentItem()\", this.currentItem());
+  applyAC();"
+0 "rightClicked" "(string id, int column)"
+"//  DebugTN(\"searchTree.selectedItems()\", searchTree.selectedItems(), \"id\", id, \"column\", column);
+  applyAC();"
+"main()
+{
+  this.selectionMode(\"Extended\");
+  this.addColumn(\"Managers\");
+  this.setColumnWidth(0,500);  
+  this.addColumn(\"State\");
+  this.selectionMode(\"Multi\");
+  this.setColumnWidth(1,200);  
+  this.setSorting(0,TRUE);
+  this.showSortIndicator(TRUE); 
+//  this.multiSelection(true);
+
+}" 0
+2 6
+"PRIMITIVE_TEXT2"
+""
+1 -6733.820924010793 126.1428571428601 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 -230.3753424657536 -10.71428571428561 1 E 280 75 351 89
+0 2 2 "0s" 0 0 0 192 0 0  280 75 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Manager state:
+22 7
+"managerStateSelect"
+""
+1 160.0027397260274 59.47321428571424 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  158 57 322 84
+5
+1
+LANG:1 3 ANY
+
+0
+1
+LANG:1 19 ABNORMALLY STOPPPED
+
+0
+1
+LANG:1 7 BLOCKED
+
+0
+1
+LANG:1 7 RUNNING
+
+0
+1
+LANG:1 7 STOPPED
+
+0
+
+E
+"main()
+{
+/*
+  string managerTypeSelected, managerStateSelected;
+  
+  getValue(\"managerTypeSelect\",\"selectedText\",managerTypeSelected);
+  getValue(\"managerStateSelect\", \"selectedText\", managerStateSelected);
+
+  setManagers(getShape(searchTree.name()),managerTypeSelected, managerStateSelected);
+*/
+}" 0
+
+E
+ 1 0
+13 9
+"btClose"
+""
+1 650 770 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  648 768 752 802
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+   PanelOff();
+}" 0
+ E E "main()
+{
+  if(isDollarDefined(\"$embedded\") && ($embedded == \"TRUE\" || $embedded == \"true\"))
+    this.visible = false;
+}
+" 0
+
+13 13
+"btApply"
+""
+1 630 131.2857142857143 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  628 129 733 163
+
+T 
+1
+LANG:1 6 Search
+"main()
+{
+  //disable the buttons while loading the managers
+  DisableAllInPanel();
+  string managerTypeSelected, managerStateSelected, projectStateSelect, managerStartModeSelect;
+  
+  getValue(\"managerTypeSelect\", \"selectedText\", managerTypeSelected);
+  getValue(\"managerStateSelect\", \"selectedText\", managerStateSelected);
+  getValue(\"managerStartModeSelect\", \"selectedText\", managerStartModeSelect);
+  getValue(\"projectStateSelect\", \"selectedText\", projectStateSelect);
+
+  setManagers(getShape(searchTree.name()),managerTypeSelected, managerStateSelected, tfSystemPattern.text, tfManagerOptions.text, managerStartModeSelect, projectStateSelect);
+  
+
+  txFilter.text = \"Manager Type: \" + managerTypeSelected + \"   Manager State: \" + managerStateSelected +
+                  \"     Manager Options: \" + tfManagerOptions.text + \"    System Pattern: \" + tfSystemPattern.text;
+  txFilter01.text = \"Manager Start Mode: \" + managerStartModeSelect + \"   Project State: \" + projectStateSelect;
+  
+  txType.text = managerTypeSelected;
+  txState.text = managerStateSelected; 
+  txSystemPattern.text = tfSystemPattern.text;
+  txManagerOptions.text = tfManagerOptions.text;
+  txmanagerStartModeSelect.text = managerStartModeSelect;
+  txprojectStateSelect.text = projectStateSelect;
+  txApply.text = \"TRUE\";
+  
+  //reenable back the buttons if the user has the rights
+  DisableAllInPanel(true);
+}
+" 0
+ E E E
+2 14
+"txFilter"
+""
+1 162.1534246575339 122.2805194805196 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 162.1534246575339 122.2805194805196 656.9999999999999 142.6233766233766
+0 2 2 "0s" 0 0 0 64 0 0  162.1534246575339 122.2805194805196 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 26 ... please select a filter
+2 15
+"PRIMITIVE_TEXT7"
+""
+1 52.08099474706731 -920.9629777076417 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 0.997402597402597 -0.06849315068499706 -49.27272727272719 1 E 52 172 162 192
+0 2 2 "0s" 0 0 0 64 0 0  52 172 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Current Filter Settings:
+13 18
+"btRefresh"
+""
+1 550 770 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  548 768 642 802
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+  
+  if(txApply.text != \"\")
+    setManagers(getShape(searchTree.name()), txType.text, txState.text, txSystemPattern.text, txManagerOptions.text, txmanagerStartModeSelect.text, txprojectStateSelect.text);
+//  else
+//    setManagers(getShape(searchTree.name()), \"ANY\", \"ANY\", \"\", \"\", \"ANY\", \"ANY\");
+}" 0
+ E E E
+13 21
+"btStart"
+""
+1 20 770 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  18 768 112 802
+
+T 
+1
+LANG:1 5 START
+"main()
+{
+  dyn_string rows;
+  string hostName, systemName, userName, userPass, manOptions;
+  int port;
+  int idx;
+  dyn_float resultFloat;
+  dyn_string resultText;
+  dyn_string exceptionInfo;
+  
+  
+  rows = searchTree.selectedItems();
+//DebugTN(\"rows\",rows);   
+   
+  if(dynlen(rows) ==0)
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"WARNING: No manager selected\", makeDynString(\"No manager(s) selected\"));
+    return;
+  }
+ 
+  // disable all of the buttons while starting the managers
+  DisableAllInPanel();
+  
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation chatrt\", 
+                          makeDynString(\"$1:Are you sure you want to START the selected manager(s).\", \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+                           
+  bool ok=FALSE;
+  if(dynlen(resultFloat) > 0 ) ok = resultFloat[1];
+
+  
+  if(ok)
+  {
+    openProgressBar(\"\",\"\",\"Starting manager(-s).\", \"\",\"\", 2);
+    rows = dynPatternMatch(fwSysOverview_SYSTEM_DP+\"*\",rows);
+    string description = myPanelName() + \": Starting managers. \";
+    for(int i=1; i<=dynlen(rows); i++)
+    {
+//      strreplace(rows[i], \".\", \"\");
+       
+      fwSysOverview_getManagerData(rows[i], hostName, idx, port, userName, userPass, manOptions, exceptionInfo);
+        
+      if(userName==\"N/A\")
+        userName = \"\";
+      if(userPass==\"N/A\")
+        userPass = \"\";
+      showProgressBar(\"Starting manager(-s).\", \"\", \"\", (100*i)/dynlen(rows));
+      description += \" Hostname: \" + hostName + \" Manager idx: \" + idx;
+
+      fwSysOverview_startManager(hostName, port, userName, userPass, idx, exceptionInfo);
+
+    }
+    
+    fwConfigurationDBSystemInformation_logAction(description);
+      
+    closeProgressBar();
+//    delay(10);
+//    setManagers(getShape(searchTree.name()), txType.text, txState.text);
+  }
+  //re-enable the buttons if the user has the rights
+  DisableAllInPanel(true);
+}
+" 0
+ E E E
+13 22
+"btStop"
+""
+1 120 770 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  118 768 212 802
+
+T 
+1
+LANG:1 4 STOP
+"main()
+{
+
+  dyn_string rows;
+  string hostName, systemName, userName, userPass,manOptions;
+  int port;
+  int idx;   
+  dyn_float resultFloat;
+  dyn_string resultText;
+  dyn_string exceptionInfo;
+  
+  
+  rows = searchTree.selectedItems();
+
+  if(dynlen(rows) ==0)
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"WARNING: No manager selected\", makeDynString(\"No manager(s) selected\"));
+    return;
+  }
+
+  // disable all of the buttons while stopping the managers
+  DisableAllInPanel();  
+
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation chatrt\", 
+                          makeDynString(\"$1:Are you sure you want to STOP the selected manager(s).\", \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+                           
+  bool ok=FALSE;
+  if(dynlen(resultFloat) > 0 ) ok = resultFloat[1];
+
+  
+  if(ok)
+  {
+    openProgressBar(\"\",\"\",\"Stopping manager(-s).\", \"\",\"\", 2);    
+    rows = dynPatternMatch(fwSysOverview_SYSTEM_DP+\"*\",rows);
+    string description = myPanelName() + \": Stopping managers. \";
+      
+    for(int i=1; i<=dynlen(rows); i++)
+    {
+//      strreplace(rows[i], \".\", \"\");
+        
+      fwSysOverview_getManagerData(rows[i], hostName, idx, port, userName, userPass, manOptions, exceptionInfo);
+      
+      if(userName==\"N/A\")
+        userName = \"\";
+      if(userPass==\"N/A\")
+        userPass = \"\";
+      showProgressBar(\"Stopping manager(-s).\", \"\", \"\", (100*i)/dynlen(rows));
+      description += \" Hostname: \" + hostName + \" Manager idx: \" + idx;
+      fwSysOverview_stopManager(hostName, port, userName, userPass, idx, exceptionInfo);
+        
+    
+    }
+    fwConfigurationDBSystemInformation_logAction(description);   
+    closeProgressBar();    
+//    delay(6);
+//    setManagers(getShape(searchTree.name()), txType.text, txState.text);        
+  }
+  //re-enable the buttons if the user has the rights
+  DisableAllInPanel(true);
+}
+" 0
+ E E E
+13 23
+"btKill"
+""
+1 220 770 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  218 768 312 802
+
+T 
+1
+LANG:1 4 KILL
+"main()
+{
+  dyn_string rows;
+  string hostName, systemName, userName, userPass, manOptions;
+  int port;
+  int idx; 
+  dyn_float resultFloat;
+  dyn_string resultText;
+  dyn_string exceptionInfo;
+  
+  
+  rows = searchTree.selectedItems();
+
+  if(dynlen(rows) ==0)
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"WARNING: No manager selected\", makeDynString(\"No manager(s) selected\"));
+    return;
+  }
+  
+  // disable all of the buttons while killing the managers
+  DisableAllInPanel();
+  
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation required\", 
+                          makeDynString(\"$1:Are you sure you want to KILL the selected manager(s).\", \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+                           
+  bool ok=FALSE;
+  if(dynlen(resultFloat) > 0 ) ok = resultFloat[1];
+
+  
+  if(ok)
+  {
+    openProgressBar(\"\",\"\",\"Killing manager(-s).\", \"\",\"\", 2);    
+    rows = dynPatternMatch(fwSysOverview_SYSTEM_DP+\"*\",rows);
+    
+    string description = myPanelName() + \": Killing managers. \";
+    
+    for(int i=1; i<=dynlen(rows); i++)
+    {
+//      strreplace(rows[i], \".\", \"\");
+        
+      fwSysOverview_getManagerData(rows[i], hostName, idx, port, userName, userPass, manOptions, exceptionInfo);
+      
+      if(userName==\"N/A\")
+        userName = \"\";
+      if(userPass==\"N/A\")
+        userPass = \"\";
+      showProgressBar(\"Killing manager(-s).\", \"\", \"\", (100*i)/dynlen(rows));
+      description += \" Hostname: \" + hostName + \" Manager idx: \" + idx;
+      fwSysOverview_killManager(hostName, port, userName, userPass, idx, exceptionInfo);
+    }
+    fwConfigurationDBSystemInformation_logAction(description);
+    closeProgressBar();    
+//    delay(6);
+//    setManagers(getShape(searchTree.name()), txType.text, txState.text);  
+  }
+
+  //re-enable the buttons if the user has the rights
+  DisableAllInPanel(true);  
+}
+" 0
+ E E E
+2 24
+"txType"
+""
+1 6.499772022257144e+025 -5728.325960192096 E E E 1 E 0 E N "_Transparent" E N "_Transparent" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 20.12340413932558 0 1.136904761904762 -5634.775803877644 -57.30952380952382 1 E 290 70 291 84
+0 2 2 "0s" 0 0 0 192 0 0  290 70 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 25
+"txState"
+""
+1 -9.379271299658949e+026 2270.443478072954 E E E 1 E 0 E N "_Transparent" E N "_Transparent" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 20.12340413932558 0 1.136904761904762 -11872.97595008228 -17.6071428571428 1 E 600 70 601 84
+0 2 2 "0s" 0 0 0 192 0 0  600 70 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 26
+"txMsg"
+""
+1 112 748 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 112 748 412 768
+0 2 2 "0s" 0 0 0 64 0 0  112 748 2
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 25 (Autorefresh is disabled)
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+20 27
+"cbAutoRefresh"
+""
+1 20 746 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 744 102 768
+1
+T 
+1
+LANG:1 12 Auto refresh
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main(int button, int state)
+{
+  if(state)
+  {
+    txMsg.foreCol(\"black\");
+    txMsg.text = \"(Values are refreshed every 10 seconds)\";
+  }
+  
+  else
+  {
+    txMsg.foreCol(\"red\");
+    txMsg.text = \"(Autorefresh is disabled)\";
+  }
+}" 0
+"main(int button, int state)
+{
+  if(state)
+  {
+    txMsg.foreCol(\"black\");
+    txMsg.text = \"(Values are refreshed every 10 seconds)\";
+  }
+  
+  else
+  {
+    txMsg.foreCol(\"red\");
+    txMsg.text = \"(Autorefresh is disabled)\";
+  }
+}" 0
+13 29
+"btProperties"
+""
+1 320 770 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  318 768 412 802
+
+T 
+1
+LANG:1 10 Properties
+"main()
+{
+  dyn_string rows;
+  string hostName, systemName, userName, userPass, manOptions;
+  int port;
+  int idx;
+  dyn_float resultFloat, df;
+  dyn_string resultText, ds;
+  dyn_string exceptionInfo;
+  dyn_string param1, param2, param3, param4, param5, param6, param7;
+  
+  rows = searchTree.selectedItems();
+
+    rows = dynPatternMatch(fwSysOverview_SYSTEM_DP+\"*\",rows);
+    
+    if(dynlen(rows) ==0)
+    {
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"WARNING: No manager selected\", makeDynString(\"No manager(s) selected\"));
+      return;
+    }
+    
+    // disable all of the buttons while changing the properties
+    DisableAllInPanel(); 
+
+    for(int i=1; i<=dynlen(rows); i++)
+    {
+//      strreplace(rows[i], \".\", \"\");
+        
+      fwSysOverview_getManagerData(rows[i], hostName, idx, port, userName, userPass, manOptions, exceptionInfo);
+
+/*      
+//$parameters: 1.manager DP, 2.user, 3.password, 4. host, 5.pmon port, 6. manager index,         
+      dynAppend(param1, rows[i]);
+      dynAppend(param2, userName);
+      dynAppend(param3, userPass);
+      dynAppend(param4, hostName);
+      dynAppend(param5, port);
+      dynAppend(param6, idx);
+      dynAppend(param7, manOptions);
+*/
+    //$parameters: 1.manager's index, 2.user, 3.password, 4. host, 5.pmon port
+    if(userName == \"\")
+      userName = \"N/A\"; 
+  
+    if(userPass == \"\")
+     userPass = \"N/A\"; 
+    
+     dynAppend(param1, idx); 
+     dynAppend(param2, userName);
+     dynAppend(param3, userPass);
+     dynAppend(param4, hostName);
+     dynAppend(param5, port);
+    }
+  ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_managersProperties.pnl\", \"Managers Properties\", 
+                            makeDynString(\"$1:\"+param1, \"$2:\"+param2, \"$3:\"+param3, \"$4:\"+param4, \"$5:\"+param5), df, ds);
+
+  //re-enable the buttons if the user has the rights
+  DisableAllInPanel(true);
+}
+
+
+" 0
+ E E E
+2 31
+"PRIMITIVE_TEXT8"
+""
+1 10888.71236925616 -2049.857142857146 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 349.931506849315 -79.71428571428571 1 E 50 114 124 128
+0 2 2 "0s" 0 0 0 192 0 0  50 114 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 15 System Pattern:
+14 32
+"tfSystemPattern"
+""
+1 500 31.28571428571429 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  498 29 662 52
+3 "0s" 0 0 0 0 0 -1  E E E
+2 33
+"txSystemPattern"
+""
+1 600 41.28571428571439 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 600 41.28571428571439 601 55
+0 2 2 "0s" 0 0 0 192 0 0  600 41.28571428571439 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+14 34
+"tfManagerOptions"
+""
+1 500.0027397260274 61.28571428571429 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  498 59 662 82
+3 "0s" 0 0 0 0 0 -1  E E E
+2 35
+"PRIMITIVE_TEXT9"
+""
+1 9498.984084391845 -1025.857142857142 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 301.9342465753424 -49.71428571428571 1 E 50 114 171 128
+0 2 2 "0s" 0 0 0 192 0 0  50 114 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Manager Options Pattern:
+2 36
+"txManagerOptions"
+""
+1 604.0027397260274 63.28571428571439 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 604.0027397260274 63.28571428571439 605 77
+0 2 2 "0s" 0 0 0 192 0 0  604.0027397260274 63.28571428571439 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 37
+"txApply"
+""
+1 712 122 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 712 122 713 136
+0 2 2 "0s" 0 0 0 192 0 0  712 122 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+20 38
+"cbExpand"
+""
+1 50 140.6233766233766 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  48 138 172 162
+1
+T 
+1
+LANG:1 21 Collapse All Projects
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+  this.state(0, false);
+}" 0
+"main(int button, int state)
+{  
+  if(searchTree.itemExists(\"managerList\"))
+  {
+    for(int i=1; i <= dynlen(projectIds); i++)
+    {
+      if(searchTree.itemExists(projectIds[i]))
+      {        
+        if(state)
+          searchTree.setOpen(projectIds[i], false);    
+        else
+          searchTree.setOpen(projectIds[i], true);
+      }
+    }
+  }
+}" 0
+2 39
+"PRIMITIVE_TEXT10"
+""
+1 32 715 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 32 715 126 729
+0 2 2 "0s" 0 0 0 192 0 0  32 715 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Number of Systems:
+2 40
+"PRIMITIVE_TEXT11"
+""
+1 312 715 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 312 715 405 729
+0 2 2 "0s" 0 0 0 192 0 0  312 715 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Number of Projects:
+2 41
+"PRIMITIVE_TEXT12"
+""
+1 582 715 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 582 715 684 729
+0 2 2 "0s" 0 0 0 192 0 0  582 715 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Number of Managers:
+14 42
+"tfSysNum"
+""
+1 132 710 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  130 708 174 732
+2 "0s" 0 0 0 0 0 -1  E E E
+14 43
+"tfProjNum"
+""
+1 412 710 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  410 708 454 732
+2 "0s" 0 0 0 0 0 -1  E E E
+14 44
+"tfManNum"
+""
+1 694 710 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  692 708 746 732
+2 "0s" 0 0 0 0 0 -1  E E E
+20 47
+"cbSelect"
+""
+1 200 140.6233766233766 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  198 138 282 162
+1
+T 
+1
+LANG:1 10 Select All
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{   
+  dyn_string children;
+  
+  if(searchTree.itemExists(\"managerList\"))
+  {
+    for(int i=1; i <= dynlen(projectIds); i++)
+    {
+      children = searchTree.children(projectIds[i]);
+      
+      if(state)
+        searchTree.setSelectedItems(children, true);
+      else
+        searchTree.setSelectedItems(children, false);
+    }
+  }
+}" 0
+13 48
+"PUSH_BUTTON1"
+""
+1 727.692307692308 747.4074074074074 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Sans,-1,13,5,50,0,0,0,0,0
+0  718 738 742 762
+
+P 
+4294967295
+"pictures/trend_enabled_32.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  dyn_string rows = searchTree.selectedItems(); //dpes
+  string man, opt;
+  dyn_string managers, options, titles;
+  
+  for(int i=1; i<=dynlen(rows); i++)
+  {
+    dpGet(rows[i] + fwSysOverview_MANAGER_TYPE, man,
+          rows[i] + fwSysOverview_MANAGER_OPTIONS, opt
+          );
+    dynAppend(options, opt);
+    dynAppend(managers, man);
+    dynAppend(titles, man + \":_\" + opt);  
+    
+     rows[i] += fwSysOverview_STATE;
+  }
+
+  if(dynlen(rows) > 0)
+    ChildPanelOnCentral(\"fwSystemOverview/fwSystemOverview_trend.pnl\", \"Trends\",
+                        makeDynString(\"$title:\" + titles, \"$dpes:\" + rows)
+                        );
+}
+
+" 0
+ E E E
+2 49
+"PRIMITIVE_TEXT13"
+""
+1 680 740 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 680 740 711 754
+0 2 2 "0s" 0 0 0 192 0 0  680 740 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Trend:
+2 50
+"PRIMITIVE_TEXT14"
+""
+1 -6746.296082628436 930.1428571428583 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 -230.3808219178086 20.28571428571429 1 E 280 75 377 89
+0 2 2 "0s" 0 0 0 192 0 0  280 75 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Manager start mode:
+22 51
+"managerStartModeSelect"
+""
+1 159.996996386251 89.47321428571424 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  158 87 322 114
+4
+1
+LANG:1 3 ANY
+
+0
+1
+LANG:1 6 MANUAL
+
+0
+1
+LANG:1 6 ALWAYS
+
+0
+1
+LANG:1 4 ONCE
+
+0
+
+E
+"main()
+{
+/*
+  string managerTypeSelected, managerStateSelected;
+  
+  getValue(\"managerTypeSelect\",\"selectedText\",managerTypeSelected);
+  getValue(\"managerStateSelect\", \"selectedText\", managerStateSelected);
+
+  setManagers(getShape(searchTree.name()),managerTypeSelected, managerStateSelected);
+*/
+}" 0
+
+E
+ 1 0
+2 52
+"PRIMITIVE_TEXT15"
+""
+1 1823.793883802183 954.1428571428583 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 121.6191780821914 21.28571428571429 1 E 280 75 354 89
+0 2 2 "0s" 0 0 0 192 0 0  280 75 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Project of state:
+22 53
+"projectStateSelect"
+""
+1 500.0027397260274 91.28571428571429 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  498 89 662 116
+8
+1
+LANG:1 3 ANY
+
+0
+1
+LANG:1 19 ABNORMALLY STOPPPED
+
+0
+1
+LANG:1 7 BLOCKED
+
+0
+1
+LANG:1 7 RUNNING
+
+0
+1
+LANG:1 7 STOPPED
+
+0
+1
+LANG:1 21 PROJECT NAME MISMATCH
+
+0
+1
+LANG:1 19 PMON NOT RESPONDING
+
+0
+1
+LANG:1 13 NOT MONITORED
+
+0
+
+E
+"main()
+{
+/*
+  string managerTypeSelected, managerStateSelected;
+  
+  getValue(\"managerTypeSelect\",\"selectedText\",managerTypeSelected);
+  getValue(\"managerStateSelect\", \"selectedText\", managerStateSelected);
+
+  setManagers(getShape(searchTree.name()),managerTypeSelected, managerStateSelected);
+*/
+}" 0
+
+E
+ 1 0
+2 54
+"txmanagerStartModeSelect"
+""
+1 -9.354864723100988e+026 6452.395358779932 E E E 1 E 0 E N "_Transparent" E N "_Transparent" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 20.12340413932558 0 1.136904761904762 -11873.11553833039 10.90476190476182 1 E 600 70 601 84
+0 2 2 "0s" 0 0 0 192 0 0  600 70 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 55
+"txprojectStateSelect"
+""
+1 678.6916531953 925.1518468028885 E E E 1 E 0 E N "_Transparent" E N "_Transparent" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.999920702575184 0 0.994791666666667 64.05015958606742 23.63988095238094 1 E 600 70 601 84
+0 2 2 "0s" 0 0 0 192 0 0  600 70 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 59
+"txFilter01"
+""
+1 270 141.2857142857143 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+84 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 270 141.2857142857143 610 161.2857142857143
+0 2 2 "0s" 0 0 0 64 0 0  270 141.2857142857143 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 1  
+13 60
+"btnMonitor"
+""
+1 664 13.95454545454546 E E E 1 E 0 E N "_ButtonText" E N <{236,0,12},4,{255,247,5},4,{0,0,0},0,{0,0,0},0,{0,0,0},0,{0,0,0},0> E E
+ E E
+85 0 0 0 0 0
+E E E
+0
+1
+LANG:1 17 Click for details
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  662 8 776 41
+
+T 
+1
+LANG:1 20 Communication Errors
+"main()
+{
+  ChildPanelOnCentralModal(\"fwFMC/fwFMC_integrity.pnl\", \"DIM Servers States\", makeDynString());
+}
+
+
+" 0
+ E E "main()
+{
+    dpConnect(\"checkIntegrity\", 
+            \"_fwFMCDim_ipmi.alive\", 
+            \"_fwFMCDim_continuousMonitoring.alive\", 
+            \"_fwFMCDim_temporaryMonitoring.alive\", 
+            \"_fwFMCDim_processes.alive\", 
+            \"_fwFMCDim_tmLogger.alive\",
+            \"_fwSystemOverviewMonitor.isCtrlRunning\");
+
+}
+checkIntegrity(string dpe1, bool val1,
+               string dpe2, bool val2,
+               string dpe3, bool val3,
+               string dpe4, bool val4,
+               string dpe5, bool val5,
+               string dpe6, bool val6)
+{
+  
+  if(!val1 ||
+     !val2 ||
+     !val3 ||
+     !val4 ||
+     !val5 ||
+     !val6)
+  {
+    btnMonitor.visible = true;
+  }
+  else
+  {
+    btnMonitor.visible = false;
+  }
+}
+
+
+" 0
+
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

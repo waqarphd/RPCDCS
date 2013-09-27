@@ -1,0 +1,454 @@
+V 10
+2
+LANG:1 6 Log in
+LANG:0 9 Anmeldung
+PANEL,-1 -1 383 180 N "_3DFace" 1
+"$closeModules"
+"main()
+{
+  delay(0,100);  // fix eventual problems with Qt race conditions, etc...
+  setInputFocus(myModuleName(),myPanelName(),\"UserName\");
+  stayOnTop(true); // fix #42664
+}" 0
+ E E E E 1 -1 -1 0  0 -16
+""0  1
+E "logincheck()
+{
+	bool loginOK;
+	string user=UserName.text;
+	string password=Password.text;
+        dyn_float df;
+        dyn_string ds;
+        
+	if (!globalExists(\"g_fwAccessControl_version\")) {
+          // framework not installed
+          local_login(user, password);
+          
+        } else {
+          // framework-specific login
+          
+          UserName.enabled=FALSE;
+          Password.enabled=FALSE;
+          cmdLogin.enabled=FALSE;
+          dyn_string exceptionInfo;
+          
+          loginOK = _fwAccessControl_doLogin(user, password, exceptionInfo);
+	  if (loginOK) {
+	    PanelOff();
+            return;
+	  } 
+          if (dynlen(exceptionInfo)==0) {
+            // if no exception was thrown before, and we got loginOK=FALSE
+            // we still want the warning about unsuccesfull login.
+            ChildPanelOnCentralModalReturn(\"vision/MessageWarning\",\"Login Failed\",
+                                        makeDynString(\"Login failed: invalid username or password\"),df,ds);
+          } else {
+            fwAccessControl_displayException(exceptionInfo);
+          }
+          delay(0,100);
+          UserName.text=\"\";
+	  Password.text=\"\";
+          UserName.enabled=TRUE;
+          Password.enabled=TRUE;
+          cmdLogin.enabled=TRUE;
+    	  setInputFocus(myModuleName(),myPanelName(),\"UserName\"); 	
+  } // end of framework-specific login
+
+}
+
+// preserved PVSS implementation - a \"fallback\" solution...
+
+void local_login (string name, string password)
+{
+
+  string s;  
+  unsigned uid, oldUid = getUserId(); 
+  string message; 
+  dyn_float df; 
+  dyn_string ds; 
+  bool bResult; 
+  dyn_string dsGroups;  
+  string sFullName, sDesc; 
+  int error; 
+  int closeModules = 1; 
+   
+  if ( isDollarDefined(\"$closeModules\") ) 
+  { 
+    closeModules = $closeModules; 
+  } 
+   
+  bool bPermission;   // return 
+  int  permissionlevel = 1; // panel on 
+  unsigned area= 0 ;        // all 
+  string displayHost= myDisplayName();   // all 
+   
+  bool bUserEnabled; 
+ 
+  if (isDollarDefined(\"$AREA\")) 
+    area = getDollarValue(\"$AREA\"); 
+  if (isDollarDefined(\"$DISPLAY\")) 
+    displayHost = getDollarValue(\"$DISPLAY\"); 
+  if (isDollarDefined(\"$PERMISSIONLEVEL\")) 
+    permissionlevel = getDollarValue(\"$PERMISSIONLEVEL\"); 
+   
+  enableLogin(FALSE); 
+
+  sprintf(s,\"%d\",myManNum());  
+  
+  uid = getUserId(name);  
+ 
+  checkEnabledUser(uid,  bUserEnabled); 
+ 
+  enableLogin(TRUE); 
+ 
+  if ( bUserEnabled && (uid >= 0) &&  (uid != DEFAULT_USERID) && 
+      (name != \"\") && checkPassword(uid, password) ) 
+  {  // new user is verified 
+ 
+    umSetManagerPermission(uid, area, displayHost); 
+  
+    bPermission = getUserPermission(permissionlevel, uid); 
+  
+    if ( bPermission )  
+    { 
+ 
+      // TI 16699 
+      if ( oldUid != DEFAULT_USERID )  // something has changed  -> logout 
+      { 
+        setUserId(DEFAULT_USERID,\"\");  
+        dpSetWait(\"_Ui_\"+s+\".UserName:_original.._value\",\"\"); 
+      } 
+       
+      setUserId(uid,password); 
+      dpSetWait(\"_Ui_\"+s+\".UserName:_original.._value\",name); 
+   
+      enableLogin(TRUE); 
+        afterLogin(name, password, lang, closeModules); 
+	PanelOff();
+      return; 
+    } 
+  }   
+  displayFaildLogin(); 
+
+}
+
+
+displayFaildLogin()
+{
+    string err = getCatStr(\"general\", \"nologin\");
+    
+    strreplace(err, \"ß\", \"\\n\");
+    setMultiValue(\"password\",\"text\",\"\");
+
+    ChildPanelOnCentralModal(\"vision/MessageWarning\", \"Login\", makeDynString(err));
+    enableLogin(TRUE);
+    setInputFocus(myModuleName(),myPanelName(),\"name\");
+
+}
+
+enableLogin(bool bEnable)
+{
+ cmdCancel.enabled = bEnable;
+ cmdLogin.enabled=bEnable;
+}
+
+
+checkEnabledUser(unsigned uid,    bool &bUserEnabled)
+{
+  dyn_bool dbEnabled;
+  dyn_uint diUserId;
+  int pos;
+
+  bUserEnabled = FALSE;
+  dpGet(\"_Users.Enabled:_online.._value\", dbEnabled,    // user enabled
+        \"_Users.UserId:_online.._value\", diUserId);     // user id
+  pos = dynContains(diUserId, uid);
+  if ( pos > 0)
+    bUserEnabled = dbEnabled[pos];
+
+}
+
+" 0
+ 3
+"CBRef" "0"
+"EClose" "main()
+{
+  if (!isEvConnOpen()) panelOff(makeDynAnytype());
+  // otherwise - do not allow to close the panel using the \"X\"
+}" 0
+
+"LangSwitchMode" "1"
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 3
+"lblPasword"
+""
+1 120 80 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 120 100 179 116
+0 0 0 "0s" 0 0 0 192 0 0  120 100 1
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+2
+LANG:1 9 Password:
+LANG:0 8 Paﬂwort:
+2 4
+"lblUserName"
+""
+1 120 47 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 120 60 187 76
+0 0 0 "0s" 0 0 0 192 0 0  120 60 1
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+2
+LANG:1 10 User name:
+LANG:0 13 Benutzername:
+14 62
+"UserName"
+""
+1 195 35 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+40 0 0 0 0 0
+E "main()
+{
+  /* KEEP THIS COMMENT TO MAKE THE FOCUS WORK PROPERLY WHEN TAB IS PRESSED*/
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 193 53 367 80
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+  if (this.text != \"\") setInputFocus(myModuleName(),myPanelName(),\"Password\");
+}" 0
+
+14 63
+"Password"
+""
+1 192.820512820513 91 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+42 0 0 0 0 0
+E "main()
+{
+//  UserName.text=Password.text;
+  Password.text=Password.text;
+}" 0
+ E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+ 193 93 367 120
+3 "0S" 0 0 0 0 0 -1  E E "main()
+{
+logincheck();
+}
+" 0
+
+13 64
+"cmdLogin"
+""
+1 195 166 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+ 193 138 276 168
+
+T 
+2
+LANG:1 2 OK
+LANG:0 9 Abbrechen
+"main()
+{
+  logincheck();
+}" 0
+ E E E
+13 65
+"cmdCancel"
+""
+1 285 166 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+46 0 0 0 27 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+ 283 138 366 168
+
+T 
+2
+LANG:1 6 Cancel
+LANG:0 9 Abbrechen
+"main()
+{
+  if (isFunctionDefined(\"fwAccessControl_cancelLogin\")) fwAccessControl_cancelLogin();
+  PanelOff();
+}" 0
+ E E E
+1 72 7 "" 0
+0
+13 67
+"Logo"
+""
+1 15.2222222222222 40.2222222222222 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+49 0 0 0 0 0
+E E E
+1
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 96 -*-Courier New-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Courier New
+LANG:0 103 -adobe-courier-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,16,Courier New
+0 ""
+ 13 38 113 145
+
+P 
+13421772
+"pictures/Login.gif"
+1
+LANG:1 0 
+E E E "main()
+{
+  string picture=\"CERN72.gif\"; // default one...
+
+  // check if \"logo.bmp\" exists somewhere - i.e. customize the logo
+  string customLogo=getPath(PICTURES_REL_PATH,\"logo.bmp\");
+  if (customLogo!=\"\") picture=\"logo.bmp\";
+
+  // extract the filetype (bmp, gif, xpm) by cutting off the last 3 chars 
+  string filetype = substr(picture, (strlen(picture)-3),3); 
+  this.fill = \"[pattern,[tile,\"+filetype+\",\"+picture+\"]]\"; 
+}" 0
+
+2 71
+"LoginLabel"
+""
+1 20 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text=\"\";    
+  
+  if (isFunctionDefined(\"fwAccessControl_getMyDisplay\")) {
+    dyn_string exceptionInfo;
+    string hostName, ip;
+    int manId;
+    time startTime;
+
+    fwAccessControl_getMyDisplay   (hostName, ip,manId, startTime, exceptionInfo);
+    if (dynlen(exceptionInfo)) return;
+
+    this.text=\"Log in from \"+hostName + \" to \"+getSystemName();
+  }
+  
+  
+}" 0
+ E 0 1 1 2 1 E U  1 E 20 10 55 26
+0 2 2 "0s" 0 0 0 192 0 0  20 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Log in
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 7 "PANEL_REF0" 
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 47 1 0 1 3 -11
+1
+"$sPanelRelativePath""fwAccessControl/login_panel"
+0

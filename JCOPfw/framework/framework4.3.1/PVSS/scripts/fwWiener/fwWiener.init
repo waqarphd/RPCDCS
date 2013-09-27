@@ -1,0 +1,82 @@
+main()
+{
+	int result;
+	string resultText;
+	dyn_float resultFloats;
+	dyn_string resultStrings;
+
+	int i, length;
+	string oldRcmModel = "Wiener Marathon (TCP/IP)", newRcmModel = "RCM Crate (TCP/IP)";
+	string oldChannelModel = "Marathon Channel (TCP/IP)", newChannelModel = "RCM Channel (TCP/IP)";
+	dyn_string dpesToSet, valuesToSet;
+	dyn_dyn_anytype results;
+
+	
+	result = fwInstallationManager_appendDriver("SIM", "Wiener KVASER OPC connection to hardware", "PVSS00opc", "always", 30, 2, 2, "-num 11");
+
+	switch(result)
+	{
+		case 1:
+			resultText = "OK";
+			break;
+		case 2:
+			resultText = "Already exists";
+			break;
+		default:
+			resultText = "Failed";
+			break;
+	}
+
+	DebugN("fwWiener: Adding driver number 11 (OPC and SIM): " + resultText);
+	
+	result = fwInstallationManager_appendDriver("SIM", "Wiener Marathon OPC connection to hardware", "PVSS00opc", "always", 30, 2, 2, "-num 14");
+
+	switch(result)
+	{
+		case 1:
+			resultText = "OK";
+			break;
+		case 2:
+			resultText = "Already exists";
+			break;
+		default:
+			resultText = "Failed";
+			break;
+	}
+
+	DebugN("fwWiener: Adding driver number 14 (OPC and SIM): " + resultText);
+
+	fwInstallation_popup("In addition to the installation of fwWiener you must\n"
+				+ "get a Wiener COTS OPC server, available from\n"
+				+ "https://j2eeps.cern.ch/wikis/display/EN/OPC+Support");
+
+	DebugN("fwWiener: Upgrading old Marathon Crate models");
+
+	dpQuery("SELECT '_online.._value' FROM '*.model' WHERE _DPT = \"FwWienerMarathon\" AND "
+					+ "'_online.._value' == \"" + oldRcmModel + "\"", results);
+	length = dynlen(results);
+	for(i=2; i<=length; i++)
+	{
+		dynAppend(dpesToSet, results[i][1]);
+		dynAppend(valuesToSet, newRcmModel);
+	}
+
+	DebugN("fwWiener: Upgrading old Marathon Channel models");
+
+	dpQuery("SELECT '_online.._value' FROM '*.model' WHERE _DPT = \"FwWienerMarathonChannel\" AND "
+					+ "'_online.._value' == \"" + oldChannelModel + "\"", results);
+	length = dynlen(results);
+	for(i=2; i<=length; i++)
+	{
+		dynAppend(dpesToSet, results[i][1]);
+		dynAppend(valuesToSet, newChannelModel);
+	}
+
+	if(dynlen(dpesToSet) > 0)
+	{
+		dpSetWait(dpesToSet, valuesToSet);
+		DebugN("fwWiener: Migration to new models complete - updated " + dynlen(dpesToSet) + " Wiener devices");
+	}
+	else
+		DebugN("fwWiener: No migration required. All models up to date");
+}

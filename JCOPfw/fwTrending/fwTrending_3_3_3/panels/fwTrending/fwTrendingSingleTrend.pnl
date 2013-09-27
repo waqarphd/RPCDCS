@@ -1,0 +1,693 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,438 280 900 660 N "_3DFace" 4
+"$OpenPageName"
+"$PageName"
+"$Parent"
+"$PlotName"
+"const int TREND_LAYER = 7;
+const int CAPTIONS_LAYER = 8;
+bool legendOn;
+bool commandsVisible = false;
+bool captionsVisible = false;
+string targetTrend = \"StandardTrend\";
+int targetTrendType = -1;
+
+main() {
+	string backColor;
+	dyn_string dpes, legend, colors, vars, values;
+	dyn_bool axii, hidden;
+	int i, count, trendType, timeRange;
+	bool isTemplate, isLogarithmic;
+	dyn_string wrongDpes;
+	dyn_float rangeMin, rangeMax;
+	dyn_int curveTypes;
+	
+	//LayerOff(CAPTIONS_LAYER);
+	//DebugN(\"SingleTrend: Trend1 EventInitialize\");
+	//DebugN(\"$PlotName: \" + $PlotName);
+
+	// let's check whether the plot is of template-type. If yes, we do a a template substitution,
+	// if no, we get the plain vanilla curve dpes.
+	dpGet($PlotName + fwTrending_PLOT_IS_TEMPLATE + fwTrending_ON_VAL, isTemplate);
+	if(isTemplate) {
+		dpGet($OpenPageName + fwTrending_OPEN_VARS + fwTrending_ON_VAL, vars);
+		dpGet($OpenPageName + fwTrending_OPEN_VALUES + fwTrending_ON_VAL, values);
+		fwTrending_templatesSubstitute($PlotName, vars, values, dpes);
+	} else
+		dpGet($PlotName + fwTrending_PLOT_DPES + fwTrending_ON_VAL, dpes);
+	
+	// here we should check, whether all the dpes specified are existing and accessible.
+/*	for(i = 1; i <= dynlen(dpes); i++)
+		if(!dpExists(dpes[i])) {
+			dynAppend(wrongDpes, dpes[i]);
+		}*/
+
+	dpGet($PlotName + fwTrending_PLOT_IS_LOGARITHMIC + fwTrending_ON_VAL, isLogarithmic);
+	
+	if(isLogarithmic)
+	{
+		StandardTrend.visible = FALSE;
+		targetTrend = \"LogarithmicTrend\";
+	}
+	
+	dpGet($PlotName + fwTrending_PLOT_LEGEND_ON + fwTrending_ON_VAL, legendOn);
+	dpGet($PlotName + fwTrending_PLOT_BACK_COLOR + fwTrending_ON_VAL, backColor);
+	dpGet($PlotName + fwTrending_PLOT_LEGENDS + fwTrending_ON_VAL, legend);
+	dpGet($PlotName + fwTrending_PLOT_COLORS + fwTrending_ON_VAL, colors);
+	dpGet($PlotName + fwTrending_PLOT_AXII + fwTrending_ON_VAL, axii);
+	dpGet($PlotName + fwTrending_PLOT_CURVES_HIDDEN + fwTrending_ON_VAL, hidden);
+	dpGet($PlotName + fwTrending_PLOT_RANGES_MIN + fwTrending_ON_VAL, rangeMin);
+	dpGet($PlotName + fwTrending_PLOT_RANGES_MAX + fwTrending_ON_VAL, rangeMax);
+	dpGet($PlotName + fwTrending_PLOT_TYPE + fwTrending_ON_VAL, trendType);
+	dpGet($PlotName + fwTrending_PLOT_TIME_RANGE + fwTrending_ON_VAL, timeRange);
+	dpGet($PlotName + fwTrending_CURVE_TYPES + fwTrending_ON_VAL, curveTypes);
+
+	switch(trendType) {
+		case fwTrending_PLOT_TYPE_POINTS:
+			targetTrendType = 0;
+			break;
+		case fwTrending_PLOT_TYPE_LINEAR:
+			targetTrendType = 2;
+			break;
+		case fwTrending_PLOT_TYPE_STEPS:
+			targetTrendType = 1;
+			break;
+	}
+	
+	if(targetTrendType == -1)
+	{
+		for(i=1; i<=8; i++)
+			setValue(targetTrend, \"curveType\", \"curve_\"+i, curveTypes[i]);
+	} else {
+		for(i=1; i<=8; i++)
+			setValue(targetTrend, \"curveType\", \"curve_\"+i, targetTrendType);
+	}		
+	
+	for(i = 1; i <= 8; i++)
+		setValue(targetTrend, \"curveLegendVisibility\", \"invalid_\" + i, false);
+
+	//this.manageLegend(legendOn);
+	setValue(targetTrend, \"manageLegend\", legendOn);
+	//this.backCol = backColor;
+	setValue(targetTrend, \"backCol\", backColor);
+	//DebugN(\"DPES: \");
+	//DebugN(dpes);
+	count = (8 < dynlen(dpes) ? 8 : dynlen(dpes));
+	for(i = 1; i <= count; i++) {
+		// according to ETM, it is not possible to hide/show curves on a plot (even though there is a function for this).
+		// so curves marked as 'hidden' as simply not being connected.
+		if(dpes[i] != \"\" && (dynlen(hidden) >= i ? !hidden[i] : true)) {
+			if(!dpExists(dpes[i])) {
+				dynAppend(wrongDpes, dpes[i]);
+			} else {
+				string elName;
+				//this.connectDirectly(\"curve_\" + i, dpes[i] + fwTrending_ON_VAL);
+				setValue(targetTrend, \"connectDirectly\", \"curve_\" + i, dpes[i] + fwTrending_ON_VAL);
+				elName = dpSubStr(dpes[i], DPSUB_DP_EL);
+				dpConnect(\"invalidCB\" + i, elName + \":_online.._value\", elName + \":_online.._bad\", elName + \":_online.._stime\");
+			}
+			if(dynlen(legend) >= i) {
+				//this.curveLegendName(\"curve_\" + i, legend[i]);
+				setValue(targetTrend, \"curveLegendName\", \"curve_\" + i, legend[i]);
+			} else {
+				//this.curveLegendName(\"curve_\" + i, \"\");
+				setValue(targetTrend, \"curveLegendName\", \"curve_\" + i, \"\");
+			}
+			if(dynlen(colors) >= i) {
+				//this.curveColor(\"curve_\" + i, colors[i]);
+				setValue(targetTrend, \"curveColor\", \"curve_\" + i, colors[i]);
+			} else
+				//this.curveColor(\"curve_\" + i, \"\");
+				setValue(targetTrend, \"curveColor\", \"curve_\" + i, \"\");
+			if(dynlen(axii) >= i)
+				//this.curveScaleVisibility(\"curve_\" + i, axii[i]);
+				setValue(targetTrend, \"curveScaleVisibility\", \"curve_\" + i, axii[i]);
+			else
+				//this.curveScaleVisibility(\"curve_\" + i, false);
+				setValue(targetTrend, \"curveScaleVisibility\", \"curve_\" + i, false);
+			if(dynlen(rangeMin) >= 1 && dynlen(rangeMax) >= i)
+				if(rangeMin[i] != rangeMax[i]) {
+					//this.curveAutoscale(\"curve_\" + i, false);
+					setValue(targetTrend, \"curveAutoscale\", \"curve_\" + i, false);
+					//this.curveMin(\"curve_\" + i, rangeMin[i]);
+					setValue(targetTrend, \"curveMin\", \"curve_\" + i, rangeMin[i]);
+					//this.curveMax(\"curve_\" + i, rangeMax[i]);
+					setValue(targetTrend, \"curveMax\", \"curve_\" + i, rangeMax[i]);
+				}
+// see comment above about hiding curves.
+/*			if(dynlen(hidden) >= i) {
+				this.curveVisible(\"curve_\" + i, !hidden[i]);
+			} else {
+				this.curveVisible(\"curve_\" + i, true);
+			}*/
+		} else {
+			//this.curveVisible(\"curve_\" + i, false);
+			setValue(targetTrend, \"curveVisible\", \"curve_\" + i, false);
+			//this.curveScaleVisibility(\"curve_\" + i, false);
+			setValue(targetTrend, \"curveScaleVisibility\", \"curve_\" + i, false);
+			//this.curveLegendVisibility(\"curve_\" + i, false);
+			setValue(targetTrend, \"curveLegendVisibility\", \"curve_\" + i, false);
+		}
+	}
+	for(i = count + 1; i <= 8; i++) {
+		//this.curveVisible(\"curve_\" + i, false);
+		setValue(targetTrend, \"curveVisible\", \"curve_\" + i, false);
+		//this.curveScaleVisibility(\"curve_\" + i, false);
+		setValue(targetTrend, \"curveScaleVisibility\", \"curve_\" + i, false);
+		//Trend1.curveLegendVisibility(\"curve_\" + i, false);
+		setValue(targetTrend, \"curveLegendVisibility\", \"curve_\" + i, false);
+	}
+
+	// let's inform the user about not existing / not accessible DPEs.
+	if(dynlen(wrongDpes) > 0) {
+		dyn_string excInfo;
+		if(dynlen(wrongDpes) == 1) {
+			excInfo = makeDynString(
+				\"WARNING\",
+				\"fwTrendingSingleTrend.pnl: DPE \\\"\" + wrongDpes[1] + \"\\\" does not exist or is not accessible\"
+			);
+			fwExceptionHandling_display(excInfo);
+		} else {
+			string wrong;
+			wrong = \"\\\"\" + wrongDpes[1] + \"\\\"\";
+			for(i = 2; i <= dynlen(wrongDpes); i++)
+				wrong += \", \\\"\" + wrongDpes[i] + \"\\\"\";
+			excInfo = makeDynString(
+				\"WARNING\",
+				\"fwTrendingSingleTrend.pnl: DPEs \" + wrong + \" do not exist or are not accessible\"
+			);
+			fwExceptionHandling_display(excInfo);
+		}
+	}
+	switch($Parent) {
+		case \"page\" : {
+			bool controls;
+			dpGet($PageName + fwTrending_PAGE_CONTROLS + fwTrending_ON_VAL, controls);
+			//this.manageCommands(controls);
+			setValue(targetTrend, \"manageCommands\", controls);
+//			commandCBReg($OpenPageName);
+			break;
+		}
+		case \"zoom\" : {
+			//this.manageCommands(true);
+			setValue(targetTrend, \"manageCommands\", true);
+			//this.manageLegend(true);
+			//setValue(targetTrend, \"manageLegend\", true);
+			if(timeRange != 0)
+				setValue(targetTrend, \"timeInterval\", timeRange);
+			break;
+		}
+	}
+}
+
+void commandCB(string _commandDP, string _command) {
+	//DebugN(\"CommandCB: \" + _command);
+	switch(_command) {
+		case \"ZoomTimeOut\": {
+			//this.trendTimeMinus();
+			setValue(targetTrend, \"trendTimeMinus\");
+			break;
+		}
+		case \"ZoomTimeIn\": {
+			//this.trendTimePlus();
+			setValue(targetTrend, \"trendTimePlus\");
+			break;
+		}
+		case \"ZoomOut\": {
+			//this.trendValueMinus();
+			setValue(targetTrend, \"trendValueMinus\");
+			break;
+		}
+		case \"ZoomIn\": {
+			//this.trendValuePlus();
+			setValue(targetTrend, \"trendValuePlus\");
+			break;
+		}
+		case \"1:1\": {
+			//this.trendUnzoom();
+			setValue(targetTrend, \"trendUnzoom\");
+			break;
+		}
+		case \"ToggleControls\": {
+			commandsVisible = !commandsVisible;
+			//this.manageCommands(commandsVisible);
+			setValue(targetTrend, \"manageCommands\", commandsVisible);
+			break;
+		}
+		case \"TimeBack\": {
+			time tb, ti;
+			//this.visibleTimeRange(0, tb, ti);
+			//getValue(\"\", \"visibleTimeRange\", 0, tb, ti);
+			getValue(targetTrend, \"visibleTimeRange\", 0, tb, ti);
+			setPeriod(tb, period(tb) - (period(ti) - period(tb)) / 10);
+			
+			//this.timeBegin(tb);
+			setValue(targetTrend, \"timeBegin\", tb);
+			break;
+		}
+		case \"TimeForward\": {
+			time tb, ti;
+			//this.visibleTimeRange(0, tb, ti);
+			//getValue(\"\", \"visibleTimeRange\", 0, tb, ti);
+			getValue(targetTrend, \"visibleTimeRange\", 0, tb, ti);
+			setPeriod(tb, period(tb) + (period(ti) - period(tb)) / 10);
+			if(period(tb) < period(getCurrentTime()))
+				//this.timeBegin(tb);
+				setValue(targetTrend, \"timeBegin\", tb);
+			break;
+		}
+		case \"TimeOneHour\" : {
+			time tb, ti;
+			//this.visibleTimeRange(0, tb, ti);
+			//getValue(\"\", \"visibleTimeRange\", 0, tb, ti);
+			getValue(targetTrend, \"visibleTimeRange\", 0, tb, ti);
+			ti = period(ti) < period(getCurrentTime()) ? ti : getCurrentTime();
+			//this.timeBegin(ti - 3600);
+			setValue(targetTrend, \"timeBegin\", ti - 3600);
+			setValue(targetTrend, \"timeInterval\", 3600);
+			//this.timeInterval(3600);
+			break;
+		}
+		case \"TimeEightHours\" : {
+			time tb, ti;
+			//this.visibleTimeRange(0, tb, ti);
+			//getValue(\"\", \"visibleTimeRange\", 0, tb, ti);
+			getValue(targetTrend, \"visibleTimeRange\", 0, tb, ti);
+			ti = period(ti) < period(getCurrentTime()) ? ti : getCurrentTime();
+			//this.timeBegin(tb + 28800);
+			setValue(targetTrend, \"timeBegin\", ti - 28800);
+			setValue(targetTrend, \"timeInterval\", 28800);
+			//this.timeInterval(28800);
+			break;
+		}
+		case \"TimeOneDay\" : {
+			time tb, ti;
+			//this.visibleTimeRange(0, tb, ti);
+			//getValue(\"\", \"visibleTimeRange\", 0, tb, ti);
+			getValue(targetTrend, \"visibleTimeRange\", 0, tb, ti);
+			ti = period(ti) < period(getCurrentTime()) ? ti : getCurrentTime();
+			//this.timeBegin(tb + 86400);
+			setValue(targetTrend, \"timeBegin\", ti - 86400);
+			setValue(targetTrend, \"timeInterval\", 86400);
+			//this.timeInterval(86400);
+			break;
+		}
+		case \"TimeTenDays\" : {
+			time tb, ti;
+			//this.visibleTimeRange(0, tb, ti);
+			//getValue(\"\", \"visibleTimeRange\", 0, tb, ti);
+			getValue(targetTrend, \"visibleTimeRange\", 0, tb, ti);
+			ti = period(ti) < period(getCurrentTime()) ? ti : getCurrentTime();
+			//this.timeBegin(tb + 864000);
+			setValue(targetTrend, \"timeBegin\", ti - 864000);
+			setValue(targetTrend, \"timeInterval\", 864000);
+			//this.timeInterval(864000);
+			break;
+		}
+		case \"Stop\": {
+			//this.trendStop();
+			setValue(targetTrend, \"trendStop\");
+			break;
+		}
+		case \"Run\": {
+			//this.trendRun();
+			setValue(targetTrend, \"trendRun\");
+			break;
+		}
+		case \"ToggleCaptions\": {
+			captionsVisible = !captionsVisible;
+			//this.manageLegend(captionsVisible || legendOn);
+			setValue(targetTrend, \"manageLegend\", captionsVisible || legendOn);
+			break;
+		}
+	}
+
+}
+
+void commandCBReg(string _for) {
+	//DebugN(\"CommandCBReg: \" + _for);
+	dpConnect(\"commandCB\", false, _for + fwTrending_OPEN_COMMAND + fwTrending_ON_VAL);
+}
+
+bool lighter(string _color, int _than) {
+	dyn_int colVals;
+	dyn_string colors;
+	int i, j;
+	
+	// stupid fallback, in case of named color (7 i the lenght of a color definition 
+	// with single digit values (eg. {0,0,0})
+	if(strlen(_color) < 7 || _color[0] != '{')
+		return true;
+		
+	_color = strltrim(_color, \"{\");
+	_color = strrtrim(_color, \"}\");
+	colors = strsplit(_color, \",\");
+	for(i = 1; i <= 3; i++) {
+		for(j = 0; j < strlen(colors[i]); j++) {
+			switch (colors[i][j]) {
+				case '0': colVals[i] = colVals[i] * 10; break;
+				case '1': colVals[i] = colVals[i] * 10 + 1; break;
+				case '2': colVals[i] = colVals[i] * 10 + 2; break;
+				case '3': colVals[i] = colVals[i] * 10 + 3; break;
+				case '4': colVals[i] = colVals[i] * 10 + 4; break;
+				case '5': colVals[i] = colVals[i] * 10 + 5; break;
+				case '6': colVals[i] = colVals[i] * 10 + 6; break;
+				case '7': colVals[i] = colVals[i] * 10 + 7; break;
+				case '8': colVals[i] = colVals[i] * 10 + 8; break;
+				case '9': colVals[i] = colVals[i] * 10 + 9; break;
+			}
+		}
+	}
+	if(colVals[1] + colVals[2] + colVals[3] > _than)
+		return true;
+	else
+		return false;
+}
+
+void invalidCB1(string _valDP, float _val, string _badDP, bool _bad, string _stimeDP, time _stime) {
+	if(_bad) setValue(targetTrend, \"curveVal\", \"invalid_1\", _val, _stime);
+}
+void invalidCB2(string _valDP, float _val, string _badDP, bool _bad, string _stimeDP, time _stime) {
+	if(_bad) setValue(targetTrend, \"curveVal\", \"invalid_2\", _val, _stime);
+}
+void invalidCB3(string _valDP, float _val, string _badDP, bool _bad, string _stimeDP, time _stime) {
+	if(_bad) setValue(targetTrend, \"curveVal\", \"invalid_3\", _val, _stime);
+}
+void invalidCB4(string _valDP, float _val, string _badDP, bool _bad, string _stimeDP, time _stime) {
+	if(_bad) setValue(targetTrend, \"curveVal\", \"invalid_4\", _val, _stime);
+}
+void invalidCB5(string _valDP, float _val, string _badDP, bool _bad, string _stimeDP, time _stime) {
+	if(_bad) setValue(targetTrend, \"curveVal\", \"invalid_5\", _val, _stime);
+}
+void invalidCB6(string _valDP, float _val, string _badDP, bool _bad, string _stimeDP, time _stime) {
+	if(_bad) setValue(targetTrend, \"curveVal\", \"invalid_6\", _val, _stime);
+}
+void invalidCB7(string _valDP, float _val, string _badDP, bool _bad, string _stimeDP, time _stime) {
+	if(_bad) setValue(targetTrend, \"curveVal\", \"invalid_7\", _val, _stime);
+}
+void invalidCB8(string _valDP, float _val, string _badDP, bool _bad, string _stimeDP, time _stime) {
+	if(_bad) setValue(targetTrend, \"curveVal\", \"invalid_8\", _val, _stime);
+}
+" 0
+EE E E 1 -1 -1 0  0 0
+"" 0 1
+EE 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 6
+"TargetText"
+""
+1 40 60 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 42 62 308 138
+1 2 0 "s" 0 0 0 64 0 0  42 62
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 5 Text1
+2 9
+"Text1"
+""
+1 180 330 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+8 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 182 332 189 347
+1 2 0 "s" 0 0 0 192 0 0  182 332
+ 1
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+1
+LANG:1 1 l
+23 10
+"LogarithmicTrend"
+""
+1 120 20 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"logarithm" "1"
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+-2 -2 902 662
+1 E E E 1 639 N {0,0,0} 0 0 1 0 1 0 16
+0 "curve_1" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen1" 0 0 0 0 0 0 0 0
+0 "curve_2" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen2" 0 0 0 0 0 0 0 0
+0 "curve_3" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen3" 0 0 0 0 0 0 0 0
+0 "curve_4" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen4" 0 0 0 0 0 0 0 0
+0 "curve_5" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen5" 0 0 0 0 0 0 0 0
+0 "curve_6" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen6" 0 0 0 0 0 0 0 0
+0 "curve_7" "" 7 2 0 0 1 "-2 2 0.000000" "%x" 1 0 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen7" 0 0 0 0 0 0 0 0
+0 "curve_8" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen8" 0 0 0 0 0 0 0 0
+0 "invalid_1" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen1" 0 0 0 0 0 0 0 0
+0 "invalid_2" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen2" 0 0 0 0 0 0 0 0
+0 "invalid_3" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen3" 0 0 0 0 0 0 0 0
+0 "invalid_4" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen4" 0 0 0 0 0 0 0 0
+0 "invalid_5" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen5" 0 0 0 0 0 0 0 0
+0 "invalid_6" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen6" 0 0 0 0 0 0 0 0
+0 "invalid_7" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen8" 0 0 0 0 0 0 0 0
+0 "invalid_8" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen8" 0 0 0 0 0 0 0 0
+1 1 "%c" "%x" 1 1 0 0 E 1 0 0 0 5 0 10 3600
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+
+30 N {0,0,0} 0 0 1 0 1 150 0 8 8 1 3
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+23 0
+"StandardTrend"
+""
+1 0 0 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"logarithm" "0"
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+-2 -2 902 662
+1 E E E 1 639 N {0,0,0} 0 0 1 0 1 0 16
+0 "curve_1" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen1" 0 0 0 0 0 0 0 0
+0 "curve_2" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen2" 0 0 0 0 0 0 0 0
+0 "curve_3" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen3" 0 0 0 0 0 0 0 0
+0 "curve_4" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen4" 0 0 0 0 0 0 0 0
+0 "curve_5" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen5" 0 0 0 0 0 0 0 0
+0 "curve_6" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen6" 0 0 0 0 0 0 0 0
+0 "curve_7" "" 7 2 0 0 1 "0 2 0.000000" "%x" 1 0 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen7" 0 0 0 0 0 0 0 0
+0 "curve_8" "" 7 2 0 0 1 "3 2 0.0" "%x" 1 1 2 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen8" 0 0 0 0 0 0 0 0
+0 "invalid_1" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen1" 0 0 0 0 0 0 0 0
+0 "invalid_2" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen2" 0 0 0 0 0 0 0 0
+0 "invalid_3" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen3" 0 0 0 0 0 0 0 0
+0 "invalid_4" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen4" 0 0 0 0 0 0 0 0
+0 "invalid_5" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen5" 0 0 0 0 0 0 0 0
+0 "invalid_6" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen6" 0 0 0 0 0 0 0 0
+0 "invalid_7" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen8" 0 0 0 0 0 0 0 0
+0 "invalid_8" "" 1 0 0 0 0 E E 1 0 0 3 2 1
+LANG:1 0 
+1
+LANG:1 0 
+1 "" "" -1 0 0 1 0 1 N "STD_trend_pen8" 0 0 0 0 0 0 0 0
+1 1 "%c" "%x" 1 1 0 0 E 1 0 0 0 5 0 10 3600
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+
+30 N {0,0,0} 0 0 1 0 1 150 0 8 8 1 3
+0
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

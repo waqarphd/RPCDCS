@@ -1,0 +1,966 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 711 416 N "_3DFace" 1
+"$2"
+E E E E E 1 -1 -1 0  10 10
+""0  1
+E "dyn_string dpes;
+dyn_dyn_string channelsName;
+string COMPONENT;
+#uses \"CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl\"
+//getLeafChannels(string pos, dyn_string & channels)
+//{
+//	dyn_string children, exceptionInfo,devices;
+//	string device, type;
+//	fwTree_getChildren(HARDWARE_COMPONENT+pos, children, exceptionInfo);
+	//dyn_string LBBnames = makeDynString(\"25_1_LV\",\"33_1_LV\",\"25_11_LV\",\"33_11_LV\");
+//	for(int i=1; i<=dynlen(children); i++)
+//	{
+//		
+//		fwCU_getType(children[i],type);
+//		if(type == \"ChamberNode\")
+//		{
+//			fwTree_getChildren(HARDWARE_COMPONENT+children[i]+\"_HV\", devices, exceptionInfo);
+//			dynAppend(channels, devices);
+//			fwTree_getChildren(HARDWARE_COMPONENT+children[i]+\"_LV\", devices, exceptionInfo);
+//			dynAppend(channels, devices);
+//		}	
+//		else if(type == \"LinkBoardsBoxNode\")
+//		{
+//		children[i]=strltrim(children[i],\"&0001\");
+//		
+//			fwTree_getChildren (HARDWARE_COMPONENT+children[i], devices, exceptionInfo);
+//			dynAppend(channels, devices);
+			//DebugN(devices,children[i]);
+//		}
+//		else 
+//		{
+//			getLeafChannels(children[i], channels);
+//		}
+	//DebugN(channels);	
+//	}
+//}
+//
+//getChannelsName(dyn_string &logicName,dyn_string &channels)
+//{
+//string name;
+//for (int i=1;i<=dynlen(logicName);i++)
+//	{
+//	if(logicName[i][0] !=\"&\")
+//	{
+//	name = fwDU_getPhysicalName(HARDWARE_COMPONENT+logicName[i]);
+//	dynAppend(channels,HARDWARE_COMPONENT+name);
+//	}
+//	else
+//		dynRemove(logicName,i);
+//	}
+//
+//}
+
+DisableAllInPanel()
+{
+//Table1.enabled = FALSE;
+ }
+enableControl(){
+
+   }
+enableDebug(){
+Table1.enabled = TRUE;
+ 
+  }
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+if (hasControl) enableControl();
+if (hasDebug) enableDebug();
+}
+
+waitForPanel()
+{
+	int i;
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+30 5
+"Frame1"
+""
+1 460 390 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+dyn_string infoPanel = strsplit($2,\"|\");
+
+if(infoPanel[1]==\"LBB\")
+	this.visible= false;
+
+  dyn_string exceptionInfo;
+//This function creates a callback to the function passed as //first parameter every time the user logged in changes
+fwAccessControl_setupPanel( \"ApplyPanelAccessControl\", exceptionInfo);
+}" 0
+ E 0 1 1 0 1 E U  0 E 460 330 670 390
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Sector Trend
+25 1
+"Table1"
+""
+1 16 18 E E E 1 E 1 E N "_WindowText" E N "_Window" E "main()
+{
+	/*dyn_string channels, channelName;
+	dyn_float vMonTemp;
+	getChannels($2, channels);
+	this.deleteAllLines;
+	for(int i=1; i <=dynlen(channels); i++)
+	{
+		dpGet(channels[i] + \".actual.vMon\", vMonTemp);
+		channelName = strsplit(channels[i], \"/\");
+		this.appendLine(\"channelDp\", channels[i], \"Channel\", channelName[3]+\":\"+channelName[4], \"vMon\", vMonTemp);
+	}
+	this.selectByClick;
+	*/
+}
+
+
+getChannels(string wheel, dyn_string & channels)
+{
+	dyn_string childrenWheel, childrenSector, childrenChamber, exceptionInfo,childrenChannel, children;
+	dynClear(children);
+	fwTree_getChildren(wheel, childrenWheel, exceptionInfo);
+	if(dynlen(childrenWheel) > 0)
+	{
+		DebugN(childrenWheel);
+		for(int i=1; i<=dynlen(childrenWheel); i++)
+		{
+			fwTree_getChildren(childrenWheel[i], childrenSector, exceptionInfo);
+			if(dynlen(childrenSector) > 0)
+			{
+				DebugN(childrenSector);
+				for(int i=1; i<=dynlen(childrenSector); i++)
+				{
+					fwTree_getChildren(childrenSector[i], childrenChamber, exceptionInfo);
+					if(dynlen(childrenChamber) > 0)
+					{
+						DebugN(childrenChamber);
+						dynAppend(children, childrenChamber);
+					}
+				}
+			}
+		}
+	}
+	channels = children;
+}
+" 0
+
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 14 16 680 320
+"/*This script is used to visualize main infos about all sector chambers;this reads all children
+ and gives an overview of the main parameters and of the status of the System.
+ 
+ Date Creation:14/07/2004
+ 
+ @author Giovanni Polese (INFN Naples) */
+
+string DETECTOR;
+//string HARDWARE_COMPONENT;
+
+//string LV_COMPONENT;
+//string T_COMPONENT;
+main()
+{
+	dyn_string children,rbChildren,splitAlias,exceptionInfo,exInfo;
+	dyn_mixed value;
+	string statusChannel,status,alias;
+	string hardType;
+	char model;
+	int nicha,nvcha,v;
+	bool isOn,lbb = false;
+	
+	dyn_string InfoPanel = strsplit($2,\"|\");
+		
+	if(InfoPanel[1] == \"Hv\")
+		hardType = \"HV\";
+	else if(InfoPanel[1] == \"Lv\")
+	 	hardType = \"LV\";
+	else if(InfoPanel[1] == \"LBB\")
+		{
+		hardType = \"LV\";
+		lbb=true;
+		}
+	
+	
+	v=1;
+	//delay panel's start respect to the general ??
+	
+	
+	
+	
+	DETECTOR = RPCfwSupervisor_detector(InfoPanel[2]);
+	
+        string name = DETECTOR+hardType;
+	
+	if(COMPONENT == \"\")
+	COMPONENT = RPCfwSupervisor_getComponent(name);
+	//DebugTN(COMPONENT, DETECTOR ,hardType);
+	//COMPONENT = \"rpcdcs02:\";
+        
+        delay(0,200);
+        while(COMPONENT == \"\")
+          delay(0,500);
+
+dyn_string listOfElementToRefresh;
+string offset;
+
+//dyn_string logicNameChannels;
+
+
+dyn_string exceptionInfo;
+
+ 	if(lbb)
+ 		hardType = \"LBB\";
+
+	PCfwSupervisor_getChannelsFromChildren(1,InfoPanel[2],hardType,COMPONENT, channelsName[HARD]);
+	//DebugN(\"//>\",hardType,channelsName,InfoPanel[1]);
+        
+        if(InfoPanel[1] == \"Lv\") 
+		dynUnique(channelsName[HARD]);
+	channelsName[LOG] = RPCfwSupervisor_getLogical(channelsName[HARD]);
+	
+	
+	dyn_string statusArray = makeDynString(\".actual.vMon\",\".actual.iMon\",\".actual.isOn\",\".actual.status\",\".readBackSettings.v0\",\".readBackSettings.i0\");
+	
+	//@param:infopanel; variable that transmitt tab choice
+	
+		
+	//fwTree_getChildren(InfoPanel[2], children, exceptionInfo);
+//	dyn_string systemNumber;
+	
+//fwInstallation_getApplicationSystem(\"CMS_RPCfw_HardwareBarrel\",systemNumber);
+//HARDWARE_COMPONENT = systemNumber[1];
+//		
+//	getLeafChannels(InfoPanel[2],ChannelsLogicName );
+//	
+//	getChannelsName(ChannelsLogicName,channelsName);
+	
+	//get all channels names and select channel model
+	
+	
+	
+	
+	
+	for (int j=1;j<=dynlen(channelsName[HARD]);j++)
+	{
+		if (channelsName[HARD][j]!= \"\")
+		{	
+		
+		splitAlias = strsplit(channelsName[LOG][j], \"/\");
+		model=splitAlias[2][0];
+		if (splitAlias[2][1]!=\"V\")
+			model = \"B\";
+	
+
+		if ((model == \"H\")&&(InfoPanel[1]==\"Hv\") )//HV
+			{
+                        
+			//channels[v]=channelsName[j];
+			v=v +1;
+			this.columnHeader(6,\"iMon (micA)\");
+			nicha= 0;
+			}
+			else if ((model == \"L\")&&(InfoPanel[1]==\"Lv\"))
+			{
+			//channels[v]=channelsName[j];
+			v=v +1;
+			this.columnHeader(6,\"iMon (A)\");
+			nicha= 3;				
+			}
+			else if ((model == \"B\")&&(InfoPanel[1]==\"LBB\"))
+			{
+			//channels[v]=channelsName[j];
+			v=v +1;
+			this.columnHeader(6,\"iMon (A)\");
+			nicha= 3;				
+			}
+			
+		}			
+	
+	}
+	
+	//DebugN(channels);
+	
+	this.deleteAllLines;
+	
+	for(int i=1; i <=dynlen(channelsName[HARD]); i++)
+	{
+		
+		bool flag;
+		 	
+		fwTree_getParent(channelsName[LOG][i],children[i],exInfo);
+		rbChildren=strsplit(channelsName[LOG][i],\"_\");
+		
+			if(strpos(channelsName[LOG][i],\"LBB\")>-1){
+		  	rbChildren=strsplit(channelsName[LOG][i],\"_\");
+				rbChildren[4]=rbChildren[5]+\" pos. \"+rbChildren[6];
+			}
+		
+		if(strpos(channelsName[LOG][i],\"ANA\")>-1)
+				rbChildren[4]=rbChildren[4]+\" Ana\";
+		if(strpos(channelsName[LOG][i],\"DIG\")>-1)	
+				rbChildren[4]=rbChildren[4]+\" Dig\";
+	
+				
+		//DebugN(rbChildren[4]);		
+		for(int j=1; j<=dynlen(statusArray); j++)
+		{
+		//DebugN(channels[i],\"ds\");
+		dynAppend(dpes,channelsName[HARD][i]);
+		dpGet(channelsName[HARD][i] + statusArray[j], value[j]);
+		dpConnect(\"refresh\", TRUE, channelsName[HARD][i] + statusArray[j]);
+		
+		}
+		//Format output for vMon iMon
+		dyn_string values= value;
+		int pos=strpos(values[1],\".\");
+		if(pos>-1)
+		values[1] = substr(values[1],0,(pos+nicha));
+		
+		pos=strpos(values[2],\".\");
+		if(pos>-1)
+		values[2] = substr(values[2],0,(pos+nicha));
+		
+		pos=strpos(values[5],\".\");
+		if(pos>-1)
+		values[5] = substr(values[5],0,(pos+nicha));
+		pos=strpos(values[6],\".\");
+		if(pos>-1)
+		values[6] = substr(values[6],0,(pos+nicha));
+		
+		if(value[3] == TRUE)
+			statusChannel = \"ON\";
+		else
+			statusChannel = \"OFF\";
+
+		
+		if(getBit(value[4],8)||getBit(value[4],9))
+			{
+			status=\"TRIPPED\";
+			//this.cellBackColRC(i-1,\"status\") = \"FwStateAttention3\";
+			}
+		else if(getBit(value[4],3)||getBit(value[4],4)||getBit(value[4],5)||getBit(value[4],12))
+			{
+			status=\"Warning\";
+			//this.cellBackColRC(i-1,\"status\") = \"FwStateAttention2\";
+			}
+		else if(getBit(value[4],1))
+			{
+			//this.cellBackColRC(i-1,\"status\") = \"FwStateAttention1\";
+			status=\"Ramping Up\";
+			}
+		else if(getBit(value[4],2))
+			{
+			//this.cellBackColRC(i-1,\"status\") = \"FwStateAttention1\";
+			status=\"Ramping Down\";
+			}
+		else if(value[4]==0||value[4]==1)
+			{
+			status=\"OK\";
+			}
+		else
+			{
+			status=\"ERROR\";
+			//this.cellBackColRC(i-1,\"status\") = \"FwStateAttention3\";
+			}
+		
+		//DebugN(\"SS\",status,flag);
+		if(InfoPanel[1]==\"Hv\")
+                {
+                  this.columnVisibility(9,true);
+                  offset = getOffset(channelsName[HARD][i]);
+                  }
+                else
+                  this.columnVisibility(9,false);
+                //DebugN(\"OFFSET///|\",offset);
+		this.appendLine(\"channelDp\", channelsName[HARD][i],\"onOff\",statusChannel, \"Chamber\",rbChildren[4], \"vMon\", values[1],\"offset\",offset, 
+										\"iMon\", values[2],\"status\",status,\"v0\",values[5],\"i0\",values[6],\"details\",\"  ...\");
+										
+		if(statusChannel==\"ON\" && status ==\"OK\")
+			{
+			this.cellBackColRC(i-1,\"onOff\") = \"FwStateOKPhysics\";
+			this.cellBackColRC(i-1,\"status\") = \"FwStateOKPhysics\";
+			}
+		else if (statusChannel==\"OFF\" && status ==\"OK\")
+			{
+			this.cellBackColRC(i-1,\"onOff\") = \"FwStateOKNotPhysics\";
+			this.cellBackColRC(i-1,\"status\") = \"FwStateOKPhysics\";
+			}
+		else if (status ==\"ERROR\")
+			{
+			this.cellBackColRC(i-1,\"onOff\") = \"FwStateOKNotPhysics\";
+			this.cellBackColRC(i-1,\"status\") = \"FwStateAttention3\";
+			}
+                else if (status ==\"Ramping Up\" || status==\"Ramping Down\")
+			{
+			this.cellBackColRC(i-1,\"onOff\") = \"FwStateOKPhysics\";
+			this.cellBackColRC(i-1,\"status\") = \"FwStateAttention1\";
+			}
+		
+		
+	}
+	this.tableMode(TABLE_SELECT_NOTHING);
+	this.selectByClick(TABLE_SELECT_NOTHING);
+	//dpConnect(\"refresh\",HARDWARE_COMPONENT+\"CAEN/SystemOne.FrontPanInP.Kill\");
+}
+
+string getOffset(string channel){
+  string parent,sys,serial;
+  dyn_string exInfo,children;
+  
+  fwDevice_getParent(channel,parent,exInfo);
+  
+  sys = dpSubStr(channel,DPSUB_SYS);
+  dpGet(parent + \".Information.SerNum\",serial);
+  int pun = strpos(serial,\".\"); 
+  if(pun>-1)
+    serial = substr(serial,0,pun);
+  fwDevice_getChildren(parent,fwDevice_HARDWARE,children,exInfo);
+  
+  int pos = dynContains(children,channel);
+  dynClear(children);
+  dpGet(sys+\"Board\"+serial+\".offset\",children);
+  
+  //DebugN(\"Eccoci: \", channel,children,pos);
+  if(dynlen(children)==0)
+    return \"nd\";
+  else
+    return children[pos];
+  
+  
+  }
+refreshKill(string dpe,bool value)
+{
+if(value)
+	ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorKill.pnl\",\" Warning Message \", 
+			makeDynString(\"\"));
+
+}
+
+refresh(string dpe, mixed value)
+{
+	string cellValue,floatToString;
+	string channelName = dpSubStr(dpe, DPSUB_SYS_DP);
+	string confName = dpSubStr(dpe, DPSUB_SYS_DP_EL_CONF_DET_ATT);
+	string channel = dpSubStr(dpe, DPSUB_SYS_DP);
+	int x = dynContains(channelsName[HARD],channel),pos,len,nicha;
+	dyn_string InfoPanel = strsplit($2,\"|\");
+	if (InfoPanel[1]==\"Hv\" )//HV
+			nicha= 2;
+	else if (InfoPanel[1]==\"Lv\")
+			nicha= 4;				
+	else if (InfoPanel[1]==\"LBB\")
+			nicha= 4;	
+	
+	//DebugN(\"WW\",channels,x);
+	dyn_string statusArray = makeDynString(\".actual.vMon\",\".actual.iMon\",\".actual.isOn\",\".actual.status\",
+																\".readBackSettings.v0\",\".readBackSettings.i0\");
+		bool flag=FALSE;
+	
+	for(int j=1; j<=dynlen(statusArray); j++)
+			{
+		
+			//DebugN(\"QQ\",confName,channelName+ statusArray[j] + \":_online.._value\");
+			if(confName == (channelName + statusArray[j] + \":_online.._value\") )
+				{
+				cellValue=value;
+				
+				
+				
+				if(j==1)
+				{
+					pos=strpos(cellValue,\".\");
+					
+					if(pos>-1)
+					floatToString = substr(cellValue,0,(pos+nicha));
+					else
+					floatToString = cellValue;
+					flag = TRUE;
+					this.cellValueRC(x-1,\"vMon\") = floatToString;
+				}
+				else if(j==2)
+				{
+					pos=strpos(cellValue,\".\");
+					if(pos>-1)
+					floatToString = substr(cellValue,0,(pos+nicha));
+					else
+					floatToString = cellValue;
+					this.cellValueRC(x-1,\"iMon\") = floatToString;
+					flag = TRUE;
+					string color;
+					dpGet(channelName + statusArray[j] + \":_alert_hdl.._act_state_color\",color);
+					if((color==\"FwAlarmWarnUnack\")||(color==\"FwAlarmErrorUnack\"))
+						this.cellBackColRC(x-1,\"iMon\") = color;
+					else
+						this.cellBackColRC(x-1,\"iMon\") = \"FwBackgroundInputText\";
+					//DebugN(\"color\",color);
+				}
+				else if(j==5)
+				{
+					pos=strpos(cellValue,\".\");
+					
+					if(pos>-1)
+					floatToString = substr(cellValue,0,(pos+nicha));
+					else
+					floatToString = cellValue;
+					this.cellValueRC(x-1,\"v0\") =floatToString;
+					flag = TRUE;
+				}
+				else if(j==6)
+				{
+					pos=strpos(cellValue,\".\");
+					
+					if(pos>-1)
+					floatToString = substr(cellValue,0,(pos+nicha));
+					else
+					floatToString = cellValue;
+					this.cellValueRC(x-1,\"i0\") = floatToString;
+					flag = TRUE;
+				}
+				else if(j==3)
+					{
+					if(cellValue == FALSE)
+						{
+						this.cellValueRC(x-1,\"onOff\") = \"OFF\";
+						this.cellBackColRC(x-1,\"onOff\") = \"FwStateOKNotPhysics\";
+						}
+					else
+						{
+						this.cellValueRC(x-1,\"onOff\") = \"ON\";
+						this.cellBackColRC(x-1,\"onOff\") = \"FwStateOKPhysics\";
+						}
+					flag = TRUE;	
+					}
+					
+				else if(j==4)
+					{
+					if(getBit(value,8)||getBit(value,9))
+							{
+							this.cellValueRC(x-1,\"status\")=\"TRIPPED\";
+                                                        this.cellBackColRC(x-1,\"status\") = \"FwStateAttention3\";
+							}
+					else if(getBit(value,3)||getBit(value,4)||getBit(value,5)||getBit(value,12))
+							{
+							this.cellValueRC(x-1,\"status\")=\"Warning\";
+							this.cellBackColRC(x-1,\"status\") = \"FwStateAttention2\";
+                                                        }
+					else if(getBit(value,1))
+							{
+							this.cellValueRC(x-1,\"status\")=\"Ramping Up\";
+							this.cellBackColRC(x-1,\"status\") = \"FwStateAttention1\";
+                                                        }
+					else if(getBit(value,2))
+							{
+							this.cellValueRC(x-1,\"status\")=\"Ramping Down\";
+							this.cellBackColRC(x-1,\"status\") = \"FwStateAttention1\";
+                                                        }
+					else if(value==0||value==1)
+							{
+							this.cellValueRC(x-1,\"status\")=\"OK\";
+							this.cellBackColRC(x-1,\"status\") = \"FwStateOKPhysics\";
+                                                        }
+					else
+                                        {
+							this.cellValueRC(x-1,\"status\")=\"ERROR\";
+                                                      	this.cellBackColRC(x-1,\"status\") = \"FwStateAttention3\";				
+                                                        }
+                                                        }
+
+				}
+								
+			}	
+}
+PCfwSupervisor_getChannelsFromChildren(int level, string pos,string type,string sysName,dyn_string &children){
+		
+	dyn_string nodes,childrenName, temp, exceptionInfo,device;
+	//fwTree_getAllTreeNodes(string tree, dyn_string &nodes, dyn_string &exInfo)
+	int t = 1;
+	bool flag = true;
+	string nodeType;
+	fwTree_getChildren(pos, nodes, exceptionInfo);
+	//if(type == \"LBB\")
+        //DebugN(sysName+pos,\"ooso\",nodes);	
+	while(flag)
+		{
+		if(t==level)
+			flag= false;
+		else
+			{
+			for(int i =1;i<=dynlen(nodes);i++)
+				{
+				fwTree_getChildren(nodes[i], childrenName, exceptionInfo);
+				dynAppend(temp,childrenName);
+				}
+				nodes= temp;
+				dynClear(temp);
+				t++;
+			}
+		}
+		
+	string tName,tempName,parent,cu,parentt;
+	dyn_string exInfo,sysna;
+        for(int i=1; i<=dynlen(nodes); i++)
+	{
+        //  DebugN(nodes[i]);
+	int posAmp=strpos(nodes[i],\"&\");
+        nodeType = \"\";	
+          if(posAmp>-1)
+            {
+            tempName = nodes[i];//name with &
+            nodes[i]=substr(nodes[i],posAmp+5,strlen(nodes[i])-5);//strltrim(nodes[i],\"&0001\");
+            tName = nodes[i];//name without &
+            
+	       fwTree_getCUName(sysName+nodes[i],parentt,exInfo);
+               //DebugN(\"Cu on remote system\",parentt,exInfo);
+               fwTree_getCUName(tempName,parent,exInfo);
+               //DebugN(\"Cu on this system\",parent,exInfo);
+               if(dynlen(exInfo)>0)
+               {
+               //fwCU_getType(parent+\"::\"+parentt+\"::\"+,tipo);
+                 if(strpos($2,\"|\")>-1)
+                 sysna = strsplit($2,\"|\");
+                 else
+                   sysna[2] = $2;
+                 fwTree_getCUName(sysna[2],cu,exInfo);
+                 //nodes[i] = cu+\"::RPC_BARREL_HW::\"+tName;
+                 //fwCU_getDp(nodes[i],cu);
+                 //cu = cu+\"|RPC_UXC_WP2|\"+tName;
+                 cu = cu+\"|\"+parentt+\"|\"+tName;
+    
+                 dpGet(cu+\".type\",nodeType);
+                 // fwCU_getType(nodes[i],nodeType);
+                 dynClear(exInfo);          
+                 }
+               else
+                 {
+                 nodes[i] = parent+\"::\"+parentt+\"::\"+nodes[i];    
+                 DebugN(\"Buono:\",nodes[i]);
+                 if((parent!=\"\")&&(parentt!=\"\"))
+                    fwCU_getType(nodes[i],nodeType);
+                 }
+               
+            }
+            else                
+                fwCU_getType(nodes[i],nodeType);
+		
+            //DebugN(\"-rrrr->\",nodes[i],nodeType);
+			
+		
+		if((nodeType == \"RPC_Chamber\")&&(type!=\"LBB\"))
+		{
+			RPCfwSupervisor_getChannels(nodes[i],type,sysName,device);
+			//DebugN(nodes[i],type,sysName,\"chamb\",children);
+		  dynAppend(children,device);
+			
+		}	
+		else if((nodeType == \"RPC_LBBLV\")&&(type==\"LBB\"))
+		{
+			nodes[i]=strrtrim(tName,\"_LBB\");
+			RPCfwSupervisor_getChannels(nodes[i],type,sysName,device);
+ 			//DebugN(nodes[i],type,sysName,\"lbb\",children);
+                        //DebugN(\"Ueeeee: \", device);
+		  dynAppend(children,device);
+		  
+		}
+        
+	}
+        //DebugN(children,\"ela\");
+	
+}
+// RPCfwSupervisor_getChannels(string pos,string type,string sysName,dyn_string &children){
+// 		
+// 	dyn_string channels,exceptionInfo;
+// 	int len,po;
+// 					
+// 	fwTree_getChildren(sysName+pos+\"_\"+type, channels, exceptionInfo);
+//         DebugN(\"channels\",channels);
+// 	for (int i=1;i<=dynlen(channels);i++)
+// 		{
+// 		po = strpos(channels[i],\"&\");
+// 	  if(po>-1)
+// 	  	{
+// 	  	len = strlen(channels[i]);
+// 	  	children[i] = sysName+fwDU_getPhysicalName(sysName+substr(channels[i],po+5,len));
+// 	  	
+//                 }
+// 	  else
+// 			children[i] = sysName+fwDU_getPhysicalName(sysName+channels[i]);
+// 		}
+// }
+" 0
+"main(int row, string column, string value)
+{
+dynUnique(dpes);
+DebugN(dpes,row);
+
+	if (column == \"details\")
+	{
+		ChildPanelOn(\"CMS_RPCfwSupervisor//CMS_RPCfwSupervisorDetailPanel.pnl\",
+							\"Details\",
+							makeDynString(\"$channel:\" + dpes[row+1],\"$row:\" + row),-100,-100);
+						  					
+	}
+	else 	if (column == \"iMon\") 
+	{
+		ChildPanelOnCentralModal(	\"CMS_RPCfw_HardwareBarrel//CMS_RPCfw_HardwareBarrelAlarmOperationPopupPanel.pnl\",
+									\"Alarm Options\", 
+									makeDynString(\"$sDpe:\" +dpes[row+1] + \".actual.iMon\"));
+	}
+
+}" 0
+ 1 0 1 10 1 "Chamber" 9 1 1 "s" 1
+LANG:1 7 Chamber
+E
+1
+LANG:1 0 
+
+110 "channelDp" 24 0 0 "s" 1
+LANG:1 9 channelDp
+E
+1
+LANG:1 0 
+
+274 "onOff" 5 1 0 "s" 1
+LANG:1 6 On/Off
+E
+1
+LANG:1 0 
+
+70 "v0" 5 1 0 "s" 1
+LANG:1 2 v0
+E
+1
+LANG:1 0 
+
+70 "i0" 5 1 0 "s" 1
+LANG:1 2 i0
+E
+1
+LANG:1 0 
+
+70 "vMon" 5 1 0 "s" 1
+LANG:1 4 vMon
+E
+1
+LANG:1 0 
+
+70 "iMon" 5 1 0 "s" 1
+LANG:1 4 iMon
+E
+1
+LANG:1 0 
+
+70 "status" 8 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+100 "details" 3 1 0 "s" 1
+LANG:1 7 Details
+E
+1
+LANG:1 0 
+
+50 "offset" 5 0 0 "s" 1
+LANG:1 6 offset
+E
+1
+LANG:1 0 
+
+70 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 3
+"trendButton1"
+""
+1 480 350 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 478 348 562 382
+
+T 
+1
+LANG:1 12 trendButton1
+"main()
+{
+string sysComp = RPCfwSupervisor_getSupervisorSys();
+dyn_string lvChannels;
+dyn_string infoPanel = strsplit($2,\"|\");
+int pos=strpos(infoPanel[2],\"_W\");
+string sector =substr(infoPanel[2], pos+1, pos+5); 
+//DebugN(\"ss\",channels);
+if(infoPanel[1]==\"Hv\")
+	ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorSectorHvTrend.pnl\",infoPanel[1]+\" vMon Trend for Cosmic Challenge. Sector \"+sector, 
+			makeDynString(\"$sAllChannels:\"+dpes,\"$sParameter:vMon\",\"$sHvOrLv:\"+infoPanel[1],\"$Sec:\"+sector,\"$sys:\"+sysComp));
+else if(infoPanel[1]==\"Lv\")
+	{
+	
+	for(int i=1; i<=dynlen(dpes);i++)
+		{
+		if(strpos(fwDU_getLogicalName(dpes[i]),\"_ANA\")>-1)
+		dynAppend(lvChannels,dpes[i]);
+		}
+	//DebugN(channels,lvChannels);
+	ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorSectorLvTrend.pnl\",infoPanel[1]+\" Analogic LV Trend for Cosmic Challenge. Sector \"+sector, 
+			makeDynString(\"$sAllChannels:\"+lvChannels,\"$sParameter:Analogic\",\"$sHvOrLv:\"+infoPanel[1],\"$Sec:\"+sector,\"$sys:\"+sysComp));
+			
+			
+	}
+}" 0
+ E E "main()
+{
+dyn_string infoPanel = strsplit($2,\"|\");
+
+if(infoPanel[1]==\"Hv\")
+	this.text=\"vMon \";
+else if(infoPanel[1]==\"Lv\")
+	this.text=\"LV Ana\";	
+else
+	this.visible=false;
+}" 0
+
+13 4
+"trendButton2"
+""
+1 580 350 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 578 348 662 382
+
+T 
+1
+LANG:1 12 trendButton2
+"main()
+{
+  string sysComp = RPCfwSupervisor_getSupervisorSys();
+dyn_string lvChannels;
+dyn_string infoPanel = strsplit($2,\"|\");
+int pos=strpos(infoPanel[2],\"_W\");
+string sector =substr(infoPanel[2], pos+1, pos+5); 
+//DebugN(,\"qua\");
+if(infoPanel[1]==\"Hv\")
+	ChildPanelOn(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorSectorHvImonTrend.pnl\",infoPanel[1]+\" iMon Trend for Cosmic Challenge. Sector \"+sector, 
+			makeDynString(\"$sAllChannels:\"+dpes,\"$sParameter:iMon\",\"$sHvOrLv:\"+infoPanel[1],\"$Sec:\"+sector,\"$sys:\"+sysComp),20,20);
+else if(infoPanel[1]==\"Lv\")
+	{
+	
+	for(int i=1; i<=dynlen(dpes);i++)
+		{
+		if(strpos(fwDU_getLogicalName(dpes[i]),\"_DIG\")>-1)
+		dynAppend(lvChannels,dpes[i]);
+		
+		}
+	ChildPanelOn(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorSectorLvTrend.pnl\",infoPanel[1]+\" Digital LV Trend for Cosmic Challenge. Sector \"+sector, 
+			makeDynString(\"$sAllChannels:\"+lvChannels,\"$sParameter:Digital\",\"$sHvOrLv:\"+infoPanel[1],\"$Sec:\"+sector,\"$sys:\"+sysComp),20,20);
+	}
+}" 0
+ E E "main()
+{
+dyn_string infoPanel = strsplit($2,\"|\");
+
+if(infoPanel[1]==\"Hv\")
+	this.text=\"iMon\";
+else if(infoPanel[1]==\"Lv\")
+	this.text=\"LV dig\";
+else
+	this.visible=false;	
+}" 0
+
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

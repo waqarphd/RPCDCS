@@ -1,0 +1,431 @@
+V 9
+1
+LANG:1 8 (NoName)
+PANEL,344 139 334 466 N "_3DFace" 0
+E E E E E 1 -1 -1 0  40 30
+"" ""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 1
+"Text1"
+""
+1 40 50 E E E 1 E 1 E N [0,0,0] E N "_3DFace" E E
+ E E
+2 0 0 0 0 9
+EE E
+E E 0 1 1 0 1 E U  1 E 42 52 178 68
+0 2 0 "s" 0 0 0 192 0 0  42 52
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 22 Object & Device Types:
+2 4
+"Text2"
+""
+1 20 20 E E E 1 E 1 E N [0,0,0] E N "_3DFace" E E
+ E E
+5 0 0 0 0 9
+EE E
+E E 0 1 1 0 1 E U  1 E 22 22 230 38
+0 2 0 "s" 0 0 0 192 0 0  22 22
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 35 Import FSM Configuration from Files
+2 5
+"Text3"
+""
+1 40 240 E E E 1 E 1 E N [0,0,0] E N "_3DFace" E E
+ E E
+6 0 0 0 0 9
+EE E
+E E 0 1 1 0 1 E U  1 E 42 242 97 258
+0 2 0 "s" 0 0 0 192 0 0  42 242
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 8 Domains:
+17 0
+"SelectionList1"
+""
+1 60 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 9
+EE E
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+58 68 322 202
+0
+"main()
+{
+	dyn_string types;
+	int i;
+	
+	types = getFileNames(PROJ_PATH+\"/smi\",\"*.sml\");
+	i = 1;
+	while( i <= dynlen(types))
+	{
+		if(strpos(types[i],\"_include\") >= 0)
+		{
+			dynRemove(types,i);
+		}
+		else if(strpos(types[i],\"_domain\") >= 0)
+		{
+			dynRemove(types,i);
+		}
+		else
+			i++;
+	}
+	setValue(\"\",\"items\",types);	
+}" 0
+
+"main()
+{
+string type;
+	getValue(\"\",\"selectedText\",type);
+	setValue(\"type\",\"text\",type);
+}" 0
+
+E
+
+3 1
+14 2
+"type"
+""
+1 60 210 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 9
+EE E
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+58 208 242 235
+3 "s" 0 0 0 0 0 0 
+E
+E
+E
+13 3
+"Button1"
+""
+1 250 210 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 9
+EE E
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+248 208 322 236
+T 
+1
+LANG:1 6 Import
+"
+main()
+{
+string type, s, state, action, objname;
+file fin;
+dyn_string states, actions, colors; 
+dyn_string state_text, action_text, comps;
+dyn_int visis;
+int pos, when_index, action_index, comp_index, got, device, index;
+
+	getValue(\"type\",\"text\",type);
+	
+	pos = strpos(type,\".\");
+	objname = substr(type,0,pos);
+	device = 0;
+	when_index = 0;
+	action_index = 0;
+	fin = fopen(PROJ_PATH+\"smi/\"+type,\"r\");
+	got = 0;
+	state = \"\";
+	while(!feof(fin))
+	{
+		if(!got)
+		{
+			fgets(s,2000,fin);
+		}
+		got = 0;
+		if((pos = strpos(s,\"class:\")) >= 0)
+		{
+		 	fwFsm_createObjectTypes(makeDynString(objname));
+			if((pos = strpos(s,\"/associated\")) >= 0)
+			{
+				device = 1;
+			}
+		}
+		if((pos = strpos(s,\"state:\")) >= 0)
+		{
+			if(state != \"\")
+			{
+				fwFsm_writeObjectWhens(objname, state, state_text);
+DebugN(state_text);
+			}
+			state = substr(s,pos+7);
+			state = strrtrim(state);
+			dynAppend(states,state);
+			dynAppend(colors,\"_3DFace\");
+			dynClear(actions);
+			dynClear(state_text);
+			fwFsm_setObjectStatesColors(objname,states,colors);
+			index = 0;
+DebugN(\"State : \"+state);
+		}
+		if((pos = strpos(s,\"when\")) >= 0)
+		{
+			s = strltrim(s);
+			dynAppend(state_text,s);
+			index++;
+			while(!feof(fin))
+			{
+				fgets(s,2000,fin);
+				s = strltrim(s);
+				got = 1;
+				if((pos = strpos(s,\"action:\")) >= 0)
+					break;
+				if((pos = strpos(s,\"when\")) >= 0)
+					break;
+				state_text[index] += s;
+			}
+		}
+		if((pos = strpos(s,\"action:\")) >= 0)
+		{
+			action = substr(s,pos+8);
+			action = strrtrim(action);
+			dynAppend(actions,action);
+			if(strpos(action,\"NV_\") == 0)
+				dynAppend(visis,\"0\");
+			else
+				dynAppend(visis,\"1\");
+			fwFsm_setObjectStateActionsV(objname,
+					state,actions,visis);
+			dynClear(action_text);
+DebugN(\"Action : \"+action);
+			while(!feof(fin))
+			{
+				fgets(s,2000,fin);
+				got = 1;
+				if((pos = strpos(s,\"state:\")) >= 0)
+					break;
+				if((pos = strpos(s,\"action:\")) >= 0)
+					break;
+				s = substr(s,12);
+				s = strrtrim(s); 
+				dynAppend(action_text,s);
+			}
+			fwFsm_writeObjectAction(objname, state, action, action_text);
+		}
+	}
+	fclose(fin);
+	if(state != \"\")
+	{
+		fwFsm_writeObjectWhens(objname, state, state_text);
+	}
+	if(device)
+	{
+		index = 0;
+		state = \"\";
+		action = \"\";
+		dynClear(comps);
+DebugN(PROJ_PATH+\"scripts/libs/\"+objname);
+		fin = fopen(PROJ_PATH+\"scripts/libs/\"+objname,\"r\");
+		while(!feof(fin))
+		{
+			fgets(s,2000,fin);
+//			DebugN(s);
+			if((pos = strpos(s,objname+\"_initialize\")) >= 0)
+				comp_index = 0;
+			if((pos = strpos(s,objname+\"_valueChanged\")) >= 0)
+				comp_index = 1;
+			if((pos = strpos(s,objname+\"_doCommand\")) >= 0)
+				comp_index = 2;
+			if(comp_index == 1)
+			{
+				state += s;
+				if(index >= 0)
+				{
+					index++;
+					if(index >= 2)
+					{
+						if((pos = strpos(s,\")\")) >= 0)
+						{
+							index = -1;
+						}
+						s = strrtrim(s);
+						s = strrtrim(s,\", )\");
+						s = strltrim(s);
+						dynAppend(comps, s);
+					}
+				}
+			}
+			if(comp_index == 2)
+			{
+				action += s;
+			}
+		}
+		fclose(fin);
+		fwFsm_writeDeviceInitScript(objname, comps, comps);
+		fwFsm_writeDeviceStateScript(objname,state);
+		fwFsm_writeDeviceActionScript(objname,action);			
+	}
+}" 0
+ E E E
+17 6
+"SelectionList2"
+""
+1 60 260 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 9
+EE E
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+58 258 322 372
+0
+"main()
+{
+	dyn_string types;
+	
+	types = getFileNames(PROJ_PATH+\"/smi\",\"*_domain.sml\");
+	setValue(\"\",\"items\",types);	
+}" 0
+
+"main()
+{
+string type;
+	getValue(\"\",\"selectedText\",type);
+	setValue(\"domain\",\"text\",type);
+}" 0
+
+E
+
+3 1
+14 7
+"domain"
+""
+1 60 380 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 9
+EE E
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+58 378 242 405
+3 "s" 0 0 0 0 0 0 
+E
+E
+E
+13 8
+"Button2"
+""
+1 250 380 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 9
+EE E
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+248 378 322 406
+T 
+1
+LANG:1 6 Import
+"
+main()
+{
+string domainfile, domain, s, obj, type;
+file fin;
+dyn_string aux, objs, types; 
+int pos, index;
+
+	getValue(\"domain\",\"text\",domainfile);
+	
+	pos = strpos(domainfile,\"_domain\");
+	domain = substr(domainfile,0,pos);
+	fin = fopen(PROJ_PATH+\"smi/\"+domainfile,\"r\");
+	index = 1;
+	while(!feof(fin))
+	{
+		fgets(s,2000,fin);
+		if((pos = strpos(s,\"object:\")) >= 0)
+		{
+			aux = strsplit(s,\" \");
+			obj = aux[2];
+			strrtrim(obj);
+			strltrim(obj);
+			objs[index] = obj;
+			type = aux[4];
+			type = strrtrim(type);
+			type = strltrim(type);
+			pos = strpos(type,\"_CLASS\");
+			type = substr(type,0,pos);
+			if((pos = strpos(type,\"ASS_\")) == 0)
+				type = substr(type,4);
+			if((pos = strpos(type,\"FwChildMode\")) >= 0)
+				type = \"FwChildMode\";
+			types[index] = type;
+			index++;
+		}
+	}
+	fclose(fin);
+	fwFsm_createDomain(domain,objs,domain,\"\");
+	fwFsm_createDomainObjects(domain, objs, types);
+}" 0
+ E E E
+13 9
+"Button3"
+""
+1 150 430 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 9
+EE E
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+148 428 222 456
+T 
+1
+LANG:1 5 Close
+"
+main()
+{
+	PanelOff();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

@@ -1,0 +1,810 @@
+V 11
+1
+LANG:1 23 RecipeClassEditorObject
+PANEL,-1 -1 614 535 N "_3DFace" 3
+"$allowDevsWithNoAlias"
+"$recipeClass"
+"$recipeType"
+"main()
+{
+
+	dyn_string exceptionInfo;
+
+//	DisableOnUnselect();
+
+	if (!isDollarDefined(\"$recipeClass\")) {
+		fwException_raise(exceptionInfo,\"ERROR\",
+				\"Dollar parameter $recipeClass not defined\",\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	if (!isDollarDefined(\"$recipeType\")) {
+		fwException_raise(exceptionInfo,\"ERROR\",
+				\"Dollar parameter $recipeType not defined\",\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+  
+	PopulateRCData();
+
+	PopulatePanel();  
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "dyn_mixed gRCData;  // recipe class data
+dyn_dyn_string gRTData;  // recipe type data
+
+
+void PopulateRCData()
+{
+	dyn_string exceptionInfo;
+ 
+  fwConfigurationDB_getRecipeClassInfo($recipeClass,gRCData,exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	};
+}
+
+void RemoveSelected()
+{
+
+    dyn_int lines;
+  dyn_string existingDevices;
+  
+  getValue(\"RecipeElements\", \"getSelectedLines\", lines);
+  if (!dynlen(lines))   return;
+  
+  for (int i=dynlen(lines); i>=1; i--) {
+    setValue(\"RecipeElements\", \"deleteLineN\", lines[i]);
+  }
+
+}
+
+
+void PopulatePanel()
+{
+  dyn_int errorLines;
+  string comment, recipeType;
+  dyn_string devTypes, devDpTypes, devices, exceptionInfo;
+
+  if (!dynlen(gRCData))  return;    
+  
+  RecipeClass.text=gRCData[fwConfigurationDB_RCL_CLASSNAME];
+  RecipeType.text=$recipeType;  
+  RecipeClassComment.text=gRCData[fwConfigurationDB_RCL_DESCRIPTION];
+  LastModifiedTime.text=gRCData[fwConfigurationDB_RCL_LAST_MODIFIED_TIME];
+  LastModifiedUser.text=gRCData[fwConfigurationDB_RCL_LAST_MODIFIED_USER];
+  LastActivatedRecipe.text=gRCData[fwConfigurationDB_RCL_LAST_ACTIVATED_RECIPE];
+  LastActivationTime.text=gRCData[fwConfigurationDB_RCL_LAST_ACTIVATED_TIME];
+  LastActivationUser.text=gRCData[fwConfigurationDB_RCL_LAST_ACTIVATED_USER];
+
+  RecipeElements.deleteAllLines();
+
+  dyn_dyn_string allfwDeviceTypeInfo;
+  dyn_string allfwDpTypes,allfwDevTypes;
+	fwDevice_getAllTypes(allfwDeviceTypeInfo,exceptionInfo);
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+  allfwDevTypes=allfwDeviceTypeInfo[1];
+  allfwDpTypes=allfwDeviceTypeInfo[2];
+
+  
+  for (int i=1;i<=dynlen(gRCData[fwConfigurationDB_RCL_ELEMENTS]);i++) {
+    string dpName, alias, deviceType = \"\",deviceDpType;   
+    string element = (gRCData[fwConfigurationDB_RCL_ELEMENTS])[i];
+    string dpe;
+    int dotpos=strpos(element,\".\");
+    if (dotpos<1) {
+      DebugTN(\"Cannot decode device element in recipe class \"+$recipeClass+\" position \"+i,element);
+      continue;
+    } 
+    alias=substr(element,0,dotpos);
+    dpe=substr(element,dotpos);
+    dpName=dpAliasToName(alias);
+    
+//    unGenericDpFunctions_convert_UNICOSDPE_to_PVSSDPE(element, dpName);
+    if (!dpExists(dpName)){
+       DebugTN(\"Cannot find device in recipe class \"+$recipeClass+\" position \"+i,element,dpName);
+      dynAppend(errorLines, i);
+      continue;
+    } else {
+      deviceDpType = dpTypeName(dpName);
+    }
+
+    string deviceType=deviceDpType;
+    // check if this is a Framework device type...
+    int idx=dynContains(allfwDpTypes,deviceDpType);
+    if (idx>0) deviceType=allfwDevTypes[idx];
+    
+//    alias = unGenericDpFunctions_getDpName(element);
+    if (!dynContains(devices, alias)) {
+      dynAppend(devices, alias);
+      dynAppend(devTypes, deviceType);
+      dynAppend(devDpTypes, deviceDpType);
+//      setValue(\"RecipeElements\",\"appendLine\",
+  // 			       \"DeviceType\",deviceType,
+   	//		       \"DeviceName\",alias);
+    }
+  }
+  RecipeElements.appendLines(dynlen(devices),\"DeviceName\",devices,\"DeviceType\",devTypes,\"DeviceDpType\",devDpTypes);
+  
+  // if there are DPs that don't exist, change the bg color of the rows 
+/*  if (dynlen(errorLines)){
+    PaintRowsBGColor(errorLines, \"{255,0,0}\", exceptionInfo);
+  }*/
+}
+
+
+void PaintRowsBGColor(dyn_int lines, string color, dyn_string &exceptionInfo)
+{
+  int cols = RecipeElements.columnCount();
+  
+  int len = dynlen(lines);
+  for (int i=1; i<=len; i++){
+    int row = lines[i]-1;
+    for (int j=0; j<cols; j++){
+      string column = RecipeElements.columnName(j);
+      RecipeElements.cellBackColRC(row, column, color);
+    }
+  }
+}
+
+
+void AddElements() 
+{
+ 	dyn_string exceptionInfo;
+  dyn_string types;
+	dyn_dyn_string fwDevices;
+	int i,n;
+  string recipeType;
+  dyn_string deviceList, existingDevices;
+  dyn_float df;
+  dyn_string ds;
+  
+
+	_fwConfigurationDB_getRecipeTypeData($recipeType,gRTData,exceptionInfo);  
+  
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+  dyn_dyn_string allfwDeviceTypeInfo;
+  dyn_string allfwDpTypes,allfwDevTypes;
+	fwDevice_getAllTypes(allfwDeviceTypeInfo,exceptionInfo);
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+  allfwDevTypes=allfwDeviceTypeInfo[1];
+  allfwDpTypes=allfwDeviceTypeInfo[2];
+  
+bool allowDevsWithNoAlias=true;
+if (isDollarDefined(\"$allowDevsWithNoAlias\")) allowDevsWithNoAlias=$allowDevsWithNoAlias;
+  
+  dyn_string allDevDps,allDevAliases;
+  dpGetAllAliases(allDevDps,allDevAliases,\"*\",\"*.\");
+//DebugTN(\"We got all matching aliases\",dynlen(allDevDps),dynlen(allDevAliases));
+  // Get all the device types of the recipe type
+  for (int i=1; i<=dynlen(gRTData); i++) {    
+    if (gRTData[i][2]==\"FwNode\" || gRTData[i][2]==\"_FwTreeNode\") continue; // exclude fwDevice's vendor nodes, tree nodes, clipboards and such
+    if (!dynContains(types, gRTData[i][2]))  {
+      dynAppend(types, gRTData[i][2]);
+      dyn_string items = dpNames(\"*:*\", gRTData[i][2]);
+      // Convert the DPEs names
+      for (int j=1; j<=dynlen(items); j++) {
+        string itemName=items[j];
+        if (substr(dpSubStr(itemName,DPSUB_DP),0,4)==\"tmp_\") continue; // exclude dummy devices from framework...
+        int idx=dynContains(allDevDps,itemName+\".\");
+        if (idx) itemName=allDevAliases[idx]; // use alias, not dp name...
+        else if (allowDevsWithNoAlias==false) continue;
+        dynAppend(deviceList,itemName);
+//        string systemName = unGenericDpFunctions_getSystemName(items[j]);
+//        items[j] = unGenericDpFunctions_getAlias(items[j]);
+//        items[j] = systemName + items[j];
+      }
+//      dynAppend(deviceList, items);
+    }
+  }    
+  
+
+  getValue(\"RecipeElements\", \"getColumnN\", 2, existingDevices);
+
+  	ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_SelectionList.pnl\",
+		\"Select Devices\",
+		makeDynString(\"$text:Select devices:\",
+				\"$items:\"+deviceList,
+       \"$AliasSelector:TRUE\",
+       \"$DPSelector:FALSE\",
+				\"$selectMultiple:\"+TRUE,
+				\"$disabledItems:\"+existingDevices),
+		df,ds);
+
+  // Insert the selected elements in the table
+  for (int i=1; i<=dynlen(ds); i++) {
+    string dpName,devName,alias;
+    // firstly check if this is h/w or logical device
+    if (strpos(ds[i],\":\")>0){
+      alias=\"\";
+      dpName=ds[i];
+    } else {
+      alias=ds[i];
+      int idx=dynContains(allDevAliases,alias);
+      if (idx<1) {
+        DebugTN(\"Could not resolve the alias at position \"+i,alias);
+        DebugTN(ds);
+        continue;
+      }
+      dpName=dpSubStr(allDevDps[idx],DPSUB_SYS_DP);
+    }
+    if (!dpExists(dpName)) {
+      DebugTN(\"Datapoint does not exist at idx=\"+i,dpName, alias, ds[i]);
+      DebugTN(ds);
+      continue;
+    }
+//    string dpName = unGenericDpFunctions_dpAliasToName(ds[i]);
+//    if (dpName==\"\") {
+//      unGenericDpFunctions_convert_UNICOSDPE_to_PVSSDPE(ds[i], dpName);
+//    }
+    string deviceDpType = dpTypeName(dpName);
+//    if (substr(deviceDpType,0,1)==\"_\") continue; // hide dps of internal DPType
+
+    string deviceType=deviceDpType;
+    // check if this is a Framework device type...
+    int idx=dynContains(allfwDpTypes,deviceDpType);
+    if (idx>0) deviceType=allfwDevTypes[idx];
+    setValue(\"RecipeElements\", \"appendLine\",
+             \"DeviceDpType\",deviceDpType,
+             \"DeviceType\", deviceType,
+             \"DeviceName\", ds[i]);             
+  }
+}
+
+
+bool Apply()
+{
+  dyn_float df;
+  dyn_string exceptionInfo, ds;
+  dyn_string devices, deviceTypes, deviceDpTypes, recipeInstances, oldDpes;
+
+
+
+  // Gets the devices and device types of the new recipe class definition
+  getValue(\"RecipeElements\", \"getColumnN\",2, devices);
+  getValue(\"RecipeElements\", \"getColumnN\",1, deviceTypes);  
+  getValue(\"RecipeElements\", \"getColumnN\",0, deviceDpTypes);    
+
+  string comment;
+  getValue(\"RecipeClassComment\",\"text\",comment);
+  //_unRecipeFunctions_setRCDescription($recipeClass, comment, exceptionInfo);
+  bool modifyInstances=TRUE;
+  fwConfigurationDB_modifyRecipeClass($recipeClass, devices,  $recipeType,
+                                         comment,exceptionInfo,modifyInstances);
+  if (dynlen(exceptionInfo)){
+    fwExceptionHandling_display(exceptionInfo);
+    return false;
+  }
+  return true;
+  recipeInstances = gRCData[fwConfigurationDB_RCL_INSTANCES];  
+  if(dynlen(recipeInstances)) {
+    // Check if the DPEs of the recipe class have changed
+    bool hasChanges = FALSE;
+    int numDevices;
+    oldDpes = gRCData[fwConfigurationDB_RCL_ELEMENTS];
+    
+    dynSortAsc(oldDpes);
+    getValue(\"RecipeElements\", \"lineCount\", numDevices);
+    
+    if (dynlen(oldDpes)==numDevices) {
+      // Check if the recipe devices didn't change
+      for (int i=1; i<=numDevices && !hasChanges; i++) { 
+        string oldDevice = unGenericDpFunctions_getDpName(oldDpes[i]);    
+        if (oldDevice!=devices[i]){
+          hasChanges = TRUE;          
+        }
+      }
+    } else {
+      // if the number of devices is different there were changes in the recipe class definition
+      hasChanges = TRUE;       
+    }
+      
+    if (hasChanges){
+    	 ChildPanelOnCentralReturn(\"fwGeneral/fwOkCancel.pnl\",
+    			\"Modify Recipe Class?\",
+    			makeDynString(\"$text:The modifications will affect the recipe class and \\n ALL the recipe instances, \" + 
+                        \"Do you want to continue?\"),
+    			df,ds);
+    	 if (df[1]!=1) return FALSE;    
+    } else {
+      // There aren't modifications in the recipe class, return.
+      Debug(\"No modifications: return\\n\");
+      return TRUE;
+    }      
+  }
+  
+  // Modifies the recipe class and all the recipe instances
+  _unRecipeFunctions_editRecipeClass($recipeClass, devices, deviceDpTypes, exceptionInfo);
+
+
+  if (dynlen(exceptionInfo)) {
+  	fwExceptionHandling_display(exceptionInfo);
+  	return FALSE;
+  }
+
+  // Updates the recipe class data inside the gRCData variable
+  unRecipeFunctions_getRecipeClassData($recipeClass,gRCData,exceptionInfo);
+  if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	};
+  PopulatePanel();
+  return TRUE;
+}
+
+
+void ShowInstances()
+{
+  dyn_float df;
+  dyn_string ds;
+  ChildPanelOnModalReturn(\"fwConfigurationDB/fwConfigurationDB_RecipeClassInstances.pnl\",\"Instances of recipe class \"+$recipeClass,
+                          makeDynString(\"$recipeClass:\"+$recipeClass),
+                              0,0,df,ds);
+ 
+}
+
+void AddInstance()
+{
+  dyn_float df;
+  dyn_string ds;
+  ChildPanelOnModalReturn(\"fwConfigurationDB/fwConfigurationDB_NewRecipeInstance.pnl\",\"Create new recipe instance\",
+                          makeDynString(\"$sTitle:Create recipe instance\",
+                                        \"$sDesctiption: Please enter the name for new recipe instance\",
+                                        \"$recipeClass:\"+$recipeClass),
+                              0,0,df,ds);
+  if (dynlen(df)<1) return;
+  if (df[1]<1) return;
+  string instanceName=ds[1];
+  dyn_string exceptionInfo;
+  if (!dpNameCheck(instanceName)) {
+    fwException_raise(exceptionInfo,\"ERROR\",\"The name of recipe instance cannot contain spaces or special characters\",\"\");
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }
+  fwConfigurationDB_instantiateRecipeOfClass(instanceName,$recipeClass,exceptionInfo);
+  if (dynlen(exceptionInfo)) {
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 7
+"FRAME1"
+""
+1 20 203 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+7 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.9312081132714201 0 0.9509929848829162 -10.6241622654284 6.94842406876802 0 E 20 203 661 551
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 23  Recipe Class Elements 
+25 8
+"RecipeElements"
+""
+1 36.83116883116883 225.46875 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  18 214 598 521
+"main()
+{
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE);
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);  
+ 	setValue(\"\",\"sortOnClick\",false);  
+}" 0
+E 1 0 1 3 0 "DeviceDpType" 0 0 0 "s" 1
+LANG:1 12 DeviceDpType
+E
+1
+LANG:1 0 
+
+10 "DeviceType" 19 1 0 "s" 1
+LANG:1 11 Device Type
+E
+1
+LANG:1 0 
+
+170 "DeviceName" 45 1 0 "s" 1
+LANG:1 11 Device Name
+E
+1
+LANG:1 0 
+
+400 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+30 22
+"FRAME2"
+""
+1 20 33 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+22 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.9030323761073832 0 1.343065693430657 -10.06064752214766 -36.32116788321167 0 E 20 33 681 171
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19  Recipe Class Info 
+2 23
+"PRIMITIVE_TEXT2"
+""
+1 428 469.8055845269954 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E 1 0 1.026737967914439 344 -33.60427807486634 1 E 20 60 53 76
+0 2 2 "0s" 0 0 0 192 0 0  20 60 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Type:
+14 24
+"RecipeClassComment"
+""
+1 109.1042944785276 54.0534759358289 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 19 recipe type comment
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  110 54 586 81
+3 "0s" 0 0 0 0 0 -1  E E E
+14 25
+"RecipeType"
+""
+1 398.8711656441718 22.05347593582889 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  398 22 586 49
+2 "0s" 0 0 0 0 0 -1  E E E
+2 26
+"PRIMITIVE_TEXT3"
+""
+1 80 82.34975893467229 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E 1 0 1.026737967914439 -4 -29.60427807486634 1 E 20 60 103 76
+0 2 2 "0s" 0 0 0 192 0 0  20 60 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Recipe Class:
+14 27
+"RecipeClass"
+""
+1 123.1591863093317 64.10695187165774 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  110 26 354 53
+2 "0s" 0 0 0 0 0 -1  E E E
+2 28
+"PRIMITIVE_TEXT4"
+""
+1 96 1295.387309617375 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E 1 0 1.026737967914439 -4 -5.604278074866343 1 E 20 60 90 76
+0 2 2 "0s" 0 0 0 192 0 0  20 60 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Description:
+2 29
+"PRIMITIVE_TEXT5"
+""
+1 16 96 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 16 96 96 112
+0 2 2 "0s" 0 0 0 192 0 0  16 96 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Last Modified
+14 30
+"LastModifiedTime"
+""
+1 110.5276073619632 90.05347593582886 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  110 90 354 117
+2 "0s" 0 0 0 0 0 -1  E E E
+14 31
+"LastActivatedRecipe"
+""
+1 109.0797546012272 130 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  110 130 590 157
+2 "0s" 0 0 0 0 0 -1  E E E
+2 32
+"PRIMITIVE_TEXT6"
+""
+1 16 136 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.9710144927536232 0 1 -7.304347826086957 48 0 E 24 88 111 104
+0 2 2 "0s" 0 0 0 192 0 0  24 88 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Last Activated:
+14 33
+"LastActivationTime"
+""
+1 110.5276073619632 154 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  110 154 354 181
+2 "0s" 0 0 0 0 0 -1  E E E
+2 34
+"PRIMITIVE_TEXT7"
+""
+1 89.94202898550725 160 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 89.94202898550725 160 103.9420289855072 176
+0 2 2 "0s" 0 0 0 192 0 0  89.94202898550725 160 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 at:
+14 35
+"ExternalCommand"
+""
+1 296 0 E E E 0 E 0 E N "cyan" E N "cyan" E E
+ E E
+35 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"textChangedCB" "main(string newText)
+{
+  if (newText==\"\") return;
+  if (newText==\"AddElements\") AddElements();
+  else if (newText==\"RemoveSelected\") RemoveSelected();
+  else if (newText==\"Apply\") Apply();
+  else if (newText==\"ShowInstances\") ShowInstances();
+  else if (newText==\"AddInstance\") AddInstance();
+  else DebugTN(\"fwConfigurationDB_RecipeClassEdit object: Unknown external command received:\",newText);
+  this.text=\"\";
+}"
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  294 -2 328 22
+2 "0s" 0 0 0 0 0 -1  E E E
+14 36
+"LastActivationUser"
+""
+1 396.8343558282209 154 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  396 154 590 181
+2 "0s" 0 0 0 0 0 -1  E E E
+2 37
+"PRIMITIVE_TEXT8"
+""
+1 371.9420289855072 160 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 371.9420289855072 160 389.9420289855073 175.9465240641711
+0 2 2 "0s" 0 0 0 192 0 0  371.9420289855072 160 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 by:
+2 39
+"PRIMITIVE_TEXT10"
+""
+1 370 96 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 370 96 388.0000000000001 111.9465240641711
+0 2 2 "0s" 0 0 0 192 0 0  370 96 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 by:
+14 40
+"LastModifiedUser"
+""
+1 396.8466257668712 90 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  396 90 588 117
+2 "0s" 0 0 0 0 0 -1  E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

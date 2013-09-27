@@ -1,0 +1,69 @@
+main()
+{
+        string installation_path, destination_path, source_path = "";
+        int ok, attempt = 1;
+        bool found = FALSE, exists;
+	int stop = 1;
+	string status, action;
+        
+	if(dpExists("ToDo.action"))
+	{
+		dpSet("ToDo.status","Installing");
+		dpGet("ToDo.action",action);
+		if(action == "Installing")
+			stop = 0;
+	}
+	if(stop)
+	{
+//		fwInstallation_stopManagers(makeDynString("PVSS00dim"));
+    fwInstallationManager_stopAllOfTypes(makeDynString("WCCOAdim"));
+		DebugTN("fwFsm.init: Stopping WCCOAdim Managers");
+	}
+	else
+	{
+		DebugTN("fwFsm.init: WCCOAdim Managers already Stopped");
+	}
+
+       //check if User library exists in Project path
+	destination_path = getPath(LIBS_REL_PATH, "fwFsmUser.ctl");
+        if(destination_path != "")
+        {
+	  DebugN("fwFSM.init: Existing fwFsmUser library found");
+          return 0;
+        }
+                
+        //check if User library exists in newly installed Project path
+        //1. get FSM install directory
+	dpGet("fwInstallationInfo.installationDirectoryPath:_original.._value", installation_path);
+        //2. look for user library in the FSM install directory
+        source_path = installation_path + "/" + LIBS_REL_PATH + "fwFsmUser.ctl";
+        exists = isfile(source_path);
+        if(exists)
+        {
+	  DebugN("fwFSM.init: Existing fwFsmUser library found");
+          return 0;
+        }
+
+        //if user library not found, then copy template file in the new installation directory                
+        source_path = installation_path + "/" + LIBS_REL_PATH + "fwFsmUserTemplate.ctl";
+        while(!found && (attempt <= 20))
+	{
+	  found = isfile(source_path);
+	  delay(0,500);
+	  attempt++;
+	}
+        
+        if(!found)
+        {
+	  DebugN("fwFSM.init: Could not find fwFsmUser template");
+          return -1;
+        }
+        
+	destination_path = source_path;
+	strreplace(destination_path, "Template", "");
+	ok = copyFile(source_path, destination_path);
+	if(!ok)
+	  DebugN("fwFSM.init: Could not create " + source_path);
+        else
+	  DebugN("fwFSM.init: Created new fwFsmUser library from template");
+}

@@ -1,0 +1,158 @@
+ALTER TABLE device_elements MODIFY elementname VARCHAR2(128);
+
+ALTER TABLE recipe_data MODIFY propname VARCHAR2(128);
+
+alter table items
+    add (
+	dpname varchar2(512)
+    );
+
+update items i set i.dpname=(select vin.dpname from v_item_names vin where vin.id=i.id);
+CREATE INDEX items_dpname_idx ON items (dpname );
+
+
+drop materialized view v_item_names;
+
+CREATE VIEW V_ITEM_NAMES
+AS SELECT
+    hver,
+    id,
+    name,
+    dpname
+FROM ITEMS i;
+
+
+drop materialized view v_items;
+drop view vv_items;
+
+
+CREATE OR REPLACE VIEW v_items (
+    item_id,
+    parent_id,
+    hver,
+    name,
+    dpname,
+    parent_dpname,
+    type,
+    detail,
+    description,
+    dpid
+)
+AS SELECT
+    i.id,
+    i.parent,
+    i.hver,
+    i.name,
+    i.dpname,
+    (select dpname from v_item_names p where p.id=i.parent),
+    i.type,
+    i.detail,
+    i.description,
+    i.dpid
+FROM items i;
+
+
+alter table config_item_properties add (
+    bvalue blob
+);
+
+alter table recipe_data add (
+    bvalue blob
+);
+
+CREATE OR REPLACE VIEW v_RecipesAll
+(
+    propid
+  , proptype
+  , item_id
+  , recipe_ver
+  , valid_from
+  , valid_to
+  , tag
+  , recipe_type
+  , recipe_comment
+  , hierarchy
+  , dpname
+  , property
+  , type
+  , detail
+  , has_value
+  , has_alert
+  , propvalue
+  , alert_type
+  , alert_active
+  , alert_classes
+  , alert_texts
+  , alert_limits
+)
+AS
+SELECT
+rt.propid,
+rd.proptype,
+i.item_id,
+rd.rver,
+rt.valid_from,
+rt.valid_to,
+r.name,
+r.recipe_type,
+r.description,
+h.htype,
+i.dpname,
+rd.propname,
+i.type,
+i.detail,
+rd.has_value,
+rd.has_alert,
+rd.propvalue,
+rd.alert_type,
+rd.alert_active,
+rd.alert_classes,
+rd.alert_texts,
+rd.alert_limits
+FROM recipe_tags rt, recipes r, recipe_data rd ,v_items i,hierarchies h
+WHERE rt.propid=rd.propid
+AND r.tagid=rt.tagid
+AND h.hver=i.hver
+AND i.item_id=rd.id
+;
+
+
+-- DROP TABLE CDB_API_PARAMS if it exists
+begin 
+    DECLARE cnt number; 
+    BEGIN 
+	select count(*) into cnt from user_tables where table_name='CDB_API_PARAMS' ; 
+	if ( cnt > 0) then 
+	    execute immediate 'DROP TABLE CDB_API_PARAMS'; 
+	end if; 
+    end;
+END;
+/
+
+CREATE GLOBAL TEMPORARY TABLE CDB_API_PARAMS(
+    i1 number,
+    i2 number,
+    i3 number,
+    i4 number,
+    i5 number,
+    i6 number,
+    i7 number,
+    i8 number,
+    s1 varchar2(512),
+    s2 varchar2(512),
+    s3 varchar2(256),
+    s4 varchar2(256),
+    s5 varchar2(256),
+    s6 varchar2(256),
+    s7 varchar2(4000),
+    s8 varchar2(4000),
+    s9 varchar2(16),
+    s10 varchar2(16),
+    d1 date,
+    d2 date,
+    b1 blob
+) on commit preserve rows;
+
+
+
+#include "fwConfigurationDB_upgradeSchema_2.01-2.06.sql.IN"

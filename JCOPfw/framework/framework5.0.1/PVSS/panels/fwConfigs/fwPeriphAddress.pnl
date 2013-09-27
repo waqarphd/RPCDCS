@@ -1,0 +1,5250 @@
+V 12
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 638 391 N "_3DFace" 4
+"$bHierarchyBrowser"
+"$dsAddressTypes"
+"$sDpe"
+"$sDpeConfigObjectVarName"
+"main()
+{
+	string dollarContents;
+	dyn_string addressTypes, newAddressTypes;
+	bool cbEnabled, active, dataSource, configExists = FALSE, isAddressActive;
+	int i, tempInt, dataTypeNumber, transformationType, subindex, maxSubindex, result, position, elementType;
+	int updateRate, refreshTimer;
+	float deadband, updateRateInSeconds;
+	string dpe, opcGroupName, drvType, opcServerName, dataTypeName, dipItem, dipTag, errorString;
+	dyn_string extraAddressTypes, panelNames, exceptionInfo, tempSplit, opcServers, opcGroups, items, configTypeSplit, systems;
+	
+	dyn_dyn_anytype dpeConfigObject;
+ shape trans;
+
+	if(isDollarDefined(\"$sDpe\"))
+	{
+		dpe = $sDpe;
+		strreplace(dpe, \" \", \"\");
+	    DPE_LIST = strsplit(dpe, \"|\");
+	}
+
+	initShapes();
+	_fwInitFunctionCallMappings();
+	_fwInitTransformationMappings();
+
+	hideAll();
+
+	addressTypes = makeDynString(fwPeriphAddress_TYPE_NONE, fwPeriphAddress_TYPE_OPC,  fwPeriphAddress_TYPE_OPCUA, fwPeriphAddress_TYPE_MODBUS, fwPeriphAddress_TYPE_DIM, fwPeriphAddress_TYPE_DIP);
+
+	getThirdPartyFiles(extraAddressTypes, panelNames);
+	THIRD_PARTY_ADDRESS_TYPES = extraAddressTypes;
+	dynAppend(addressTypes, extraAddressTypes);
+	hideAllThirdPartySymbols();	
+
+	if(isDollarDefined(\"$dsAddressTypes\"))
+	{
+		dollarContents = $dsAddressTypes;
+		strreplace(dollarContents, \" | \", \"|\");
+		newAddressTypes = strsplit(dollarContents, \"|\");
+	
+		if(dynlen(newAddressTypes) > 0)
+		{
+			addressTypes = makeDynString(\"None\");
+			dynAppend(addressTypes, newAddressTypes);
+			dynUnique(addressTypes);
+		}
+	}
+
+	fwInstallation_componentInstalled(\"fwDIP\", \"1.0\", result);
+	if(result == 0)
+	{
+		position = dynContains(addressTypes, fwPeriphAddress_TYPE_DIP);
+		if(position > 0)
+			dynRemove(addressTypes, position);
+	}
+	
+	switch(dynlen(DPE_LIST))
+	{
+			case 0:
+				if(isDollarDefined(\"$sDpeConfigObjectVarName\"))	// object passed to the panel
+				{
+					addressTypes = makeDynString(fwPeriphAddress_TYPE_NONE, fwPeriphAddress_TYPE_OPC, fwPeriphAddress_TYPE_DIM);
+
+					if(getGlobalType($sDpeConfigObjectVarName) != DYN_DYN_ANYTYPE_VAR)
+					{
+						elementNameField.text(\"Wrong config object name\");
+						applyButton.enabled = FALSE;
+						okButton.enabled = FALSE;
+						fwException_raise(exceptionInfo, 
+															\"WARNING\", \"The config object \" + $sDpeConfigObjectVarName + 
+															\" doesn't exists or hasn't got the proper format.\", 
+															\"\");
+						fwExceptionHandling_display(exceptionInfo);					
+						return;
+					}					
+					
+					panelMode = OBJECT;					
+					fwGeneral_getGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+					// read from config object
+					DPE_LIST[1] = dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_NAME][1];						
+					DPE_TYPE		= dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_TYPE][1];	
+					
+					configData[fwPeriphAddress_TYPE] = dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1];			
+					configData[fwPeriphAddress_DRIVER_NUMBER] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DRIVER_NUMBER][1];			
+					configData[fwPeriphAddress_REFERENCE] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_REFERENCE][1];			
+					configData[fwPeriphAddress_DIRECTION] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIRECTION][1];			
+					configData[fwPeriphAddress_DATATYPE] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DATATYPE][1];			
+					configData[fwPeriphAddress_ACTIVE] = (bool)dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1];			
+					
+					if((configData[fwPeriphAddress_TYPE] == fwPeriphAddress_TYPE_OPC) ||
+										(configData[fwPeriphAddress_TYPE] == fwPeriphAddress_TYPE_OPCCLIENT))
+					{
+						configData[fwPeriphAddress_OPC_LOWLEVEL] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPC_LOWLEVEL][1];			
+						configData[fwPeriphAddress_OPC_SUBINDEX] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPC_SUBINDEX][1];			
+						configData[fwPeriphAddress_OPC_SERVER_NAME] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPC_SERVER_NAME][1];			
+						configData[fwPeriphAddress_OPC_GROUP_IN] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPC_GROUP_IN][1];			
+						configData[fwPeriphAddress_OPC_GROUP_OUT] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPC_GROUP_OUT][1];			
+					}
+					if((configData[fwPeriphAddress_TYPE] == fwPeriphAddress_TYPE_OPCUA) ||
+										(configData[fwPeriphAddress_TYPE] == fwPeriphAddress_TYPE_OPCUACLIENT))
+					{
+     configParameters[fwPeriphAddress_OPCUA_LOWLEVEL] =	dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_LOWLEVEL][1];			
+					configParameters[fwPeriphAddress_OPCUA_SERVER_NAME] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_SERVER_NAME][1];			
+					configParameters[fwPeriphAddress_OPCUA_SUBSCRIPTION] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_SUBSCRIPTION][1];			
+					configParameters[fwPeriphAddress_OPCUA_KIND] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_KIND][1];			
+					configParameters[fwPeriphAddress_OPCUA_VARIANT] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_VARIANT][1];			
+					configParameters[fwPeriphAddress_OPCUA_POLL_GROUP] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_POLL_GROUP][1];			
+					}
+					else if((configData[fwPeriphAddress_TYPE] == fwPeriphAddress_TYPE_DIM) ||
+										(configData[fwPeriphAddress_TYPE] == fwPeriphAddress_TYPE_DIMCLIENT))
+					{
+						configData[fwPeriphAddress_DRIVER_NUMBER] = fwPeriphAddress_DIM_DRIVER_NUMBER;			
+						configData[fwPeriphAddress_DIM_CONFIG_DP] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIM_CONFIG_DP][1];			
+						configData[fwPeriphAddress_DIM_DEFAULT_VALUE] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIM_DEFAULT_VALUE][1];			
+						configData[fwPeriphAddress_DIM_TIMEOUT] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIM_TIMEOUT][1];			
+						configData[fwPeriphAddress_DIM_FLAG] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIM_FLAG][1];			
+						configData[fwPeriphAddress_DIM_IMMEDIATE_UPDATE] = dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIM_IMMEDIATE_UPDATE][1];			
+					}
+					else
+						configData[fwPeriphAddress_TYPE] = \"\";
+					
+					SYSTEM_NAME = getSystemName();
+					elementNameField.text(DPE_LIST[1]);
+					configExists = TRUE;
+					DPES_OK = TRUE;
+				}
+				else // neither dpes nor object passed, nothing to do in the panel
+				{
+					elementNameField.text(\"No Data Point Elements\");
+					applyButton.enabled = FALSE;
+					okButton.enabled = FALSE;
+					fwException_raise(exceptionInfo, \"WARNING\", getCatStr(\"fwConfigs\", \"PANEL_NODATAPOINTSTOCONFIG\"), \"\");
+					fwExceptionHandling_display(exceptionInfo);					
+					return;
+				}
+				break;
+			case 1:
+				panelMode = SINGLE_DPE;
+				dpe = DPE_LIST[1];
+				elementNameField.text(dpe);
+				DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_ADDRESS, DPE_TYPE, exceptionInfo, errorString);
+				if(!DPES_OK)
+				{
+					configExists = FALSE;
+					mainOkButton.enabled = FALSE;
+					mainApplyButton.enabled = FALSE;
+					addressType.items = makeDynString(fwPeriphAddress_TYPE_NONE);
+
+					if(DPE_TYPE == fwConfigs_NOT_SUPPORTED)
+						fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+				}
+				else
+				{				
+					fwPeriphAddress_get($sDpe, configExists, configData, isAddressActive, exceptionInfo);
+					fwGeneral_getSystemName($sDpe, SYSTEM_NAME, exceptionInfo);
+					if(SYSTEM_NAME == \"\")
+						SYSTEM_NAME = getSystemName();
+					
+					//get default OPC data type
+					_fwGetDefaultOpcDataType(dataTypeNumber);
+					_fwConvertOpcDataType(dataTypeName, dataTypeNumber, configData[fwPeriphAddress_TYPE]);
+					//dataTypeValue.text(dataTypeName);
+				}
+				break;
+			default:
+				panelMode = MULTIPLE_DPES;
+				addressTypes = makeDynString(fwPeriphAddress_TYPE_NONE, fwPeriphAddress_TYPE_OPC, fwPeriphAddress_TYPE_DIM);
+				dpe = DPE_LIST[1];
+
+				_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+				
+				if(dynlen(systems) == 1)
+				{
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+					if(systems[1] == getSystemName())
+						SYSTEM_NAME = systems[1];
+				}
+				else
+				{
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+					SYSTEM_NAME = \"\";
+				}
+				
+				DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_ADDRESS, DPE_TYPE, exceptionInfo, errorString);
+				if(!DPES_OK)
+				{
+					configExists = FALSE;
+					mainOkButton.enabled = FALSE;
+					mainApplyButton.enabled = FALSE;
+					addressType.items = makeDynString(fwPeriphAddress_TYPE_NONE);
+
+					if(DPE_TYPE == fwConfigs_NOT_SUPPORTED)
+						fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+				}
+
+				dpeDetails.visible = TRUE;
+				break;
+	}
+
+	_fwEnableAllSettings();
+	addressType.items = addressTypes;
+	initModbusPollGroupNames();
+
+	//Initial set up of OPC lists
+	if(SYSTEM_NAME != getSystemName())
+	{
+		opcButton.enabled = FALSE;
+		opcButton.toolTipText = \"This option is unavailable as you are configuring data points on a remote system.\";
+	}
+
+//OPC server
+  	opcServers = dpNames(SYSTEM_NAME + \"*\",\"_OPCServer\"); 
+  	for(i=1;i<=dynlen(opcServers);i++)
+  	{  
+      opcServers[i] = dpSubStr(opcServers[i], DPSUB_DP);
+      opcServers[i] = strltrim(opcServers[i], \"_\");
+    }
+
+    opcServer.items(opcServers);
+		opcServer.selectedPos(1);
+
+//OPC group
+  	opcGroups = dpNames(SYSTEM_NAME + \"*\",\"_OPCGroup\"); 
+  	for(i=1;i<=dynlen(opcGroups);i++)  
+		{
+      opcGroups[i] = dpSubStr(opcGroups[i], DPSUB_DP);
+      opcGroups[i] = strltrim(opcGroups[i], \"_\");
+    }
+
+		if(panelMode == OBJECT)
+			dynInsertAt(opcGroups, \"\", 1);    
+    opcGroup.items(opcGroups);
+		opcGroup.selectedPos(1);
+
+	if(dynlen(opcGroups) > 0) {
+		_fwGetOpcGroupData(SYSTEM_NAME + \"_\"+opcGroups[1], updateRate, deadband, cbEnabled,
+												active, dataSource, refreshTimer, exceptionInfo);
+	}
+	else{
+		updateRate = 0;
+		deadband = 0.0;
+		cbEnabled = FALSE;
+		active = FALSE;
+		dataSource = FALSE;
+		refreshTimer = 0;
+	}
+	
+	_fwShowOpcGroupData(updateRate, deadband, cbEnabled, active, dataSource, refreshTimer, exceptionInfo);
+
+//OPC items
+	opcServerName = opcServer.text();
+	if(opcServerName != \"\") {
+		_fwGetOpcServerItems(SYSTEM_NAME +\"_\"+opcServerName, items, exceptionInfo);
+	}
+	opcItem.items(items);
+	opcItem.selectedPos(1);
+
+//DebugN(configExists, configData);
+	if(configExists)
+	{
+		CURRENT_SAVED_ADDRESS_TYPE = configData[fwPeriphAddress_TYPE];
+		switch(configData[fwPeriphAddress_TYPE])
+		{
+			case fwPeriphAddress_TYPE_OPC:
+			case fwPeriphAddress_TYPE_OPCCLIENT:
+				PREVIOUS_ADDRESS_TYPE = fwPeriphAddress_TYPE_OPCCLIENT;
+				if(dynContains(addressTypes, fwPeriphAddress_TYPE_OPC) <= 0)
+					addressType.appendItem(fwPeriphAddress_TYPE_OPC);
+								
+				addressType.text = fwPeriphAddress_TYPE_OPC;
+				if((configData[fwPeriphAddress_DRIVER_NUMBER] >= drvNr.sbMinimum)
+						&& (configData[fwPeriphAddress_DRIVER_NUMBER] <= drvNr.sbMaximum))
+					drvNr.text(configData[fwPeriphAddress_DRIVER_NUMBER]);
+
+				hiddenDataType.text(configData[fwPeriphAddress_DATATYPE]);
+	
+				_fwConvertOpcDataType(dataTypeName, configData[fwPeriphAddress_DATATYPE],configData[fwPeriphAddress_TYPE]);
+				dataTypeValue.text(dataTypeName);
+				
+				subindexValue.text = configData[fwPeriphAddress_OPC_SUBINDEX];
+					
+				opcServer.text(configData[fwPeriphAddress_OPC_SERVER_NAME]);
+	
+				opcServerName = opcServer.text();
+				_fwGetOpcServerItems(SYSTEM_NAME +\"_\"+opcServerName, items, exceptionInfo);
+		    opcItem.items(items);
+				
+				if(configData[fwPeriphAddress_DIRECTION] == DPATTR_ADDR_MODE_OUTPUT_SINGLE)
+					opcGroupName = configData[fwPeriphAddress_OPC_GROUP_OUT];
+				else
+					opcGroupName = configData[fwPeriphAddress_OPC_GROUP_IN];
+					
+				opcGroup.text(opcGroupName);
+				_fwGetOpcGroupData(SYSTEM_NAME + \"_\" + opcGroupName, updateRate, deadband, cbEnabled,
+														active, dataSource, refreshTimer, exceptionInfo);
+				
+				_fwShowOpcGroupData(updateRate, deadband, cbEnabled, active, dataSource, refreshTimer, exceptionInfo);
+	
+				opcItem.text(configData[fwPeriphAddress_ROOT_NAME]);
+					
+				addressActive.state(0) = configData[fwPeriphAddress_ACTIVE];
+				opclowLevel.state(0) = configData[fwPeriphAddress_OPC_LOWLEVEL];
+				ADDRESS_PANEL_LOW_LEVEL = configData[fwPeriphAddress_OPC_LOWLEVEL];
+				
+				if(configData[fwPeriphAddress_DIRECTION] == DPATTR_ADDR_MODE_INPUT_SPONT)
+					inOut.selectedPos = dynContains(inOut.items, \"In\");
+				else if(configData[fwPeriphAddress_DIRECTION] == DPATTR_ADDR_MODE_OUTPUT_SINGLE)
+				{
+					opclowLevel.enabled = FALSE;
+					inOut.selectedPos = dynContains(inOut.items, \"Out\");
+				}
+				else
+					inOut.selectedPos = dynContains(inOut.items, \"In/Out\");
+				break;
+
+			case fwPeriphAddress_TYPE_OPCUA:
+			case fwPeriphAddress_TYPE_OPCUACLIENT:
+				PREVIOUS_ADDRESS_TYPE = fwPeriphAddress_TYPE_OPCUACLIENT;
+				if(dynContains(addressTypes, fwPeriphAddress_TYPE_OPCUA) <= 0)
+					addressType.appendItem(fwPeriphAddress_TYPE_OPCUA);
+								
+				addressType.text = fwPeriphAddress_TYPE_OPCUA;
+    var_name.text = configData[fwPeriphAddress_REFERENCE];
+    showAddressOptions(configData[fwPeriphAddress_TYPE]);
+    
+				if((configData[fwPeriphAddress_DRIVER_NUMBER] >= Treiber.sbMinimum)
+						&& (configData[fwPeriphAddress_DRIVER_NUMBER] <= Treiber.sbMaximum))
+					Treiber.text(configData[fwPeriphAddress_DRIVER_NUMBER]);
+
+				_fwConvertOpcDataType(dataTypeName, configData[fwPeriphAddress_DATATYPE], configData[fwPeriphAddress_TYPE]);
+    trans = getShape(\"opcua.trans_art\");
+				trans.text = dataTypeName;
+					
+				opcServerName = configData[fwPeriphAddress_OPCUA_SERVER_NAME];
+				cmbEquipment.text = opcServerName;
+			
+				cmbSubscription.text = configData[fwPeriphAddress_OPCUA_SUBSCRIPTION];
+    string sPoll = dpSubStr(configData[fwPeriphAddress_OPCUA_POLL_GROUP],DPSUB_DP);
+    if(strpos(sPoll,\"_\")==0) sPoll = substr(sPoll,1);
+    cmbPollGroup.text = sPoll;    
+				radKind.number = configData[fwPeriphAddress_OPCUA_KIND];
+				radVariant.number = configData[fwPeriphAddress_OPCUA_VARIANT];
+				txtItem.text(configData[fwPeriphAddress_ROOT_NAME]);
+					
+				cboAddressActive.state(0) = configData[fwPeriphAddress_ACTIVE];
+				lowlevel.state(0) = configData[fwPeriphAddress_OPCUA_LOWLEVEL];
+				ADDRESS_PANEL_LOW_LEVEL = configData[fwPeriphAddress_OPCUA_LOWLEVEL];
+				
+
+    switch(configData[fwPeriphAddress_DIRECTION])
+    {
+      case DPATTR_ADDR_MODE_INPUT_SPONT:
+        einaus.number = 1;
+        modus.number = 0;
+      break;
+      case DPATTR_ADDR_MODE_OUTPUT_SINGLE:
+        einaus.number = 0;
+        modus.number = 2;
+      break;
+      case DPATTR_ADDR_MODE_IO_POLL:
+        einaus.number = 2;
+        modus.number = 1;
+      break;
+      case DPATTR_ADDR_MODE_IO_SQUERY:
+        einaus.number = 2;
+        modus.number = 2;
+      break;
+      case DPATTR_ADDR_MODE_INPUT_POLL:
+        einaus.number = 1;
+        modus.number = 1;
+      break;
+      case DPATTR_ADDR_MODE_INPUT_SQUERY:
+        einaus.number = 1;
+        modus.number = 2;
+      break;
+      case 9: // DPATTR_ADDR_MODE_AM_ALERT:
+        einaus.number = 1;
+        modus.number = 3;
+      break;
+    }
+    paUpdateViewOPCUA(paGetDirectionOPCUA());
+				break;    
+    
+   case fwPeriphAddress_TYPE_DIM:
+			case fwPeriphAddress_TYPE_DIMCLIENT:
+				PREVIOUS_ADDRESS_TYPE = fwPeriphAddress_TYPE_DIM;
+				if(dynContains(addressTypes, fwPeriphAddress_TYPE_DIM) <= 0)
+					addressType.appendItem(fwPeriphAddress_TYPE_DIM);
+
+				addressType.text = fwPeriphAddress_TYPE_DIM;
+				hiddenDataType.text(configData[fwPeriphAddress_DATATYPE]);
+							
+				_fwGetDimValues(configData, configData[fwPeriphAddress_TYPE]);
+				break;
+			case fwPeriphAddress_TYPE_MODBUS:
+				PREVIOUS_ADDRESS_TYPE = fwPeriphAddress_TYPE_MODBUS;
+				if(dynContains(addressTypes, fwPeriphAddress_TYPE_MODBUS) <= 0)
+					addressType.appendItem(fwPeriphAddress_TYPE_MODBUS);
+
+				addressType.text = fwPeriphAddress_TYPE_MODBUS;
+				if((configData[fwPeriphAddress_DRIVER_NUMBER] >= drvNr.sbMinimum)
+						&& (configData[fwPeriphAddress_DRIVER_NUMBER] <= drvNr.sbMaximum))
+					drvNr.text(configData[fwPeriphAddress_DRIVER_NUMBER]);
+
+				modbusReference.text = configData[fwPeriphAddress_ROOT_NAME];
+				
+				switch(configData[fwPeriphAddress_DIRECTION])
+				{
+					case DPATTR_ADDR_MODE_OUTPUT:
+					case DPATTR_ADDR_MODE_OUTPUT_SINGLE:
+						 modbusInOut.number = 1;
+						 modbusInputMode.number = 0;
+						 break;
+					case DPATTR_ADDR_MODE_INPUT_SPONT:
+						 modbusInOut.number = 0;
+						 modbusInputMode.number = 0;
+						 break;
+					case DPATTR_ADDR_MODE_INPUT_SQUERY:
+						 modbusInOut.number = 0;
+						 modbusInputMode.number = 2;
+						 break;
+					case DPATTR_ADDR_MODE_INPUT_POLL:
+						 modbusInOut.number = 0;
+						 modbusInputMode.number = 1;
+						 break;
+					default:
+						 modbusInOut.number = 0;
+						 modbusInputMode.number = 0;
+						 break;
+				}
+				
+				addressActive.state(0) = configData[fwPeriphAddress_ACTIVE];
+				transformationType = configData[fwPeriphAddress_DATATYPE];
+				modbusTransformationSelector.text = TRANSFORM_MODBUS_INT_TO_TEXT[transformationType];
+				_fwGetMaximumSubindex(TRANSFORM_MODBUS_INT_TO_TEXT[transformationType], maxSubindex);
+				modbusSubindex.sbMaximum = maxSubindex;
+				subindex = configData[fwPeriphAddress_MODBUS_SUBINDEX];
+				modbusSubindex.text = subindex;
+				modbusLowLevel.state(0) = configData[fwPeriphAddress_MODBUS_LOWLEVEL];
+				MODBUS_LOW_LEVEL = modbusLowLevel.state(0);
+				MODBUS_DIRECTION = modbusInOut.number;
+				MODBUS_INPUT_MODE = modbusInputMode.number;
+				MODBUS_SUBINDEX	= modbusSubindex.text;	
+						
+				if(configData[fwPeriphAddress_MODBUS_POLL_GROUP] != \"\")
+					modbusPollGroupName.text = strltrim(configData[fwPeriphAddress_MODBUS_POLL_GROUP], \"_\");
+				
+				_fwDeconstructModbusReference();
+				_fwShowModbusItems(TRUE);
+				break;
+			case fwPeriphAddress_TYPE_DIP:
+				PREVIOUS_ADDRESS_TYPE = fwPeriphAddress_TYPE_DIP;
+//DebugN(configData);
+				if(result > 0)
+				{
+					addressType.text = fwPeriphAddress_TYPE_DIP;
+					dipConfigDpList.text = dpSubStr(configData[fwPeriphAddress_DIP_CONFIG_DP], DPSUB_SYS_DP);
+					_fwDIP_splitAddress(configData[fwPeriphAddress_ROOT_NAME], dipItem, dipTag, exceptionInfo);
+					dipItemName.text = dipItem;
+					dipTagName.text = dipTag;
+					
+					if(dipTag != \"\")
+						dipTagRequired.state(0) = TRUE;
+					else
+						dipTagRequired.state(0) = FALSE;
+				}
+				else
+					addressType.text = fwPeriphAddress_TYPE_NONE;
+
+				break;
+			default:
+				if(configData[fwPeriphAddress_TYPE] != \"\")
+					configTypeSplit = strsplit(configData[fwPeriphAddress_TYPE], \"/\");
+				else
+					configTypeSplit[1] = configData[fwPeriphAddress_TYPE];
+
+				CURRENT_SAVED_ADDRESS_TYPE = configTypeSplit[1];
+//DebugN(configTypeSplit[1], THIRD_PARTY_ADDRESS_TYPES);
+				if(dynContains(THIRD_PARTY_ADDRESS_TYPES, configTypeSplit[1]) > 0)
+				{
+					//then add third party symbol
+					PREVIOUS_ADDRESS_TYPE = configTypeSplit[1];
+					showThirdPartySymbol(configTypeSplit[1]);
+					addressType.text = configTypeSplit[1];
+				}
+				else 
+				{
+					if(dynContains(addressTypes, fwPeriphAddress_TYPE_NONE) <= 0)
+						addressType.appendItem(fwPeriphAddress_TYPE_NONE);
+
+					PREVIOUS_ADDRESS_TYPE = configTypeSplit[1];
+					addressType.text = fwPeriphAddress_TYPE_NONE;
+				}
+				break;
+		}
+		showAddressOptions(configData[fwPeriphAddress_TYPE]);
+	}
+	else
+	{
+		CURRENT_SAVED_ADDRESS_TYPE = fwPeriphAddress_TYPE_NONE;
+		addressType.text = fwPeriphAddress_TYPE_NONE;
+		showAddressOptions(\"\");
+	}
+		
+	if(dynlen(exceptionInfo)>0)
+	{
+		if(exceptionInfo[dynlen(exceptionInfo)] != \"\")
+		{
+			driverProblem.text = \"The current state of this config is unknown.\\nThe config can not be accessed because\\ndriver number \"
+								+ exceptionInfo[dynlen(exceptionInfo)] + \" is not running.\";
+			driverProblem.visible = TRUE;
+			exceptionInfo = makeDynString();
+		}
+		else
+			fwExceptionHandling_display(exceptionInfo);
+	}
+
+	addressType.visible = TRUE;
+}
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"para.ctl\"
+
+dyn_string DPE_LIST;
+int DPE_TYPE;
+bool DPES_OK;
+
+// mode in which the panel is used
+int panelMode;
+const int OBJECT	= 1;
+const int SINGLE_DPE		= 2;
+const int MULTIPLE_DPES	= 3;
+
+
+bool ADDRESS_PANEL_LOW_LEVEL, OPC_ITEM_UPDATE_IN_PROGRESS = FALSE;
+bool MODBUS_LOW_LEVEL;
+int MODBUS_DIRECTION, MODBUS_INPUT_MODE, MODBUS_SUBINDEX;
+shape DIM_NAME_SHAPE, DIM_CLIENT_SERVER_SHAPE, DIM_COMMAND_SERVICE_SHAPE;
+mapping TRANSFORM_MODBUS_TEXT_TO_INT, TRANSFORM_MODBUS_INT_TO_TEXT;
+mapping FUNCTIONCALL_MODBUS_TEXT_TO_INT, FUNCTIONCALL_MODBUS_INT_TO_TEXT;
+mapping FUNCTIONCALL_UNICOS_TEXT_TO_INT, FUNCTIONCALL_UNICOS_INT_TO_TEXT;
+mapping SUBINDEX_MAXIMUM;
+dyn_string THIRD_PARTY_ADDRESS_TYPES;
+string PREVIOUS_ADDRESS_TYPE, CURRENT_SAVED_ADDRESS_TYPE;
+dyn_anytype configData;
+string SYSTEM_NAME;
+
+string g_previousSymbol;
+
+bool _thirdPartySymbolExists(string addressType)
+{
+  bool symbolExists;
+ switch(addressType)
+ {
+   case \"S7\":
+     symbolExists = (shapeExists(\"s7ConnNames\"));
+   break;
+   case \"CMW\":
+     symbolExists = (shapeExists(\"referenceField_CMW\"));
+   break;
+   case \"fwPeriphAddressS7\":
+     symbolExists = (shapeExists(\"s7ConnNames\"));
+   break;
+ }
+ return symbolExists;
+}
+
+showThirdPartySymbol(string addressType)
+{
+  int panelX, panelY;
+  bool symbolExists = _thirdPartySymbolExists(addressType);
+  string symbolName = \"fwPeriphAddress\"+addressType;
+  dyn_string lastError;
+
+//  if(!symbolExists)
+//  {
+//   	panelPosition(myModuleName(), myPanelName(), panelX, panelY);
+//    clearLastError();
+//   	addSymbol(myModuleName(), myPanelName(), \"fwConfigs/fwPeriphAddress\" + addressType + \".pnl\",
+//   						symbolName, makeDynString(\"$sDpe:\" + $sDpe, \"$bHierarchyBrowser:\" + $bHierarchyBrowser),
+//   						panelX + 120, panelY + 80, 0, 1, 1);
+//    lastError = getLastError();
+//    if(!dynlen(lastError))
+//    {
+//      while(!symbolExists)
+//      delay(0,50);
+//    }
+//   }
+ 
+ g_previousSymbol = symbolName;
+	int res;
+	dyn_string exceptionInfo;
+
+	setValue(\"fwPeriphAddress\" + addressType, \"visible\", TRUE);
+	
+	if(isFunctionDefined(\"_fwPeriphAddress\" + addressType + \"_initPanel\"))
+	{
+//DebugN(\"Call init function\", addressType);
+			res = evalScript(exceptionInfo, \"dyn_string main(string dpe, dyn_string exInfo)\"
+													+ \"{ \"
+													+ \" _fwPeriphAddress\" + addressType + \"_initPanel(dpe, exInfo);\"
+													+ \" return exInfo;\"
+													+ \"}\", makeDynString(), $sDpe, exceptionInfo);
+	
+	}
+
+	mainOkButton.visible = FALSE;
+	mainApplyButton.visible = FALSE;
+
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+hideAllThirdPartySymbols()
+{
+	int i, length;
+  bool symbolExists;
+	
+	length = dynlen(THIRD_PARTY_ADDRESS_TYPES);
+	for(i=1; i<=length; i++)
+	{
+ 		setValue(\"fwPeriphAddress\" + THIRD_PARTY_ADDRESS_TYPES[i], \"visible\", FALSE);
+//   symbolExists = _thirdPartySymbolExists(THIRD_PARTY_ADDRESS_TYPES[i]);
+//   if(symbolExists)
+//   		removeSymbol(myModuleName(), myPanelName(), \"fwPeriphAddress\" + THIRD_PARTY_ADDRESS_TYPES[i]);
+	}
+	
+	if($bHierarchyBrowser || ($bHierarchyBrowser == \"\"))
+	{
+		mainOkButton.visible = FALSE;
+		mainApplyButton.visible = TRUE;
+	}
+	else
+	{
+		mainOkButton.visible = TRUE;
+		mainApplyButton.visible = TRUE;
+	}
+}
+
+getThirdPartyFiles(dyn_string &addressTypes, dyn_string &panelNames)
+{
+	int i, length, pos;
+	string path;
+	dyn_string tempNames, supportedTypes;
+
+	for(i=0; i<=SEARCH_PATH_LEN; i++)
+	{
+		path = getPath(PANELS_REL_PATH + \"fwConfigs/\", \"\", \"\", i);
+		tempNames = getFileNames(path, \"fwPeriphAddress?*.pnl\");
+		dynAppend(panelNames, tempNames);
+	}
+
+/*	dynUnique(panelNames);
+	pos = dynContains(panelNames, \"fwPeriphAddressPopup.pnl\");
+	if(pos > 0)
+		dynRemove(panelNames, pos);
+		
+	supportedTypes = panelNames;
+*/
+
+	pos = dynContains(panelNames, \"fwPeriphAddressS7.pnl\");
+	dynAppend(supportedTypes, panelNames[pos]);
+	pos = dynContains(panelNames, \"fwPeriphAddressCMW.pnl\");
+	dynAppend(supportedTypes, panelNames[pos]);
+		
+	length = dynlen(supportedTypes);
+	for(i=1; i<=length; i++)
+	{
+		addressTypes[i] = substr(supportedTypes[i], 0, strlen(supportedTypes[i]) - 4);
+		strreplace(addressTypes[i], \"fwPeriphAddress\", \"\");
+	}
+}
+
+initModbusPollGroupNames()
+{
+ int        i;
+//!!!pollgroup
+  dyn_string dsPlc = dpNames(SYSTEM_NAME+\"*\",\"_PollGroup\"), ds;
+
+  for ( i = dynlen(dsPlc); i > 0; i-- )
+  {
+    // don't display redundant datapoints
+    if ( i > 1 &&
+         strpos(dsPlc[i],\"_2\") == strlen(dsPlc[i]) - 2 &&
+         dsPlc[i] == dsPlc[i-1] + \"_2\"
+       )
+    {
+      dynRemove(dsPlc, i);
+    }
+
+//    if ( dpSubStr(dsPlc[i],DPSUB_SYS) == \"System1:\" ) // NoCheckWarning
+    if ( i <= dynlen(dsPlc) )
+    {
+      dsPlc[i] = dpSubStr(dsPlc[i],DPSUB_DP);
+      if ( dsPlc[i][0] == \"_\" )
+        dsPlc[i] = substr(dsPlc[i], 1, strlen(dsPlc[i])-1);
+    }
+  }
+  
+  if(dynlen(dsPlc) > 0)
+  {
+	  modbusPollGroupName.items = dsPlc;
+	  modbusPollGroupName.text = dsPlc[1];
+  }
+  
+  if(SYSTEM_NAME != getSystemName())
+  {
+  	modbusPollGroupButton.enabled = FALSE;
+		modbusPollGroupButton.toolTipText = \"This option is unavailable as you are configuring data points on a remote system.\";
+	}
+}
+
+_fwShowModbusItems(bool shouldShow)
+{
+	_fwToggleModbusObjects(shouldShow);
+	_fwConstructModbusReference();
+}
+
+_fwConstructModbusReference()
+{
+	string reference, functionCall;
+
+	if(modbusUnicosSelector.number == 0)
+	{
+		reference += UN_QUANTUM_INPUT_LETTER_MISC + \".\";
+		
+		if((modbusInOut.number == 0) && (modbusInputMode.number != 0))
+			functionCall = modbusReadFunctionCalls.text;
+		else
+			functionCall = modbusWriteFunctionCalls.text;
+
+		reference += modbusPlcNumber.text + \".\";
+		reference += FUNCTIONCALL_MODBUS_TEXT_TO_INT[functionCall] + \".\";
+		reference += modbusReferenceNumber.text;
+	}
+	else
+	{
+		reference += UN_PREMIUM_INPUT_LETTER_MISC + \".\";
+		functionCall = unicosFunctionCalls.text;
+
+		reference += modbusPlcNumber.text + \".\";
+		reference += FUNCTIONCALL_UNICOS_TEXT_TO_INT[functionCall] + \".\";
+		reference += modbusReferenceNumber.text;
+	}
+		
+	
+	modbusReference.text = reference;
+}
+
+_fwDeconstructModbusReference()
+{
+	int functionCall;
+	string reference;
+	dyn_string referenceParts;
+	shape functionCallShape;
+	
+	reference = modbusReference.text;
+	referenceParts = strsplit(reference, \".\");
+
+	if(referenceParts[1] == UN_QUANTUM_INPUT_LETTER_MISC)
+	{
+		modbusUnicosSelector.number = 0;
+		if((modbusInOut.number == 0) && (modbusInputMode.number != 0))
+			functionCallShape = getShape(\"modbusReadFunctionCalls\");
+		else
+			functionCallShape = getShape(\"modbusWriteFunctionCalls\");
+
+		functionCall = referenceParts[3];
+		functionCallShape.text = FUNCTIONCALL_MODBUS_INT_TO_TEXT[functionCall];
+	}
+	else
+	{
+		modbusUnicosSelector.number = 1;
+		functionCallShape = getShape(\"unicosFunctionCalls\");
+
+		functionCall = referenceParts[3];
+		
+		if(functionCall == 19)
+			functionCallShape.text = FUNCTIONCALL_UNICOS_INT_TO_TEXT[17];
+		else
+			functionCallShape.text = FUNCTIONCALL_UNICOS_INT_TO_TEXT[functionCall];
+	}
+			
+	modbusPlcNumber.text = referenceParts[2]>0 ? referenceParts[2] : 1;
+	modbusReferenceNumber.text = referenceParts[4];	
+}
+
+_fwGetMaximumSubindex(string dataType, int &maxSubindex)
+{
+	SUBINDEX_MAXIMUM[\"undefined\"] = 0;
+	SUBINDEX_MAXIMUM[\"int 16\"] = 119;
+	SUBINDEX_MAXIMUM[\"int 32\"] = 59;
+	SUBINDEX_MAXIMUM[\"uint 16\"] = 119;
+	SUBINDEX_MAXIMUM[\"uint 32\"] = 59;
+	SUBINDEX_MAXIMUM[\"byte\"] = 239;
+	SUBINDEX_MAXIMUM[\"float\"] = 59;
+	SUBINDEX_MAXIMUM[\"boolean\"] = 1919;
+	SUBINDEX_MAXIMUM[\"boolean as byte\"] = 0;
+	SUBINDEX_MAXIMUM[\"string\"] = 0;
+	SUBINDEX_MAXIMUM[\"blob\"] = 0;
+
+	maxSubindex = SUBINDEX_MAXIMUM[dataType];
+}
+
+_fwInitFunctionCallMappings()
+{
+	FUNCTIONCALL_UNICOS_TEXT_TO_INT[\"Status\"] = 1;
+	FUNCTIONCALL_UNICOS_TEXT_TO_INT[\"Events\"] = 18;
+	FUNCTIONCALL_UNICOS_TEXT_TO_INT[\"Events32\"] = 17;
+	
+	FUNCTIONCALL_UNICOS_INT_TO_TEXT[1] = \"Status\";
+	FUNCTIONCALL_UNICOS_INT_TO_TEXT[18] = \"Events\";
+	FUNCTIONCALL_UNICOS_INT_TO_TEXT[17] = \"Events32\";
+	
+	FUNCTIONCALL_MODBUS_TEXT_TO_INT[\"Write Coil\"] = 5;
+	FUNCTIONCALL_MODBUS_TEXT_TO_INT[\"Write Single Register\"] = 6;
+	FUNCTIONCALL_MODBUS_TEXT_TO_INT[\"Force Multiple Coils\"] = 15;
+	FUNCTIONCALL_MODBUS_TEXT_TO_INT[\"Write Multiple Registers\"] = 16;
+	FUNCTIONCALL_MODBUS_TEXT_TO_INT[\"Read Coils\"] = 1;
+	FUNCTIONCALL_MODBUS_TEXT_TO_INT[\"Read Input Discretes\"] = 2;
+	FUNCTIONCALL_MODBUS_TEXT_TO_INT[\"Read Multiple Registers\"] = 3;
+	FUNCTIONCALL_MODBUS_TEXT_TO_INT[\"Read Input Registers\"] = 4;
+	FUNCTIONCALL_MODBUS_TEXT_TO_INT[\"Read Exception Status\"] = 7;
+	FUNCTIONCALL_MODBUS_TEXT_TO_INT[\"Read FIFO Queue\"] = 24;
+
+	FUNCTIONCALL_MODBUS_INT_TO_TEXT[5] = \"Write Coil\";
+	FUNCTIONCALL_MODBUS_INT_TO_TEXT[6] = \"Write Single Register\";
+	FUNCTIONCALL_MODBUS_INT_TO_TEXT[15] = \"Force Multiple Coils\";
+	FUNCTIONCALL_MODBUS_INT_TO_TEXT[16] = \"Write Multiple Registers\";
+	FUNCTIONCALL_MODBUS_INT_TO_TEXT[1] = \"Read Coils\";
+	FUNCTIONCALL_MODBUS_INT_TO_TEXT[2] = \"Read Input Discretes\";
+	FUNCTIONCALL_MODBUS_INT_TO_TEXT[3] = \"Read Multiple Registers\";
+	FUNCTIONCALL_MODBUS_INT_TO_TEXT[4] = \"Read Input Registers\";
+	FUNCTIONCALL_MODBUS_INT_TO_TEXT[7] = \"Read Exception Status\";
+	FUNCTIONCALL_MODBUS_INT_TO_TEXT[24] = \"Read FIFO Queue\";
+}
+
+_fwInitTransformationMappings()
+{
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"undefined\"] = 560;
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"int 16\"] = 561;
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"int 32\"] = 562;
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"uint 16\"] = 563;
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"uint 32\"] = 564;
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"byte\"] = 565;
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"float\"] = 566;
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"boolean\"] = 567;
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"boolean as byte\"] = 568;
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"string\"] = 569;
+	TRANSFORM_MODBUS_TEXT_TO_INT[\"blob\"] = 570;
+
+	TRANSFORM_MODBUS_INT_TO_TEXT[560] = \"undefined\";
+	TRANSFORM_MODBUS_INT_TO_TEXT[561] = \"int 16\";
+	TRANSFORM_MODBUS_INT_TO_TEXT[562] = \"int 32\";
+	TRANSFORM_MODBUS_INT_TO_TEXT[563] = \"uint 16\";
+	TRANSFORM_MODBUS_INT_TO_TEXT[564] = \"uint 32\";
+	TRANSFORM_MODBUS_INT_TO_TEXT[565] = \"byte\";
+	TRANSFORM_MODBUS_INT_TO_TEXT[566] = \"float\";
+	TRANSFORM_MODBUS_INT_TO_TEXT[567] = \"boolean\";
+	TRANSFORM_MODBUS_INT_TO_TEXT[568] = \"boolean as byte\";
+	TRANSFORM_MODBUS_INT_TO_TEXT[569] = \"string\";
+	TRANSFORM_MODBUS_INT_TO_TEXT[570] = \"blob\";
+}
+
+_fwToggleModbusObjects(bool shouldShow)
+{
+	int maxSubindex;
+
+	referenceTitle.visible = shouldShow;
+	functionCallsTitle.visible = shouldShow;
+	modbusInOut.visible = shouldShow;
+	modbusPlcNumber.visible = shouldShow;
+	modbusPlcNumberTitle.visible = shouldShow;
+	modbusReference.visible = shouldShow;
+	modbusReferenceNumber.visible = shouldShow;
+	modbusReferenceNumberTitle.visible = shouldShow;
+	modbusReferenceTitle.visible = shouldShow;
+	modbusSubindex.visible = shouldShow;
+	modbusSubindexTitle.visible = shouldShow;
+	modbusTransformationSelector.visible = shouldShow;
+	modbusTransformationTitle.visible = shouldShow;
+	modbusUnicosSelector.visible = shouldShow;
+
+	_fwGetMaximumSubindex(modbusTransformationSelector.text, maxSubindex);
+	switch(modbusTransformationSelector.text)
+	{
+		case \"undefined\":
+		case \"string\":
+		case \"boolean as byte\":
+		case \"blob\":
+			modbusSubindex.enabled = FALSE;
+			modbusSubindex.text = 0;
+			break;
+		default:
+			modbusSubindex.enabled = shouldShow;
+			if(MODBUS_SUBINDEX > maxSubindex)
+				MODBUS_SUBINDEX = maxSubindex;
+				
+			modbusSubindex.text = MODBUS_SUBINDEX;
+			break;
+	}
+	modbusSubindex.sbMaximum = maxSubindex;
+
+	if(modbusUnicosSelector.number == 0)
+	{
+		modbusInOut.enabled = TRUE;
+		modbusInOut.number = MODBUS_DIRECTION;
+		modbusInputMode.enabled = TRUE;
+
+		if(modbusInOut.number == 1)
+		{
+			modbusInputMode.visible = FALSE;
+			modbusLowLevel.visible = FALSE;
+			modbusLowLevel.state(0) = FALSE;
+		}
+		else	
+		{
+			modbusInputMode.visible = shouldShow;
+			modbusInputMode.number = MODBUS_INPUT_MODE;
+			modbusLowLevel.visible = shouldShow;
+			modbusLowLevel.state(0) = MODBUS_LOW_LEVEL;
+		}
+	}
+	else
+	{
+		modbusInOut.number = 0;
+		modbusInputMode.number = 0;
+		modbusInOut.enabled = FALSE;
+		modbusInputMode.enabled = FALSE;
+		modbusInOut.visible = shouldShow;
+		modbusInputMode.visible = shouldShow;
+		modbusLowLevel.visible = shouldShow;
+		modbusLowLevel.state(0) = MODBUS_LOW_LEVEL;
+	}
+	
+	_fwShowPollGroup(shouldShow);
+	_fwChooseFunctionCallCombo(shouldShow);
+}
+
+_fwShowPollGroup(bool shouldShow)
+{
+	if((modbusInOut.number == 0) && (modbusInputMode.number == 1))
+	{
+		modbusPollGroupTitle.visible = shouldShow;
+		modbusPollGroupName.visible = shouldShow;
+		modbusPollGroupButton.visible = shouldShow;
+	}
+	else
+	{
+		modbusPollGroupTitle.visible = FALSE;
+		modbusPollGroupName.visible = FALSE;
+		modbusPollGroupButton.visible = FALSE;
+	}
+}
+
+_fwChooseFunctionCallCombo(bool shouldShow)
+{
+	if(modbusUnicosSelector.number == 0)
+	{
+		if((modbusInOut.number == 0) && (modbusInputMode.number != 0))
+		{
+			modbusWriteFunctionCalls.visible = FALSE;
+			modbusReadFunctionCalls.visible = shouldShow;
+			unicosFunctionCalls.visible = FALSE;
+		}
+		else
+		{
+			modbusWriteFunctionCalls.visible = shouldShow;
+			modbusReadFunctionCalls.visible = FALSE;
+			unicosFunctionCalls.visible = FALSE;
+		}
+	}
+	else
+	{
+		modbusWriteFunctionCalls.visible = FALSE;
+		modbusReadFunctionCalls.visible = FALSE;
+		unicosFunctionCalls.visible = shouldShow;
+	}
+}
+
+initShapes()
+{
+	DIM_NAME_SHAPE = getShape(\"dimServicecommand\");
+//	DIM_CLIENT_SERVER_SHAPE = getShape(\"serverclient\");
+	DIM_COMMAND_SERVICE_SHAPE = getShape(\"servicecommand\");
+}
+
+
+showAddressOptions(string addressType)
+{
+	bool isOPC = FALSE, isDIM = FALSE, isMODBUS = FALSE, isDIP = FALSE, isOPCUA = false;
+	int dimType;
+
+	driverProblem.visible = FALSE;
+
+	switch(addressType)
+	{
+		case fwPeriphAddress_TYPE_OPC:
+		case fwPeriphAddress_TYPE_OPCCLIENT:
+			isOPC = TRUE;
+			break;
+		case fwPeriphAddress_TYPE_OPCUA:
+			isOPCUA = TRUE;
+			break;
+		case fwPeriphAddress_TYPE_DIM:
+		case fwPeriphAddress_TYPE_DIMCLIENT:
+			isDIM = TRUE;
+			break;
+		case fwPeriphAddress_TYPE_MODBUS:
+			isMODBUS = TRUE;
+			break;
+		case fwPeriphAddress_TYPE_DIP:
+			isDIP = TRUE;
+			break;
+		default:
+			break;
+	}					
+// hideAll();
+ 
+ //OPC UA
+ if(isOPCUA)
+ {
+  bool bHierarchyBrowser;
+  if(isDollarDefined(\"$bHierarchyBrowser\"))
+    bHierarchyBrowser = $bHierarchyBrowser;
+ if(!shapeExists(\"setOpcuaActive\"))
+  {
+   int panelX, panelY;
+   panelPosition(myModuleName(), myPanelName(), panelX, panelY);
+   addSymbol(myModuleName(),myPanelName(),\"fwConfigs/fwPeriphAddressOPCUA.pnl\",
+             \"opcua\",makeDynString(\"$sDpe:\"+$sDpe,\"$1:\"+$sDpe,\"$bHierarchyBrowser:\"+bHierarchyBrowser),0,81,0,1,1);
+ }
+ while(isOPCUA && !shapeExists(\"setOpcuaActive\"))
+   delay(0,100);
+  setOpcuaServer.visible = isOPCUA && (panelMode == MULTIPLE_DPES);	
+  setOpcuaDriver.visible = isOPCUA && (panelMode == MULTIPLE_DPES);	
+  setOpcuaDirection.visible = isOPCUA && (panelMode == MULTIPLE_DPES);	
+  setOpcuaMode.visible = isOPCUA && (panelMode == MULTIPLE_DPES);	
+  setOpcuaTransformation.visible = isOPCUA && (panelMode == MULTIPLE_DPES);	
+  setOpcuaPollGroup.visible = isOPCUA && (panelMode == MULTIPLE_DPES);	
+  setOpcuaLowLevel.visible = isOPCUA && (panelMode == MULTIPLE_DPES);	
+  setOpcuaActive.visible = isOPCUA && (panelMode == MULTIPLE_DPES);	  
+ 	if(panelMode != MULTIPLE_DPES)
+  {
+    setOpcuaServer.state(0) = TRUE;
+    setOpcuaDriver.state(0) = TRUE;
+    setOpcuaDirection.state(0) = TRUE;
+    setOpcuaMode.state(0) = TRUE;
+    setOpcuaTransformation.state(0) = TRUE;
+    setOpcuaPollGroup.state(0) = TRUE;
+    setOpcuaLowLevel.state(0) = TRUE;
+    setOpcuaActive.state(0) = TRUE;
+  }
+ }
+ else
+ {
+   if(shapeExists(\"opcuaButton\"))
+     removeSymbol(myModuleName(),myPanelName(),\"opcua\");
+ }
+
+// 	if(panelMode == MULTIPLE_DPES)
+// 		opcItem.text = \"Can not set OPC item in multiple data point element mode\";
+// 	refButton.enabled = isOPCUA && (panelMode == SINGLE_DPE);
+ 
+
+ 
+ //OPC			
+	text5.visible = isOPC;
+	text11.visible = isOPC && (panelMode != OBJECT);
+	groupRefreshTimer.visible = isOPC;
+	groupRefreshTimerValue.visible = isOPC;
+	groupUpdateRate.visible = isOPC;
+	groupUpdateRateValue.visible = isOPC;
+	groupDeadband.visible = isOPC;
+	groupDeadbandValue.visible = isOPC;
+	groupStatus.visible = isOPC;
+	groupStatusValue.visible = isOPC;
+	groupSource.visible = isOPC;
+	groupSourceValue.visible = isOPC;
+	groupEnableCB.visible = isOPC;
+	groupEnableCBValue.visible = isOPC;
+	dataType.visible = isOPC && (panelMode != OBJECT);
+	dataTypeValue.visible = isOPC && (panelMode != OBJECT);
+	opcGroup.visible = isOPC;
+	opcGroupText.visible = isOPC;
+	opcItem.visible = isOPC;
+	opcServer.visible = isOPC && (panelMode != OBJECT);
+	refButton.visible = isOPC && (panelMode != OBJECT);
+	opcButton.visible = isOPC;
+	inOut.visible = isOPC;
+	opclowLevel.visible = isOPC && (panelMode != OBJECT);
+	lblOpcLowLevel.visible	= isOPC && (panelMode != OBJECT);
+	opcDirection.visible = isOPC;
+	opcGroupDetails.visible = isOPC;
+	
+	setDriverNumber.visible = isOPC && (panelMode == MULTIPLE_DPES);
+	setActive.visible = isOPC && (panelMode == MULTIPLE_DPES);
+	setOpcDataType.visible = isOPC && (panelMode == MULTIPLE_DPES);
+	setOpcDirection.visible = isOPC && (panelMode == MULTIPLE_DPES);
+	setOpcGroup.visible = isOPC && (panelMode == MULTIPLE_DPES);
+	setOpcLowLevelComparison.visible = isOPC && (panelMode == MULTIPLE_DPES);
+	setOpcServer.visible = isOPC && (panelMode == MULTIPLE_DPES);
+	opcItem.enabled = isOPC && (panelMode != MULTIPLE_DPES);
+	if(panelMode == MULTIPLE_DPES)
+		opcItem.text = \"Can not set OPC item in multiple data point element mode\";
+	refButton.enabled = isOPC && (panelMode == SINGLE_DPE);
+	
+	if(isOPC && (dataTypeValue.text == \"bitstring\"))
+		toggleBitstringOptions(TRUE);
+	else
+		toggleBitstringOptions(FALSE);
+	
+	if(isDIM && (DIM_COMMAND_SERVICE_SHAPE.selectedPos == 1))
+		toggleDimClientServiceOptions(TRUE);
+	else
+		toggleDimClientServiceOptions(FALSE);
+
+	_fwShowModbusItems(isMODBUS);
+
+	addressActive.visible = (isOPC || isMODBUS) && (panelMode != OBJECT);
+	addressActiveText.visible = (isOPC || isMODBUS) && (panelMode != OBJECT);
+	drvNr.visible = (isOPC || isMODBUS) && (panelMode != OBJECT);
+	drvNrText.visible = (isOPC || isMODBUS) && (panelMode != OBJECT);
+
+	dimConfigDpList.visible = isDIM && (panelMode != OBJECT);
+	dimConfigDpRefresh.visible = isDIM && (panelMode != OBJECT);
+	dimServicecommandTitle.visible = isDIM;
+	//set using global shape names
+	DIM_NAME_SHAPE.visible = isDIM;
+	DIM_NAME_SHAPE.enabled = isDIM && (panelMode != MULTIPLE_DPES);
+	if(panelMode == MULTIPLE_DPES)
+		DIM_NAME_SHAPE.text = \"Can not be set\";
+//	DIM_CLIENT_SERVER_SHAPE.visible = isDIM;
+	DIM_COMMAND_SERVICE_SHAPE.visible = isDIM;
+
+	setDimConfigDp.visible = isDIM && (panelMode == MULTIPLE_DPES);
+	setDimDirection.visible = isDIM && (panelMode == MULTIPLE_DPES);
+
+	dimType = DIM_COMMAND_SERVICE_SHAPE.selectedPos;
+	if((dimType == 1) && isDIM)
+		toggleDimClientServiceOptions(TRUE);
+	else
+		toggleDimClientServiceOptions(FALSE);
+		
+	dipConfigDpList.visible = isDIP;
+	dipConfigDpRefresh.visible = isDIP;
+	dipItemName.visible = isDIP;
+	dipItemNameTitle.visible = isDIP;
+	dipTagName.visible = (isDIP && dipTagRequired.state(0));
+	dipTagNameTitle.visible = (isDIP && dipTagRequired.state(0));
+	dipTagRequired.visible = isDIP;
+}
+
+toggleDimClientServiceOptions(bool shouldShow)
+{
+	if(shouldShow)
+		dimServicecommandTitle.text(\"DIM Service:\");
+	else
+		dimServicecommandTitle.text(\"DIM Command:\");
+
+	setDimDefaultValue.visible = shouldShow && (panelMode == MULTIPLE_DPES);
+	setDimInterval.visible = shouldShow && (panelMode == MULTIPLE_DPES);
+	setDimTimeStamp.visible = shouldShow && (panelMode == MULTIPLE_DPES);
+	setDimUpdate.visible = shouldShow && (panelMode == MULTIPLE_DPES);
+
+	tStamp.visible = shouldShow;
+	tStampText.visible = shouldShow;
+	dimUpdate.visible = shouldShow && (panelMode != OBJECT);
+	dimUpdateText.visible = shouldShow && (panelMode != OBJECT);
+	dimUpdateInterval.visible = shouldShow;
+	dimUpdateIntervalInfo.visible = shouldShow;
+	dimUpdateIntervalTitle.visible = shouldShow;
+	dimDefaultValue.visible = shouldShow && (panelMode != OBJECT);
+	dimDefaultValueTitle.visible = shouldShow && (panelMode != OBJECT);
+}
+
+_fwEnableAllSettings()
+{
+	if(panelMode != MULTIPLE_DPES)
+	{
+		setActive.state(0) = TRUE;
+		setDimConfigDp.state(0) = TRUE;
+		setDimDefaultValue.state(0) = TRUE;
+		setDimDirection.state(0) = TRUE;
+		setDimInterval.state(0) = TRUE;
+		setDimTimeStamp.state(0) = TRUE;
+		setDimUpdate.state(0) = TRUE;
+		setDriverNumber.state(0) = TRUE;
+		setOpcDataType.state(0) = TRUE;
+		setOpcDirection.state(0) = TRUE;
+		setOpcGroup.state(0) = TRUE;
+		setOpcLowLevelComparison.state(0) = TRUE;
+		setOpcServer.state(0) = TRUE;	
+  
+  
+	}
+}
+
+toggleBitstringOptions(bool shouldShow)
+{
+	subindex.visible = shouldShow;
+	subindexValue.visible = shouldShow;
+}
+
+hideAll()
+{
+	showAddressOptions(\"\");
+}
+
+saveSettings(dyn_string &exceptionInfo)
+{
+	bool timeStamp, update, low, isRunning, exists, active;
+	int i, length, serviceCommand, driverNumber, elementType,
+			timeInterval, dataTypeNumber, serverType, bitStringSubindex, opcMode;
+	string direction, dimName, opcServerName, opcGroupName, opcItemName, defaultVal, periphAddressChoice, pollGroup, systemName;
+	dyn_string configParameters, localException;
+	shape serviceCommandSwitch, serviceCommandName;
+	dyn_dyn_anytype dpeConfigObject;
+	
+	localException = makeDynString();
+	
+	serviceCommandSwitch = DIM_COMMAND_SERVICE_SHAPE;
+	serviceCommandName = DIM_NAME_SHAPE;
+
+	periphAddressChoice = addressType.text();
+	
+	driverNumber = drvNr.text();
+	
+	if(periphAddressChoice == fwPeriphAddress_TYPE_NONE)
+		driverNumber = 1;
+	
+	mainOkButton.enabled = FALSE;
+	mainApplyButton.enabled = FALSE;
+	closeButton.enabled = FALSE;
+	if(panelMode == MULTIPLE_DPES)
+		fwOpenProgressBar(\"Configuration panel\", \"Saving configuration...\", 1);
+
+	if(panelMode == SINGLE_DPE)
+	{
+		if(periphAddressChoice != CURRENT_SAVED_ADDRESS_TYPE)
+		{
+	//DebugN(\"Address type changed so delete\");
+			fwPeriphAddress_delete($sDpe, exceptionInfo);
+			CURRENT_SAVED_ADDRESS_TYPE = periphAddressChoice;
+		}	
+	}
+	
+	length = dynlen(DPE_LIST);
+
+	switch(periphAddressChoice)
+	{
+		case fwPeriphAddress_TYPE_OPC:
+		//OPC
+			opcServerName = opcServer.text();
+			opcGroupName = opcGroup.text();
+			opcItemName = opcItem.text();
+			low = opclowLevel.state(0);
+			bitStringSubindex = subindexValue.text;
+			direction = inOut.text;
+
+			switch(direction)
+			{
+				case \"In\":
+					opcMode = DPATTR_ADDR_MODE_INPUT_SPONT;
+					break;
+				case \"Out\":
+					opcMode = DPATTR_ADDR_MODE_OUTPUT_SINGLE;
+					break;
+				default:
+					opcMode = 6;
+					break;
+			}
+			
+			for(i=1; i<=length; i++)
+			{
+				_fwGetDataType(dataTypeNumber, DPE_LIST[i], fwPeriphAddress_TYPE_OPC);
+			
+				if(panelMode == MULTIPLE_DPES)
+				{
+					fwPeriphAddress_get(DPE_LIST[i], exists, configParameters, active, exceptionInfo);
+					if(configParameters[fwPeriphAddress_TYPE] != fwPeriphAddress_TYPE_OPCCLIENT)
+					{
+						fwException_raise(localException, \"ERROR\", DPE_LIST[i] + \" does not currently have an OPC configuration.\"
+																+ \" The data point element has not been modified.\", \"\");
+						continue;
+					}
+				}
+				else
+				{
+					if(strpos(opcItemName, \" \")>=0)
+					{
+						fwException_raise(exceptionInfo,
+								\"ERROR\", \"OPC Item can not contain the ' ' character\", \"\");
+						break;
+					}
+					if(opcItemName == \"\")
+					{
+						fwException_raise(exceptionInfo,
+								\"ERROR\", \"OPC Item can not be empty\", \"\");
+						break;
+					}
+				}		
+				configParameters[fwPeriphAddress_TYPE] = periphAddressChoice;
+				if(setDriverNumber.state(0))
+					configParameters[fwPeriphAddress_DRIVER_NUMBER] = driverNumber;
+				if(panelMode != MULTIPLE_DPES)
+					configParameters[fwPeriphAddress_ROOT_NAME] = opcItemName;
+				if(setOpcDirection.state(0))
+					configParameters[fwPeriphAddress_DIRECTION] = opcMode;
+				if(setOpcDataType.state(0))
+				{
+					configParameters[fwPeriphAddress_DATATYPE] = dataTypeNumber;
+					configParameters[fwPeriphAddress_OPC_SUBINDEX] = bitStringSubindex;
+				}
+				if(setActive.state(0))
+					configParameters[fwPeriphAddress_ACTIVE] = addressActive.state(0);
+					
+				if(setOpcLowLevelComparison.state(0))
+					configParameters[fwPeriphAddress_OPC_LOWLEVEL] = low;
+				if(setOpcServer.state(0))
+					configParameters[fwPeriphAddress_OPC_SERVER_NAME] = opcServerName;
+				if(setOpcGroup.state(0))
+				{
+					configParameters[fwPeriphAddress_OPC_GROUP_IN] = opcGroupName;
+					configParameters[fwPeriphAddress_OPC_GROUP_OUT] = opcGroupName;
+				}			
+				if(configParameters[fwPeriphAddress_OPC_GROUP_IN] == \"\")
+					configParameters[fwPeriphAddress_OPC_GROUP_IN] = configParameters[fwPeriphAddress_OPC_GROUP_OUT];
+				else
+					configParameters[fwPeriphAddress_OPC_GROUP_OUT] = configParameters[fwPeriphAddress_OPC_GROUP_IN];
+					
+				if(configParameters[fwPeriphAddress_DIRECTION] == DPATTR_ADDR_MODE_OUTPUT_SINGLE)
+					configParameters[fwPeriphAddress_OPC_LOWLEVEL] = FALSE;
+				
+				if(panelMode != OBJECT)
+				{
+					fwPeriphAddress_set(DPE_LIST[i], configParameters, exceptionInfo, TRUE);
+				}
+				else
+				{					
+					fwGeneral_getGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+
+					dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1] = fwPeriphAddress_TYPE_OPCCLIENT;			
+					dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1] = configParameters[fwPeriphAddress_ACTIVE];			
+
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DRIVER_NUMBER][1] = configParameters[fwPeriphAddress_DRIVER_NUMBER];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_REFERENCE][1] = configParameters[fwPeriphAddress_REFERENCE];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIRECTION][1] = configParameters[fwPeriphAddress_DIRECTION];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DATATYPE][1] = configParameters[fwPeriphAddress_DATATYPE];			
+					
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPC_LOWLEVEL][1] = configParameters[fwPeriphAddress_OPC_LOWLEVEL];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPC_SUBINDEX][1] = configParameters[fwPeriphAddress_OPC_SUBINDEX];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPC_SERVER_NAME][1] = configParameters[fwPeriphAddress_OPC_SERVER_NAME];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPC_GROUP_IN][1] = configParameters[fwPeriphAddress_OPC_GROUP_IN];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPC_GROUP_OUT][1] = configParameters[fwPeriphAddress_OPC_GROUP_OUT];			
+					
+					fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//			DebugN(\"Modified \", dpeConfigObject);
+				}
+			}
+			dynAppend(exceptionInfo, localException);
+			break;
+   
+		case fwPeriphAddress_TYPE_OPCUA:
+		//OPC UA
+			direction = einaus.number;
+   int receiveMode = modus.number;
+			opcServerName = cmbEquipment.text;
+			opcItemName = txtItem.text;
+			low = lowlevel.state(0);
+  	driverNumber = Treiber.text;
+   pollGroup = cmbPollGroup.text;
+
+			configParameters[fwPeriphAddress_TYPE] = periphAddressChoice;
+			switch(direction)
+			{
+				case \"0\":
+					opcMode = DPATTR_ADDR_MODE_OUTPUT;
+					break;
+				case \"1\":
+  			switch(receiveMode)
+  			{
+  				case 0:
+  					opcMode = DPATTR_ADDR_MODE_INPUT_SPONT;
+      break;
+  				case 1:
+  					opcMode = DPATTR_ADDR_MODE_INPUT_POLL;
+      break;
+  				case 2:
+  					opcMode = DPATTR_ADDR_MODE_INPUT_SQUERY;
+      break;
+  				case 3:
+  					opcMode = 9; // DPATTR_ADDR_MODE_AM_ALERT; this constant is not yet defined in WinCC OA 3.11
+      break;
+  				default:
+  					opcMode = DPATTR_ADDR_MODE_UNDEFINED;
+  				break;
+     }
+					break;
+				case \"2\":
+  			switch(receiveMode)
+  			{
+  				case 0:
+  					opcMode = DPATTR_ADDR_MODE_IO_SPONT;
+      break;
+  				case 1:
+  					opcMode = DPATTR_ADDR_MODE_IO_POLL;
+      break;
+  				case 2:
+  					opcMode = DPATTR_ADDR_MODE_IO_SQUERY;
+      break;
+  				case 3:
+  					opcMode = 9; // DPATTR_ADDR_MODE_AM_ALERT;
+      break;
+  				default:
+  					opcMode = DPATTR_ADDR_MODE_UNDEFINED;
+  				break;
+     }
+					break;
+				default:
+					opcMode = DPATTR_ADDR_MODE_UNDEFINED;
+					break;
+			}
+			
+			for(i=1; i<=length; i++)
+			{
+				_fwGetDataType(dataTypeNumber, DPE_LIST[i], fwPeriphAddress_TYPE_OPCUA);
+			
+				if(panelMode == MULTIPLE_DPES)
+				{
+					fwPeriphAddress_get(DPE_LIST[i], exists, configParameters, active, exceptionInfo);
+					if(configParameters[fwPeriphAddress_TYPE] != fwPeriphAddress_TYPE_OPCUACLIENT)
+					{
+						fwException_raise(localException, \"ERROR\", DPE_LIST[i] + \" does not currently have an OPC UA configuration.\"
+																+ \" The data point element has not been modified.\", \"\");
+						continue;
+					}
+				}
+				else
+				{
+					if(strpos(opcItemName, \" \")>=0)
+					{
+						fwException_raise(exceptionInfo,
+								\"ERROR\", \"OPC UA Item can not contain the ' ' character\", \"\");
+						break;
+					}
+					if(opcItemName == \"\")
+					{
+						fwException_raise(exceptionInfo,
+								\"ERROR\", \"OPC UA Item can not be empty\", \"\");
+						break;
+					}
+				}
+    
+   if(setOpcuaServer.state(0))
+    {
+					configParameters[fwPeriphAddress_OPCUA_SERVER_NAME] = opcServerName;
+					configParameters[fwPeriphAddress_OPCUA_SUBSCRIPTION] = cmbSubscription.text;
+					configParameters[fwPeriphAddress_OPCUA_KIND] = 1+(int)radKind.number;
+					configParameters[fwPeriphAddress_OPCUA_VARIANT] = 1+(int)(radVariant.number);
+					configParameters[fwPeriphAddress_ROOT_NAME] = opcItemName;
+   }
+   if(setOpcuaDriver.state(0))
+					configParameters[fwPeriphAddress_DRIVER_NUMBER] = driverNumber;
+   if(setOpcuaLowLevel.state(0))
+					configParameters[fwPeriphAddress_OPCUA_LOWLEVEL] = low;
+   if(setOpcuaDirection.state(0)){
+					configParameters[fwPeriphAddress_DIRECTION] = opcMode;
+  			if(configParameters[fwPeriphAddress_DIRECTION] == DPATTR_ADDR_MODE_OUTPUT)
+  					configParameters[fwPeriphAddress_OPCUA_LOWLEVEL] = FALSE;
+   }
+   if(setOpcuaTransformation.state(0))
+					configParameters[fwPeriphAddress_DATATYPE] = dataTypeNumber;
+   if(setOpcuaPollGroup.state(0))
+					configParameters[fwPeriphAddress_OPCUA_POLL_GROUP] = pollGroup;
+   if(setOpcuaActive.state(0))
+					configParameters[fwPeriphAddress_ACTIVE] = cboAddressActive.state(0);
+   
+			if(dynlen(configParameters)<fwPeriphAddress_OPCUA_OBJECT_SIZE)
+     break;
+   
+DebugN(\"configParameters[fwPeriphAddress_OPCUA_SERVER_NAME]: \",
+       configParameters[fwPeriphAddress_OPCUA_SERVER_NAME], 
+       \"transformation: \"+ dataTypeNumber);
+
+				if(panelMode != OBJECT)
+				{
+					fwPeriphAddress_set(DPE_LIST[i], configParameters, exceptionInfo, TRUE);
+				}
+				else
+				{					
+					fwGeneral_getGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+
+					dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1] = fwPeriphAddress_TYPE_OPCCLIENT;			
+					dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1] = configParameters[fwPeriphAddress_ACTIVE];			
+
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DRIVER_NUMBER][1] = configParameters[fwPeriphAddress_DRIVER_NUMBER];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_REFERENCE][1] = configParameters[fwPeriphAddress_REFERENCE];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIRECTION][1] = configParameters[fwPeriphAddress_DIRECTION];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DATATYPE][1] = configParameters[fwPeriphAddress_DATATYPE];			
+					
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_LOWLEVEL][1] = configParameters[fwPeriphAddress_OPCUA_LOWLEVEL];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_SERVER_NAME][1] = configParameters[fwPeriphAddress_OPCUA_SERVER_NAME];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_SUBSCRIPTION][1] = configParameters[fwPeriphAddress_OPCUA_SUBSCRIPTION];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_KIND][1] = configParameters[fwPeriphAddress_OPCUA_KIND];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_VARIANT][1] = configParameters[fwPeriphAddress_OPCUA_VARIANT];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_OPCUA_POLL_GROUP][1] = configParameters[fwPeriphAddress_OPCUA_POLL_GROUP];			
+					
+					fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//			DebugN(\"Modified \", dpeConfigObject);
+				}
+			}
+			dynAppend(exceptionInfo, localException);
+			break;
+      
+		case fwPeriphAddress_TYPE_DIM:
+		//DIM
+			serviceCommand = serviceCommandSwitch.selectedPos();
+			dimName = serviceCommandName.text();
+
+			switch(serviceCommand)
+			{
+				case 1:
+					serviceCommand = DPATTR_ADDR_MODE_INPUT_SPONT;
+					break;
+				default:
+					serviceCommand = DPATTR_ADDR_MODE_OUTPUT_SINGLE;
+					break;
+			}
+			
+			timeStamp = tStamp.state(0);
+			update = dimUpdate.state(0);
+
+			for(i=1; i<=length; i++)
+			{
+				if(panelMode != OBJECT)
+				{
+					_fwGetDataType(dataTypeNumber, DPE_LIST[i], fwPeriphAddress_TYPE_DIM);
+					fwPeriphAddress_get(DPE_LIST[i], exists, configParameters, active, exceptionInfo);
+				}
+				else
+					dataTypeNumber = 0;
+//DebugN(DPE_LIST[i], exists, configParameters, active, exceptionInfo);
+				if(panelMode == MULTIPLE_DPES)
+				{
+					fwGeneral_getSystemName(DPE_LIST[i], systemName, exceptionInfo);
+					if((systemName != \"\") && (systemName != getSystemName()))
+					{
+						fwException_raise(localException, \"ERROR\", DPE_LIST[i] + \" is on a remote system.\"
+																+ \" DIM can not be configured on remote data point elements.\", \"\");
+						continue;
+					}
+					if(configParameters[fwPeriphAddress_TYPE] != fwPeriphAddress_TYPE_DIM)
+					{
+						fwException_raise(localException, \"ERROR\", DPE_LIST[i] + \" does not currently have a DIM configuration.\"
+																+ \" The data point element has not been modified.\", \"\");
+						continue;
+					}
+					else if(configParameters[fwPeriphAddress_DIRECTION] == DPATTR_ADDR_MODE_OUTPUT_SINGLE)
+					{
+						configParameters[fwPeriphAddress_DIM_IMMEDIATE_UPDATE] = \"\";
+						configParameters[fwPeriphAddress_DIM_DEFAULT_VALUE] = \"\";
+						configParameters[fwPeriphAddress_DIM_TIMEOUT] = \"\";
+						configParameters[fwPeriphAddress_DIM_FLAG] = \"\";
+					}
+				}
+				else
+				{
+					if(SYSTEM_NAME != getSystemName())
+					{
+						fwException_raise(exceptionInfo,
+								\"ERROR\", \"Cannot configure DIM on remote data point elements\", \"\");
+						break;
+					}
+					
+					if(strpos(dimName, \" \")>=0)
+					{
+						fwException_raise(exceptionInfo,
+								\"ERROR\", \"DIM service or command can not\\ncontain the ' ' character\", \"\");
+						break;
+					}
+					if(dimName == \"\")
+					{
+						fwException_raise(exceptionInfo,
+								\"ERROR\", \"DIM service or command can not\\nbe empty\", \"\");
+						break;
+					}
+				}
+
+				if(panelMode != OBJECT)
+				{
+					if(exists && (setDimDirection.state(0) && ((configParameters[fwPeriphAddress_DIRECTION] != serviceCommand))
+							|| (setDimConfigDp.state(0) && (configParameters[fwPeriphAddress_DIM_CONFIG_DP] != dpSubStr(dimConfigDpList.text, DPSUB_DP)))))
+					{
+	//DebugN(\"Deleting because direction or config dp is different\", DPE_LIST[i]);
+						fwPeriphAddress_delete(DPE_LIST[i], exceptionInfo);
+					}
+				}
+				
+				configParameters[fwPeriphAddress_TYPE] = periphAddressChoice;
+				configParameters[fwPeriphAddress_DRIVER_NUMBER] = driverNumber;
+				if(panelMode != MULTIPLE_DPES)
+					configParameters[fwPeriphAddress_ROOT_NAME] = dimName;
+				if(setDimDirection.state(0))
+					configParameters[fwPeriphAddress_DIRECTION] = serviceCommand;
+				configParameters[fwPeriphAddress_DATATYPE] = dataTypeNumber; //value is ignored by set function
+				configParameters[fwPeriphAddress_ACTIVE] = TRUE;  //value is ignored by set function currently
+//get rid of system name of DIM config DP because the fwDIM functions do not support it with system name;
+				if(setDimConfigDp.state(0))
+					configParameters[fwPeriphAddress_DIM_CONFIG_DP] = dpSubStr(dimConfigDpList.text, DPSUB_DP);
+				if(setDimUpdate.state(0))
+					configParameters[fwPeriphAddress_DIM_IMMEDIATE_UPDATE] = (int) update;
+				if(setDimDefaultValue.state(0))
+					configParameters[fwPeriphAddress_DIM_DEFAULT_VALUE] = dimDefaultValue.text;
+				if(setDimInterval.state(0))
+					configParameters[fwPeriphAddress_DIM_TIMEOUT] = dimUpdateInterval.text;
+				if(setDimTimeStamp.state(0))
+					configParameters[fwPeriphAddress_DIM_FLAG] = (int) timeStamp;
+
+				if(panelMode != OBJECT)
+				{
+					fwPeriphAddress_set(DPE_LIST[i], configParameters, exceptionInfo, TRUE);
+				}
+				else
+				{					
+					fwGeneral_getGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+
+					dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1] = configParameters[fwPeriphAddress_TYPE];			
+					dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1] = configParameters[fwPeriphAddress_ACTIVE];			
+
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DRIVER_NUMBER][1] = configParameters[fwPeriphAddress_DRIVER_NUMBER];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_REFERENCE][1] = configParameters[fwPeriphAddress_REFERENCE];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIRECTION][1] = configParameters[fwPeriphAddress_DIRECTION];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DATATYPE][1] = configParameters[fwPeriphAddress_DATATYPE];			
+					
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIM_CONFIG_DP][1] = configParameters[fwPeriphAddress_DIM_CONFIG_DP];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIM_DEFAULT_VALUE][1] = configParameters[fwPeriphAddress_DIM_DEFAULT_VALUE];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIM_TIMEOUT][1] = configParameters[fwPeriphAddress_DIM_TIMEOUT];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIM_FLAG][1] = configParameters[fwPeriphAddress_DIM_FLAG];			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIM_IMMEDIATE_UPDATE][1] = configParameters[fwPeriphAddress_DIM_IMMEDIATE_UPDATE];			
+					
+					fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//			DebugN(\"Modified \", dpeConfigObject);
+				}
+			}
+			dynAppend(exceptionInfo, localException);
+			break;
+   
+		case fwPeriphAddress_TYPE_MODBUS:
+			_fwCheckModbusReference(modbusReference.text, exceptionInfo);
+			
+			if(dynlen(exceptionInfo) == 0)
+			{
+				_fwDeconstructModbusReference();
+				_fwToggleModbusObjects(TRUE);
+				configParameters[fwPeriphAddress_TYPE] = periphAddressChoice;
+				configParameters[fwPeriphAddress_DRIVER_NUMBER] = driverNumber;
+				configParameters[fwPeriphAddress_ROOT_NAME] = modbusReference.text;
+					
+				switch(modbusInOut.number)
+				{
+					case 0:
+						switch(modbusInputMode.number)
+						{
+							case 0:
+								configParameters[fwPeriphAddress_DIRECTION] = DPATTR_ADDR_MODE_INPUT_SPONT;
+								break;
+							case 1:
+								configParameters[fwPeriphAddress_DIRECTION] = DPATTR_ADDR_MODE_INPUT_POLL;
+								break;
+							default:
+								configParameters[fwPeriphAddress_DIRECTION] = DPATTR_ADDR_MODE_INPUT_SQUERY;
+								break;
+						}
+						break;
+					default:
+						configParameters[fwPeriphAddress_DIRECTION] = DPATTR_ADDR_MODE_OUTPUT;
+						break;
+				}
+	
+				switch(modbusTransformationSelector.text)
+				{
+					case \"undefined\":
+					case \"string\":
+					case \"boolean as byte\":
+					case \"blob\":
+						configParameters[fwPeriphAddress_MODBUS_SUBINDEX] = \"0\";
+						break;
+					default:
+						configParameters[fwPeriphAddress_MODBUS_SUBINDEX] = modbusSubindex.text;
+						break;
+				}
+	
+				configParameters[fwPeriphAddress_DATATYPE] = TRANSFORM_MODBUS_TEXT_TO_INT[modbusTransformationSelector.text];
+				configParameters[fwPeriphAddress_MODBUS_LOWLEVEL] = modbusLowLevel.state(0);
+				configParameters[fwPeriphAddress_ACTIVE] = addressActive.state(0);
+				
+				if(modbusInputMode.number == 1)
+					configParameters[fwPeriphAddress_MODBUS_POLL_GROUP] = \"_\" + modbusPollGroupName.text;
+				else
+					configParameters[fwPeriphAddress_MODBUS_POLL_GROUP] = \"\";
+					
+				configParameters[fwPeriphAddress_MODBUS_START] = 0;
+				configParameters[fwPeriphAddress_MODBUS_INTERVAL] = 0;
+	
+				fwPeriphAddress_set($sDpe, configParameters, exceptionInfo, TRUE);
+			}
+			break;
+		case fwPeriphAddress_TYPE_DIP:
+			if(dipItemName.text == \"\")
+			{
+				fwException_raise(exceptionInfo,
+						\"ERROR\", \"The DIP Item field can not be left empty.\", \"\");
+				break;
+			}
+
+			if((dipTagRequired.state(0) == TRUE) && (dipTagName.text == \"\"))
+			{
+				fwException_raise(exceptionInfo,
+						\"ERROR\", \"The Tag Name field can not be empty if you have chosen to specify a tag name.\", \"\");
+				break;
+			}
+
+			configParameters[fwPeriphAddress_TYPE] = periphAddressChoice;
+			configParameters[fwPeriphAddress_DRIVER_NUMBER] = fwDIP_DRIVER_NUMBER;
+
+			if(dipTagRequired.state(0) == TRUE)
+				configParameters[fwPeriphAddress_ROOT_NAME] = dipItemName.text + fwDIP_SEPERATOR + dipTagName.text;
+			else
+				configParameters[fwPeriphAddress_ROOT_NAME] = dipItemName.text + fwDIP_SEPERATOR;
+			
+			configParameters[fwPeriphAddress_DIP_CONFIG_DP] = dipConfigDpList.text;
+
+//DebugN(configParameters);
+			fwPeriphAddress_set($sDpe, configParameters, exceptionInfo, TRUE);
+			break;	
+   
+		case fwPeriphAddress_TYPE_NONE:
+			if(panelMode == MULTIPLE_DPES)
+			{
+				for(i=1; i<=length; i++)
+					fwPeriphAddress_delete(DPE_LIST[i], exceptionInfo);
+			}
+			else if(panelMode == OBJECT)
+			{
+					fwGeneral_getGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+
+					dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1] = fwPeriphAddress_TYPE_NONE;			
+					dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1] = FALSE;			
+
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DRIVER_NUMBER][1] = 0;			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_REFERENCE][1] = \"\";			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DIRECTION][1] = 0;			
+					dpeConfigObject[fwPeriphAddress_DPE_OBJECT_DATATYPE][1] = 0;			
+
+					fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+			}
+			break;
+		default:
+			break;	
+	}
+	
+	mainOkButton.enabled = TRUE;
+	mainApplyButton.enabled = TRUE;
+	closeButton.enabled = TRUE;
+	if(panelMode == MULTIPLE_DPES)
+		fwCloseProgressBar(\"Configuration complete\");
+}
+
+_fwGetOpcGroupData(string groupDpName, int &updateRate, float &deadband, bool &cbEnabled,
+										bool &active, bool &dataSource, int &refreshTimer, dyn_string &exceptionInfo)
+{
+	updateRate = 0;
+	deadband = 0.0;
+	cbEnabled = FALSE;
+	active = FALSE;
+	dataSource = FALSE;
+	refreshTimer = 0;
+
+	if(dpExists(groupDpName))
+	{
+		if(dpTypeName(groupDpName) == \"_OPCGroup\")
+		{
+			dpGet(groupDpName+\".UpdateRateAct:_original.._value\", updateRate,
+						groupDpName+\".DeathBand:_original.._value\", deadband,
+						groupDpName+\".EnableCallback:_original.._value\", cbEnabled,
+	    			groupDpName+\".Active:_online.._value\", active,
+	   			 	groupDpName+\".DataSourceDevice:_online.._value\", dataSource,
+	    			groupDpName+\".RefreshTimer:_online.._value\", refreshTimer);
+		}
+	}
+}
+
+_fwShowOpcGroupData(int &updateRate, float &deadband, bool &cbEnabled,
+										bool &active, bool &dataSource, int &refreshTimer, dyn_string &exceptionInfo)
+{
+	string activeText, dataSourceText;
+	
+	if(active)
+		activeText = \"Active\";
+	else
+		activeText = \"Inactive\";
+		
+	if(dataSource)
+		dataSourceText = \"Device\";
+	else
+		dataSourceText = \"Cache\";
+	
+	groupUpdateRateValue.text(updateRate +\" ms\");
+	groupDeadbandValue.text(deadband +\" %\");
+	groupEnableCBValue.text(cbEnabled);
+	groupStatusValue.text(activeText);
+	groupSourceValue.text(dataSourceText);
+	groupRefreshTimerValue.text(refreshTimer +\" s\");
+}
+
+_fwGetOpcServerItems(string serverDpName, dyn_string &items, dyn_string &exceptionInfo)
+{
+	items = makeDynString();
+
+	if(dpExists(serverDpName))
+	{
+		if(dpTypeName(serverDpName) == \"_OPCServer\")
+		{
+			dpGet(serverDpName + \".ItemIds:_online.._value\", items);
+		}
+	}
+}
+
+//TODO: add OPC UA data type
+_fwGetDataType(int &dataType, string dpe, string addressType)
+{
+	string dataTypeName;
+ shape trans;
+	switch(addressType)
+	{
+  case fwPeriphAddress_TYPE_OPC:
+  		dataTypeName = dataTypeValue.text();
+  		switch(dataTypeName)
+  		{
+  			case \"undefined\":
+  				dataType = 480;
+  				break;
+  			case \"integer16\":
+  				dataType = 481;
+  				break;
+  			case \"integer32\":
+  	 			dataType = 482;
+  				break;
+  			case \"uchar\":
+  				dataType = 483;
+  				break;
+  			case \"float32\":
+  				dataType = 484;
+  				break;
+  			case \"float64\":
+  				dataType = 485;
+  				break;
+  			case \"boolean\":
+  				dataType = 486;
+  				break;
+  			case \"string\":
+  				dataType = 487;
+  				break;
+  			case \"uinteger16\":
+  				dataType = 488;
+  				break;
+  			case \"uinteger32\":
+  				dataType = 489;
+  				break;
+  			case \"time\":
+  				dataType = 490;
+  				break;
+  			case \"bitstring\":
+  				dataType = 491;
+  				break;
+  			case \"default\":
+  				dataType = 0;
+  				break;
+  			default:
+  				dataType = -1;
+  				break;
+  		}
+ break;
+ 
+ case fwPeriphAddress_TYPE_OPCUA:
+     
+    trans = getShape(\"opcua.trans_art\");
+  		dataTypeName = trans.text;
+  		switch(dataTypeName)
+  		{
+  			case \"boolean\":
+  				dataType = 751;
+  				break;
+  			case \"sbyte\":
+  				dataType = 752;
+  				break;
+  			case \"byte\":
+  				dataType = 753;
+  				break;
+  			case \"int16\":
+  				dataType = 754;
+  				break;
+  			case \"uint16\":
+  				dataType = 755;
+  				break;
+  			case \"int32\":
+  				dataType = 756;
+  				break;
+  			case \"uint32\":
+  				dataType = 757;
+  				break;
+  			case \"int64\":
+  				dataType = 758;
+  				break;
+  			case \"uint64\":
+  				dataType = 759;
+  				break;
+  			case \"float\":
+  				dataType = 760;
+  				break;
+  			case \"double\":
+  				dataType = 761;
+  				break;
+  			case \"string\":
+  				dataType = 762;
+  				break;
+  			case \"date time\":
+  				dataType = 763;
+  				break;
+  			case \"guid\":
+  				dataType = 764;
+  				break;
+  			case \"byte string\":
+  				dataType = 765;
+  				break;
+  			case \"xml element\":
+  				dataType = 766;
+  				break;
+  			case \"node id\":
+  				dataType = 767;
+  				break;
+  			case \"localized text\":
+  				dataType = 768;
+  				break;
+  			case \"default\":
+  				dataType = 750;
+  				break;      
+  			default:
+  				dataType = -1;
+  				break;
+  		}   
+ break;
+ 
+	default:	
+		switch(dpElementType(dpe))
+		{
+			case DPEL_BOOL:
+				dataType = 2002;
+				break;
+			case DPEL_INT:
+				dataType = 2002;
+				break;
+			case DPEL_STRING:  
+	 			dataType = 2001;
+				break;
+			case DPEL_FLOAT:  
+				dataType = 2003;
+				break;
+			case DPEL_DYN_BOOL:  
+				dataType = 2004;
+				break;
+			case DPEL_DYN_FLOAT:  
+				dataType = 2005;
+				break;
+			default:
+				dataType = -1;
+				break;
+		}
+ }
+	
+}
+
+_fwCheckModbusReference(string reference, dyn_string &exceptionInfo)
+{
+	bool isConsistent, hasMapping;
+	int functionCall, direction, inputMode;
+	dyn_string parts;
+	int iPlcNumber, iReferenceNumber;
+	
+	parts = strsplit(reference, \".\");	
+
+	if(dynlen(parts)!=4)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The MODBUS reference must contain exactly 4 parts seperated by the . character\", \"\");
+		return;
+	}
+	
+	functionCall = parts[3];
+	iPlcNumber = parts[2];
+	iReferenceNumber = parts[4];
+	if(parts[1] == \"U\")
+		hasMapping = mappingHasKey(FUNCTIONCALL_UNICOS_INT_TO_TEXT, functionCall);
+	else if(parts[1] == \"M\")
+		hasMapping = mappingHasKey(FUNCTIONCALL_MODBUS_INT_TO_TEXT, functionCall);
+	else
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The reference must begin with a M or U\", \"\");
+		return;
+	}
+
+	if((iPlcNumber < 1) || (iPlcNumber > 65535))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The PLC number must be between 1 and 65535\", \"\");
+		return;
+	}
+
+	if(!hasMapping)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The function call number \" + parts[3] + \" is not valid\", \"\");
+		return;
+	}
+
+	if((iReferenceNumber < 0) || (iReferenceNumber > 65535))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The reference number must be between 0 and 65535\", \"\");
+		return;
+	}	
+	
+	direction = modbusInOut.number;
+	inputMode = modbusInputMode.number;
+	
+	isConsistent = FALSE;
+	
+	if((direction == 1) || ((direction == 0) && (inputMode == 0)))
+	{
+		if(parts[1] == \"U\")
+		{
+			switch(functionCall)
+			{
+				case 1:
+				case 18:
+				case 17:
+					isConsistent = TRUE;
+					break;
+				default:
+					break;
+			}
+		}
+		else
+		{
+			switch(functionCall)
+			{
+				case 5:
+				case 6:
+				case 15:
+				case 16:
+					isConsistent = TRUE;
+					break;
+				default:
+					break;
+			}
+		}
+	}
+	else
+	{
+		switch(functionCall)
+		{
+			case 5:
+			case 6:
+			case 15:
+			case 16:
+				break;
+			default:
+				isConsistent = TRUE;
+				break;
+		}
+	}
+	
+	if(!isConsistent)
+		fwException_raise(exceptionInfo, \"ERROR\", \"The function call number \" + parts[3] + \" is not comptible with the selected direction and receive mode\", \"\");
+}
+
+_fwGetDimValues(dyn_anytype configData, string drvType)
+{
+	dyn_string tempSplit;
+	shape serviceCommandSwitch, serviceCommandName;
+	int valTime;
+
+	serviceCommandSwitch = DIM_COMMAND_SERVICE_SHAPE;
+	serviceCommandName = DIM_NAME_SHAPE;
+
+	if((configData[fwPeriphAddress_DRIVER_NUMBER] >= drvNr.sbMinimum)
+		&& (configData[fwPeriphAddress_DRIVER_NUMBER] <= drvNr.sbMaximum))
+		drvNr.text(configData[fwPeriphAddress_DRIVER_NUMBER]);
+
+//DebugN(configData);
+	if(drvType == fwPeriphAddress_TYPE_DIMSERVER)
+	{
+		if(configData[fwPeriphAddress_DIRECTION]==DPATTR_ADDR_MODE_OUTPUT_SINGLE)
+			configData[fwPeriphAddress_DIRECTION]=DPATTR_ADDR_MODE_INPUT_SPONT;
+		else
+			configData[fwPeriphAddress_DIRECTION]=DPATTR_ADDR_MODE_OUTPUT_SINGLE;
+	}
+//DebugN(configData[fwPeriphAddress_DIRECTION]);
+	if(configData[fwPeriphAddress_DIRECTION]==DPATTR_ADDR_MODE_INPUT_SPONT)
+		serviceCommandSwitch.selectedPos(1);  //is service
+	if(configData[fwPeriphAddress_DIRECTION]==DPATTR_ADDR_MODE_OUTPUT_SINGLE)
+		serviceCommandSwitch.selectedPos(2);  //is command
+
+	serviceCommandName.text(configData[fwPeriphAddress_ROOT_NAME]);
+	if(strpos((string)configData[fwPeriphAddress_DIM_CONFIG_DP], getSystemName()) != 0)
+		configData[fwPeriphAddress_DIM_CONFIG_DP] = getSystemName() + configData[fwPeriphAddress_DIM_CONFIG_DP];
+			
+	dimConfigDpList.text(configData[fwPeriphAddress_DIM_CONFIG_DP]);
+
+	if(((drvType == fwPeriphAddress_TYPE_DIM)||(drvType == fwPeriphAddress_TYPE_DIMCLIENT))
+				&&(configData[fwPeriphAddress_DIRECTION]==DPATTR_ADDR_MODE_INPUT_SPONT))
+	{
+		dimUpdateInterval.text = configData[fwPeriphAddress_DIM_TIMEOUT];
+		dimDefaultValue.text = configData[fwPeriphAddress_DIM_DEFAULT_VALUE];
+		
+		if(configData[fwPeriphAddress_DIM_FLAG]==0)
+			tStamp.state(0,FALSE);
+		else
+			tStamp.state(0,TRUE);
+
+		if(configData[fwPeriphAddress_DIM_IMMEDIATE_UPDATE]==0)
+			dimUpdate.state(0,FALSE);
+		else
+			dimUpdate.state(0,TRUE);
+	}
+}
+
+_fwConvertOpcDataType(string &dataType, int dataTypeNumber, string addressType)
+{
+ switch(addressType)
+ {
+   case fwPeriphAddress_TYPE_OPCCLIENT:
+   case fwPeriphAddress_TYPE_OPC:
+    	switch(dataTypeNumber)
+    	{
+    		case 480:
+    			dataType = \"undefined\";
+    			break;
+    		case 481:
+    			dataType = \"integer16\";
+    			break;
+    		case 482:
+     			dataType = \"integer32\";
+    			break;
+    		case 483:
+    			dataType = \"uchar\";
+    			break;
+    		case 484:
+    			dataType = \"float32\";
+    			break;
+    		case 485:
+    			dataType = \"float64\";
+    			break;
+    		case 486:
+    			dataType = \"boolean\";
+    			break;
+    		case 487:
+    			dataType = \"string\";
+    			break;
+    		case 488:
+    			dataType = \"uinteger16\";
+    			break;
+    		case 489:
+    			dataType = \"uinteger32\";
+    			break;
+    		case 490:
+    			dataType = \"time\";
+    			break;
+    		case 491:
+    			dataType = \"bitstring\";
+    			break;
+    		case 0:
+    			dataType = \"default\";
+    			break;
+    		default:
+    			dataType = \"default\";
+    			break;
+    	}
+   break;
+   
+   case fwPeriphAddress_TYPE_OPCUACLIENT:
+   case fwPeriphAddress_TYPE_OPCUA:
+    	switch(dataTypeNumber)
+    	{
+  			case  750:
+  				dataType = \"default\";
+  				break;
+  			case  751:
+  				dataType = \"boolean\";
+  				break;
+  			case  752:
+  				dataType = \"sbyte\";
+  				break;
+  			case  753:
+  				dataType = \"byte\";
+  				break;
+  			case  754:
+  				dataType = \"int16\";
+  				break;
+  			case  755:
+  				dataType = \"uint16\";
+  				break;
+  			case  756:
+  				dataType = \"int32\";
+  				break;
+  			case  757:
+  				dataType = \"uint32\";
+  				break;
+  			case  758:
+  				dataType = \"int64\";
+  				break;
+  			case  759:
+  				dataType = \"uint64\";
+  				break;
+  			case  760:
+  				dataType = \"float\";
+  				break;
+  			case  761:
+  				dataType = \"double\";
+  				break;
+  			case  762:
+  				dataType = \"string\";
+  				break;
+  			case  763:
+  				dataType = \"date time\";
+  				break;
+  			case  764:
+  				dataType = \"guid\";
+  				break;
+  			case  765:
+  				dataType = \"byte string\";
+  				break;
+  			case  766:
+  				dataType = \"xml element\";
+  				break;
+  			case  767:
+  				dataType = \"node id\";
+  				break;
+  			case  768:
+  				dataType = \"localized text\";
+  				break;
+  			default:
+  				dataType = \"undefined\";
+  				break;
+    	}
+   break;   
+ }
+}
+
+_fwGetDefaultOpcDataType(int &dataType)
+{
+	switch(dpElementType($sDpe))
+	{
+		case DPEL_BOOL:
+			dataType = 486;
+			break;
+		case DPEL_INT:
+			dataType = 481;
+			break;
+		case DPEL_UINT:
+			dataType = 488;
+			break;
+		case DPEL_STRING:  
+			dataType = 487;
+			break;
+		case DPEL_FLOAT:  
+			dataType = 484;
+			break;
+		default:
+			dataType = -1;
+			break;
+	}
+}
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 100
+"periphAddressPanelTitle"
+""
+1 16 18 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 291 34
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 26 Arial,-1,19,5,40,0,0,0,0,0
+0 1
+LANG:1 32 Peripheral Address Configuration
+2 110
+"drvNrText"
+""
+1 280 594 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 163 92 216 108
+0 2 2 "0s" 0 0 0 192 0 0  163 92 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 10 Driver Nr:
+2 143
+"hiddenDataType"
+""
+1 305 95 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 307 97 423 123
+0 2 0 "0s" 0 0 0 64 0 0  307 97 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 14 hiddenDataType
+2 146
+"Text3"
+""
+1 165 113 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 55 86 71
+0 2 0 "0s" 0 0 0 192 0 0  12 55 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 11 DP Element:
+2 161
+"notSupported"
+""
+1 235 264 E E E 1 E 0 E N {255,0,51} E N {255,255,255} E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 197 139 407 213
+1 2 0 "0s" 0 0 0 65 0 0  197 139 4
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 20 This panel does not 
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 17 currently support
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 25 parameterization of this 
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 22 type of address config
+2 199
+"driverProblem"
+""
+1 155 130 E E E 1 E 0 E N {255,0,0} E N "_Window" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 161 136 439 188
+1 6 0 "0s" 0 0 0 65 0 0  161 136 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 14 Driver problem
+30 371
+"modbusReferenceTitle"
+""
+1 413 123 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+229 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 413 78 633 123
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 0 
+2 372
+"modbusSubindexTitle"
+""
+1 395 193 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+230 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 397 195 483 211
+0 2 0 "0s" 0 0 0 64 0 0  397 195 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 9 Subindex:
+2 373
+"modbusTransformationTitle"
+""
+1 236 193 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+231 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 238 195 364 211
+0 2 0 "0s" 0 0 0 64 0 0  238 195 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 20 Transformation Type:
+2 374
+"modbusReferenceNumberTitle"
+""
+1 549 130 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+232 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 551 132 633 148
+0 2 0 "0s" 0 0 0 192 0 0  551 132 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 13 Reference No.
+2 375
+"functionCallsTitle"
+""
+1 334 130 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+233 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 336 132 422 148
+0 2 0 "0s" 0 0 0 64 0 0  336 132 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 13 Function Call
+2 376
+"modbusPlcNumberTitle"
+""
+1 235 130 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+234 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 237 132 323 148
+0 2 0 "0s" 0 0 0 64 0 0  237 132 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 PLC No.
+2 377
+"modbusPollGroupTitle"
+""
+1 380 255 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+235 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 382 257 468 273
+0 2 0 "0s" 0 0 0 64 0 0  382 257 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 13 Polling Group
+2 378
+"referenceTitle"
+""
+1 422 94 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+236 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 424 96 510 112
+0 2 0 "0s" 0 0 0 64 0 0  424 96 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 10 Reference:
+2 406
+"dipTagNameTitle"
+""
+1 173 254 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+264 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 175 256 237 272
+0 2 0 "0s" 0 0 0 192 0 0  175 256 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 9 Tag Name:
+2 407
+"dipItemNameTitle"
+""
+1 173 164 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+265 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 175 166 229 182
+0 2 0 "0s" 0 0 0 192 0 0  175 166 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 9 DIP Item:
+2 722
+"addressActiveText"
+""
+1 355 858 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+523 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 163 356 252 372
+0 2 2 "0s" 0 0 0 192 0 0  163 356 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 15 Address active:
+2 801
+"dimServicecommandTitle"
+""
+1 300 135 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+602 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 175 156 271 172
+0 2 2 "0s" 0 0 0 192 0 0  175 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 14 (DIMServ/comm)
+2 802
+"dimUpdateIntervalTitle"
+""
+1 300 135 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+603 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 175 236 325 252
+0 2 2 "0s" 0 0 0 192 0 0  175 236 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 26 Update Interval (seconds):
+2 803
+"dimUpdateIntervalInfo"
+""
+1 300 135 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+604 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 412 236 500 252
+0 2 2 "0s" 0 0 0 192 0 0  412 236 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 13 0 = On Change
+2 804
+"dimDefaultValueTitle"
+""
+1 300 135 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+605 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 175 205 255 221
+0 2 2 "0s" 0 0 0 192 0 0  175 205 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 14 Default Value:
+2 805
+"tStampText"
+""
+1 300 135 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+606 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 175 266 348 282
+0 2 2 "0s" 0 0 0 192 0 0  175 266 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 28 Time Stamp and Quality Flag:
+2 806
+"dimUpdateText"
+""
+1 300 135 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+607 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 175 296 320 312
+0 2 2 "0s" 0 0 0 192 0 0  175 296 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 24 Update on First Connect:
+2 743
+"opcDirection"
+""
+1 474 1083 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+544 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 162 255 217 271
+0 2 2 "0s" 0 0 0 192 0 0  162 255 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 10 Direction:
+2 742
+"lblOpcLowLevel"
+""
+1 877 1112 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+543 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 162 284 295 300
+0 2 2 "0s" 0 0 0 192 0 0  162 284 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 21 Low Level Comparison:
+2 741
+"groupUpdateRate"
+""
+1 760 787 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+542 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 464 231 540 247
+0 2 2 "0s" 0 0 0 192 0 0  464 231 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 12 Update Rate:
+2 740
+"groupDeadband"
+""
+1 1047 1099 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+541 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 464 271 526 287
+0 2 2 "0s" 0 0 0 192 0 0  464 271 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 9 Deadband:
+2 739
+"groupUpdateRateValue"
+""
+1 1172 1066 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+540 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 554 231 569 247
+0 2 2 "0s" 0 0 0 192 0 0  554 231 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 3 (s)
+2 738
+"groupDeadbandValue"
+""
+1 1168 1106 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+539 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 554 271 574 287
+0 2 2 "0s" 0 0 0 192 0 0  554 271 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 3 (%)
+2 737
+"groupRefreshTimer"
+""
+1 1108 1003 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+538 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 464 251 548 267
+0 2 2 "0s" 0 0 0 192 0 0  464 251 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 14 Refresh Timer:
+2 736
+"groupRefreshTimerValue"
+""
+1 1619 1282 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+537 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 554 251 569 267
+0 2 2 "0s" 0 0 0 192 0 0  554 251 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 3 (s)
+30 735
+"opcGroupDetails"
+""
+1 452 299 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+536 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 452 149 632 299
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 17 OPC Group Details
+2 734
+"text5"
+""
+1 215 635 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+535 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 92 314 153 330
+0 2 2 "0s" 0 0 0 192 0 0  92 314 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 9 OPC Item:
+2 733
+"dataType"
+""
+1 525 1022 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+534 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 162 194 224 210
+0 2 2 "0s" 0 0 0 192 0 0  162 194 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 10 Data Type:
+2 732
+"opcGroupText"
+""
+1 245 699 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+533 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 162 158 201 174
+0 2 2 "0s" 0 0 0 192 0 0  162 158 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Group:
+2 731
+"groupEnableCB"
+""
+1 1069 1039 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+532 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 464 211 571 227
+0 2 2 "0s" 0 0 0 192 0 0  464 211 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 17 CallBack Enabled:
+2 730
+"groupEnableCBValue"
+""
+1 1176 1046 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+531 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 576 211 603 227
+0 2 2 "0s" 0 0 0 192 0 0  576 211 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 5 (T/F)
+2 729
+"groupStatus"
+""
+1 1422 1209 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+530 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 464 171 545 187
+0 2 2 "0s" 0 0 0 192 0 0  464 171 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 13 Group Status:
+2 728
+"groupStatusValue"
+""
+1 1580 1215 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+529 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 549 171 604 187
+0 2 2 "0s" 0 0 0 192 0 0  549 171 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 11 (in/active)
+2 727
+"groupSource"
+""
+1 1392 1229 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+528 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 464 191 554 207
+0 2 2 "0s" 0 0 0 192 0 0  464 191 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 15 Source of Data:
+2 726
+"groupSourceValue"
+""
+1 1579 1235 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+527 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 557 191 623 207
+0 2 2 "0s" 0 0 0 192 0 0  557 191 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 11 (cache/dev)
+2 725
+"text11"
+""
+1 215 353 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+526 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 162 124 202 140
+0 2 2 "0s" 0 0 0 192 0 0  162 124 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Server:
+2 723
+"subindex"
+""
+1 586 1048 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+524 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 229 220 291 236
+0 2 2 "0s" 0 0 0 192 0 0  229 220 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 10 Sub index:
+13 198
+"closeButton"
+""
+1 1492 929 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  548 348 632 382
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+13 29
+"mainApplyButton"
+""
+1 0 0 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  458 348 542 382
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	this.enabled = FALSE;
+	saveSettings(exceptionInfo);
+	this.enabled = TRUE;
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E "main()
+{
+	int x, y;
+
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			closeButton.visible = TRUE;
+		else
+		{
+			getValue(\"\", \"position\", x, y);
+			this.position(x + 90,y);	
+		}
+	}
+	else
+		closeButton.visible = TRUE;
+		
+	this.visible = TRUE;	
+}" 0
+
+20 197
+"addressActive"
+""
+1 259 348 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  257 346 282 382
+1
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE21 120
+"drvNr"
+""
+1 674 586 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  225 86 292 113
+0
+
+E
+E
+E
+
+N 1 255 1 1 1 1
+22 160
+"addressType"
+""
+1 10 90 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  8 88 107 115
+1
+1
+LANG:1 15 (Address Types)
+
+1
+
+E
+"main()
+{
+	string addressType;
+	
+	addressType = this.text;
+
+	if(PREVIOUS_ADDRESS_TYPE == addressType)
+		return;
+
+//DebugN(addressType);
+	PREVIOUS_ADDRESS_TYPE = addressType;
+	hideAllThirdPartySymbols();	
+
+	switch(addressType)
+	{
+  case fwPeriphAddress_TYPE_OPC:
+  case fwPeriphAddress_TYPE_OPCUA:
+  case fwPeriphAddress_TYPE_DIM:
+		case fwPeriphAddress_TYPE_MODBUS:
+		case fwPeriphAddress_TYPE_DIP:
+			notSupported.visible = FALSE;
+			showAddressOptions(addressType);
+			break;
+  case fwPeriphAddress_TYPE_NONE:	
+			notSupported.visible = FALSE;
+			hideAll();
+			break;
+		default:
+			hideAll();
+			if(dynContains(THIRD_PARTY_ADDRESS_TYPES, addressType) > 0)
+				showThirdPartySymbol(addressType);
+			else
+				notSupported.visible = TRUE;
+			break;
+	}
+}
+
+" 0
+
+E
+ 0 0
+14 147
+"elementNameField"
+""
+1 347 103 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  88 48 632 75
+2 "0s" 0 0 0 0 0 -1  E E E
+13 200
+"mainOkButton"
+""
+1 0 0 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  368 348 452 382
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		PanelOff();
+}" 0
+ E E "main()
+{
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+//DebugN(\"MAIN\", $bHierarchyBrowser);
+		if(!$bHierarchyBrowser)
+			this.visible = TRUE;
+	}
+	else
+		this.visible = TRUE;	
+}" 0
+
+22 379
+"unicosFunctionCalls"
+""
+1 334 152 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+237 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  332 150 526 177
+3
+1
+LANG:1 6 Status
+
+1
+1
+LANG:1 6 Events
+
+0
+1
+LANG:1 8 Events32
+
+0
+
+E
+"main()
+{
+	_fwConstructModbusReference();
+}" 0
+
+E
+ 0 0
+22 380
+"modbusReadFunctionCalls"
+""
+1 334 152 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+238 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  332 150 526 177
+6
+1
+LANG:1 10 Read Coils
+
+1
+1
+LANG:1 20 Read Input Discretes
+
+0
+1
+LANG:1 23 Read Multiple Registers
+
+0
+1
+LANG:1 20 Read Input Registers
+
+0
+1
+LANG:1 21 Read Exception Status
+
+0
+1
+LANG:1 15 Read FIFO Queue
+
+0
+
+E
+"main()
+{
+	_fwConstructModbusReference();
+}" 0
+
+E
+ 0 0
+22 381
+"modbusWriteFunctionCalls"
+""
+1 334 152 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+239 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  332 150 526 177
+4
+1
+LANG:1 10 Write Coil
+
+1
+1
+LANG:1 21 Write Single Register
+
+0
+1
+LANG:1 20 Force Multiple Coils
+
+0
+1
+LANG:1 24 Write Multiple Registers
+
+0
+
+E
+"main()
+{
+	_fwConstructModbusReference();
+}" 0
+
+E
+ 0 0
+21 382
+"modbusSubindex"
+""
+1 395 214 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+240 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  393 212 462 239
+0
+
+E
+"main()
+{
+	MODBUS_SUBINDEX = this.text;
+	_fwConstructModbusReference();
+}" 0
+
+E
+
+N 0 59 1 0 1 1
+22 383
+"modbusTransformationSelector"
+""
+1 236 214 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+241 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  234 212 378 239
+11
+1
+LANG:1 9 undefined
+
+1
+1
+LANG:1 6 int 16
+
+0
+1
+LANG:1 6 int 32
+
+0
+1
+LANG:1 7 uint 16
+
+0
+1
+LANG:1 7 uint 32
+
+0
+1
+LANG:1 4 byte
+
+0
+1
+LANG:1 5 float
+
+0
+1
+LANG:1 7 boolean
+
+0
+1
+LANG:1 15 boolean as byte
+
+0
+1
+LANG:1 6 string
+
+0
+1
+LANG:1 4 blob
+
+0
+
+E
+"main()
+{
+	_fwShowModbusItems(TRUE);
+}" 0
+
+E
+ 0 0
+21 384
+"modbusReferenceNumber"
+""
+1 551 152 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+242 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  549 150 624 177
+0
+
+E
+"main()
+{
+	_fwConstructModbusReference();
+}" 0
+
+E
+
+N 0 65535 1 0 1 1
+21 385
+"modbusPlcNumber"
+""
+1 236 152 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+243 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  234 150 303 177
+0
+
+E
+"main()
+{
+	_fwConstructModbusReference();
+}" 0
+
+E
+
+N 1 65535 1 1 1 1
+14 386
+"modbusReference"
+""
+1 492 91 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+244 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  490 89 624 116
+3 "0s" 0 0 0 0 0 -1  E E E
+20 387
+"modbusLowLevel"
+""
+1 1196 799 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+245 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  490 208 634 241
+1
+T 
+1
+LANG:1 20 low level comparison
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	if(button == 0)
+		MODBUS_LOW_LEVEL = state;
+}" 0
+19 388
+"modbusUnicosSelector"
+""
+1 138 128 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+246 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  136 126 220 190
+2
+T 
+1
+LANG:1 6 MODBUS
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 6 UNICOS
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+	_fwShowModbusItems(TRUE);
+}" 0
+
+19 389
+"modbusInOut"
+""
+1 138 252 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+247 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  136 250 190 314
+2
+T 
+1
+LANG:1 2 In
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 3 Out
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+	MODBUS_DIRECTION = button;
+	_fwShowModbusItems(TRUE);
+}" 0
+
+19 390
+"modbusInputMode"
+""
+1 236 252 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+248 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  234 250 348 334
+3
+T 
+1
+LANG:1 11 Spontaneous
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 7 Polling
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 Single Query
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+	MODBUS_INPUT_MODE = button;
+	_fwShowModbusItems(TRUE);
+}
+" 0
+
+22 391
+"modbusPollGroupName"
+""
+1 380 277 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+249 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  378 275 632 302
+0
+
+E
+E
+E
+ 0 0
+13 392
+"modbusPollGroupButton"
+""
+1 518 307 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+250 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  516 305 630 339
+
+T 
+1
+LANG:1 14 Poll Groups...
+"main()
+{
+  dyn_float  df;
+  dyn_string ds;
+  
+//!!!pollgroup
+  ChildPanelOnCentralModalReturn(\"para/poll_groups.pnl\",
+    \"Poll groups\",
+    makeDynString(\"$fromPara:\"+modbusPollGroupName.text), df, ds);
+
+  if ( dynlen(df) > 0 && df[1] )
+  {
+    int iPos = dynContains(modbusPollGroupName.items, ds[1]);
+    
+    if ( iPos < 1 )
+      modbusPollGroupName.appendItem(ds[1]);
+    modbusPollGroupName.text = ds[1];
+  }
+}
+" 0
+ E E E
+13 408
+"dipConfigDpRefresh"
+""
+1 393 86 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+266 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  391 84 465 118
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+	string dpType, currentSelection;
+	dyn_string configDps;
+
+	currentSelection = dipConfigDpList.text;
+
+	dpType = \"_FwDipConfig\";
+
+	configDps = dpNames(\"*:*\", dpType);
+	dipConfigDpList.items = configDps;
+
+	dipConfigDpList.text = currentSelection;
+}" 0
+ E E E
+22 409
+"dipConfigDpList"
+""
+1 173 90 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+267 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  171 88 385 115
+0
+
+"main()
+{
+	string dpType;
+	dyn_string configDps;
+
+	dpType = \"_FwDipConfig\";
+
+	configDps = dpNames(\"*:*\", dpType);
+	dipConfigDpList.items = configDps;
+	if(dynlen(configDps) > 0)
+		dipConfigDpList.selectedPos = 1;
+}" 0
+
+E
+E
+ 0 0
+20 410
+"dipTagRequired"
+""
+1 173 220 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+268 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  171 218 275 242
+1
+T 
+1
+LANG:1 12 Specific Tag
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	if(state)
+	{
+		dipTagName.visible = TRUE;
+		dipTagNameTitle.visible = TRUE;
+	}
+	else
+	{
+		dipTagName.visible = FALSE;
+		dipTagNameTitle.visible = FALSE;
+	}
+}" 0
+14 411
+"dipTagName"
+""
+1 243 250 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+269 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  241 248 465 275
+3 "0s" 0 0 0 0 0 -1  E E E
+14 412
+"dipItemName"
+""
+1 243 160 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+270 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  241 158 465 185
+3 "0s" 0 0 0 0 0 -1  E E E
+1 889 0 "" 0
+0
+13 719
+"dpeDetails"
+""
+1 460 10 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+521 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  458 8 582 42
+
+T 
+1
+LANG:1 15 Select Elements
+"main()
+{
+	string errorString;
+	dyn_string returnedDpeList, systems, exceptionInfo;
+	dyn_float cancelOrOk;
+
+	ChildPanelOnCentralModalReturn(\"fwConfigs/fwDpeSelector.pnl\", \"Choose Data Point Elements\",
+									makeDynString(\"$dsAllDpes:\"+$sDpe, \"$dsIncludedDpes:\"+DPE_LIST, \"$sConfigType:\"+fwConfigs_PVSS_ORIGINAL),
+									cancelOrOk, returnedDpeList);
+	if(cancelOrOk[1] > 0.5)
+	{
+		if(DPE_LIST != returnedDpeList)
+		{
+			DPE_LIST = returnedDpeList;
+			DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_ADDRESS, DPE_TYPE, exceptionInfo, errorString);
+			if(!DPES_OK)
+			{
+				if(DPE_TYPE == fwConfigs_NOT_SUPPORTED)
+					fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+			}
+
+			_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+
+			if(dynlen(DPE_LIST)== 1)
+				elementNameField.text(DPE_LIST[1]);
+			else
+			{
+				if(dynlen(systems) == 1)
+				{
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+					if(systems[1] == getSystemName())
+						SYSTEM_NAME = systems[1];
+				}
+				else
+				{
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+					SYSTEM_NAME = \"\";
+				}
+			}
+
+			okButton.enabled = (DPES_OK || (DPE_TYPE != fwConfigs_NOT_SUPPORTED));
+			applyButton.enabled = (DPES_OK || (DPE_TYPE != fwConfigs_NOT_SUPPORTED));
+		}
+	}	
+}" 0
+ E E E
+20 720
+"setDriverNumber"
+""
+1 142 85 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+521 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  140 83 164 117
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 721
+"setActive"
+""
+1 142 348 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+522 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  140 346 164 380
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE22 757
+"inOut"
+""
+1 227 250 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+558 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  225 248 322 275
+3
+1
+LANG:1 2 In
+
+0
+1
+LANG:1 3 Out
+
+0
+1
+LANG:1 6 In/Out
+
+0
+
+E
+"main()
+{
+	if(this.text == \"Out\")
+	{
+		ADDRESS_PANEL_LOW_LEVEL = opclowLevel.state(0);
+		opclowLevel.enabled = FALSE;
+		opclowLevel.state(0, FALSE);
+	}
+	else
+	{
+		opclowLevel.enabled = TRUE;	
+		opclowLevel.state(0, ADDRESS_PANEL_LOW_LEVEL);
+	}
+}
+" 0
+
+E
+ 0 0
+20 756
+"setOpcServer"
+""
+1 142 123 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+557 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  140 121 164 145
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 755
+"setOpcGroup"
+""
+1 142 157 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+556 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  140 155 164 179
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 754
+"setOpcDirection"
+""
+1 142 253 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+555 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  140 251 164 275
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 753
+"setOpcLowLevelComparison"
+""
+1 142 282 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+554 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  140 280 164 304
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 752
+"setOpcDataType"
+""
+1 142 192 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+553 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  140 190 164 214
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE13 751
+"opcButton"
+""
+1 285 236 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+552 0 0 0 0 0
+E E E
+0
+1
+LANG:1 24 OPC driver configuration
+
+0
+2
+LANG:1 26 Arial,-1,19,5,69,0,0,0,0,0
+LANG:0 68 -microsoft windows-arial-bold-r-normal-*-*-160-100-100-*-*-iso8859-1
+0  28 214 83 264
+
+P 
+4294967295
+"pictures/SysMgm/40x40/OpcAEClient.png"
+2
+LANG:1 3 OPC
+LANG:0 3 OPC
+"main()
+{
+	if(!isModuleOpen(\"PVSS\"))
+		ModuleOn(\"PVSS\", 100, 100, 500, 500, 1, 1, \"None\");
+	RootPanelOnModule(\"para/opc.pnl\", \"\", \"PVSS\", makeDynString(\"\"));
+}" 0
+ E E "main()
+{
+	/*if(isModeExtended()) {
+		this.enabled = true;
+	}
+	else {
+		this.enabled = false;
+	}*/
+}" 0
+
+13 750
+"refButton"
+""
+1 1215 600 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+551 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  532 305 632 335
+
+T 
+2
+LANG:1 11 Refresh IDs
+LANG:0 12 Get Item IDs
+"main()
+{	
+	bool timedOut;
+	string server;
+	dyn_string exceptionInfo;
+	dyn_anytype returnValue;
+
+ 	getValue(\"opcServer\",\"text\",server);
+ 	if (server==\"\") return;
+
+ 	server=SYSTEM_NAME + \"_\" + strltrim(strrtrim(server));
+
+ 	
+ 	opcItem.enabled = FALSE;
+ 	opcItem.text = \"Updating...\";
+	OPC_ITEM_UPDATE_IN_PROGRESS = TRUE;
+ 	dpSetWait(server+\".GetItemIds:_original.._value\",1);
+ 	dpWaitForValue(server+\".ItemIds:_online.._value\", makeDynAnytype(),
+ 									server+\".ItemIds:_online.._value\", returnValue, 20, timedOut);
+
+	if(OPC_ITEM_UPDATE_IN_PROGRESS)
+	{
+		if(timedOut)
+		  fwException_raise(exceptionInfo, \"ERROR\", \"The OPC item refresh timed out.  Perhaps the OPC server is not connected.\", \"\");
+		else
+			opcItem.items(returnValue[1]);
+	}
+		
+	if(dynlen(opcItem.items) > 0)
+	 	opcItem.selectedPos(1);
+	else
+		opcItem.text = \"\";  	
+
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+
+	opcItem.enabled = TRUE;
+	OPC_ITEM_UPDATE_IN_PROGRESS = FALSE;
+}" 0
+ E E E
+22 749
+"opcItem"
+""
+1 732 624 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+550 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  158 308 527 335
+0
+
+E
+E
+E
+ 1 0
+20 748
+"opclowLevel"
+""
+1 400 867 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+549 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  298 276 322 309
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	ADDRESS_PANEL_LOW_LEVEL = state;
+}" 0
+22 747
+"opcGroup"
+""
+1 738 689 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+548 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  225 152 442 179
+0
+
+E
+"main()
+{
+	bool cbEnabled, active, dataSource;
+	int updateRate, refreshTimer;
+	int pos;
+	float deadband, updateRateInSeconds;
+	string selectedGroup;
+	dyn_string groupList, exceptionInfo;
+
+	pos = this.selectedPos();
+	groupList = this.items();
+	selectedGroup = groupList[pos];
+
+	_fwGetOpcGroupData(SYSTEM_NAME + \"_\" + selectedGroup, updateRate, deadband,
+											cbEnabled, active, dataSource, refreshTimer, exceptionInfo);
+	
+	_fwShowOpcGroupData(updateRate, deadband, cbEnabled, active, dataSource, refreshTimer, exceptionInfo);
+}" 0
+
+E
+ 0 0
+22 746
+"opcServer"
+""
+1 563 342 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+547 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  225 118 442 145
+0
+
+E
+"main()
+{
+	string server;
+	dyn_string items, exceptionInfo;
+
+	OPC_ITEM_UPDATE_IN_PROGRESS = FALSE;
+	if(panelMode != SINGLE_DPE)
+		return;
+
+  getValue(\"\",\"text\",server);
+ 	if (server==\"\") return;
+ 	server=SYSTEM_NAME+\"_\"+strltrim(strrtrim(server));
+ 	
+  _fwGetOpcServerItems(server, items, exceptionInfo);
+  opcItem.items = items;
+  
+	if(dynlen(items) > 0)
+		opcItem.selectedPos(1);
+	else
+		opcItem.text = \"\";
+
+	opcItem.enabled = TRUE;
+}" 0
+
+E
+ 0 0
+14 745
+"subindexValue"
+""
+1 294 216 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+546 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  292 214 346 241
+3 "0s" 0 0 0 0 0 -1  E E E
+22 744
+"dataTypeValue"
+""
+1 227 189 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+545 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  225 187 349 214
+13
+1
+LANG:1 9 undefined
+
+0
+1
+LANG:1 7 default
+
+1
+1
+LANG:1 7 boolean
+
+0
+1
+LANG:1 9 integer16
+
+0
+1
+LANG:1 9 integer32
+
+0
+1
+LANG:1 7 float32
+
+0
+1
+LANG:1 7 float64
+
+0
+1
+LANG:1 6 string
+
+0
+1
+LANG:1 5 uchar
+
+0
+1
+LANG:1 10 uinteger16
+
+0
+1
+LANG:1 10 uinteger32
+
+0
+1
+LANG:1 4 time
+
+0
+1
+LANG:1 9 bitstring
+
+0
+
+E
+"main()
+{
+	if(dataTypeValue.text == \"bitstring\")
+		toggleBitstringOptions(TRUE);
+	else
+		toggleBitstringOptions(FALSE);
+}" 0
+
+E
+ 0 0
+13 807
+"dimConfigDpRefresh"
+""
+1 393 86 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+608 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  391 84 465 118
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+	string dpType, currentSelection, systemName;
+	dyn_string configDps, exceptionInfo;
+
+	currentSelection = dimConfigDpList.text;
+
+	dpType = \"_FwDimConfig\";
+
+	fwGeneral_getSystemName($sDpe, systemName, exceptionInfo);
+	configDps = dpNames(systemName + \"*\", dpType);
+	dimConfigDpList.items = configDps;
+
+	dimConfigDpList.text = currentSelection;
+}" 0
+ E E E
+22 808
+"dimConfigDpList"
+""
+1 173 90 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+609 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  171 88 385 115
+0
+
+"main()
+{
+	string dpType, systemName;
+	dyn_string configDps, exceptionInfo;
+
+	dpType = \"_FwDimConfig\";
+	
+	fwGeneral_getSystemName($sDpe, systemName, exceptionInfo);
+	if(systemName == \"\")
+		systemName = getSystemName();
+	
+	if(systemName == getSystemName())
+	{
+		configDps = dpNames(systemName + \"*\", dpType);
+	//	configDps = dpNames(systemName + \"*\", dpType);
+		dimConfigDpList.items = configDps;
+		if(dynlen(configDps) > 0)
+			dimConfigDpList.selectedPos = 1;
+	}
+	else
+	{
+		dimConfigDpList.items = makeDynString();
+		dimConfigDpList.text = \"Cannot set remote DPs for DIM\";
+		dimConfigDpRefresh.enabled = FALSE;
+	}
+}" 0
+
+E
+E
+ 0 0
+20 809
+"tStamp"
+""
+1 467 849 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+610 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  349 258 376 291
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE14 810
+"dimServicecommand"
+""
+1 963 484 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+611 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  281 149 479 176
+3 "0s" 0 0 0 0 0 -1  E E E
+14 811
+"dimUpdateInterval"
+""
+1 333 232 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+612 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  331 230 395 257
+3 "5d" 5 0 0 2 0 -1  E "main()
+{
+this.text = 0;
+}" 0
+ E
+20 812
+"dimUpdate"
+""
+1 467 878 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+613 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  349 287 376 320
+1
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE14 813
+"dimDefaultValue"
+""
+1 668 533 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+614 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  281 198 395 225
+3 "0s" 0 0 0 0 0 -1  E E E
+22 814
+"servicecommand"
+""
+1 173 121 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+615 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  171 119 302 146
+2
+1
+LANG:1 11 DIM Service
+
+1
+1
+LANG:1 11 DIM Command
+
+0
+
+E
+"main()
+{
+	if(this.selectedPos == 1)
+		toggleDimClientServiceOptions(TRUE);
+	else
+		toggleDimClientServiceOptions(FALSE);
+}" 0
+
+E
+ 0 0
+20 815
+"setDimConfigDp"
+""
+1 143 88 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+616 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  141 86 165 120
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 816
+"setDimDirection"
+""
+1 143 118 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+617 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  141 116 165 150
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 817
+"setDimDefaultValue"
+""
+1 143 198 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+618 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  141 196 165 230
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 818
+"setDimInterval"
+""
+1 143 228 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+619 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  141 226 165 260
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 819
+"setDimTimeStamp"
+""
+1 143 258 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+620 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  141 256 165 290
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 820
+"setDimUpdate"
+""
+1 143 288 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+621 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  141 286 165 320
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE22 888
+"COMBO_BOX1"
+""
+1 280 560 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+623 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  278 558 282 572
+0
+
+E
+E
+E
+ 1 0
+1 890 1 "" 15
+0
+1 891 1 "" 18
+0
+1 892 1 "" 19
+0
+1 893 1 "" 20
+0
+1 894 1 "" 21
+0
+1 895 1 "" 28
+0
+1 896 1 "" 29
+0
+1 897 1 "" 30
+0
+1 898 1 "" 31
+0
+1 899 1 "" 32
+0
+1 900 1 "" 33
+0
+1 901 1 "" 59
+0
+1 902 1 "" 60
+0
+1 903 1 "" 69
+0
+1 904 1 "" 72
+0
+1 905 1 "" 73
+0
+1 906 1 "" 27
+0
+1 907 1 "" 26
+0
+1 908 1 "" 11
+0
+1 909 1 "" 12
+0
+1 910 1 "" 16
+0
+1 911 1 "" 17
+0
+1 912 1 "" 23
+0
+1 913 1 "" 24
+0
+1 914 1 "" 34
+0
+1 915 1 "" 35
+0
+1 916 1 "" 36
+0
+1 917 1 "" 37
+0
+1 918 1 "" 38
+0
+1 919 1 "" 39
+0
+1 920 1 "" 40
+0
+1 921 1 "" 63
+0
+1 922 1 "" 64
+0
+1 923 1 "" 70
+0
+1 924 1 "" 74
+0
+1 925 1 "" 75
+0
+1 926 1 "" 87
+0
+1 927 2 "" 13
+0
+1 928 2 "" 14
+0
+1 929 2 "" 15
+0
+1 930 2 "" 16
+0
+1 931 2 "" 24
+0
+1 932 2 "" 25
+0
+1 933 2 "" 30
+0
+1 934 2 "" 31
+0
+1 935 2 "" 32
+0
+1 936 2 "" 33
+0
+1 937 2 "" 39
+0
+1 938 2 "" 40
+0
+1 939 2 "" 1
+0
+1 940 2 "" 11
+0
+1 941 2 "" 12
+0
+1 942 2 "" 17
+0
+1 943 2 "" 18
+0
+1 944 2 "" 19
+0
+1 945 2 "" 23
+0
+1 946 2 "" 28
+0
+1 947 2 "" 35
+0
+1 948 2 "" 36
+0
+1 949 2 "" 42
+0
+1 950 2 "" 43
+0
+1 951 2 "" 47
+0
+1 952 2 "" 48
+0
+1 953 2 "" 49
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group6" -1
+"objects\\fwGeneral\\fwHelpButton.pnl" 604 10 T 271 U 
+1
+"$sPanelRelativePath""fwConfigs/fwPeriphAddress"
+3 1 "fwPeriphAddressS7" -1
+"fwConfigs\\fwPeriphAddressS7.pnl" 130 90 T 624 1 0 1 -20 -10
+2
+"$bHierarchyBrowser""$bHierarchyBrowser"
+"$sDpe""$sDpe"
+3 2 "fwPeriphAddressCMW" -1
+"fwConfigs\\fwPeriphAddressCMW.pnl" 130 90 T 624 1 0 1 -19 -10
+2
+"$bHierarchyBrowser""$bHierarchyBrowser"
+"$sDpe""$sDpe"
+0

@@ -1,0 +1,1344 @@
+V 11
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 518 95 N "FwTrendingViewBackground" 1
+"$sRefName"
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "int REFRESH_DELAY = 100;
+
+//start 20/05/2008 & 19/09/2008: Herve
+fwTrendingTrendControl_panel_getAndSaveFromTrendWidget()
+{
+  string ref, sMinMax, sMin, sMax;
+  dyn_string dsPlotData, dsTemp, dsMinMax, exceptionInfo, dsMin, dsMax;
+  int i;
+  bool bAuto;
+  float fMin, fMax;
+  ref = $sRefName;
+  string sFormat;
+  
+  getValue(ref+\"trend.trendInfo\", \"items\", dsPlotData);
+  dsTemp = strsplit(dsPlotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE], fwTrending_CONTENT_DIVIDER);
+//DebugN(\"res\", dsPlotData);
+
+  for(i=1;i<=fwTrending_MAX_NUM_CURVES;i++)
+  {
+    getMultiValue(ref+\"trend.standardTrend\", \"curveAutoscale\", \"curve_\"+i, bAuto, 
+                  ref+\"trend.standardTrend\", \"curveMax\", \"curve_\"+i, fMax, 
+                  ref+\"trend.standardTrend\", \"curveMin\", \"curve_\"+i, fMin,
+                  ref+\"trend.standardTrend\", \"curveLegendFormat\", \"curve_\"+i, sFormat);
+//    DebugN(sDpe, bAuto, fMin, fMax);
+    if(bAuto) {
+      fMin = 0;
+      fMax = 0;
+    }
+    sprintf(dsMin[i], sFormat, fMin);
+    dsMin[i] = strrtrim(strltrim(dsMin[i]));
+    sprintf(dsMax[i], sFormat, fMax);
+    dsMax[i] = strrtrim(strltrim(dsMax[i]));
+    dsMinMax[i]=dsMin[i]+fwTrending_AXIS_LIMITS_DIVIDER+dsMax[i];
+//    dsMin[i] = fMin;
+//    dsMax[i] = fMax;
+//    dsMinMax[i]=fMin+fwTrending_AXIS_LIMITS_DIVIDER+fMax;
+    
+//    DebugN(\"curve_\"+i, sFormat, dsMinMax[i], dsMin[i], dsMax[i]);
+  }
+  fwTrending_convertDynToString(dsMinMax, sMinMax, exceptionInfo);
+  fwTrending_convertDynToString(dsMin, sMin, exceptionInfo);
+  fwTrending_convertDynToString(dsMax, sMax, exceptionInfo);
+  dsPlotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE] = sMinMax;
+  dsPlotData[fwTrending_PLOT_OBJECT_RANGES_MIN] = sMin;
+  dsPlotData[fwTrending_PLOT_OBJECT_RANGES_MAX] = sMax;
+  getValue(ref+\"trend.standardTrend\", \"logarithmicTrend\", bAuto);
+  dsPlotData[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC] = bAuto;
+  setValue(ref+\"trend.trendInfo\", \"items\", dsPlotData);
+//DebugN(\"res\", dsTemp, dsMinMax, sMinMax, fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE, dsPlotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE] , dsPlotData);
+}
+//end 20/05/2008 & 19/09/2008: Herve
+
+
+fwTrendingControl_panel_autoScalePushed(bool state)
+{
+	int i;
+	string ref = $sRefName;
+	string trendRunning, currentParameterValues;
+	dyn_string plotShapes, plotData, minMaxRanges, minimums, maximums, exceptionInfo;
+	dyn_dyn_string plotObject;
+	
+//start 19/09/2008: Herve
+  fwTrendingTrendControl_panel_getAndSaveFromTrendWidget();
+//end 19/09/2008: Herve
+	fwTrending_getRuntimePlotDataWithStrings(ref, trendRunning, plotShapes, plotData, exceptionInfo, FALSE);
+	if(state)
+	{
+			setValue(ref+\"trend.storedMinimums\", \"text\", plotData[fwTrending_PLOT_OBJECT_RANGES_MIN]);
+			setValue(ref+\"trend.storedMaximums\", \"text\", plotData[fwTrending_PLOT_OBJECT_RANGES_MAX]);	
+	}
+	else
+	{
+			getValue(ref+\"trend.storedMinimums\", \"text\", plotData[fwTrending_PLOT_OBJECT_RANGES_MIN]);
+			getValue(ref+\"trend.storedMaximums\", \"text\", plotData[fwTrending_PLOT_OBJECT_RANGES_MAX]);
+	}
+
+	fwTrending_convertStringToDyn(plotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE], minMaxRanges, exceptionInfo);
+	fwTrending_convertStringToDyn(plotData[fwTrending_PLOT_OBJECT_RANGES_MIN], minimums, exceptionInfo);
+	fwTrending_convertStringToDyn(plotData[fwTrending_PLOT_OBJECT_RANGES_MAX], maximums, exceptionInfo);
+
+	for(i=1; i<=dynlen(minMaxRanges); i++)
+	{
+		if(state)
+		{
+			minMaxRanges[i] = \"0:0\";
+			minimums[i] = \"0\";
+			maximums[i] = \"0\";
+		}
+		else
+			minMaxRanges[i] = minimums[i] + \":\" + maximums[i];
+	}
+	
+	fwTrending_convertDynToString(minimums, plotData[fwTrending_PLOT_OBJECT_RANGES_MIN], exceptionInfo);
+	fwTrending_convertDynToString(maximums, plotData[fwTrending_PLOT_OBJECT_RANGES_MAX], exceptionInfo);
+	fwTrending_convertDynToString(minMaxRanges, plotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE], exceptionInfo);
+	fwTrending_setRuntimePlotDataWithStrings(ref, trendRunning, plotData, exceptionInfo, FALSE);
+
+	fwTrending_getRuntimePlotDataWithExtendedObject(ref, trendRunning, plotShapes, plotObject, exceptionInfo, FALSE);
+	getValue(ref+\"trend.parameterValues\", \"text\", currentParameterValues);
+	_fwTrending_preparePlotObjectForDisplay(plotObject, currentParameterValues, exceptionInfo);
+
+//start/end 19/09/2008: Herve		fwTrending_initTrendWithObject(ref, plotShapes[fwTrending_ACTIVE_TREND_NAME], plotShapes, plotObject, trendRunning, FALSE, exceptionInfo, TRUE);
+//start 19/09/2008: Herve
+        fwTrendingTrendControl_panel_setAutoscale(plotShapes[fwTrending_ACTIVE_TREND_NAME], state, 
+                                      plotObject[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE],
+                                      plotObject[fwTrending_PLOT_OBJECT_EXT_MIN_FOR_LOG][1],
+                                      plotObject[fwTrending_PLOT_OBJECT_EXT_MAX_PERCENTAGE_FOR_LOG][1],
+                                      plotObject[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1]);
+//end 19/09/2008: Herve 		
+	if(isFunctionDefined(\"unMessageText_sendException\"))
+		unMessageText_sendException(getSystemName(), myManNum(), \"trending\", \"user\", \"*\", exceptionInfo);
+
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);  
+}
+
+//start 19/09/2008: Herve
+fwTrendingTrendControl_panel_setAutoscale(string trendName, bool state, dyn_string dsCurveRange, 
+                              float minForLog, float maxPercentageForLog,
+                              string sIsLog)
+{
+  shape activeTrendShape = getShape(trendName);
+  int i;
+  string curveName;
+  bool bAutoScale=state;
+  float min, max;
+  dyn_string ranges;
+  bool bIsLog;
+  
+  if(sIsLog == \"TRUE\")
+    bIsLog = true;
+  for(i=1; i<=fwTrending_TRENDING_MAX_CURVE;i++)
+  {
+    curveName = \"curve_\"+i;
+      // set min/max
+    if(dsCurveRange[i] != \"\")
+    {
+      ranges = strsplit(dsCurveRange[i], \":\");
+      sscanf(ranges[1], \"%f\", min);
+      sscanf(ranges[2], \"%f\", max);
+      if(bIsLog) {
+        if(min <= 0)
+          min = minForLog;
+          max += max*maxPercentageForLog/100.0;
+      }
+      if(min >= max)
+        bAutoScale = TRUE;
+      else
+        bAutoScale = FALSE;
+    }
+    else
+      bAutoScale = TRUE;
+    activeTrendShape.curveAutoscale(curveName, state);
+    if(!bAutoScale)
+    {
+      activeTrendShape.curveMax(curveName, max);
+      activeTrendShape.curveMin(curveName, min);
+    }
+  }
+}
+//end 19/09/2008: Herve 		
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+13 29
+"xzoomin"
+""
+1 10 25 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+8 1 0 0 54 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,12,5,40,0,0,0,0,0
+0  8 23 82 47
+
+T 
+1
+LANG:1 7 xzoomin
+"main()
+{
+	string ref = $sRefName;
+	fwTrending_trendZoomX(ref, true);
+}" 0
+ E E E
+13 30
+"xzoomout"
+""
+1 10 45 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+9 1 0 0 52 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,12,5,40,0,0,0,0,0
+0  8 43 82 67
+
+T 
+1
+LANG:1 8 xzoomout
+"main()
+{
+	string ref = $sRefName;
+	fwTrending_trendZoomX(ref, false);
+}" 0
+ E E E
+13 31
+"yzoomin"
+""
+1 80 25 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+10 1 0 0 50 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,12,5,40,0,0,0,0,0
+0  78 23 152 47
+
+T 
+1
+LANG:1 7 yzoomin
+"main()
+{
+	string ref = $sRefName;
+	fwTrending_trendZoomY(ref, true);
+}" 0
+ E E E
+13 32
+"yzoomout"
+""
+1 80 45 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+11 1 0 0 56 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,12,5,40,0,0,0,0,0
+0  78 43 152 67
+
+T 
+1
+LANG:1 8 yzoomout
+"main()
+{
+	string ref = $sRefName;
+	fwTrending_trendZoomY(ref, false);
+}" 0
+ E E E
+13 22
+"StopButton"
+""
+1 7 -1 E E E 0 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  5 -3 50 16
+
+T 
+1
+LANG:1 6 Freeze
+"main() {
+	string buttonState = this.text;
+	string ref = $sRefName;
+	
+	if(buttonState == \"Run\") { // in stop->run
+		fwTrending_trendRun(ref, true, \"\");
+	} else { // in Run -> stop
+		fwTrending_trendRun(ref, false, \"\");
+	}
+}
+" 0
+ E E E
+26 23
+"TimeCascadeButton"
+""
+1 0 -0.571428571428571 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  -2 -4 91 20
+ 0 1
+LANG:1 10 Time Range
+"" 0 0 0 0 0
+ 9 1 1
+LANG:1 10 10 minutes
+"10minutes" 0 0 0 0 0
+ 1 1
+LANG:1 6 1 hour
+"1hour" 0 0 0 0 0
+ 1 1
+LANG:1 7 8 hours
+"8hours" 0 0 0 0 0
+ 1 1
+LANG:1 5 1 day
+"1day" 0 0 1 49 0
+ 1 1
+LANG:1 7 10 days
+"10days" 0 0 0 0 0
+ 1 1
+LANG:1 14 User specified
+"userSpec" 0 0 0 0 0
+ 1 1
+LANG:1 3 ___
+"new_sep" 0 0 0 0 0
+ 0 1
+LANG:1 4 Zoom
+"xzoom" 0 0 0 0 0
+ 2 1 1
+LANG:1 7 Zoom in
+"xzoomin" 1 0 0 54 0
+ 1 1
+LANG:1 8 Zoom out
+"xzoomout" 1 0 0 52 0
+ 1 1
+LANG:1 15 Jump to time...
+"jump" 0 0 0 0 0
+ E "main(string id) {
+	dyn_string ids = makeDynString(\"10minutes\", \"1hour\", \"8hours\", \"1day\", \"10days\", \"userSpec\", \"xzoomin\", \"xzoomout\");
+	dyn_string texts = makeDynString(\"10 minutes\", \"1 hour\", \"8 hours\", \"1 day\", \"10 days\", \"User Specified\");
+	string sTimeRange;
+	dyn_string ds; 
+	dyn_float df;
+	int d, h, m, t, midTime, startTime; 
+	string activeTrend, trendRunning;
+	string ref = $sRefName;
+	dyn_string trendShapeStr, plotData, exceptionInfo;
+	int tStart, tEnd;
+	
+	switch (id) 
+	{
+		case \"10minutes\": {
+			fwTrending_changeTrendTimeRange(ref, 600, \"\", \"  0 d  0 h 10 m\", 0, texts[1] + \"  *\");
+			break;	
+		}
+		case \"1hour\" : {
+			fwTrending_changeTrendTimeRange(ref, 3600, \"\", \"  0 d  1 h  0 m\", 1, texts[2] + \"  *\");
+			break;	
+		}
+		case \"8hours\" : {
+			fwTrending_changeTrendTimeRange(ref, 28800, \"\", \"  0 d  8 h  0 m\", 2, texts[3] + \"  *\");
+			break;	
+		}
+		case \"1day\" : {
+			fwTrending_changeTrendTimeRange(ref, 86400, \"\", \"  1 d  0 h  0 m\", 3, texts[4] + \"  *\");
+			break;	
+		}
+		case \"10days\" : {
+			fwTrending_changeTrendTimeRange(ref, 864000, \"\", \" 10 d  0 h  0 m\", 4, texts[5] + \"  *\");
+			break;	
+		}
+		case \"userSpec\" : {	
+			fwTrending_getRuntimePlotDataWithStrings(ref, trendRunning, trendShapeStr, plotData, exceptionInfo, FALSE);
+			sTimeRange = plotData[fwTrending_PLOT_OBJECT_TIME_RANGE];
+
+			sscanf(sTimeRange,\"%d\",t);
+			decodeTime(t, d, h, m);
+			ChildPanelOnCentralModalReturn(\"fwTrending/fwTrendingTimeSpec.pnl\", \"Specify a Time Range\",
+				makeDynString(\"$iDays:\"+d,\"$iHours:\"+h,\"$iMins:\"+m), df, ds);
+			if(dynlen(ds) > 0 && ds[1] == \"ok\") {
+				d = df[1]; h = df[2]; m = df[3];
+				//this.textItem(prev - 1, texts[prev] + \"  *\");
+				encodeTime(t, d, h, m);
+				decodeTime(t, d, h, m);
+				if(t > 0) {
+					sprintf(sTimeRange,\"%3d d %2d h %2d m\",d,h,m);
+
+					plotData[fwTrending_PLOT_OBJECT_TIME_RANGE] = t;
+					fwTrending_setRuntimePlotDataWithStrings(ref, trendRunning, plotData, exceptionInfo, FALSE);
+					fwTrending_changeTrendTimeRange(ref, t, \"\", sTimeRange, 5, texts[6] + \" (\" + d + \"d \" + h + \"h \" + m + \"m)  *\");
+				}
+			}
+			break;
+		}
+		case \"jump\" : {	
+			fwTrending_getRuntimePlotDataWithStrings(ref, trendRunning, trendShapeStr, plotData, exceptionInfo, FALSE);
+			sTimeRange = plotData[fwTrending_PLOT_OBJECT_TIME_RANGE];
+			getValue(trendShapeStr[fwTrending_ACTIVE_TREND_NAME], \"visibleTimeRange\", 0, tStart, tEnd);
+			midTime = tStart + (tEnd-tStart)/2;
+
+			sscanf(sTimeRange,\"%d\",t);
+			decodeTime(t, d, h, m);
+			ChildPanelOnCentralModalReturn(\"fwTrending/fwTrendingTimeJumpSpec.pnl\", \"Specify a Time Range to Display\",
+				makeDynString(\"$iDays:\"+d,\"$iHours:\"+h,\"$iMins:\"+m,\"$iMidTime:\" + midTime), df, ds);
+			if(dynlen(ds) > 0 && ds[1] == \"ok\") {
+				d = df[1]; h = df[2]; m = df[3]; midTime = df[4];
+				//this.textItem(prev - 1, texts[prev] + \"  *\");
+				encodeTime(t, d, h, m);
+				decodeTime(t, d, h, m);
+				startTime = midTime - (t/2);
+				if((startTime + t) > getCurrentTime())
+					startTime = getCurrentTime() - t;
+
+				if(t > 0) {
+					sprintf(sTimeRange,\"%3d d %2d h %2d m\",d,h,m);
+
+					plotData[fwTrending_PLOT_OBJECT_TIME_RANGE] = t;
+					fwTrending_setRuntimePlotDataWithStrings(ref, trendRunning, plotData, exceptionInfo, FALSE);
+					fwTrending_changeTrendTimeRange(ref, t, \"\", sTimeRange, 5, texts[6] + \" (\" + d + \"d \" + h + \"h \" + m + \"m)  *\");
+
+//start/end 20/05/2008: Herve					setValue(trendShapeStr[fwTrending_LOG_TREND_NAME], \"timeBegin\", startTime);
+					setValue(trendShapeStr[fwTrending_LINEAR_TREND_NAME], \"timeBegin\", startTime);
+				}
+			}
+			break;
+		}
+		case \"xzoomin\" : {
+			fwTrending_trendZoomX(ref, true);
+			break;	
+		}
+		case \"xzoomout\" : {
+			fwTrending_trendZoomX(ref, false);
+			break;	
+		}
+	}
+}
+
+encodeTime(int &t, int d, int h, int m)
+{
+	t = d * 86400 + h * 3600 + m * 60;
+}
+
+decodeTime(int t, int &d, int &h, int &m)
+{
+	d = t / 86400;
+	h = t % 86400 / 3600;
+	m = t % 3600 / 60;
+}
+" 0
+0 
+6 39
+"Border1"
+""
+1 341 11 E E E 1 E 0 E N "FwTrendingFaceplateBackground" E N "FwTrendingFaceplateBackground" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 25 -2 1 E 341 1 441 11
+2 34
+"curvesTimeRangeHidden"
+""
+1 10 65 E E E 1 E 0 E N {0,0,0} E N {255,255,255} E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 1 1 1 0 1 E U  1 E 12 67 152 83
+1 2 0 "0s" 0 0 0 64 0 0  12 67 1
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0 1
+LANG:1 24 hiddenUserCurveTimerange
+13 40
+"trendRefreshButton"
+""
+1 152 42 E E E 0 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 20 Refresh plotted data
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  150 40 176 64
+
+P 
+12434877
+"pictures/refresh.gif"
+1
+LANG:1 0 
+"main()
+{
+	string ref = $sRefName;
+
+	fwTrending_trendRefresh(ref);
+}
+" 0
+ E E E
+20 38
+"logCheckBox"
+""
+1 292 -1 E E E 0 E 1 E N "FwTrendingTrendForeground" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  290 -3 331 20
+1
+T 
+1
+LANG:1 4 log 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	int i;
+	string ref = $sRefName;
+	string temp, trendRunning, currentParameterValues;
+	dyn_string plotShapes, plotData, minMaxRanges, minimums, maximums, exceptionInfo;
+	dyn_dyn_string plotObject;
+  time iTimeBegin, iTimeEnd;
+	
+//start 19/09/2008: Herve
+  fwTrendingTrendControl_panel_getAndSaveFromTrendWidget();
+//end 19/09/2008: Herve
+	fwTrending_getRuntimePlotDataWithStrings(ref, trendRunning, plotShapes, plotData, exceptionInfo, FALSE);
+	if(state) {// show logTrend, hide standardTrend
+// disconnect all the curves of the standard trend
+//start/end 20/05/2008: Herve		temp = plotShapes[fwTrending_LOG_TREND_NAME];
+		temp = plotShapes[fwTrending_LINEAR_TREND_NAME];
+		getValue(plotShapes[fwTrending_LINEAR_TREND_NAME], \"visibleTimeRange\", 0, iTimeBegin, iTimeEnd);
+		plotObject[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1] = TRUE;
+	}
+	else { // hide log trend, show standardTrend
+// disconnect all the curves of the log trend
+		temp = plotShapes[fwTrending_LINEAR_TREND_NAME];
+//start/end 20/05/2008: Herve		getValue(plotShapes[fwTrending_LOG_TREND_NAME], \"visibleTimeRange\", 0, iTimeBegin, iTimeEnd);
+		getValue(plotShapes[fwTrending_LINEAR_TREND_NAME], \"visibleTimeRange\", 0, iTimeBegin, iTimeEnd);
+		plotObject[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1] = FALSE;
+	}
+        
+// set the active trend
+	plotShapes[fwTrending_ACTIVE_TREND_NAME] = temp;
+	setValue(ref+\"trend.activeTrendText\", \"text\", temp);
+	plotData[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC] = plotObject[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1];
+
+ fwTrending_setRuntimePlotDataWithStrings(ref, trendRunning, plotData, exceptionInfo, FALSE);
+
+	fwTrending_getRuntimePlotDataWithExtendedObject(ref, trendRunning, plotShapes, plotObject, exceptionInfo, FALSE);
+	getValue(ref+\"trend.parameterValues\", \"text\", currentParameterValues);
+	_fwTrending_preparePlotObjectForDisplay(plotObject, currentParameterValues, exceptionInfo);
+
+//start/end 19/09/2008: Herve	fwTrending_initTrendWithObject(ref, plotShapes[fwTrending_ACTIVE_TREND_NAME], plotShapes, plotObject, trendRunning, TRUE, exceptionInfo, TRUE);
+
+// show the active trend
+	fwTrending_showStandardTrend(!state, plotShapes[fwTrending_LINEAR_TREND_NAME], plotShapes[fwTrending_LOG_TREND_NAME],plotData);
+
+//set visible time range to what it was on the other trend
+	if(!trendRunning)
+	{
+		setValue(plotShapes[fwTrending_ACTIVE_TREND_NAME], \"timeBegin\", iTimeBegin);
+		setValue(plotShapes[fwTrending_ACTIVE_TREND_NAME], \"trendRefresh\");
+	}
+
+ if(isFunctionDefined(\"unMessageText_sendException\"))
+		unMessageText_sendException(getSystemName(), myManNum(), \"trending\", \"user\", \"*\", exceptionInfo);
+       
+ if(state)
+ {
+   autoScaleCheckBox.state(0,true);  
+   delay(0,300);
+   fwTrendingControl_panel_autoScalePushed(true);
+  }
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+}	
+
+" 0
+14 35
+"rigthArrow"
+""
+1 462 -1 E E E 1 E 0 E N "FwTrendingFaceplateForeground" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  462 -3 485 19
+2 "0s" 0 0 0 0 0 -1  E E E
+14 36
+"leftArrow"
+""
+1 364 -1 E E E 1 E 0 E N "FwTrendingFaceplateForeground" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  370 -3 393 19
+2 "0s" 0 0 0 0 0 -1  E E E
+14 37
+"curvesTimeRange"
+""
+1 380 2 E E E 1 E 0 E N "FwTrendingFaceplateForeground" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  390 -2 465 19
+2 "15s" 15 0 0 0 0 -1  E E E
+26 24
+"YAxiiCascadeButton"
+""
+1 139 472.000000000001 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  87 -4 155 20
+ 0 1
+LANG:1 6 Y Axes
+"" 0 0 0 0 0
+ 10 1 1
+LANG:1 7 Legend1
+"curve1" 0 0 0 0 0
+ 1 1
+LANG:1 7 Legend2
+"curve2" 0 0 0 0 0
+ 1 1
+LANG:1 7 Legend3
+"curve3" 0 0 0 0 0
+ 1 1
+LANG:1 7 Legend4
+"curve4" 0 0 0 0 0
+ 1 1
+LANG:1 7 Legend5
+"curve5" 0 0 0 0 0
+ 1 1
+LANG:1 7 Legend6
+"curve6" 0 0 0 0 0
+ 1 1
+LANG:1 7 Legend7
+"curve7" 0 0 0 0 0
+ 1 1
+LANG:1 7 Legend8
+"curve8" 0 0 0 0 0
+ 1 1
+LANG:1 3 ___
+"new_sep" 0 0 0 0 0
+ 0 1
+LANG:1 4 Zoom
+"yzoom" 0 0 0 0 0
+ 2 1 1
+LANG:1 7 Zoom in
+"yzoomin" 1 0 0 50 0
+ 1 1
+LANG:1 8 Zoom out
+"yzoomout" 1 0 0 56 0
+ E "main(string id) {
+	int i;
+	dyn_bool axii = makeDynBool(false, false, false, false, false, false, false, false);
+	string tempAxii, temp, trendRunning;
+	dyn_string split, splitDPE, splitLegend, plotShapes, plotData, exceptionInfo;
+	string ref = $sRefName, currentParameterValues;
+
+	getValue(ref+\"trend.parameterValues\", \"text\", currentParameterValues);
+	fwTrending_getRuntimePlotDataWithStrings(ref, trendRunning, plotShapes, plotData, exceptionInfo, FALSE);
+	_fwTrending_evaluateTemplate(currentParameterValues, plotData[fwTrending_PLOT_OBJECT_DPES], exceptionInfo);    
+	_fwTrending_evaluateTemplate(currentParameterValues, plotData[fwTrending_PLOT_OBJECT_LEGENDS], exceptionInfo);    
+	_fwTrending_evaluateTemplate(currentParameterValues, plotData[fwTrending_PLOT_OBJECT_EXT_TOOLTIPS], exceptionInfo);    
+
+// get the visibility state of the curve scale
+	split = strsplit(plotData[fwTrending_PLOT_OBJECT_AXII], \";\");
+	for(i=1;i<=8;i++) {
+		if(split[i] == \"TRUE\")
+			axii[i] = true;
+	}
+
+// get the shape of the list of DPE
+	splitDPE = strsplit(plotData[fwTrending_PLOT_OBJECT_DPES], \";\");		
+
+// get the shape of the list of legends
+	splitLegend = strsplit(plotData[fwTrending_PLOT_OBJECT_LEGENDS], \";\");		
+
+	switch(id) {
+		case \"curve1\":
+			axii[1] = !axii[1];
+			set_curveScaleVisibility(ref, axii, 1, splitDPE, splitLegend);
+			break;
+		case \"curve2\":
+			axii[2] = !axii[2];
+			set_curveScaleVisibility(ref, axii, 2, splitDPE, splitLegend);
+			break;
+		case \"curve3\":
+			axii[3] = !axii[3];
+			set_curveScaleVisibility(ref, axii, 3, splitDPE, splitLegend);
+			break;
+		case \"curve4\":
+			axii[4] = !axii[4];
+			set_curveScaleVisibility(ref, axii, 4, splitDPE, splitLegend);
+			break;
+		case \"curve5\":
+			axii[5] = !axii[5];
+			set_curveScaleVisibility(ref, axii, 5, splitDPE, splitLegend);
+			break;
+		case \"curve6\":
+			axii[6] = !axii[6];
+			set_curveScaleVisibility(ref, axii, 6, splitDPE, splitLegend);
+			break;
+		case \"curve7\":
+			axii[7] = !axii[7];
+			set_curveScaleVisibility(ref, axii, 7, splitDPE, splitLegend);
+			break;
+		case \"curve8\":
+			axii[8] = !axii[8];
+			set_curveScaleVisibility(ref, axii, 8, splitDPE, splitLegend);
+			break;
+		case \"yzoomin\":
+			fwTrending_trendZoomY(ref, true);
+			break;
+		case \"yzoomout\":
+			fwTrending_trendZoomY(ref, false);
+			break;
+	}
+}
+
+set_curveScaleVisibility(string ref, dyn_bool axii, int curveNumber, dyn_string dsDpe, dyn_string dsLegend)
+{
+	string activeTrend, trendRunning;
+	shape standardTrendShape, logTrendShape;
+	dyn_string plotShapes, plotData, exceptionInfo;
+	
+	fwTrending_getRuntimePlotDataWithStrings(ref, trendRunning, plotShapes, plotData, exceptionInfo, FALSE);
+
+// get the shape of the standard and log trend
+	standardTrendShape = getShape(plotShapes[fwTrending_LINEAR_TREND_NAME]);
+//start/end 20/05/2008: Herve	logTrendShape = getShape(plotShapes[fwTrending_LOG_TREND_NAME]);
+
+// set the text of the cascade button add * to the text if the scale is visible
+	if(axii[curveNumber])
+		this.textItem(curveNumber-1, (dsLegend[curveNumber] != \"\" ? dsLegend[curveNumber] : dsDpe[curveNumber]) + \"  *\");
+	else 
+		this.textItem(curveNumber-1, dsLegend[curveNumber] != \"\" ? dsLegend[curveNumber] : dsDpe[curveNumber]);
+
+// set the curve scale visibility of the log and standard trend
+	standardTrendShape.curveScaleVisibility(\"curve_\" + curveNumber, axii[curveNumber]);
+//start/end 20/05/2008: Herve	logTrendShape.curveScaleVisibility(\"curve_\" + curveNumber, axii[curveNumber]);
+// save the setting
+	plotData[fwTrending_PLOT_OBJECT_AXII] = axii[1]+\";\"+axii[2]+\";\"+axii[3]+\";\"+axii[4]+\";\"+axii[5]+\";\"+axii[6]+\";\"+axii[7]+\";\"+axii[8];
+
+	fwTrending_setRuntimePlotDataWithStrings(ref, trendRunning, plotData, exceptionInfo, FALSE);
+}" 0
+0 
+13 25
+"saveSettings"
+""
+1 131 -2 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 1 0 0 82 0
+E E E
+0
+1
+LANG:1 37 Save configuration to plot data point
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  151 -4 212 20
+
+T 
+1
+LANG:1 4 Save
+"main()
+{
+  string ref = $sRefName;
+
+  setValue(ref+\"trend.refreshTrend\", \"text\", \"FALSE\");
+  this.enabled = FALSE;
+  
+//start 20/05/2008 & 19/09/2008: Herve
+  fwTrendingTrendControl_panel_getAndSaveFromTrendWidget();
+//end 20/05/2008 & 19/09/2008: Herve
+
+  fwTrending_pageSavePlotSettings(ref);
+
+  delay(0,REFRESH_DELAY);
+  setValue(ref+\"trend.refreshTrend\", \"text\", \"TRUE\");
+  this.enabled = TRUE;
+}
+" 0
+ E E E
+13 27
+"resetTrendZoomButton"
+""
+1 259 -2 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 1 0 0 82 0
+E E E
+0
+1
+LANG:1 37 Reset zooming on Y axis and Time axis
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  265 -4 292 20
+
+T 
+1
+LANG:1 3 1:1
+"main()
+{
+	string ref = $sRefName;
+
+	fwTrending_trendUnzoom(ref);
+}" 0
+ E E E
+20 41
+"autoScaleCheckBox"
+""
+1 330 -2 E E E 0 E 1 E N "FwTrendingTrendForeground" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 56 Switch between predefined Y axis ranges and auto scaling
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  328 -3 375 20
+1
+T 
+1
+LANG:1 4 auto
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+  fwTrendingControl_panel_autoScalePushed(state);
+}
+
+" 0
+6 44
+"RECTANGLE1"
+""
+1 330 40 E E E 1 E 0 E N "_Transparent" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 2.736842105263158 0 0.9523809523809523 -903.1578947368421 -19.04761904761905 1 E 330 40 520 20
+26 45
+"OtherCascadeButton"
+""
+1 -71.7567567567568 9.5 E E E 0 E 1 E N "_3DText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  208 -4 269 20
+ 0 1
+LANG:1 5 Other
+"" 0 0 0 0 0
+ 13 1 1
+LANG:1 13 Zoomed Window
+"zoom" 0 0 0 0 0
+ 1 1
+LANG:1 21 Export plot to CSV...
+"export" 0 0 0 0 0
+ 1 1
+LANG:1 10 Print plot
+"print" 0 0 0 0 0
+ 1 1
+LANG:1 3 ___
+"new_sep1" 0 0 0 0 0
+ 1 1
+LANG:1 6 Legend
+"Legends" 0 0 0 0 0
+ 1 1
+LANG:1 8 Controls
+"Controls" 0 0 0 0 0
+ 1 1
+LANG:1 4 Grid
+"grid" 0 0 0 0 0
+ 1 1
+LANG:1 3 ___
+"new_sep2" 0 0 0 0 0
+ 1 1
+LANG:1 18 Plot configuration
+"Plot configuration" 0 0 0 0 0
+ 1 1
+LANG:1 24 Save plot settings as...
+"saveas" 0 0 0 0 0
+ 1 1
+LANG:1 3 ___
+"1" 0 0 0 0 0
+ 1 1
+LANG:1 13 Snapshot plot
+"snapshot" 0 0 0 0 0
+ 0 1
+LANG:1 13 Markers style
+"markersStyle" 0 0 0 0 0
+ 3 1 1
+LANG:1 13 Filled circle
+"markersFilled" 0 0 0 0 0
+ 1 1
+LANG:1 15 Unfilled circle
+"markersUnfilled" 0 0 0 0 0
+ 1 1
+LANG:1 4 None
+"markersNone" 0 0 0 0 0
+ E "bool controls = false;
+
+main(string id) {
+	string trendRunning;
+	bool grid, isLog, legend, isRunning, enabledState, isOk;
+	string minForLog;
+	string maxPercentageForLog;
+	dyn_bool axii = makeDynBool(false, false, false, false, false,false,false,false);
+	string tempAxii, temp;
+	dyn_float df;
+	dyn_string ds, split, dsParameters, split2;
+	string activeTrend, tempString, snapShotName;
+	string ref = $sRefName, currentParameterValues;
+	shape activeTrendShape, standardTrendShape, logTrendShape;
+	dyn_string dsTemp, tempColour, exceptionInfo;
+	dyn_string panelsList, plotShapes, plotData, modifiedPlotData, oldCurves, curvesVisible, parameters;
+	dyn_dyn_string extendedPlotData;
+	int i, length;
+  time tNow;
+  string sNow;
+
+	string sDpName, title, proposedName;
+	int currentTimeSettings;
+
+//	this.enabled(false);
+
+//start 19/09/2008: Herve
+  fwTrendingTrendControl_panel_getAndSaveFromTrendWidget();
+//end 19/09/2008: Herve
+				
+	fwTrending_getRuntimePlotDataWithStrings(ref, trendRunning, plotShapes, plotData, exceptionInfo, FALSE);
+// get the log and standard trend shape
+	activeTrendShape = getShape(plotShapes[fwTrending_ACTIVE_TREND_NAME]);
+	standardTrendShape = getShape(plotShapes[fwTrending_LINEAR_TREND_NAME]);
+//start/end 20/05/2008: Herve	logTrendShape = getShape(plotShapes[fwTrending_LOG_TREND_NAME]);
+
+// get minforlog and maxpercentageforlog
+	minForLog = plotData[fwTrending_PLOT_OBJECT_EXT_MIN_FOR_LOG];
+	maxPercentageForLog = plotData[fwTrending_PLOT_OBJECT_EXT_MAX_PERCENTAGE_FOR_LOG];
+	
+// get the active trend shape
+	activeTrendShape = getShape(plotShapes[fwTrending_ACTIVE_TREND_NAME]);
+	
+	switch(id) {
+		case \"print\" : 
+			printPanel(myModuleName(), myPanelName());
+			break;
+		case \"zoom\" : {
+// open the zoom window
+// get all the param and open the zoom window with the $param, the $sDpName and $sRefName are set to \"\" (only one plot)
+// get the list of DPE
+			dynAppend(dsParameters, \"$dsCurveDPE:\"+plotData[fwTrending_PLOT_OBJECT_DPES]);
+			dynAppend(dsParameters, \"$dsCurveLegend:\"+plotData[fwTrending_PLOT_OBJECT_LEGENDS]
+               +plotData[fwTrending_PLOT_OBJECT_LEGEND_VALUES_FORMAT]);
+// get the tooltiptext
+			dynAppend(dsParameters, \"$dsCurveToolTipText:\"+plotData[fwTrending_PLOT_OBJECT_EXT_TOOLTIPS]);
+
+// get the curves ranges, format min:max
+			dynAppend(dsParameters, \"$dsCurveRange:\"+plotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE]);
+
+// get the colors and font
+			dynAppend(dsParameters, \"$dsCurveColor:\"+plotData[fwTrending_PLOT_OBJECT_COLORS]);
+			dynAppend(dsParameters, \"$sForeColor:\"+plotData[fwTrending_PLOT_OBJECT_FORE_COLOR]
+                +fwTrending_CONTENT_DIVIDER+plotData[fwTrending_PLOT_OBJECT_DEFAULT_FONT]);
+			dynAppend(dsParameters, \"$sBackColor:\"+plotData[fwTrending_PLOT_OBJECT_BACK_COLOR]);
+
+// get the DPE unit
+			dynAppend(dsParameters, \"$dsUnit:\"+plotData[fwTrending_PLOT_OBJECT_EXT_UNITS]);
+
+// get the curve type
+			dynAppend(dsParameters, \"$dsCurvesType:\"+plotData[fwTrending_PLOT_OBJECT_CURVE_TYPES]);
+			
+// get the curve scale visibility state (items 1-8), its position (items 9-16), 
+// its link to (items 17-24), its format (items 25-32)
+			dynAppend(dsParameters, \"$dsCurveScaleVisible:\"
+                +plotData[fwTrending_PLOT_OBJECT_AXII]
+                +plotData[fwTrending_PLOT_OBJECT_AXII_POS]
+                +plotData[fwTrending_PLOT_OBJECT_AXII_LINK]
+                +plotData[fwTrending_PLOT_OBJECT_AXII_Y_FORMAT]);
+// get the curve visibility
+			dynAppend(dsParameters, \"$dsCurveVisible:\"
+                +plotData[fwTrending_PLOT_OBJECT_CURVES_HIDDEN]
+                +plotData[fwTrending_PLOT_OBJECT_ALARM_LIMITS_SHOW]);
+
+			dynAppend(dsParameters, \"$bShowGrid:\"+plotData[fwTrending_PLOT_OBJECT_GRID]);
+			dynAppend(dsParameters, \"$iMarkerType:\"+plotData[fwTrending_PLOT_OBJECT_MARKER_TYPE]
+                +fwTrending_CONTENT_DIVIDER+plotData[fwTrending_PLOT_OBJECT_CURVE_STYLE]);
+			dynAppend(dsParameters, \"$bShowLegend:\"+plotData[fwTrending_PLOT_OBJECT_LEGEND_ON]
+                +fwTrending_CONTENT_DIVIDER+plotData[fwTrending_PLOT_OBJECT_CONTROL_BAR_ON]);
+
+// get minforlog and maxpercentageforlog
+			dynAppend(dsParameters, \"$fMinForLog:\" + plotData[fwTrending_PLOT_OBJECT_EXT_MIN_FOR_LOG]);
+			dynAppend(dsParameters, \"$fMaxPercentageForLog:\" + plotData[fwTrending_PLOT_OBJECT_EXT_MAX_PERCENTAGE_FOR_LOG]);
+
+// $sRefName is set to \"\" because in the zoomed window there is only one plot and one caption
+			dynAppend(dsParameters, \"$sRefName:\");
+
+// $sDpName is set to \"\", no possibility to configure or save the trend settings
+			getValue(ref+\"trend.dpNameText\", \"text\", sDpName);
+			dynAppend(dsParameters, \"$sDpName:\");// + sDpName);
+
+// get if log trend or not
+			dynAppend(dsParameters, \"$bTrendLog:\"+plotData[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC]);
+
+// get the current time range (items 1-8), the time format (items 9-16)
+			dynAppend(dsParameters, \"$sTimeRange:\"+ plotData[fwTrending_PLOT_OBJECT_TIME_RANGE]
+                +fwTrending_CONTENT_DIVIDER+plotData[fwTrending_PLOT_OBJECT_AXII_X_FORMAT]);
+// get the zoom window title
+			strreplace(plotData[fwTrending_PLOT_OBJECT_TITLE], \"\\\\_\", \" \");
+			if(plotData[fwTrending_PLOT_OBJECT_TITLE]==\"\")
+			{ 
+				plotData[fwTrending_PLOT_OBJECT_TITLE] = \"Trend Zoom\";
+			}
+			dynAppend(dsParameters, \"$ZoomWindowTitle:\"+plotData[fwTrending_PLOT_OBJECT_TITLE]);
+
+			getValue(ref+\"trend.parameterValues\", \"text\", currentParameterValues);
+			dynAppend(dsParameters, \"$templateParameters:\"+currentParameterValues);
+//       DebugN(\"plotData from menu: \" +plotData);
+// open the zoomed window
+			ChildPanelOnCentral(\"fwTrending/fwTrendingZoomedWindow.pnl\", \"Zoomed Window: \" + plotData[fwTrending_PLOT_OBJECT_TITLE], 
+				dsParameters
+			);
+			break;
+		}
+		case \"export\": {
+			getValue(ref+\"trend.parameterValues\", \"text\", currentParameterValues);
+			fwTrending_pageExportTrend(makeDynString(ref), currentParameterValues);
+			break;
+		}
+		case \"Legends\":
+			tempString = plotData[fwTrending_PLOT_OBJECT_LEGEND_ON];
+			if((tempString == \"TRUE\") || (tempString == TRUE))
+				fwTrending_legendOnOff(ref, FALSE, \"\", exceptionInfo);
+			else
+				fwTrending_legendOnOff(ref, TRUE, \"\", exceptionInfo);
+// end 
+			break;
+		case \"grid\":
+			tempString = plotData[fwTrending_PLOT_OBJECT_GRID];
+			if((tempString == \"TRUE\") || (tempString == TRUE))
+				fwTrending_gridOnOff(ref, FALSE, \"\", exceptionInfo);
+			else
+				fwTrending_gridOnOff(ref, TRUE, \"\", exceptionInfo);
+			break;
+		case \"Controls\":
+			if(controls)	
+				this.textItem(5, \"Controls\");
+			else
+				this.textItem(5, \"Controls\" + \"  *\");
+			controls = !controls;
+// added by Herve 
+//			activeTrendShape.manageCommands(controls);
+			standardTrendShape.manageCommands(controls);
+//			logTrendShape.manageCommands(controls);
+// end 
+			//setValue(\"TrendRef.normalTrend\", \"manageCommands\", controls);
+			break;
+		case \"markersFilled\":
+				fwTrending_markersOnOff(ref, fwTrending_MARKER_TYPE_FILLED_CIRCLE, \"\", exceptionInfo);
+			break;
+		case \"markersUnfilled\":
+				fwTrending_markersOnOff(ref, fwTrending_MARKER_TYPE_UNFILLED_CIRCLE, \"\", exceptionInfo);
+			break;
+		case \"markersNone\":
+				fwTrending_markersOnOff(ref, fwTrending_MARKER_TYPE_NONE, \"\", exceptionInfo);
+			break;
+		case \"Plot configuration\":
+			getValue(ref+\"trend.dpNameText\", \"text\", sDpName);
+			fwTrending_convertStringToDyn(plotData[fwTrending_PLOT_OBJECT_CURVES_HIDDEN], curvesVisible, exceptionInfo); 
+			_fwTrending_switchCurvesHiddenVisible(curvesVisible, exceptionInfo);
+			fwTrending_convertDynToString(curvesVisible, plotData[fwTrending_PLOT_OBJECT_CURVES_HIDDEN], exceptionInfo); 
+			fwDevice_getDefaultConfigurationPanels(fwTrending_PLOT, panelsList, exceptionInfo);
+			ChildPanelOnModalReturn(panelsList[1] + \".pnl\",\"Plot Configuration\",
+				makeDynString(\"$Command:onlineedit\", \"$sDpName:\" + sDpName,
+											\"$dsPlotData:\" + plotData, \"$dsShowButtons:\" + makeDynString(\"ok\", \"cancel\")),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				modifiedPlotData = strsplit(ds[3], \"|\");
+				for(i=1; i<=fwTrending_SIZE_PLOT_OBJECT; i++)
+				{
+					modifiedPlotData[i] = strltrim(modifiedPlotData[i], \" \");
+					modifiedPlotData[i] = strrtrim(modifiedPlotData[i], \" \");
+				}
+
+				fwTrending_convertStringToDyn(modifiedPlotData[fwTrending_PLOT_OBJECT_CURVES_HIDDEN], curvesVisible, exceptionInfo); 
+				_fwTrending_switchCurvesHiddenVisible(curvesVisible, exceptionInfo);
+				fwTrending_convertDynToString(curvesVisible, modifiedPlotData[fwTrending_PLOT_OBJECT_CURVES_HIDDEN], exceptionInfo); 
+
+				setValue(ref+\"trend.trendInfo\", \"items\", modifiedPlotData);
+
+				fwTrending_getRuntimePlotDataWithExtendedObject(ref, trendRunning, plotShapes, extendedPlotData, exceptionInfo, FALSE);
+				activeTrendShape = getShape(plotShapes[fwTrending_ACTIVE_TREND_NAME]);
+
+				fwTrending_convertStringToDyn(plotData[fwTrending_PLOT_OBJECT_DPES], oldCurves, exceptionInfo); 
+				length = dynlen(oldCurves);
+				if(length > fwTrending_TRENDING_MAX_CURVE)
+					length = fwTrending_TRENDING_MAX_CURVE;
+
+				for(i=1; i<=length; i++)
+				{
+					if(oldCurves[i] != extendedPlotData[fwTrending_PLOT_OBJECT_DPES][i])
+					{
+						activeTrendShape.disconnectDirectly(\"curve_\" + i);
+						activeTrendShape.curveRemoveData(\"curve_\" + i, getCurrentTime());
+					}
+				}
+
+				if((extendedPlotData[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1] == \"TRUE\") || (extendedPlotData[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1] == TRUE))
+				{
+					isLog = TRUE;					
+					setValue(ref+\"trend.activeTrendText\", \"text\", plotShapes[fwTrending_LINEAR_TREND_NAME]);
+//start/end 20/05/2008: Herve					plotShapes[fwTrending_ACTIVE_TREND_NAME] = plotShapes[fwTrending_LOG_TREND_NAME];
+                                        plotShapes[fwTrending_ACTIVE_TREND_NAME] = plotShapes[fwTrending_LINEAR_TREND_NAME];
+				}
+				else
+				{
+					isLog = FALSE;
+					setValue(ref+\"trend.activeTrendText\", \"text\", plotShapes[fwTrending_LINEAR_TREND_NAME]);
+					plotShapes[fwTrending_ACTIVE_TREND_NAME] = plotShapes[fwTrending_LINEAR_TREND_NAME];
+				}
+														
+				getValue(ref+\"trend.parameterValues\", \"text\", currentParameterValues);
+				fwTrending_checkAndGetAllTemplateParameters(ref, extendedPlotData, fwTrending_PLOT, currentParameterValues, exceptionInfo, TRUE);
+				setValue(ref+\"trend.parameterValues\", \"text\", currentParameterValues);
+
+				_fwTrending_preparePlotObjectForDisplay(extendedPlotData, currentParameterValues, exceptionInfo);
+
+				getValue(\"saveSettings\", \"enabled\", enabledState);
+				fwTrending_initTrendWithObject(ref, plotShapes[fwTrending_ACTIVE_TREND_NAME], plotShapes, extendedPlotData, trendRunning, TRUE, exceptionInfo, TRUE);
+				fwTrending_showStandardTrend(!isLog, plotShapes[fwTrending_LINEAR_TREND_NAME], plotShapes[fwTrending_LOG_TREND_NAME], plotData);			
+				fwTrending_initControlTrendButtons(extendedPlotData[fwTrending_PLOT_OBJECT_TIME_RANGE][1], ref, sDpName, extendedPlotData[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1], false);
+      // connect to alarm handling for those dps showing the alarm limits on the trend   
+      _fwTrending_connectToAlarmHandling($sRefName,extendedPlotData);
+      setValue(\"saveSettings\", \"enabled\", enabledState);
+			}				
+			break;
+		case \"saveas\":
+			setValue(ref+\"trend.refreshTrend\", \"text\", \"FALSE\");
+			getValue(ref+\"trend.dpNameText\", \"text\", sDpName);
+			proposedName = dpGetAlias(sDpName + \".\");
+			if(proposedName == \"\")
+				proposedName = dpSubStr(sDpName, DPSUB_DP);
+			if(proposedName == \"\")
+				proposedName = plotData[fwTrending_PLOT_OBJECT_TITLE];
+
+			ChildPanelOnCentralReturn(\"fwTrending/fwTrendingSaveAsSelector.pnl\", \"Save plot settings as...\",
+																	makeDynString(\"$sDpType:\" + fwTrending_PLOT, \"$sProposedName:\" + proposedName), df, ds);
+			if(ds[1] == \"ok\")
+				fwTrending_saveCurrentSettings(ref, ds[2], fwTrending_PLOT, TRUE, TRUE, exceptionInfo, TRUE);		
+
+			delay(0,REFRESH_DELAY);
+			setValue(ref+\"trend.refreshTrend\", \"text\", \"TRUE\");
+			break;
+   case \"snapshot\":
+      // select the file
+      folderSelector(snapShotName);
+      if(snapShotName==\"\")
+        break;
+      tNow = getCurrentTime();
+      sNow = tNow;
+      strreplace(sNow,\":\",\".\");
+      strreplace(sNow,\" \",\".\");
+      activeTrendShape.imageToFile(snapShotName+\"/fwTrendingSnapshot-\"+sNow);
+      ChildPanelOnCentral(\"fwGeneral/fwMessageInfo1.pnl\", \"Save snapshot to file\",
+															makeDynString(\"$1:The snapshot was saved as\\n\"
+																								+ snapShotName+\"/fwTrendingSnapshot-\"+sNow));
+
+     break;
+	}
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+		
+//	this.enabled(true);
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+0 
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

@@ -1,0 +1,256 @@
+V 10
+1
+LANG:1 0 
+PANEL,328 170 716 575 N "_3DFace" 2
+"$1"
+"$2"
+"put_action(int n, string device, string state, string action, string label, string dutype)
+{
+	int ret, num;
+
+	num = n+1;
+	ret = addSymbol(myModuleName(),myPanelName(),
+		\"fwFSM/fsm/config_device_action.pnl\",
+		\"action\"+num, 
+		makeDynString(device,state,action,label, num, dutype),
+		20,50+n*90,0,0,1);
+}
+
+main()
+{
+	int i, j, index, k, found;
+	dyn_string state_list, action_list, actions;
+	string state, action, label;
+
+	fwFsm_createTmpDeviceType($1);
+	addGlobal(\"_GlobalActionsText\",DYN_DYN_STRING_VAR);
+	fwFsm_getLocalAllActions(action_list);
+	for(i = 1; i <= dynlen(action_list); i++)
+	{
+		_GlobalActionsText[i] = \"\";
+		if(i <= 5)
+			put_action(i-1, $1, state, action_list[i], label, $2);
+		else
+			setValue(\"More\",\"visible\",1);
+	}
+}
+
+" 0
+EE E E 1 -1 -1 0  50 80
+"" 0 1
+EE 2
+"CBRef""0"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 5
+"More"
+""
+1 10 490 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 492 341 508
+0 2 0 "s" 0 0 0 192 0 0  12 492
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 55 More Actions Exist... (Please use Edit Script directly)
+13 0
+"Button1"
+""
+1 608 528 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+0 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+608 528 698 558
+T 
+2
+LANG:1 5 Close
+LANG:0 9 Abbrechen
+"main()
+{
+	fwFsm_deleteTmpDeviceType();
+	PanelOff();
+}" 0
+ E E E
+13 1
+"komplex"
+""
+1 398 528 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+398 528 588 558
+T 
+2
+LANG:1 11 Edit Script
+LANG:0 23 Komplexe Parametrierung
+"main()
+{
+string devScript;
+//  ChildPanelOn(\"fwFSM/fsm/device_action_editor.pnl\",\"device_action_editor\",makeDynString($1),0,0);
+		fwFsm_getLocalActionScript(devScript);
+		scriptEditor(devScript);
+		fwFsm_setLocalActionScript(devScript);
+}
+" 0
+ E E E
+13 3
+"Button2"
+""
+1 187 528 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+188 528 378 558
+T 
+2
+LANG:1 29 Generate Script (from screen)
+LANG:0 2 OK
+"main()
+{
+	dyn_string action_text_in;
+	string text, aux;
+	int i, j, k, more, n, pos, index;
+	dyn_string state_list, action_list;
+	string state, action, typ, to_repl, value;
+	dyn_string items, item_types, pars;
+
+	fwFsm_getLocalAllActions(action_list);
+	getComponents(action_list);
+	fwFsm_getLocalActionComps(items, item_types);
+	text = $2+\"_doCommand(string domain, string device, string command)\\n{\\n\"; 
+	index = 0;
+	for(i = 1; i <= dynlen(action_list); i++)
+	{
+		index++;
+		action = action_list[i];
+		action_text_in = _GlobalActionsText[index];
+//		if(dynlen(action_text_in))
+//		{
+			text += \"\\tif (command == \\\"\"+action+\"\\\")\\n\\t{\\n\"; 
+			for(k = 1 ; k <= dynlen(action_text_in); k++)
+			{
+				pos = strpos(action_text_in[k],\" \");
+				if(dpExists(substr(action_text_in[k],0,pos)))
+				{
+					to_repl = \"\\\"\"+substr(action_text_in[k],0,pos);
+				}
+				else
+				{
+					to_repl = \"device+\\\".\"+substr(action_text_in[k],0,pos);
+				}
+/*
+				if(strpos(action_text_in[k],\".\") < 0)
+					to_repl = \"device+\\\".\"+substr(action_text_in[k],0,pos);
+				else
+					to_repl = \"\\\"\"+substr(action_text_in[k],0,pos);
+*/
+				value = substr(action_text_in[k],pos+1);				
+				if(strpos(value,\"Par(\") == 0 )
+				{
+					pars = strsplit(value,\"()\");
+					text += \"\\t\\tanytype valueOf_\"+pars[2]+\";\\n\";
+        	text += \"\\t\\tfwDU_getCommandParameter(domain, device, \\\"\"+pars[2]+\"\\\", valueOf_\"+pars[2]+\");\\n\"; 
+					value = \"valueOf_\"+pars[2];
+				}
+				text += \"\\t\\tdpSet(\"+to_repl+\"\\\",\"+
+					value+\");\\n\";
+			}
+			text += \"\\t}\\n\";
+//		}
+	}
+   	text += \"}\\n\\n\";
+	fwFsm_setLocalActionScript(text);
+}
+
+getComponents(dyn_string action_list)
+{
+	int i, j, visible, max;
+	string name, type;
+	dyn_string comps, types;
+
+  max = dynlen(action_list);
+  if(max > 5)
+  	max = 5;
+	for(i = 1; i <= max; i++)
+	{
+		for(j = 1; j <= 3; j++)
+		{
+			getValue(\"action\"+i+\".item\"+j,\"text\",name);
+			getValue(\"action\"+i+\".item\"+j,\"visible\",visible);
+			getValue(\"action\"+i+\".type\"+j,\"text\",type);
+			if((name != \"\") && (visible))
+			{
+				dynAppend(comps, name);
+				dynAppend(types, type);
+			}
+			else
+				break;
+		}
+	}
+	fwFsm_setLocalActionComps(comps, types);
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

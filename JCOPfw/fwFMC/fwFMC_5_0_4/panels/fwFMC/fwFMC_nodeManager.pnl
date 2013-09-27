@@ -1,0 +1,842 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 376 597 N "_3DFace" 1
+"$sDpName"
+"
+main()
+{
+  node = fwFMC_getNodeName($sDpName);
+     
+  refreshPanel();
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwFMC/fwFMC.ctl\"
+#uses \"fwFMC/fwFMCIpmi.ctl\"
+#uses \"fwFMC/fwFMCMonitoring.ctl\"
+#uses \"fwFMC/fwFMCTaskManager.ctl\"
+#uses \"fwFMC/fwFMCLogger.ctl\"
+#uses \"fwFMC/fwFMCProcess.ctl\"
+        
+string node;
+
+refreshPanel()
+{
+  //IPMI
+  if(fwFMCIpmi_exists(node))
+  {
+    cbIpmi.state(0) = true;
+    showIpmi(true);
+  }
+  else{
+    cbIpmi.state(0) = false;  
+    showIpmi(false);
+  }
+  
+  //Host Monitoring
+  if(fwFMCMonitoring_exists(node))
+    cbEnableMonitoring.state(0) = true;
+  else
+    cbEnableMonitoring.state(0) = false;  
+  
+  //Process Monitoring
+  if(fwFMCProcess_exists(node))
+  {
+    rbOs.enabled = true;
+    string procsController;
+    dpGet(fwFMC_getNodeDp(node) + \".winProcsController\", procsController);
+    if(procsController != \"\")
+    {
+      txPsServer.enabled = true;
+      txPsServer.text = procsController;
+      rbOs.number(1);
+    }
+    else
+    {
+      txPsServer.enabled = false;
+      txPsServer.text = \"\";
+      rbOs.number(0);
+    }
+    cbEnableProcessMonitoring.state(0) = true;
+    
+  }
+  else
+  {
+    rbOs.enabled = false;
+    cbEnableProcessMonitoring.state(0) = false;  
+  }
+  //Task Manager and Logger:
+  if(fwFMCTaskManager_exists(node))
+    cbEnableTaskManager.state(0) = true;
+  else
+    cbEnableTaskManager.state(0) = false;
+  
+  if(fwFMCLogger_exists(node))
+    cbEnableLogger.state(0) = true;
+  else
+    cbEnableLogger.state(0) = false;
+  
+  
+}
+
+showIpmi(bool val)
+{
+  tfIpmiName.visible = val;
+  txIpmiName.visible = val;
+  tfIpmiMaster.visible = val;
+  txIpmiMaster.visible = val;
+  
+  if(val)
+  {
+    tfIpmiName.text = strtoupper(fwFMCIpmi_getDeviceName(node));
+    tfIpmiMaster.text = strtoupper(fwFMCIpmi_getMasterNode(node));
+  }
+}
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 1
+"btnIpmiAdd"
+""
+1 190 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  188 558 276 590
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  string ipmiName;
+  string ipmiMasterNode;
+  dyn_string ds;
+  dyn_float df;
+  int level;
+  dyn_int monitoringOptions; 
+  bool win = false;
+  
+  openProgressBar(\"Setting up node\", \"copy.gif\", \"Setting up the node\", \"Setting up IPMI...\", \"Please wait...\", 2);
+
+//IPMI:
+  if(cbIpmi.state(0) && fwFMCIpmi_exists(node))  
+  {
+    //DebugN(\"IPMI exists, setting name\");
+    fwFMCIpmi_setDeviceName(node, tfIpmiName.text);
+  }
+  
+  if(cbIpmi.state(0) && !fwFMCIpmi_exists(node))  
+  {
+  
+    ipmiName = strtoupper(tfIpmiName.text);
+    ipmiMasterNode = strtoupper(tfIpmiMaster.text);
+    
+    tfIpmiName.text = ipmiName;
+    tfIpmiMaster.text = ipmiMasterNode;
+      
+    if(ipmiName == \"\")
+    {
+      ChildPanelOnCentralModal(\"vision/messageInfo1\", \"ERROR\", makeDynString(\"$1:You must enter a valid IPMI device name\"));
+      return;
+    }
+    
+    if(ipmiMasterNode == \"\")
+    {
+      ChildPanelOnCentralModal(\"vision/messageInfo1\", \"ERROR\", makeDynString(\"$1:You must enter a valid IPMI master node\"));
+      return;
+    }
+  
+    if(fwFMCIpmi_add(node, ipmiName, ipmiMasterNode) != 0)
+    {
+      ChildPanelOnCentralModal(\"vision/messageInfo1\", \"ERROR\", makeDynString(\"$1:Could not add IPMI to node: \" + node));
+    }
+  }
+  
+  
+  if(!cbIpmi.state(0) && fwFMCIpmi_exists(node))
+  {
+    ChildPanelOnCentralReturn(\"vision/MessageInfo\", \"Question\", makeDynString(\"$1:Are you sure you want to remove the IPMI\\nfunctionality from this node\", \"$2:Yes\", \"$3:No\"), df, ds);
+    if(dynlen(df) && df[1] >= 1.)
+    {
+      if(fwFMCIpmi_remove(node) != 0)
+      {
+        ChildPanelOnCentralModal(\"vision/MessageInfo\", \"ERROR\", makeDynString(\"$1:Could not remove IPMI functionality from node: \" + node));
+      }
+    }
+  }
+//End of IPMI
+  
+//Host Monitoring  
+  showProgressBar(\"\", \"Setting up node monitoring. \", \"Please wait...\", 50.);
+  
+  if(cbEnableMonitoring.state(0))  
+  {
+    level = rbLevel.number();
+    
+    if(fwFMCMonitoring_add(node, level) != 0)
+    {
+      ChildPanelOnCentralModal(\"vision/messageInfo1\", \"ERROR\", makeDynString(\"$1:Could not add Host Monitoring to node: \" + node));
+    }
+  }
+  
+  if(!cbEnableMonitoring.state(0) && fwFMCMonitoring_exists(node))
+  {
+    ChildPanelOnCentralReturn(\"vision/MessageInfo\", \"Question\", makeDynString(\"$1:Are you sure you want to remove the Host Monitoring\\nfunctionality from this node\", \"$2:Yes\", \"$3:No\"), df, ds);
+    if(dynlen(df) && df[1] >= 1.)
+    {
+      if(fwFMCMonitoring_remove(node) != 0)
+      {
+        ChildPanelOnCentralModal(\"vision/MessageInfo\", \"ERROR\", makeDynString(\"$1:Could not remove Host Monitoring functionality from node: \" + node));
+      }
+    }
+  }
+
+//Process Monitoring  
+  showProgressBar(\"\", \"Setting up process monitoring. \", \"Please wait...\", 80.);
+  
+  if(cbEnableProcessMonitoring.state(0))  
+  {
+    string psServer = txPsServer.text;
+    if(rbOs.number() == 1)
+    {
+      DebugN(\"Configuring process monitoring for a Windows PC: \" + node, rbOs.number());
+      dpSet(fwFMC_getNodeDp(node) + \".winProcsController\", psServer);
+      win = true;
+    }
+    
+    if(dpExists(\"_fwFMCProcesses.server_info.name\"))
+      dpSet(\"_fwFMCProcesses.server_info.name\", psServer);
+    
+      
+    if(fwFMCProcess_add(node, win) != 0)
+    {
+      ChildPanelOnCentralModal(\"vision/messageInfo1\", \"ERROR\", makeDynString(\"$1:Could not add Process Monitoring to node: \" + node));
+    }
+  }
+  
+  if(!cbEnableProcessMonitoring.state(0) && fwFMCProcess_exists(node))
+  {
+    ChildPanelOnCentralReturn(\"vision/MessageInfo\", \"Question\", makeDynString(\"$1:Are you sure you want to remove the Process Monitoring\\nfunctionality from this node\", \"$2:Yes\", \"$3:No\"), df, ds);
+    if(dynlen(df) && df[1] >= 1.)
+    {
+      if(fwFMCProcess_remove(node) != 0)
+      {
+        ChildPanelOnCentralModal(\"vision/MessageInfo\", \"ERROR\", makeDynString(\"$1:Could not remove Process Monitoring functionality from node: \" + node));
+      }
+    }
+  }
+  
+  //Task Manager  
+  showProgressBar(\"\", \"Setting up node task manager. \", \"Please wait...\", 70.);
+  
+  if(cbEnableTaskManager.state(0))  
+  {
+    if(fwFMCTaskManager_add(node) != 0)
+    {
+      ChildPanelOnCentralModal(\"vision/messageInfo1\", \"ERROR\", makeDynString(\"$1:Could not add Task Manager to node: \" + node));
+    }
+  }
+  
+  if(!cbEnableTaskManager.state(0) && fwFMCTaskManager_exists(node))
+  {
+    ChildPanelOnCentralReturn(\"vision/MessageInfo\", \"Question\", makeDynString(\"$1:Are you sure you want to remove the Task Manager\\nfunctionality from this node\", \"$2:Yes\", \"$3:No\"), df, ds);
+    if(dynlen(df) && df[1] >= 1.)
+    {
+      if(fwFMCTaskManager_remove(node) != 0)
+      {
+        ChildPanelOnCentralModal(\"vision/MessageInfo\", \"ERROR\", makeDynString(\"$1:Could not remove Task Manager functionality from node: \" + node));
+      }
+    }
+  }
+
+  //Logger
+  showProgressBar(\"\", \"Setting up node logger. \", \"Please wait...\", 90.);
+  
+  if(cbEnableLogger.state(0))  
+  {
+    if(fwFMCLogger_add(node) != 0)
+    {
+      ChildPanelOnCentralModal(\"vision/messageInfo1\", \"ERROR\", makeDynString(\"$1:Could not add Logger to node: \" + node));
+    }
+  }
+  
+  if(!cbEnableLogger.state(0) && fwFMCLogger_exists(node))
+  {
+    ChildPanelOnCentralReturn(\"vision/MessageInfo\", \"Question\", makeDynString(\"$1:Are you sure you want to remove the Logger\\nfunctionality from this node\", \"$2:Yes\", \"$3:No\"), df, ds);
+    if(dynlen(df) && df[1] >= 1.)
+    {
+      if(fwFMCLogger_remove(node) != 0)
+      {
+        ChildPanelOnCentralModal(\"vision/MessageInfo\", \"ERROR\", makeDynString(\"$1:Could not remove Logger functionality from node: \" + node));
+      }
+    }
+  }
+  
+  closeProgressBar();      
+  
+  refreshPanel();
+
+}
+
+
+
+
+" 0
+ E E E
+13 3
+"PUSH_BUTTON3"
+""
+1 284 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  282 558 370 590
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+20 4
+"cbIpmi"
+""
+1 20 28 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 26 116 68
+1
+T 
+1
+LANG:1 11 Enable IPMI
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+    showIpmi(state);
+}" 0
+14 7
+"tfIpmiName"
+""
+1 198 38 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  196 36 336 57
+3 "0s" 0 0 0 0 0 -1  E E E
+2 9
+"txIpmiName"
+""
+1 156 106 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 132 40 188 54
+0 2 2 "0s" 0 0 0 192 0 0  132 40 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 IPMI Name:
+30 10
+"FRAME1"
+""
+1 10 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+16 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.743801652892562 0 0.960396039603961 2.56198347107438 0.514851485148513 0 E 10 13 495 115
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 4 IPMI
+20 11
+"cbEnableMonitoring"
+""
+1 20 135 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 133 132 175
+1
+T 
+1
+LANG:1 17 Enable Monitoring
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+    
+}" 0
+30 14
+"FRAME2"
+""
+1 10 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+24 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.743801652892562 0 1.08910891089109 2.56198347107438 105.841584158416 0 E 10 13 495 115
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Host Monitoring
+19 17
+"rbLevel"
+""
+1 150 160 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  148 158 232 202
+2
+T 
+1
+LANG:1 8 Standard
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 8 Advanced
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+30 18
+"frLevel"
+""
+1 210 133 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+29 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.83333333333333 0 1.40350877192983 -244.999999999999 -46.6666666666672 0 E 210 133 331 191
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Monitoring Level
+20 19
+"cbEnableTaskManager"
+""
+1 30 460 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  28 458 262 500
+1
+T 
+1
+LANG:1 19 Enable Task Manager
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+}" 0
+30 20
+"FRAME3"
+""
+1 10 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+33 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.743801652892562 0 1.08910891089109 2.56198347107438 425.8415841584159 0 E 10 13 495 115
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 23 Task Manager and Logger
+20 21
+"cbEnableLogger"
+""
+1 30 490 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  28 488 262 530
+1
+T 
+1
+LANG:1 13 Enable Logger
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+}" 0
+14 22
+"tfIpmiMaster"
+""
+1 196 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  194 68 334 89
+3 "0s" 0 0 0 0 0 -1  E E E
+2 23
+"txIpmiMaster"
+""
+1 156 138 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 132 72 192 86
+0 2 2 "0s" 0 0 0 192 0 0  132 72 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 12 IPMI Master:
+30 24
+"FRAME4"
+""
+1 10 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+41 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.743801652892562 0 1.88118811881188 2.56198347107438 215.544554455445 0 E 10 13 495 115
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Process Monitoring
+20 25
+"cbEnableProcessMonitoring"
+""
+1 20 260 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 258 132 300
+1
+T 
+1
+LANG:1 17 Enable Monitoring
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+      rbOs.enabled = state;
+}" 0
+2 30
+"PRIMITIVE_TEXT1"
+""
+1 -358 610.04314112 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 0.98 -130 85.40000000000001 1 E 162 302 392 322
+0 2 2 "0s" 0 0 0 64 0 0  162 302 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Process Server:
+14 31
+"txPsServer"
+""
+1 112 381.36 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  110 379 234 400
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  string psServer;
+
+  dyn_string dps = fwFMCProcess_getServerDps();
+  if(dynlen(dps))
+  {
+    dpGet(dps[1] + \"server_info.name\", psServer);
+    this.text = psServer;
+  }
+}" 0
+ E
+30 32
+"FRAME5"
+""
+1 210 133 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+56 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 2.74999999999999 0 1.20350877192983 -557.499999999998 189.933333333333 0 E 210 133 331 191
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 35 Windows Process Monitoring Settings
+13 33
+"btApplyServer"
+""
+1 250 379.4 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  248 377 302 401
+
+T 
+1
+LANG:1 5 Apply
+E E "main()
+{
+  string psServer = txPsServer.text;
+  
+  if(psServer == \"\")
+    return;
+  
+  fwFMCProcess_createServer(psServer);
+  
+}" 0
+ E
+19 34
+"rbOs"
+""
+1 20 300 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 298 222 342
+2
+T 
+1
+LANG:1 24 This is a Linux Computer
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 26 This is a Windows Computer
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  txPsServer.enabled = button;
+  btApplyServer.enabled = button;  
+}" 0
+
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

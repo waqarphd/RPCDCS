@@ -1,0 +1,37 @@
+#define _SCHEMA_VERSION_ 3.02
+----------------------------------------------------------------------------
+--
+-- This file is a part of the JCOP Framework Configuration Database Tool
+--  schema version _SCHEMA_VERSION_
+--
+-- it is to be used by this tool, and it is NOT guaranteed to work with
+-- other tools (such as sqplus), even though it may work.
+--
+-- Note te following assumptions in the format of this SQL file
+-- (not following this rules causes the "dummy" parser of ConfDB fail)
+-- *) each command needs to be ended by semicolon followed by an empty
+--   newline. There must be no characters after the semicolon!
+-- *) PL/SQL block needs to be ended by double semicolon followed by
+--    an empty line 
+--
+-- CERN EN/ICE-SCD
+----------------------------------------------------------------------------
+
+-- check if the schema alrady exists
+declare
+ num number;
+ schemaVersion char(5);
+begin
+    SELECT count(*) into num from USER_VIEWS where VIEW_NAME='V_CONFDB';
+    if num>0 then
+	-- query what is the version; not to break the function, we use dynamic SQL
+	execute immediate 'select SCHEMA_VERSION from V_CONFDB' into schemaVersion;
+	RAISE_APPLICATION_ERROR(-20000,'fwConfigurationDB schema already exists, version: '||schemaVersion);
+    end if;       
+end;
+/
+
+#include "fwConfigurationDB_CREATETABLES.SQL"
+#include "fwConfigurationDB_PLSQLAPI.SQL"
+#include "fwConfigurationDB_GRANTS_AND_ROLES.SQL"
+#include "fwConfigurationDB_SCHEMAVERSION.SQL"

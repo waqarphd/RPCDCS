@@ -1,0 +1,473 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 400 178 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  string dp = $sDpName;
+  int refresh = 5;
+  string node = fwFMC_getNodeName($sDpName);
+  string systemName = dpSubStr($sDpName, DPSUB_SYS);
+  string name, distribution, kernel, machine, release, lastBootUpTime, localDateTime;
+  dyn_string devices, deviceDps;
+  string modelName;
+  string speed;
+    
+  frHost.text = \"Host: \" + node + \" \";
+  if(!dpExists(fwFMCMonitoring_getDp(node, systemName)))
+    return;
+  
+  if(dpTypeName($sDpName) == \"FwFMCNode\")
+    dp = $sDpName + \"/Monitoring/Cpus\";
+  else if(dpTypeName($sDpName) == \"FwFMCMonitoring\")
+    dp = $sDpName + \"/Cpus\";
+  else
+    dp = $sDpName;
+
+  txMemory.text = \"N/A\";
+  if(dpExists($sDpName + \"/Monitoring/Memory.\"))
+  {
+    int memory;
+    dpGet($sDpName + \"/Monitoring/Memory.readings.total\", memory);
+    txMemory.text = memory;
+  }
+    
+  
+  
+  while(1)
+  {
+    if(dpExists($sDpName + \"/Monitoring/Memory.\"))
+    {
+      int memory;
+      dpGet($sDpName + \"/Monitoring/Memory.readings.total\", memory);
+      txMemory.text = memory;
+    }
+    
+    dynClear(deviceDps);
+    dynClear(devices);
+        
+    fwFMCMonitoring_getDevices(fwFMC_getNodeName(dp), \"cpu\", devices, systemName);
+
+    for(int i = 1; i <= dynlen(devices); i++)
+    {
+      if(devices[i] == \"-1\")
+        continue;
+
+      dynAppend(deviceDps, dp + \"/\" + devices[i]);
+    }
+    if(dynlen(devices) > 0 && devices[1] != -1)
+    {
+      dpGet(deviceDps[1] + \".info.model_name\", modelName,
+            deviceDps[1] + \".info.clock\", speed);
+    }
+    txCpu.text = modelName;
+    txCurrentCpuSpeed.text = speed;
+    
+    dpGet(fwFMCMonitoring_getDp(node, systemName) + \".OS.readings.name\", name,
+          fwFMCMonitoring_getDp(node, systemName) + \".OS.readings.distribution\", distribution,
+//          fwFMCMonitoring_getDp(node, systemName) + \".OS.readings.kernel\", kernel,
+//          fwFMCMonitoring_getDp(node, systemName) + \".OS.readings.machine\", machine,
+//          fwFMCMonitoring_getDp(node, systemName) + \".OS.readings.release\", release,
+          fwFMCMonitoring_getDp(node, systemName) + \".OS.readings.lastBootUpTime\", lastBootUpTime,
+          fwFMCMonitoring_getDp(node, systemName) + \".OS.readings.localDateTime\", localDateTime);
+    if(name != \"-1\")
+      txName.text = name;
+
+    string str = strtoupper(distribution);
+//     if(patternMatch(\"*WINDOWS*\", str))
+//     {
+//       txKernel.visible = false;
+//       txKernelLabel.visible = false;
+//       txMachine.visible = false;
+//       txMachineLabel.visible = false;
+//       txRelease.visible = false;
+//       txReleaseLabel.visible = false;
+//     }    
+     txDistribution.text = distribution;
+//    txKernel.text = kernel;
+//    txMachine.text = machine;
+    txBoot.text = lastBootUpTime;
+    txLocalTime.text = localDateTime;
+    
+    delay(5);
+  }    
+}
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E E 2
+"CBRef" "1"
+"EClose" "main()
+{
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 13
+"txDistribution"
+""
+1 122 52 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 122 52 123 66
+0 2 2 "0s" 0 0 0 192 0 0  122 52 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 9
+"txName"
+""
+1 1067.253409602087 231 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.961783439490446 0 1 74.9108280254777 12 1 E 50 20 51 34
+0 2 2 "0s" 0 0 0 192 0 0  50 20 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 2
+"PRIMITIVE_TEXT9"
+""
+1 22 52 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 52 80 66
+0 2 2 "0s" 0 0 0 192 0 0  22 52 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Distribution:
+2 1
+"PRIMITIVE_TEXT8"
+""
+1 22 32 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 32 113 46
+0 2 2 "0s" 0 0 0 192 0 0  22 32 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Operating System:
+2 14
+"txBoot"
+""
+1 122 136 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 122 136 123 150
+0 2 2 "0s" 0 0 0 192 0 0  122 136 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 15
+"PRIMITIVE_TEXT15"
+""
+1 22 136 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 136 108 150
+0 2 2 "0s" 0 0 0 192 0 0  22 136 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Last BootUp Time:
+2 16
+"txLocalTime"
+""
+1 280 136 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 280 136 281 150
+0 2 2 "0s" 0 0 0 192 0 0  280 136 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 17
+"PRIMITIVE_TEXT17"
+""
+1 212 136 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 212 136 265 150
+0 2 2 "0s" 0 0 0 192 0 0  212 136 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Node Time:
+2 22
+"txCpu"
+""
+1 122 72 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 122 72 123 86
+0 2 2 "0s" 0 0 0 192 0 0  122 72 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 23
+"PRIMITIVE_TEXT23"
+""
+1 22 72 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 72 46 86
+0 2 2 "0s" 0 0 0 192 0 0  22 72 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 CPU:
+2 24
+"txCurrentCpuSpeed"
+""
+1 122 94 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 122 94 123 108
+0 2 2 "0s" 0 0 0 192 0 0  122 94 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 25
+"PRIMITIVE_TEXT25"
+""
+1 22 94 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 94 81 108
+0 2 2 "0s" 0 0 0 192 0 0  22 94 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 CPU Speed:
+2 26
+"PRIMITIVE_TEXT26"
+""
+1 180 90 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 180 90 202 104
+0 2 2 "0s" 0 0 0 192 0 0  180 90 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 MHz
+2 27
+"txMemory"
+""
+1 122 115 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 122 115 123 129
+0 2 2 "0s" 0 0 0 192 0 0  122 115 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 28
+"PRIMITIVE_TEXT28"
+""
+1 22 115 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 115 90 129
+0 2 2 "0s" 0 0 0 192 0 0  22 115 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Total Memory:
+2 29
+"PRIMITIVE_TEXT29"
+""
+1 182 113 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 182 113 197 127
+0 2 2 "0s" 0 0 0 192 0 0  182 113 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 kiB
+30 30
+"frHost"
+""
+1 10 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+41 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.151515151515152 0 1.000000000000001 -1.515151515151516 -1.443289932012704e-15 0 E 10 13 341 171
+1
+LANG:1 26 Arial,10,-1,5,75,1,0,0,0,0
+0 1
+LANG:1 4 Host
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

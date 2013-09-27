@@ -1,0 +1,719 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 713 393 N "_3DFace" 0
+"main()
+{
+  if(dpExists(\"fwInstallation_fwAccessControl\"))
+  {
+    dyn_string exceptionInfo;
+    //Access control callback function
+    fwAccessControl_setupPanel(\"appyAccessControl\",exceptionInfo);
+  }	
+  initSoTrees();
+  update();
+}" 0
+ E E E E 1 -1 -1 0  30 60
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverviewReport.ctl\"
+#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+
+void initSoTrees()
+{
+  dyn_string soTrees;
+  fwSystemOverviewFsm_getTrees(soTrees);  
+  cmbTrees.items = soTrees;
+}
+void update()
+{
+  dyn_int types;
+  dyn_string applications = fwCU_getChildren(types, cmbTrees.selectedText());
+  slApps.items = applications;
+  slApps.selectedPos = 1;
+  changeSelectedApp();
+}
+
+setRecipients()
+{
+  string dp = getDp();
+  dyn_string recipients = slRecipients.items;
+  string sRecipients = recipients;
+  if(dynlen(recipients) <= 0)
+  {
+    sRecipients = \"\";
+  }
+  else
+  {
+    strreplace(sRecipients, \" | \", \";\");
+  }
+  dpSet(dp + \".recipients\", sRecipients);
+  string description =  myPanelName() + \": Changing report recipients. Application:\" + slApps.selectedText + \" Recipients: \" + sRecipients;
+  fwConfigurationDBSystemInformation_logAction(description);
+}
+
+string getDp()
+{
+  return \"fwSystemOverviewEmail_\" + slApps.selectedText;  
+}
+void changeSelectedApp()
+{
+  string application = slApps.selectedText;
+  string dp = getDp();
+  if(!dpExists(dp))
+  {
+    dpCreate(dp, \"_FwSystemOverviewEmail\");
+    while(!dpExists(dp))
+      delay(0,100);
+    
+    dpSet(dp + \".application\", application);
+  }
+  
+  string recipients;
+  dpGet(dp + \".recipients\", recipients);
+  dyn_string ds = strsplit(recipients, \";\");
+  slRecipients.items(ds);
+  applyAppAccessControl(application);
+}    
+
+applyAppAccessControl(string application)
+{
+  string domain;
+  dyn_string exceptionInfo;
+  bool granted = FALSE;
+  fwSysOverview_getACDomain(domain, \"\", application);
+
+  if(domain != \"\")
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, granted, exceptionInfo);
+    
+    if (dynlen(exceptionInfo)) {
+     fwAccessControl_displayException(exceptionInfo); return;
+    } 
+  }
+  else
+    granted = true;
+  
+  btnTest.enabled = granted;
+  btnAdd.enabled = granted;
+  btnDelete.enabled = granted;
+  btnDeleteAll.enabled = granted;
+}
+
+appyAccessControl(string s1, string s2)
+{
+  string domain;
+  dyn_string exceptionInfo;
+  bool granted = FALSE;
+  fwSysOverview_getACDomain(domain);
+
+  if(domain != \"\")
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(1);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, granted, exceptionInfo);
+    
+    if (dynlen(exceptionInfo)) {
+     fwAccessControl_displayException(exceptionInfo); return;
+    } 
+  }
+  else
+    granted = true;
+  
+  cbCerateDailyFiles.enabled = granted;
+  cbEnableLongTermReports.enabled = granted;
+  cbSendDailyReportsByMail.enabled = granted;
+  cbSendReportGenerated.enabled = granted;  
+  
+}
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+  if (btClose.enabled)
+    PanelOff();
+  
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+17 0
+"slApps"
+""
+1 12 100 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  10 98 234 382
+0
+
+E
+"main()
+{
+  changeSelectedApp();
+}
+
+
+
+
+
+" 0
+
+E
+
+0 0
+17 1
+"slRecipients"
+""
+1 330 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  328 68 662 232
+0
+
+E
+E
+E
+
+0 0
+14 2
+"tfNewRecipient"
+""
+1 410 240 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  408 238 662 262
+3 "0s" 0 0 0 0 0 -1  E E E
+2 3
+"PRIMITIVE_TEXT1"
+""
+1 12 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 12 80 72 94
+0 2 2 "0s" 0 0 0 192 0 0  12 80 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Applications
+2 4
+"PRIMITIVE_TEXT2"
+""
+1 330 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 330 50 412 64
+0 2 2 "0s" 0 0 0 192 0 0  330 50 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Report recipients
+2 5
+"PRIMITIVE_TEXT3"
+""
+1 332 242 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 332 242 399 256
+0 2 2 "0s" 0 0 0 192 0 0  332 242 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 New recipient
+13 6
+"btnAdd"
+""
+1 670 230 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  668 228 702 262
+
+P 
+4294967295
+"pictures/append.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  dyn_string recipients = slRecipients.items;
+  dynAppend(recipients, tfNewRecipient.text);
+  slRecipients.items = recipients;
+  string description = myPanelName() + \": Recipients: \" + tfNewRecipient.text + \" added for application: \" + slApps.selectedText();
+  fwConfigurationDBSystemInformation_logAction(description);
+
+  setRecipients();
+}
+
+
+" 0
+ E E E
+13 7
+"btnDelete"
+""
+1 670 190 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  668 188 702 222
+
+P 
+4294967295
+"pictures/del_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+E E "main()
+{
+  int pos = slRecipients.selectedPos;
+  string description = myPanelName() + \": Recipient: \" +slRecipients.selectedText()+\" deleted for application: \" + slApps.selectedText();
+  fwConfigurationDBSystemInformation_logAction(description);
+
+  slRecipients.deletePos(pos);
+  setRecipients();
+}
+
+
+
+" 0
+ E
+13 8
+"btnDeleteAll"
+""
+1 670 150 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  668 148 702 182
+
+P 
+4294967295
+"pictures/delAll_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  slRecipients.deleteAllItems();
+  string description = myPanelName() + \": All recipients deleted for application: \" + slApps.selectedText();
+  fwConfigurationDBSystemInformation_logAction(description);
+  setRecipients();
+}
+" 0
+ E E E
+13 9
+"btClose"
+""
+1 610 350 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 13 Close a panel
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  608 348 702 382
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+    PanelOff();
+}
+
+" 0
+ E E "main()
+{   
+}
+" 0
+
+13 10
+"btnTest"
+""
+1 510 350 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 13 Close a panel
+
+0
+2
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+LANG:5 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  508 348 602 382
+
+T 
+1
+LANG:1 4 Test
+"main()
+{
+  this.enabled = false;
+  btClose.enabled = false;
+  sendEmail();
+  this.enabled = true;
+  btClose.enabled = true;  
+}
+
+
+sendEmail()
+{
+  string application = slApps.selectedText;
+  if (application != \"\")
+  {
+    string recipient;
+    getValue(\"slRecipients\", \"selectedText\", recipient);
+    int result = fwSysOverviewReport_emailApplicationReport(application, recipient);
+    if (result == 0)
+    {
+      string dp = getDp();
+      dpSet(dp + \".lastSentDate\", getCurrentTime());
+    }
+  }
+  
+}
+" 0
+ E E E
+2 11
+"PRIMITIVE_TEXT19"
+""
+1 12 52 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 12 52 34 66
+0 2 2 "0s" 0 0 0 192 0 0  12 52 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 Tree
+22 12
+"cmbTrees"
+""
+1 52 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  50 48 233 71
+0
+
+E
+"main()
+{
+  update();
+}" 0
+
+E
+ 0 0
+20 13
+"cbEnableLongTermReports"
+""
+1 560 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  558 8 702 42
+1
+T 
+1
+LANG:1 24 Enable long-term reports
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+"main()
+{
+  bool state;
+  dpGet(\"fwSystemOverviewReportsConfig.longTerm.enabled\", state);
+  this.state(0) = state;
+}" 0
+"main(int button, int state)
+{
+  string description = myPanelName() + \": \";
+  if (state)
+  {
+    dyn_float df;
+    dyn_string ds;
+    bool enabled = false;
+    ChildPanelOnCentralReturn(\"fwSystemOverview/fwSystemOverview_reportsConnectionSetup.pnl\", \"DB Connection Setup\",makeDynString(\"\"), df, ds); 
+    if (dynlen(ds) > 0 && ds[1] == \"OK\")
+    {
+      enabled = true;
+      dpSet(\"fwSystemOverviewReportsConfig.longTerm.enabled\", enabled);
+    }
+    this.state(button, enabled);
+    description +=\"Long term reports enabled!\";
+  }
+  else
+  {
+    dpSet(\"fwSystemOverviewReportsConfig.longTerm.enabled\", false);
+    description +=\"Long term reports disabled!\";    
+    this.state(button, false);
+  }
+  fwConfigurationDBSystemInformation_logAction(description);
+}
+
+" 0
+20 14
+"cbCerateDailyFiles"
+""
+1 180 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  178 8 329 42
+1
+T 
+1
+LANG:1 26 Create daily reports files
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+"main()
+{
+  bool state;
+  dpGet(\"fwSystemOverviewReportsConfig.daily.createFile\", state);
+  this.state(0) = state;
+}" 0
+"main(int button, int state)
+{
+  string description = myPanelName() + \": Create daily report html files: \" + state;
+  fwConfigurationDBSystemInformation_logAction(description);
+  dpSet(\"fwSystemOverviewReportsConfig.daily.createFile\", state);
+}
+
+" 0
+20 15
+"cbSendDailyReportsByMail"
+""
+1 10 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  8 8 172 42
+1
+T 
+1
+LANG:1 26 Send daily reports by mail
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+"main()
+{
+  bool state;
+  dpGet(\"fwSystemOverviewReportsConfig.daily.sendMail\", state);
+  this.state(0) = state;
+}" 0
+"main(int button, int state)
+{
+  string description = myPanelName() + \": Sending daily reports by mail: \" + state;
+  fwConfigurationDBSystemInformation_logAction(description);
+  dpSet(\"fwSystemOverviewReportsConfig.daily.sendMail\", state);
+}
+
+" 0
+20 16
+"cbSendReportGenerated"
+""
+1 330 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  328 8 552 42
+1
+T 
+1
+LANG:1 42 Send notification that report is generated
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+"main()
+{
+  bool state;
+  dpGet(\"fwSystemOverviewReportsConfig.daily.sendGenerationNotification\", state);
+  this.state(0) = state;
+}" 0
+"main(int button, int state)
+{
+  string description = myPanelName() + \": Send reminder by mail that report is generated: \" + state;
+  fwConfigurationDBSystemInformation_logAction(description);
+  dpSet(\"fwSystemOverviewReportsConfig.daily.sendGenerationNotification\", state);
+}
+
+" 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

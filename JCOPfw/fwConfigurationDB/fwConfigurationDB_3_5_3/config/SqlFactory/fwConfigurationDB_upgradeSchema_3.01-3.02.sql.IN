@@ -1,0 +1,247 @@
+#ifndef _SCHEMA_VERSION_
+#define  _SCHEMA_VERSION_ 3.02
+#endif
+
+--#--include "fwConfigurationDB_SCHEMACHECK.SQL"
+
+
+declare 
+ type table_varchar is table of varchar2(1024);
+ type table_errnum is table of number;
+ stmts table_varchar;
+ stmt varchar2(1024);
+ errStmts table_varchar:=table_varchar();
+ errMsgs table_varchar:=table_varchar();
+ num number;
+procedure throwErrorMessages IS
+ nErr number;
+ errMsg varchar2(4000);
+BEGIN
+ nErr:=errStmts.COUNT;
+ if (nErr=0) then return; end if;
+ errMsg:='Errors ('||nErr||'):';
+ for i in 1 .. nErr loop
+   errMsg:=errMsg||chr(10)||i||'#';
+   errMsg:=errMsg||errMsgs(i)||' @ '||errStmts(i);
+ end loop;
+ RAISE_APPLICATION_ERROR(-20000,errMsg);
+END;
+procedure executeStatements(statements in table_varchar,
+			    ignoredErrors in table_errnum,
+			    raiseException in boolean default true) IS
+nErr number;
+BEGIN
+for i in 1 .. statements.count loop
+    stmt:=statements(i);
+    begin
+      execute immediate stmt;
+    exception      
+      when others then 
+	if SQLCODE member of ignoredErrors then null; 
+	else 
+		errStmts.EXTEND;
+		errMsgs.extend;
+		nErr:=errStmts.COUNT;
+		errStmts(nErr):=stmt;
+		errMsgs(nErr):=SQLERRM;
+		
+		if raiseException then throwErrorMessages;
+		
+		end if;
+	end if;
+     end;
+  end loop;
+END;
+
+begin
+
+
+executeStatements(
+  table_varchar(
+
+    'alter table old_config_item_properties rename constraint config_itemprops_fk_citem_id to old_config_iprop_fk_citem_id',
+    'alter table old_config_item_properties rename constraint config_itemprops_fk_develem_id to old_config_iprop_fk_develem_id',
+    'alter table old_config_item_properties rename constraint config_itemprops_nn_citemid to old_config_iprop_nn_citem_id',
+    'alter table old_config_item_properties rename constraint config_itemprops_nn_develid to old_config_iprop_nn_develem_id',
+    'alter table old_config_items rename constraint config_items_fk_dpt_id to old_config_items_fk_dpt_id',
+    'alter table old_config_items rename constraint config_items_fk_item_id to old_config_items_fk_item_id',
+    'alter table old_config_items rename constraint config_items_nn_dpt_id to old_config_items_nn_dpt_id',
+    'alter table old_config_items rename constraint config_items_nn_item_id to old_config_items_nn_item_id',
+    'alter table old_config_items rename constraint config_items_pk to old_config_items_pk',
+    'alter table old_config_tags rename constraint config_tags_fk_citem_id to old_config_tags_fk_citem_id',
+    'alter table old_config_tags rename constraint config_tags_fk_conf_id to old_config_tags_fk_conf_id',
+    'alter table old_config_tags rename constraint config_tags_nn_citem_id to old_config_tags_nn_citem_id',
+    'alter table old_config_tags rename constraint config_tags_nn_conf_id to old_config_tags_nn_conf_id',
+    'alter table old_config_tags rename constraint config_tags_nn_valid_from to old_config_tags_nn_valid_from',
+    'alter table old_config_tags rename constraint config_tags_uk to old_config_tags_uk',
+    'alter index config_items_pk rename to old_config_items_pk',
+    'alter index config_tags_uk rename to old_config_tags_uk'
+
+  ),
+  table_errnum(-942, -- ignore table does not exist
+	       -2264,  -- ignore constraint already exist
+	       -1418,  -- ignore index does not exist
+	       -2443  -- ignore cannot drop non-existing constraint
+	    ) ,true);
+
+
+select count(*) into num 
+    from user_indexes 
+    where INDEX_NAME='CONFIG_ITEMPROPS_PK' AND table_name = 'OLD_CONFIG_ITEM_PROPERTIES' AND TABLE_OWNER=USER;
+
+if (num >0) then
+    execute immediate 'alter table old_config_item_properties rename constraint config_itemprops_pk to old_config_iprop_pk';
+    execute immediate 'alter index config_itemprops_pk rename to old_config_iprop_pk';
+end if;
+
+executeStatements(
+  table_varchar(
+
+    'alter index config_items_pk rename to old_config_items_pk',
+    'alter index config_tags_uk rename to old_config_tags_uk',
+----------------
+    'alter table references drop constraint references_nn_id',
+    'alter table references modify id constraint references_nn_id not null enable',
+
+    'alter table references drop constraint references_nn_ref_id',
+    'alter table references modify ref_id constraint references_nn_ref_id not null enable',
+
+    'alter table references drop constraint references_nn_refver',
+    'alter table references modify refver constraint references_nn_refver not null enable',
+
+    'alter table config_addresses drop constraint config_addresses_nn_iprop_id',
+    'alter table config_addresses modify iprop_id constraint config_addresses_nn_iprop_id not null enable',
+
+    'alter table config_alerts drop constraint config_alerts_nn_ipropid',
+    'alter table config_alerts modify iprop_id constraint config_alerts_nn_iprop_id not null enable',
+
+    'alter table config_alerts_misc drop constraint config_alerts_misc_nn_iprop_id',
+    'alter table config_alerts_misc modify iprop_id constraint config_alerts_misc_nn_iprop_id not null enable',
+
+    'alter table config_dpealerts drop constraint config_dpealerts_nn_iprop_id',
+    'alter table config_dpealerts modify iprop_id constraint config_dpealerts_nn_iprop_id not null enable',
+
+
+
+    'alter table config_archiving drop constraint config_archiving_nn_ipropid',
+    'alter table config_archiving modify iprop_id constraint config_archiving_nn_iprop_id not null enable',
+
+    'alter table config_conversions drop constraint config_conversions_nn_ipropid',
+    'alter table config_conversions modify iprop_id constraint config_conversions_nn_iprop_id not null enable',
+
+    'alter table config_dpfunctions drop constraint config_dpfunctions_nn_ipropid',
+    'alter table config_dpfunctions modify iprop_id constraint config_dpfunctions_nn_iprop_id not null enable',
+
+
+    'alter table config_general drop constraint config_general_nn_iprop_id',
+    'alter table config_general modify iprop_id constraint config_general_nn_iprop_id not null enable',
+
+    'alter table config_general drop constraint config_general_nn_num',
+    'alter table config_general modify num  constraint config_general_nn_num not null enable',
+
+    'alter table config_general drop constraint config_general_nn_what',
+    'alter table config_general modify what constraint config_general_nn_what not null enable',
+
+
+    'alter table config_pvranges drop constraint config_pvranges_nn_ipropid',
+    'alter table config_pvranges modify iprop_id constraint config_pvranges_nn_iprop_id not null enable',
+
+    'alter table config_smoothing drop constraint config_smoothing_nn_ipropid',
+    'alter table config_smoothing modify iprop_id constraint config_smoothing_nn_iprop_id not null enable',
+
+    'alter table config_sumalerts drop constraint config_sumalerts_nn_ipropid',
+    'alter table config_sumalerts modify iprop_id constraint config_sumalerts_nn_iprop_id not null enable',
+
+    'alter table config_uf drop constraint config_uf_nn_ipropid',
+    'alter table config_uf modify iprop_id constraint config_uf_nn_iprop_id not null enable',
+
+
+    'alter table items drop constraint items_nn_name',
+    'alter table items modify name constraint items_nn_name not null enable',
+
+    'alter table items drop constraint items_nn_type',
+    'alter table items modify type constraint items_nn_type not null enable',
+
+    'alter table items drop constraint items_nn_id',
+
+    'alter table config_desc drop constraint config_desc_nn_conf_id',
+    'alter table config_desc drop constraint config_desc_nn_conf_tag',
+    'alter table config_desc modify conf_tag  constraint config_desc_nn_conf_tag not null',
+
+    'alter table config_itemprops drop constraint config_itemprops_nn_citemid',
+    'alter table config_itemprops drop constraint config_itemprops_nn_develid',
+    'alter table config_itemprops drop constraint config_itemprops_nn_ipropid',
+    'alter table config_itemprops modify develem_id constraint config_itemprops_nn_develem_id not null',
+    'alter table config_itemprops modify citem_id   constraint config_itemprops_nn_citem_id not null',
+    'alter index config_itemprops_citem rename to config_itemprops_citem_id',
+
+-- we need to add the following
+    'alter table config_itemprops rename constraint config_itemprops_iprop to config_itemprops_pk',
+    'alter index config_itemprops_iprop rename to config_itemprops_pk',
+    'alter table config_itemprops rename constraint config_itemprops_fk_citemid to config_itemprops_fk_citem_id',
+    'ALTER TABLE config_itemprops ADD CONSTRAINT config_itemprops_fk_develem_id FOREIGN KEY (develem_id) REFERENCES device_elements(develem_id) ON DELETE CASCADE enable',
+-------------
+
+    'alter table config_items_new rename constraint config_itemsnew_pk  to config_items_new_pk',
+    'alter table config_items_new drop constraint config_itemsnew_nn_citemid',
+    'alter table config_items_new drop constraint config_itemsnew_nn_citem_id',
+    'alter table config_items_new modify dpt_id constraint config_items_new_nn_dpt_id not null',
+    'alter table config_items_new modify item_id constraint config_items_new_nn_item_id not null',
+    'alter table config_items_new modify valid_from constraint config_items_new_nn_valid_from not null',
+    'alter index config_itemsnew_pk rename to config_items_new_pk',
+    'alter index config_itemsnew_idx1 rename to config_items_new_idx1',
+
+    'alter table device_elements drop constraint device_elements_nn_develem_id',
+    'alter table device_elements drop constraint device_elements_nn_dpt_id',
+    'alter table device_elements drop constraint device_elements_nn_elementname',
+    'alter table device_elements drop constraint device_elements_nn_elementtype',
+    'alter table device_elements modify elementname constraint device_elements_nn_elementname not null',
+    'alter table device_elements modify elementtype constraint device_elements_nn_elementtype not null',
+    'alter table device_elements modify dpt_id      constraint device_elements_nn_dpt_id not null',
+
+    'alter table device_types drop constraint device_types_nn_dpt_id',
+    'alter table device_types drop constraint device_types_nn_dptype',
+    'alter table device_types modify dptype constraint device_types_nn_dptype not null',
+
+    'alter table hierarchies drop constraint hierarchies_nn_hver',
+    'alter table hierarchies modify htype constraint hierarchies_nn_htype not null',
+
+    'alter table recipe_data rename constraint recipe_datad_fk_id to recipe_data_fk_id',
+    'alter table recipe_data drop constraint recipe_data_nn_propid',
+    'alter table recipe_data drop constraint recipe_data_nn_id',
+    'alter table recipe_data modify id constraint recipe_data_nn_id not null',
+    'alter table recipe_data drop constraint recipe_data_nn_rver',
+    'alter table recipe_data modify rver constraint recipe_data_nn_rver not null',
+
+    'alter table recipes drop constraint recipes_nn_tagid',
+    'alter table recipes drop constraint recipes_nn_name',
+    'alter table recipes modify name constraint recipes_nn_name not null',
+
+    'alter table recipe_tags drop constraint recipe_tags_nn_tagid',
+    'alter table recipe_tags modify tagid constraint recipe_tags_nn_tagid not null',
+    'alter table recipe_tags drop constraint recipe_tags_nn_propid',
+    'alter table recipe_tags modify propid constraint recipe_tags_nn_propid not null',
+    'alter table recipe_tags modify valid_from constraint recipe_tags_nn_valid_from not null',
+
+    'alter index "config_valuesbig_iprop" rename to config_valuesbig_iprop',
+    'alter index "config_values_iprop" rename to config_values_iprop'
+
+  ),
+  table_errnum(-1442,  -- column already declared NOT NULL
+	       -2275,  -- such referential constraint already exists
+	       -1418,  -- ignore index does not exist
+	       -2443,  -- ignore cannot drop non-existing constraint
+	       -23292  -- constraint does not exist
+	    ) ,true);
+
+
+end;
+/
+
+#include "fwConfigurationDB_PLSQLAPI.SQL"
+
+#include "fwConfigurationDB_SCHEMAVERSION.SQL"
+
+commit;
+
+

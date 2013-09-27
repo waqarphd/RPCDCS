@@ -1,0 +1,449 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 350 145 N "_3DFace" 2
+"$computer"
+"$project"
+"main()
+{
+/*  
+  string tagId = $id;
+  string computerId = treeEditor.parent(tagId);
+  
+  computer = treeEditor.getText(computerId, FW_INST_TAG_COL);
+  project = treeEditor.getText(tagId, FW_INST_TAG_COL);
+*/
+  computer = $computer;
+  project =  $project;
+  
+  if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+  {
+    //Access Control:
+    dyn_string ex;
+    fwAccessControl_setupPanel(\"applyAgentAcCB\", ex);
+    if(dynlen(ex))
+      fwExceptionHandling_display(ex);
+  }
+  
+  while(1)
+  {
+    update();
+    delay(10);
+  }
+}
+
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  10 13
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+    
+string project;
+string computer;
+
+void applyAgentAcCB(string s1, string s2)
+ {
+   // at first, disable whatever was enabled to this moment
+  disableAllInAgentPanel();
+  
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  {
+    string domain;
+    string projectDp;
+    fwSysOverview_getProjectDp(computer, project, projectDp, exceptionInfo);
+    if (projectDp == 0 || dynlen(exceptionInfo) > 0 || !dpExists(projectDp))
+    {
+      fwSysOverview_getACDomain(domain);   
+    }
+    else
+      fwSysOverview_getACDomain(domain, projectDp);
+  
+    if(domain == \"\") //AC not yet configured. Enable access 
+    {
+      hasExpertPrivilege = true;
+    }
+    else
+    {
+      string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+      // check the current  privilege level 
+      if (expertPrivilege == \"\")
+      {
+        DebugN(\"No expert privilege defined!\");
+        return;
+      }
+      fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+    
+  
+      // check and handle exceptions that might have been thrown by the function above
+      if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+    }
+  }
+  else
+    hasExpertPrivilege = true;
+  
+  // enable UI elements, depending on the access rights:
+  if (hasExpertPrivilege)
+  {
+    btRestartAgent.enabled = true;
+    btStop.enabled = true;
+    btConfigure.enabled = true;
+  }
+}
+
+void disableAllInAgentPanel()
+{
+    btRestartAgent.enabled = false;
+    btStop.enabled = false;
+    btConfigure.enabled = false;
+}
+
+update()
+{
+//  string project, computer;
+  dyn_mixed projectInfo;
+  int id;
+  string color = \"green\";
+  string status = \"RUNNING\";
+
+  fwInstallationDB_getProjectProperties(project, computer, projectInfo, id);
+
+  //Check that the agent has updated the fields in the DB during the last 5 mins:
+  string str = projectInfo[FW_INSTALLATION_DB_PROJECT_LAST_CHECK];
+  string ts = substr(str, 5, strlen(str)- 12);;
+  
+  int st = projectInfo[FW_INSTALLATION_DB_PROJECT_TOOL_STATUS];
+  if(!st)
+  {
+    color = \"red\";
+    status = \"ERROR\";
+  }
+  else if(!patternMatch(\"*.*\", str)) //not a proper time.
+  {
+    color = \"red\";
+    status = \"STOPPED\\n(\" + ts + \")\";
+  }
+  else
+  {
+    dyn_string ds = strsplit(str, \" \");
+    dyn_string ds1 = strsplit(ds[1], \".\");
+    dyn_string ds2 = strsplit(ds[2], \":\");
+        
+    time t1 = makeTime(ds1[1], ds1[2], ds1[3], ds2[1], ds2[2], ds2[3]);
+    time t0 = getCurrentTime();
+    
+    if(period(t0 - t1) > 360 || str == \"\")
+    {
+      color = \"red\";
+      status = \"STOPPED\\n(\" + ts + \")\";
+    }
+  }
+    
+  shStatus.backCol = color;
+  txAgentStatus.text = status;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 4
+"txAgentStatus"
+""
+1 73 29 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 73 29 119 44
+0 2 2 "0s" 0 0 0 192 0 0  73 29 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Unknown
+13 6
+"btRestartAgent"
+""
+1 243.8095238095238 0 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  148 18 206 52
+
+T 
+1
+LANG:1 7 Restart
+"
+main()
+{
+  dyn_string ds;
+  dyn_string df;
+  dyn_mixed projectInfo;
+  int projectId;
+  
+  fwInstallationDB_getProjectProperties(project, computer, projectInfo, projectId);
+  int port = projectInfo[FW_INSTALLATION_DB_PROJECT_PMON_PORT];
+  string user = projectInfo[FW_INSTALLATION_DB_PROJECT_PMON_USER], pwd = projectInfo[FW_INSTALLATION_DB_PROJECT_PMON_PWD];
+
+  if(user == \"N/A\")
+    user = \"\";
+  
+  if(pwd == \"N/A\")
+    pwd = \"\";
+  
+  ChildPanelOnCentralReturn(\"fwInstallation/fwInstallationDB_question.pnl\", \"Warning\", makeDynString(\"$txt:Are you sure you want to restart the remote DB-Agent\"), df, ds);
+  if(df[1] != 1.)
+    return;
+  openProgressBar(\"\",\"\",\"Resrarting manager. Please wait...\", \"\",\"\", 2);
+  string description = myPanelName() + \": Restarting DB agent. Computer:\" + computer+ \" Port: \" + port;
+  fwConfigurationDBSystemInformation_logAction(description);
+  if(fwInstallationManager_command(\"RESTART\", \"PVSS00ctrl\", \"-f fwInstallationAgent.lst\", computer, port, user, pwd)!= 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors restarting the remote DB-Agent\"));
+  }
+  closeProgressBar();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+13 9
+"btStop"
+""
+1 233.8095238095238 0 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  208 18 266 52
+
+T 
+1
+LANG:1 4 Stop
+"
+main()
+{
+  dyn_string ds;
+  dyn_string df;
+  dyn_mixed projectInfo;
+  int projectId;
+  
+  fwInstallationDB_getProjectProperties(project, computer, projectInfo, projectId);
+  int port = projectInfo[FW_INSTALLATION_DB_PROJECT_PMON_PORT];
+  string user = projectInfo[FW_INSTALLATION_DB_PROJECT_PMON_USER], pwd = projectInfo[FW_INSTALLATION_DB_PROJECT_PMON_PWD];
+
+  if(user == \"N/A\")
+    user = \"\";
+  
+  if(pwd == \"N/A\")
+    pwd = \"\";
+  
+  ChildPanelOnCentralReturn(\"fwInstallation/fwInstallationDB_question.pnl\", \"Warning\", makeDynString(\"$txt:Are you sure you want to stop the remote DB-Agent\"), df, ds);
+  if(df[1] != 1.)
+    return;
+  openProgressBar(\"\",\"\",\"Stopping manager. Please wait...\", \"\",\"\", 2);
+  string description = myPanelName() + \": Stopping DB agent. Computer:\" + computer+ \" Port: \" + port;
+  fwConfigurationDBSystemInformation_logAction(description);
+  if(fwInstallationManager_command(\"STOP\", \"PVSS00ctrl\", \"-f fwInstallationAgent.lst\", computer, port, user, pwd)!= 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors restarting the remote DB-Agent\"));
+  }
+  closeProgressBar();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+13 10
+"btConfigure"
+""
+1 223.8095238095238 0 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  268 18 326 52
+
+T 
+1
+LANG:1 9 Configure
+"
+main()
+{
+  dyn_string ds;
+  dyn_string df;
+  dyn_mixed projectInfo;
+  int projectId;
+  
+  fwInstallationDB_getProjectProperties(project, computer, projectInfo, projectId);
+  int port = projectInfo[FW_INSTALLATION_DB_PROJECT_PMON_PORT];
+  string user = projectInfo[FW_INSTALLATION_DB_PROJECT_PMON_USER], pwd = projectInfo[FW_INSTALLATION_DB_PROJECT_PMON_PWD];
+
+  if(user == \"\")
+    user = \"N/A\";
+  
+  if(pwd == \"\")
+    pwd = \"N/A\";
+  dyn_dyn_mixed managersInfo;
+  string idx;
+  if(fwInstallationManager_pmonGetManagers(managersInfo, computer, port, user, pwd) == 0)
+  {
+    for(int j=1; j<= dynlen(managersInfo[FW_INSTALLATION_MANAGER_TYPE]);j++)
+    {
+      if(managersInfo[FW_INSTALLATION_MANAGER_TYPE][j] == \"PVSS00ctrl\" && managersInfo[FW_INSTALLATION_MANAGER_OPTIONS][j] == \"-f fwInstallationAgent.lst\" )
+      {
+        idx = managersInfo[FW_INSTALLATION_MANAGER_PMON_IDX][j];
+        break;
+      }
+    }
+  }
+  if (idx != \"\")      
+    ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_managersProperties.pnl\", \"Managers Properties\", 
+                            makeDynString(\"$1:\"+idx, \"$2:\"+user, \"$3:\"+pwd, \"$4:\"+computer, \"$5:\"+port), df, ds);
+  else
+    DebugN(\"Cannot find the index of the DB Agent!\");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+14 11
+"shStatus"
+""
+1 50 26 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  48 24 72 47
+2 "0s" 0 0 0 0 0 -1  E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

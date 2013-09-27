@@ -1,0 +1,1896 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 716 298 N "_3DFace" 0
+"main()
+{
+
+  if(fwInstallationDB_connect() != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Connection failed.\\nPlease check DB connection parameters\"));
+  }else initTable();
+}" 0
+ E E E E 1 -1 -1 0  78 56
+""0  1
+E "#uses \"fwInstallationDB.ctl\"
+
+    
+initTable()
+{
+  dyn_string projectNames;
+  dyn_string groupNames;
+  dyn_string hostnames; 
+  dyn_string ips;
+  dyn_string macs;
+  dyn_string ips2;
+  dyn_string macs2;
+  dyn_string bmc_ips;
+  dyn_string bmc_ips2;
+    
+  
+  tbProjectsGroups.deleteAllLines();
+  
+  if(fwInstallationDB_getHosts(hostnames, ips, macs, ips2, macs2, bmc_ips, bmc_ips2) != 0){
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not read list of computers from DB\"));
+    return;
+  }  
+    
+  if(fwInstallationDB_getComponentGroups(groupNames) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not read list of FW Component Groups from DB\"));
+    return;
+  }
+
+  tbProjectsGroups.appendLines(2);
+  tbProjectsGroups.rowHeader(0, \"Projects\"); 
+  tbProjectsGroups.rowHeader(1, \"\"); 
+  
+  for(int i = 1; i <= dynlen(groupNames); i++){
+   tbProjectsGroups.appendLines(1);
+   tbProjectsGroups.rowHeader(i+1, groupNames[i]);    
+  } 
+
+  
+  for(int i = 1; i <= dynlen(hostnames); i++){
+    dynClear(projectNames);
+    if(fwInstallationDB_getPvssProjects(projectNames, hostnames[i]) != 0){
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not read list of project from DB\"));
+      return;
+    }    
+    tbProjectsGroups.columnHeader(i-1, hostnames[i]);
+    tbProjectsGroups.columnVisibility(i-1, true);
+    
+    DebugN(\"Projects in computer\" + hostnames[i], projectNames);
+    dynInsertAt(projectNames, \"\", 1);
+    
+    tbProjectsGroups.cellWidgetRC(0, \"#\" + i, \"ComboBox\", projectNames); 
+    tbProjectsGroups.cellBackColRC(1, \"#\" + i, \"_3DFace\"); 
+  }
+}
+
+refreshTable(string host, string project)
+{
+  dyn_string projectGroups;
+  dyn_string hostnames;
+  dyn_string groupNames;
+  dyn_int projectGroupsIds;
+  int idx;
+  
+  dynClear(projectGroups);
+  dynClear(hostnames);
+  dynClear(groupNames);
+  
+  for(int i = 1; i <= tbProjectsGroups.columnCount(); i++)
+  { 
+    getValue(\"tbProjectsGroups\", \"columnHeader\", i-1, hostnames[i]);
+  }
+
+  for(int i = 1; i <= tbProjectsGroups.lineCount(); i++)
+  { 
+    getValue(\"tbProjectsGroups\", \"rowHeader\", i-1, groupNames[i]);
+  }
+  
+  idx = dynContains(hostnames, host);
+ 
+  if(idx > 0)
+  {
+    tbProjectsGroups.cellValueRC(0, \"#\" + idx, project); 
+    fwInstallationDB_getProjectGroups(projectGroups, projectGroupsIds, true, project, host);
+    for(int k = 1; k <= dynlen(projectGroups); k++)
+    {
+      if(dynContains(groupNames, projectGroups[k]) > 0){
+        DebugN(dynContains(groupNames, projectGroups[k]), groupNames, projectGroups[k]);
+        tbProjectsGroups.cellValueRC(dynContains(groupNames, projectGroups[k]) - 1, \"#\" + idx, \"Registered\");
+      }
+    }
+  } 
+}
+
+
+registerGroupsInProjects(bool updatePanel = true)
+{
+  string project;
+  string group;
+  string tag;
+  string computer;
+  
+  for(int i = 1; i <= tbProjectsGroups.columnCount(); i++)
+  {
+    getMultiValue(\"tbProjectsGroups\", \"cellValueRC\", 0, \"#\"+i, project,
+                  \"tbProjectsGroups\", \"columnHeader\", i-1, computer);
+    
+    if(project == \"\")
+      break;
+    
+    for(int j = 1; j <= tbProjectsGroups.lineCount(); j++){
+      getMultiValue(\"tbProjectsGroups\", \"cellValueRC\", j-1, \"#\"+i, tag,
+                    \"tbProjectsGroups\", \"rowHeader\", j-1, group);
+      
+      if(tag == \"Register\"){
+        
+        DebugN(\"Adding new group \" + group + \" to project \" + project + \" computer \" + computer);
+        
+        fwInstallationDB_registerGroupInProject(group, 0,1, 0, project, computer);
+      }
+      else if(tag == \"Unregister\"){
+        fwInstallationDB_unregisterProjectGroup(group, project, computer);
+      }
+    }//end of loop over j => groups  
+    
+  }//Loop over all projects
+  
+  if(updatePanel)
+    initTable();
+  
+}//end of function
+
+
+clearTableValues()
+{
+   for(int i = 1; i <= this.lineCount(); i++)
+    for(int j = 1; j <= this.columnCount(); j++)
+      this.cellValueRC(i-1, \"#\" + j, \"\");
+ }
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 5
+"tbProjectsGroups"
+""
+1 6 38 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+    //string project;
+  
+  //this.cellValueRC(0, column, project);
+  
+  //if(project != \"\" && value == \"\"){
+    if(value == \"\"){
+    this.cellValueRC(row, column, \"Install\");
+    this.cellBackColRC(row, column, \"cyan\");
+  //}else if(project != \"\" && value == \"Install\")
+  }else if(value == \"Install\")
+  {
+    this.cellValueRC(row, column, \"\");
+    this.cellBackColRC(row, column, \"_Window\");
+  }
+}" 0
+ E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 4 36 692 250
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE_COLUMN);
+
+}" 0
+"main(int row, string column, string value)
+{
+  string project;
+  string host;
+  
+  getMultiValue(\"\", \"cellValueRC\", 0, column, project,
+                \"\", \"columnHeader\", column, host);
+  
+  clearTableValues();
+
+  if (project == \"\" || host == \"\")
+     return;
+  
+  if(row == 0){
+    refreshTable(host, project);
+  }else{
+
+    if(value == \"\"){
+      this.cellValueRC(row, column, \"Register\");
+    }else if(value == \"Register\")
+    {
+      this.cellValueRC(row, column, \"\");
+    }else if(value == \"Registered\")
+    {
+      this.cellValueRC(row, column, \"Unregister\");
+    }
+  }
+}" 0
+ 1 1 1 256 1 "#1" 15 0 1 "s" 1
+LANG:1 2 #1
+E
+1
+LANG:1 0 
+
+150 "#2" 15 0 1 "s" 1
+LANG:1 2 #2
+E
+1
+LANG:1 0 
+
+150 "#3" 15 0 1 "s" 1
+LANG:1 2 #3
+E
+1
+LANG:1 0 
+
+150 "#4" 15 0 1 "s" 1
+LANG:1 2 #4
+E
+1
+LANG:1 0 
+
+150 "#5" 15 0 1 "s" 1
+LANG:1 2 #5
+E
+1
+LANG:1 0 
+
+150 "#6" 15 0 1 "s" 1
+LANG:1 2 #6
+E
+1
+LANG:1 0 
+
+150 "#7" 15 0 1 "s" 1
+LANG:1 2 #7
+E
+1
+LANG:1 0 
+
+150 "#8" 15 0 1 "s" 1
+LANG:1 2 #8
+E
+1
+LANG:1 0 
+
+150 "#9" 15 0 1 "s" 1
+LANG:1 2 #9
+E
+1
+LANG:1 0 
+
+150 "#10" 15 0 1 "s" 1
+LANG:1 3 #10
+E
+1
+LANG:1 0 
+
+150 "#11" 15 0 1 "s" 1
+LANG:1 3 #11
+E
+1
+LANG:1 0 
+
+150 "#12" 15 0 1 "s" 1
+LANG:1 3 #12
+E
+1
+LANG:1 0 
+
+150 "#13" 15 0 1 "s" 1
+LANG:1 3 #13
+E
+1
+LANG:1 0 
+
+150 "#14" 15 0 1 "s" 1
+LANG:1 3 #14
+E
+1
+LANG:1 0 
+
+150 "#15" 15 0 1 "s" 1
+LANG:1 3 #15
+E
+1
+LANG:1 0 
+
+150 "#16" 15 0 1 "s" 1
+LANG:1 3 #16
+E
+1
+LANG:1 0 
+
+150 "#17" 15 0 1 "s" 1
+LANG:1 3 #17
+E
+1
+LANG:1 0 
+
+150 "#18" 15 0 1 "s" 1
+LANG:1 3 #18
+E
+1
+LANG:1 0 
+
+150 "#19" 15 0 1 "s" 1
+LANG:1 3 #19
+E
+1
+LANG:1 0 
+
+150 "#20" 15 0 1 "s" 1
+LANG:1 3 #20
+E
+1
+LANG:1 0 
+
+150 "#21" 15 0 1 "s" 1
+LANG:1 3 #21
+E
+1
+LANG:1 0 
+
+150 "#22" 15 0 1 "s" 1
+LANG:1 3 #22
+E
+1
+LANG:1 0 
+
+150 "#23" 15 0 1 "s" 1
+LANG:1 3 #23
+E
+1
+LANG:1 0 
+
+150 "#24" 15 0 1 "s" 1
+LANG:1 3 #24
+E
+1
+LANG:1 0 
+
+150 "#25" 15 0 1 "s" 1
+LANG:1 3 #25
+E
+1
+LANG:1 0 
+
+150 "#26" 15 0 1 "s" 1
+LANG:1 3 #26
+E
+1
+LANG:1 0 
+
+150 "#27" 15 0 1 "s" 1
+LANG:1 3 #27
+E
+1
+LANG:1 0 
+
+150 "#28" 15 0 1 "s" 1
+LANG:1 3 #28
+E
+1
+LANG:1 0 
+
+150 "#29" 15 0 1 "s" 1
+LANG:1 3 #29
+E
+1
+LANG:1 0 
+
+150 "#30" 15 0 1 "s" 1
+LANG:1 3 #30
+E
+1
+LANG:1 0 
+
+150 "#31" 15 0 1 "s" 1
+LANG:1 3 #31
+E
+1
+LANG:1 0 
+
+150 "#32" 15 0 1 "s" 1
+LANG:1 3 #32
+E
+1
+LANG:1 0 
+
+150 "#33" 15 0 1 "s" 1
+LANG:1 3 #33
+E
+1
+LANG:1 0 
+
+150 "#34" 15 0 1 "s" 1
+LANG:1 3 #34
+E
+1
+LANG:1 0 
+
+150 "#35" 15 0 1 "s" 1
+LANG:1 3 #35
+E
+1
+LANG:1 0 
+
+150 "#36" 15 0 1 "s" 1
+LANG:1 3 #36
+E
+1
+LANG:1 0 
+
+150 "#37" 15 0 1 "s" 1
+LANG:1 3 #37
+E
+1
+LANG:1 0 
+
+150 "#38" 15 0 1 "s" 1
+LANG:1 3 #38
+E
+1
+LANG:1 0 
+
+150 "#39" 15 0 1 "s" 1
+LANG:1 3 #39
+E
+1
+LANG:1 0 
+
+150 "#40" 15 0 1 "s" 1
+LANG:1 3 #40
+E
+1
+LANG:1 0 
+
+150 "#41" 15 0 1 "s" 1
+LANG:1 3 #41
+E
+1
+LANG:1 0 
+
+150 "#42" 15 0 1 "s" 1
+LANG:1 3 #42
+E
+1
+LANG:1 0 
+
+150 "#43" 15 0 1 "s" 1
+LANG:1 3 #43
+E
+1
+LANG:1 0 
+
+150 "#44" 15 0 1 "s" 1
+LANG:1 3 #44
+E
+1
+LANG:1 0 
+
+150 "#45" 15 0 1 "s" 1
+LANG:1 3 #45
+E
+1
+LANG:1 0 
+
+150 "#46" 15 0 1 "s" 1
+LANG:1 3 #46
+E
+1
+LANG:1 0 
+
+150 "#47" 15 0 1 "s" 1
+LANG:1 3 #47
+E
+1
+LANG:1 0 
+
+150 "#48" 15 0 1 "s" 1
+LANG:1 3 #48
+E
+1
+LANG:1 0 
+
+150 "#49" 15 0 1 "s" 1
+LANG:1 3 #49
+E
+1
+LANG:1 0 
+
+150 "#50" 15 0 1 "s" 1
+LANG:1 3 #50
+E
+1
+LANG:1 0 
+
+150 "#51" 15 0 1 "s" 1
+LANG:1 3 #51
+E
+1
+LANG:1 0 
+
+150 "#52" 15 0 1 "s" 1
+LANG:1 3 #52
+E
+1
+LANG:1 0 
+
+150 "#53" 15 0 1 "s" 1
+LANG:1 3 #53
+E
+1
+LANG:1 0 
+
+150 "#54" 15 0 1 "s" 1
+LANG:1 3 #54
+E
+1
+LANG:1 0 
+
+150 "#55" 15 0 1 "s" 1
+LANG:1 3 #55
+E
+1
+LANG:1 0 
+
+150 "#56" 15 0 1 "s" 1
+LANG:1 3 #56
+E
+1
+LANG:1 0 
+
+150 "#57" 15 0 1 "s" 1
+LANG:1 3 #57
+E
+1
+LANG:1 0 
+
+150 "#58" 15 0 1 "s" 1
+LANG:1 3 #58
+E
+1
+LANG:1 0 
+
+150 "#59" 15 0 1 "s" 1
+LANG:1 3 #59
+E
+1
+LANG:1 0 
+
+150 "#60" 15 0 1 "s" 1
+LANG:1 3 #60
+E
+1
+LANG:1 0 
+
+150 "#61" 15 0 1 "s" 1
+LANG:1 3 #61
+E
+1
+LANG:1 0 
+
+150 "#62" 15 0 1 "s" 1
+LANG:1 3 #62
+E
+1
+LANG:1 0 
+
+150 "#63" 15 0 1 "s" 1
+LANG:1 3 #63
+E
+1
+LANG:1 0 
+
+150 "#64" 15 0 1 "s" 1
+LANG:1 3 #64
+E
+1
+LANG:1 0 
+
+150 "#65" 15 0 1 "s" 1
+LANG:1 3 #65
+E
+1
+LANG:1 0 
+
+150 "#66" 15 0 1 "s" 1
+LANG:1 3 #66
+E
+1
+LANG:1 0 
+
+150 "#67" 15 0 1 "s" 1
+LANG:1 3 #67
+E
+1
+LANG:1 0 
+
+150 "#68" 15 0 1 "s" 1
+LANG:1 3 #68
+E
+1
+LANG:1 0 
+
+150 "#69" 15 0 1 "s" 1
+LANG:1 3 #69
+E
+1
+LANG:1 0 
+
+150 "#70" 15 0 1 "s" 1
+LANG:1 3 #70
+E
+1
+LANG:1 0 
+
+150 "#71" 15 0 1 "s" 1
+LANG:1 3 #71
+E
+1
+LANG:1 0 
+
+150 "#72" 15 0 1 "s" 1
+LANG:1 3 #72
+E
+1
+LANG:1 0 
+
+150 "#73" 15 0 1 "s" 1
+LANG:1 3 #73
+E
+1
+LANG:1 0 
+
+150 "#74" 15 0 1 "s" 1
+LANG:1 3 #74
+E
+1
+LANG:1 0 
+
+150 "#75" 15 0 1 "s" 1
+LANG:1 3 #75
+E
+1
+LANG:1 0 
+
+150 "#76" 15 0 1 "s" 1
+LANG:1 3 #76
+E
+1
+LANG:1 0 
+
+150 "#77" 15 0 1 "s" 1
+LANG:1 3 #77
+E
+1
+LANG:1 0 
+
+150 "#78" 15 0 1 "s" 1
+LANG:1 3 #78
+E
+1
+LANG:1 0 
+
+150 "#79" 15 0 1 "s" 1
+LANG:1 3 #79
+E
+1
+LANG:1 0 
+
+150 "#80" 15 0 1 "s" 1
+LANG:1 3 #80
+E
+1
+LANG:1 0 
+
+150 "#81" 15 0 1 "s" 1
+LANG:1 3 #81
+E
+1
+LANG:1 0 
+
+150 "#82" 15 0 1 "s" 1
+LANG:1 3 #82
+E
+1
+LANG:1 0 
+
+150 "#83" 15 0 1 "s" 1
+LANG:1 3 #83
+E
+1
+LANG:1 0 
+
+150 "#84" 15 0 1 "s" 1
+LANG:1 3 #84
+E
+1
+LANG:1 0 
+
+150 "#85" 15 0 1 "s" 1
+LANG:1 3 #85
+E
+1
+LANG:1 0 
+
+150 "#86" 15 0 1 "s" 1
+LANG:1 3 #86
+E
+1
+LANG:1 0 
+
+150 "#87" 15 0 1 "s" 1
+LANG:1 3 #87
+E
+1
+LANG:1 0 
+
+150 "#88" 15 0 1 "s" 1
+LANG:1 3 #88
+E
+1
+LANG:1 0 
+
+150 "#89" 15 0 1 "s" 1
+LANG:1 3 #89
+E
+1
+LANG:1 0 
+
+150 "#90" 15 0 1 "s" 1
+LANG:1 3 #90
+E
+1
+LANG:1 0 
+
+150 "#91" 15 0 1 "s" 1
+LANG:1 3 #91
+E
+1
+LANG:1 0 
+
+150 "#92" 15 0 1 "s" 1
+LANG:1 3 #92
+E
+1
+LANG:1 0 
+
+150 "#93" 15 0 1 "s" 1
+LANG:1 3 #93
+E
+1
+LANG:1 0 
+
+150 "#94" 15 0 1 "s" 1
+LANG:1 3 #94
+E
+1
+LANG:1 0 
+
+150 "#95" 15 0 1 "s" 1
+LANG:1 3 #95
+E
+1
+LANG:1 0 
+
+150 "#96" 15 0 1 "s" 1
+LANG:1 3 #96
+E
+1
+LANG:1 0 
+
+150 "#97" 15 0 1 "s" 1
+LANG:1 3 #97
+E
+1
+LANG:1 0 
+
+150 "#98" 15 0 1 "s" 1
+LANG:1 3 #98
+E
+1
+LANG:1 0 
+
+150 "#99" 15 0 1 "s" 1
+LANG:1 3 #99
+E
+1
+LANG:1 0 
+
+150 "#100" 15 0 1 "s" 1
+LANG:1 4 #100
+E
+1
+LANG:1 0 
+
+150 "#101" 15 0 1 "s" 1
+LANG:1 4 #101
+E
+1
+LANG:1 0 
+
+150 "#102" 15 0 1 "s" 1
+LANG:1 4 #102
+E
+1
+LANG:1 0 
+
+150 "#103" 15 0 1 "s" 1
+LANG:1 4 #103
+E
+1
+LANG:1 0 
+
+150 "#104" 15 0 1 "s" 1
+LANG:1 4 #104
+E
+1
+LANG:1 0 
+
+150 "#105" 15 0 1 "s" 1
+LANG:1 4 #105
+E
+1
+LANG:1 0 
+
+150 "#106" 15 0 1 "s" 1
+LANG:1 4 #106
+E
+1
+LANG:1 0 
+
+150 "#107" 15 0 1 "s" 1
+LANG:1 4 #107
+E
+1
+LANG:1 0 
+
+150 "#108" 15 0 1 "s" 1
+LANG:1 4 #108
+E
+1
+LANG:1 0 
+
+150 "#109" 15 0 1 "s" 1
+LANG:1 4 #109
+E
+1
+LANG:1 0 
+
+150 "#110" 15 0 1 "s" 1
+LANG:1 4 #110
+E
+1
+LANG:1 0 
+
+150 "#111" 15 0 1 "s" 1
+LANG:1 4 #111
+E
+1
+LANG:1 0 
+
+150 "#112" 15 0 1 "s" 1
+LANG:1 4 #112
+E
+1
+LANG:1 0 
+
+150 "#113" 15 0 1 "s" 1
+LANG:1 4 #113
+E
+1
+LANG:1 0 
+
+150 "#114" 15 0 1 "s" 1
+LANG:1 4 #114
+E
+1
+LANG:1 0 
+
+150 "#115" 15 0 1 "s" 1
+LANG:1 4 #115
+E
+1
+LANG:1 0 
+
+150 "#116" 15 0 1 "s" 1
+LANG:1 4 #116
+E
+1
+LANG:1 0 
+
+150 "#117" 15 0 1 "s" 1
+LANG:1 4 #117
+E
+1
+LANG:1 0 
+
+150 "#118" 15 0 1 "s" 1
+LANG:1 4 #118
+E
+1
+LANG:1 0 
+
+150 "#119" 15 0 1 "s" 1
+LANG:1 4 #119
+E
+1
+LANG:1 0 
+
+150 "#120" 15 0 1 "s" 1
+LANG:1 4 #120
+E
+1
+LANG:1 0 
+
+150 "#121" 15 0 1 "s" 1
+LANG:1 4 #121
+E
+1
+LANG:1 0 
+
+150 "#122" 15 0 1 "s" 1
+LANG:1 4 #122
+E
+1
+LANG:1 0 
+
+150 "#123" 15 0 1 "s" 1
+LANG:1 4 #123
+E
+1
+LANG:1 0 
+
+150 "#124" 15 0 1 "s" 1
+LANG:1 4 #124
+E
+1
+LANG:1 0 
+
+150 "#125" 15 0 1 "s" 1
+LANG:1 4 #125
+E
+1
+LANG:1 0 
+
+150 "#126" 15 0 1 "s" 1
+LANG:1 4 #126
+E
+1
+LANG:1 0 
+
+150 "#127" 15 0 1 "s" 1
+LANG:1 4 #127
+E
+1
+LANG:1 0 
+
+150 "#128" 15 0 1 "s" 1
+LANG:1 4 #128
+E
+1
+LANG:1 0 
+
+150 "#129" 15 0 1 "s" 1
+LANG:1 4 #129
+E
+1
+LANG:1 0 
+
+150 "#130" 15 0 1 "s" 1
+LANG:1 4 #130
+E
+1
+LANG:1 0 
+
+150 "#131" 15 0 1 "s" 1
+LANG:1 4 #131
+E
+1
+LANG:1 0 
+
+150 "#132" 15 0 1 "s" 1
+LANG:1 4 #132
+E
+1
+LANG:1 0 
+
+150 "#133" 15 0 1 "s" 1
+LANG:1 4 #133
+E
+1
+LANG:1 0 
+
+150 "#134" 15 0 1 "s" 1
+LANG:1 4 #134
+E
+1
+LANG:1 0 
+
+150 "#135" 15 0 1 "s" 1
+LANG:1 4 #135
+E
+1
+LANG:1 0 
+
+150 "#136" 15 0 1 "s" 1
+LANG:1 4 #136
+E
+1
+LANG:1 0 
+
+150 "#137" 15 0 1 "s" 1
+LANG:1 4 #137
+E
+1
+LANG:1 0 
+
+150 "#138" 15 0 1 "s" 1
+LANG:1 4 #138
+E
+1
+LANG:1 0 
+
+150 "#139" 15 0 1 "s" 1
+LANG:1 4 #139
+E
+1
+LANG:1 0 
+
+150 "#140" 15 0 1 "s" 1
+LANG:1 4 #140
+E
+1
+LANG:1 0 
+
+150 "#141" 15 0 1 "s" 1
+LANG:1 4 #141
+E
+1
+LANG:1 0 
+
+150 "#142" 15 0 1 "s" 1
+LANG:1 4 #142
+E
+1
+LANG:1 0 
+
+150 "#143" 15 0 1 "s" 1
+LANG:1 4 #143
+E
+1
+LANG:1 0 
+
+150 "#144" 15 0 1 "s" 1
+LANG:1 4 #144
+E
+1
+LANG:1 0 
+
+150 "#145" 15 0 1 "s" 1
+LANG:1 4 #145
+E
+1
+LANG:1 0 
+
+150 "#146" 15 0 1 "s" 1
+LANG:1 4 #146
+E
+1
+LANG:1 0 
+
+150 "#147" 15 0 1 "s" 1
+LANG:1 4 #147
+E
+1
+LANG:1 0 
+
+150 "#148" 15 0 1 "s" 1
+LANG:1 4 #148
+E
+1
+LANG:1 0 
+
+150 "#149" 15 0 1 "s" 1
+LANG:1 4 #149
+E
+1
+LANG:1 0 
+
+150 "#150" 15 0 1 "s" 1
+LANG:1 4 #150
+E
+1
+LANG:1 0 
+
+150 "#151" 15 0 1 "s" 1
+LANG:1 4 #151
+E
+1
+LANG:1 0 
+
+150 "#152" 15 0 1 "s" 1
+LANG:1 4 #152
+E
+1
+LANG:1 0 
+
+150 "#153" 15 0 1 "s" 1
+LANG:1 4 #153
+E
+1
+LANG:1 0 
+
+150 "#154" 15 0 1 "s" 1
+LANG:1 4 #154
+E
+1
+LANG:1 0 
+
+150 "#155" 15 0 1 "s" 1
+LANG:1 4 #155
+E
+1
+LANG:1 0 
+
+150 "#156" 15 0 1 "s" 1
+LANG:1 4 #156
+E
+1
+LANG:1 0 
+
+150 "#157" 15 0 1 "s" 1
+LANG:1 4 #157
+E
+1
+LANG:1 0 
+
+150 "#158" 15 0 1 "s" 1
+LANG:1 4 #158
+E
+1
+LANG:1 0 
+
+150 "#159" 15 0 1 "s" 1
+LANG:1 4 #159
+E
+1
+LANG:1 0 
+
+150 "#160" 15 0 1 "s" 1
+LANG:1 4 #160
+E
+1
+LANG:1 0 
+
+150 "#161" 15 0 1 "s" 1
+LANG:1 4 #161
+E
+1
+LANG:1 0 
+
+150 "#162" 15 0 1 "s" 1
+LANG:1 4 #162
+E
+1
+LANG:1 0 
+
+150 "#163" 15 0 1 "s" 1
+LANG:1 4 #163
+E
+1
+LANG:1 0 
+
+150 "#164" 15 0 1 "s" 1
+LANG:1 4 #164
+E
+1
+LANG:1 0 
+
+150 "#165" 15 0 1 "s" 1
+LANG:1 4 #165
+E
+1
+LANG:1 0 
+
+150 "#166" 15 0 1 "s" 1
+LANG:1 4 #166
+E
+1
+LANG:1 0 
+
+150 "#167" 15 0 1 "s" 1
+LANG:1 4 #167
+E
+1
+LANG:1 0 
+
+150 "#168" 15 0 1 "s" 1
+LANG:1 4 #168
+E
+1
+LANG:1 0 
+
+150 "#169" 15 0 1 "s" 1
+LANG:1 4 #169
+E
+1
+LANG:1 0 
+
+150 "#170" 15 0 1 "s" 1
+LANG:1 4 #170
+E
+1
+LANG:1 0 
+
+150 "#171" 15 0 1 "s" 1
+LANG:1 4 #171
+E
+1
+LANG:1 0 
+
+150 "#172" 15 0 1 "s" 1
+LANG:1 4 #172
+E
+1
+LANG:1 0 
+
+150 "#173" 15 0 1 "s" 1
+LANG:1 4 #173
+E
+1
+LANG:1 0 
+
+150 "#174" 15 0 1 "s" 1
+LANG:1 4 #174
+E
+1
+LANG:1 0 
+
+150 "#175" 15 0 1 "s" 1
+LANG:1 4 #175
+E
+1
+LANG:1 0 
+
+150 "#176" 15 0 1 "s" 1
+LANG:1 4 #176
+E
+1
+LANG:1 0 
+
+150 "#177" 15 0 1 "s" 1
+LANG:1 4 #177
+E
+1
+LANG:1 0 
+
+150 "#178" 15 0 1 "s" 1
+LANG:1 4 #178
+E
+1
+LANG:1 0 
+
+150 "#179" 15 0 1 "s" 1
+LANG:1 4 #179
+E
+1
+LANG:1 0 
+
+150 "#180" 15 0 1 "s" 1
+LANG:1 4 #180
+E
+1
+LANG:1 0 
+
+150 "#181" 15 0 1 "s" 1
+LANG:1 4 #181
+E
+1
+LANG:1 0 
+
+150 "#182" 15 0 1 "s" 1
+LANG:1 4 #182
+E
+1
+LANG:1 0 
+
+150 "#183" 15 0 1 "s" 1
+LANG:1 4 #183
+E
+1
+LANG:1 0 
+
+150 "#184" 15 0 1 "s" 1
+LANG:1 4 #184
+E
+1
+LANG:1 0 
+
+150 "#185" 15 0 1 "s" 1
+LANG:1 4 #185
+E
+1
+LANG:1 0 
+
+150 "#186" 15 0 1 "s" 1
+LANG:1 4 #186
+E
+1
+LANG:1 0 
+
+150 "#187" 15 0 1 "s" 1
+LANG:1 4 #187
+E
+1
+LANG:1 0 
+
+150 "#188" 15 0 1 "s" 1
+LANG:1 4 #188
+E
+1
+LANG:1 0 
+
+150 "#189" 15 0 1 "s" 1
+LANG:1 4 #189
+E
+1
+LANG:1 0 
+
+150 "#190" 15 0 1 "s" 1
+LANG:1 4 #190
+E
+1
+LANG:1 0 
+
+150 "#191" 15 0 1 "s" 1
+LANG:1 4 #191
+E
+1
+LANG:1 0 
+
+150 "#192" 15 0 1 "s" 1
+LANG:1 4 #192
+E
+1
+LANG:1 0 
+
+150 "#193" 15 0 1 "s" 1
+LANG:1 4 #193
+E
+1
+LANG:1 0 
+
+150 "#194" 15 0 1 "s" 1
+LANG:1 4 #194
+E
+1
+LANG:1 0 
+
+150 "#195" 15 0 1 "s" 1
+LANG:1 4 #195
+E
+1
+LANG:1 0 
+
+150 "#196" 15 0 1 "s" 1
+LANG:1 4 #196
+E
+1
+LANG:1 0 
+
+150 "#197" 15 0 1 "s" 1
+LANG:1 4 #197
+E
+1
+LANG:1 0 
+
+150 "#198" 15 0 1 "s" 1
+LANG:1 4 #198
+E
+1
+LANG:1 0 
+
+150 "#199" 15 0 1 "s" 1
+LANG:1 4 #199
+E
+1
+LANG:1 0 
+
+150 "#200" 15 0 1 "s" 1
+LANG:1 4 #200
+E
+1
+LANG:1 0 
+
+150 "#201" 15 0 1 "s" 1
+LANG:1 4 #201
+E
+1
+LANG:1 0 
+
+150 "#202" 15 0 1 "s" 1
+LANG:1 4 #202
+E
+1
+LANG:1 0 
+
+150 "#203" 15 0 1 "s" 1
+LANG:1 4 #203
+E
+1
+LANG:1 0 
+
+150 "#204" 15 0 1 "s" 1
+LANG:1 4 #204
+E
+1
+LANG:1 0 
+
+150 "#205" 15 0 1 "s" 1
+LANG:1 4 #205
+E
+1
+LANG:1 0 
+
+150 "#206" 15 0 1 "s" 1
+LANG:1 4 #206
+E
+1
+LANG:1 0 
+
+150 "#207" 15 0 1 "s" 1
+LANG:1 4 #207
+E
+1
+LANG:1 0 
+
+150 "#208" 15 0 1 "s" 1
+LANG:1 4 #208
+E
+1
+LANG:1 0 
+
+150 "#209" 15 0 1 "s" 1
+LANG:1 4 #209
+E
+1
+LANG:1 0 
+
+150 "#210" 15 0 1 "s" 1
+LANG:1 4 #210
+E
+1
+LANG:1 0 
+
+150 "#211" 15 0 1 "s" 1
+LANG:1 4 #211
+E
+1
+LANG:1 0 
+
+150 "#212" 15 0 1 "s" 1
+LANG:1 4 #212
+E
+1
+LANG:1 0 
+
+150 "#213" 15 0 1 "s" 1
+LANG:1 4 #213
+E
+1
+LANG:1 0 
+
+150 "#214" 15 0 1 "s" 1
+LANG:1 4 #214
+E
+1
+LANG:1 0 
+
+150 "#215" 15 0 1 "s" 1
+LANG:1 4 #215
+E
+1
+LANG:1 0 
+
+150 "#216" 15 0 1 "s" 1
+LANG:1 4 #216
+E
+1
+LANG:1 0 
+
+150 "#217" 15 0 1 "s" 1
+LANG:1 4 #217
+E
+1
+LANG:1 0 
+
+150 "#218" 15 0 1 "s" 1
+LANG:1 4 #218
+E
+1
+LANG:1 0 
+
+150 "#219" 15 0 1 "s" 1
+LANG:1 4 #219
+E
+1
+LANG:1 0 
+
+150 "#220" 15 0 1 "s" 1
+LANG:1 4 #220
+E
+1
+LANG:1 0 
+
+150 "#221" 15 0 1 "s" 1
+LANG:1 4 #221
+E
+1
+LANG:1 0 
+
+150 "#222" 15 0 1 "s" 1
+LANG:1 4 #222
+E
+1
+LANG:1 0 
+
+150 "#223" 15 0 1 "s" 1
+LANG:1 4 #223
+E
+1
+LANG:1 0 
+
+150 "#224" 15 0 1 "s" 1
+LANG:1 4 #224
+E
+1
+LANG:1 0 
+
+150 "#225" 15 0 1 "s" 1
+LANG:1 4 #225
+E
+1
+LANG:1 0 
+
+150 "#226" 15 0 1 "s" 1
+LANG:1 4 #226
+E
+1
+LANG:1 0 
+
+150 "#227" 15 0 1 "s" 1
+LANG:1 4 #227
+E
+1
+LANG:1 0 
+
+150 "#228" 15 0 1 "s" 1
+LANG:1 4 #228
+E
+1
+LANG:1 0 
+
+150 "#229" 15 0 1 "s" 1
+LANG:1 4 #229
+E
+1
+LANG:1 0 
+
+150 "#230" 15 0 1 "s" 1
+LANG:1 4 #230
+E
+1
+LANG:1 0 
+
+150 "#231" 15 0 1 "s" 1
+LANG:1 4 #231
+E
+1
+LANG:1 0 
+
+150 "#232" 15 0 1 "s" 1
+LANG:1 4 #232
+E
+1
+LANG:1 0 
+
+150 "#233" 15 0 1 "s" 1
+LANG:1 4 #233
+E
+1
+LANG:1 0 
+
+150 "#234" 15 0 1 "s" 1
+LANG:1 4 #234
+E
+1
+LANG:1 0 
+
+150 "#235" 15 0 1 "s" 1
+LANG:1 4 #235
+E
+1
+LANG:1 0 
+
+150 "#236" 15 0 1 "s" 1
+LANG:1 4 #236
+E
+1
+LANG:1 0 
+
+150 "#237" 15 0 1 "s" 1
+LANG:1 4 #237
+E
+1
+LANG:1 0 
+
+150 "#238" 15 0 1 "s" 1
+LANG:1 4 #238
+E
+1
+LANG:1 0 
+
+150 "#239" 15 0 1 "s" 1
+LANG:1 4 #239
+E
+1
+LANG:1 0 
+
+150 "#240" 15 0 1 "s" 1
+LANG:1 4 #240
+E
+1
+LANG:1 0 
+
+150 "#241" 15 0 1 "s" 1
+LANG:1 4 #241
+E
+1
+LANG:1 0 
+
+150 "#242" 15 0 1 "s" 1
+LANG:1 4 #242
+E
+1
+LANG:1 0 
+
+150 "#243" 15 0 1 "s" 1
+LANG:1 4 #243
+E
+1
+LANG:1 0 
+
+150 "#244" 15 0 1 "s" 1
+LANG:1 4 #244
+E
+1
+LANG:1 0 
+
+150 "#245" 15 0 1 "s" 1
+LANG:1 4 #245
+E
+1
+LANG:1 0 
+
+150 "#246" 15 0 1 "s" 1
+LANG:1 4 #246
+E
+1
+LANG:1 0 
+
+150 "#247" 15 0 1 "s" 1
+LANG:1 4 #247
+E
+1
+LANG:1 0 
+
+150 "#248" 15 0 1 "s" 1
+LANG:1 4 #248
+E
+1
+LANG:1 0 
+
+150 "#249" 15 0 1 "s" 1
+LANG:1 4 #249
+E
+1
+LANG:1 0 
+
+150 "#250" 15 0 1 "s" 1
+LANG:1 4 #250
+E
+1
+LANG:1 0 
+
+150 "#251" 15 0 1 "s" 1
+LANG:1 4 #251
+E
+1
+LANG:1 0 
+
+150 "#252" 15 0 1 "s" 1
+LANG:1 4 #252
+E
+1
+LANG:1 0 
+
+150 "#253" 15 0 1 "s" 1
+LANG:1 4 #253
+E
+1
+LANG:1 0 
+
+150 "#254" 15 0 1 "s" 1
+LANG:1 4 #254
+E
+1
+LANG:1 0 
+
+150 "#255" 15 0 1 "s" 1
+LANG:1 4 #255
+E
+1
+LANG:1 0 
+
+150 "#256" 15 0 1 "s" 1
+LANG:1 4 #256
+E
+1
+LANG:1 0 
+
+150 
+16 16 "" 1 1
+LANG:1 2 #1
+10 128
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 1 1 1 7
+1 0
+13 6
+"PUSH_BUTTON1"
+""
+1 516 256 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 514 254 600 284
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  registerGroupsInProjects();
+}" 0
+ E E E
+13 7
+"PUSH_BUTTON2"
+""
+1 608 256 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 606 254 692 284
+
+T 
+1
+LANG:1 6 Cancel
+E E E E
+13 8
+"PUSH_BUTTON3"
+""
+1 422 256 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 420 254 506 284
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  registerGroupsInProjects(false);
+  PanelOff();
+}" 0
+ E E E
+2 9
+"PRIMITIVE_TEXT1"
+""
+1 20 30 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 8 12 265 26
+0 2 2 "0s" 0 0 0 192 0 0  8 12 1
+1
+LANG:1 101 -*-MS Shell Dlg-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,758,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 42 Assign Groups of FW Components to Projects
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

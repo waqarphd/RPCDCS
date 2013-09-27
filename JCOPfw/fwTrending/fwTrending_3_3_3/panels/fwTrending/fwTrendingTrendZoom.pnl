@@ -1,0 +1,556 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,258 100 920 800 N "FwTrendingViewBackground" 4
+"$OpenPageName"
+"$PageName"
+"$PlotName"
+"$bEdit"
+"main() {
+
+/*
+// as hiding/showing curves on a plot does not work anyway... :(
+	dyn_string dpes, legends; dyn_string hidden;
+	int i;
+	
+	dpGet($PlotName + fwTrendingWorkCopies_PLOT_DPES + fwTrendingWorkCopies_ON_VAL, dpes);
+	dpGet($PlotName + fwTrendingWorkCopies_PLOT_LEGEND + fwTrendingWorkCopies_ON_VAL, legends);
+	dpGet($PlotName + fwTrendingWorkCopies_PLOT_CURVES_HIDDEN + fwTrendingWorkCopies_ON_VAL, hidden);
+	for(i = 1; i <= 8; i++) {	
+		if(dynlen(dpes) >= i) {
+			if(dynlen(legends) >= i)
+				setValue(\"LegendText\" + i, \"text\", legends[i]);
+			else
+				setValue(\"LegendText\" + i, \"text\", \"\");
+			if(dynlen(hidden) >= i)
+				setValue(\"VisibleCheckButton\" + i, \"state\", 0, !hidden[i]);
+			else 
+				setValue(\"VisibleCheckButton\" + i, \"state\", 0, true);
+		} else {
+			setValue(\"VisibleCheckButton\" + i, \"visible\", false);
+			setValue(\"LegendText\" + i, \"visible\", false);
+		}
+	}
+*/
+}" 0
+EE E E 1 -1 -1 0  0 0
+"" 0 1
+E"int prevTime = 1;
+
+void curveVisibility(int _num, bool _state) {
+	dyn_bool visible;
+}
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+"main() {
+	string title;
+	dpGet($PlotName + fwTrending_PLOT_TITLE + fwTrending_ON_VAL, title);
+	this.text = title;
+}" 0
+ E 0 1 1 0 1 E U  0 E 12 12 668 38
+0 2 0 "s" 0 0 0 64 0 0  12 12
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 5 Text1
+1 38 1 "" 6
+0
+1 39 1 "" 9
+0
+1 45 2 "" 1
+2 "visible" 0 0 0 
+0
+1 46 2 "" 4
+0
+1 47 2 "" 5
+0
+1 48 2 "" 6
+0
+1 49 2 "" 7
+0
+1 50 2 "" 8
+0
+1 51 2 "" 9
+0
+1 52 2 "" 10
+0
+1 53 2 "" 11
+0
+1 40 1 "" 10
+0
+13 4
+"Button1"
+""
+1 650 760 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+648 758 732 792
+T 
+1
+LANG:1 5 Print
+"main()
+{
+	printPanel(myModuleName(), myPanelName());
+}" 0
+ E E E
+13 42
+"Button2"
+""
+1 1317 1520 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+738 758 822 792
+T 
+1
+LANG:1 6 Export
+"dyn_bool axii;
+bool trendRunning = true;
+
+
+main() 
+{
+	dyn_string dpes, leg;
+	time tStart, tEnd;
+	string fileName, targetTrend;
+	int i, trendType;
+	bool isLogarithmic;
+	file f;
+	int width, j, count;
+	dyn_time dt;
+	dyn_float df;
+	dyn_int de, di;	
+	dyn_dyn_time ddt;
+	dyn_dyn_float ddf;
+	dyn_dyn_int dde;
+	string temp;
+	
+	dpGet($PlotName + fwTrending_PLOT_DPES + fwTrending_ON_VAL, dpes);
+	dpGet($PlotName + fwTrending_PLOT_LEGENDS + fwTrending_ON_VAL, leg);
+	
+	for(i = 1; i <= dynlen(dpes); i++) {
+		if(i > dynlen(leg) || leg[i] == \"\") {	
+			string comment;
+			comment = dpGetComment(dpes[i]);
+			if(comment == \"\") comment = dpes[i];
+			leg[i] = comment;
+		}
+	}
+	
+	dpGet($PlotName + fwTrending_PLOT_IS_LOGARITHMIC + fwTrending_ON_VAL, isLogarithmic);
+
+	if(isLogarithmic)
+	{
+		targetTrend = \"LogarithmicTrend\";
+	} else {
+		targetTrend = \"StandardTrend\";
+	}
+
+	//DebugN(target);
+	getValue(targetTrend, \"visibleTimeRange\", 0, tStart, tEnd);
+	//DebugN(tStart);
+	//DebugN(tEnd);
+	fileSelector(fileName, \"\", false, \"*.csv\");
+	if(fileName != \"\")
+	{
+		width = dynlen(dpes);
+		for(i = 1; i <= width; i++) {
+			dpGetPeriod(tStart, tEnd,  0,
+				dpSubStr(dpes[i], DPSUB_SYS_DP_EL) + \":_offline.._value\", df, dt, de);
+			// in case there were no values in the timerange selected
+			if(dynlen(df) == 0) {
+				dpGet(dpSubStr(dpes[i], DPSUB_SYS_DP_EL) + \":_online.._value\", ddf[i][1]);
+				dpGet(dpSubStr(dpes[i], DPSUB_SYS_DP_EL) + \":_online.._stime\", ddt[i][1]);
+			} else {
+				ddt[i] = dt;
+				ddf[i] = df;
+				dde[i] = de;
+			}
+			di[i] = 1;
+		}
+		
+		f = fopen(fileName, \"w\");
+		if(f == 0) {
+			dyn_string excInfo;
+	        fwException_raise(excInfo , \"WARNING\",
+	            \"fwTrendingFaceplate: the file specified cannot be open.\", \"\");
+	        fwExceptionHandling_display(excInfo);
+	        return;
+	    }
+		fputs(\", \", f);
+		for(i = 1; i <= width; i++)
+			fputs(dpes[i] + \", \", f);
+		fputs(\"\\n, \", f);
+		for(i = 1; i <= width; i++)
+			fputs(leg[i] + \", \", f);
+		fputs(\"\\n\", f);
+	
+		eventsSort(ddt, de, dt);
+		
+		for(j = 1; j <= dynlen(dt); j++) {
+			string tim = dt[j];
+			fputs(tim + \", \", f);
+			for(i = 1; i <= width; i++) {
+				if((de[j] & (1 << i)) != 0)
+					fputs(ddf[i][di[i]++] + \", \", f);
+				else
+					fputs(\", \", f);
+			}
+			fputs(\"\\n\", f);
+			
+		}
+		
+		fflush(f);
+		fclose(f);
+	}
+}
+
+void eventsSort(dyn_dyn_time ddt, dyn_int & events, dyn_time & times) {	
+	dyn_time dtemp;
+	dyn_int temp;
+	int i;
+
+	if(dynlen(ddt) == 0)
+		return;
+	for(i = 1; i <= dynlen(ddt[1]); i++)
+		events[i] = 2;
+
+	if(dynlen(ddt) == 1)
+		return;
+	
+	temp = events;
+	dtemp = ddt[1];
+	
+	for(i = 2; i <= dynlen(ddt); i++) {
+		int j = 1; int k = 1; int l = 1;
+		events = makeDynInt();
+		times = makeDynTime();
+		while(j <= dynlen(dtemp) && k <= dynlen(ddt[i])) {
+			while(j <= dynlen(temp) && k <= dynlen(ddt[i]) && dtemp[j] < ddt[i][k]) {
+				times[l] = dtemp[j];
+				events[l++] = temp[j++];
+			}
+			while(j <= dynlen(dtemp) && k <= dynlen(ddt[i]) && dtemp[j] > ddt[i][k]) {
+				times[l] = ddt[i][k];
+				events[l++] = 1 << i; k++;
+			}
+			while(j <= dynlen(dtemp) && k <= dynlen(ddt[i]) && dtemp[j] == ddt[i][k]) {
+				times[l] = dtemp[j];
+				events[l++] = temp[j++] | (1 << i);//intpow(2, i);
+				k++;
+			}
+		}
+		// remainers (only one of two is executed each time)
+		while(j <= dynlen(dtemp)) {
+			times[l] = dtemp[j];
+			events[l++] = temp[j++];
+		}
+		while(k <= dynlen(ddt[i])) {
+			times[l] = ddt[i][k];
+			events[l++] = 1 << i; k++;
+		}
+		temp = events;
+		dtemp = times;
+	}
+}
+//Function (NoName)_General()" 0
+ E E E
+13 5
+"ButtonCancel"
+""
+1 830 760 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+6 0 0 0 27 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+828 758 912 792
+T 
+1
+LANG:1 5 Close
+"// SimpleCtrlScriptStart {invalid}
+main() {
+	PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+26 43
+"TimeCascadeButton"
+""
+1 10 760 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+8 758 102 792
+0 1
+LANG:1 10 Time Range
+"" 0 0 0 0 0
+6 1 1
+LANG:1 10 10 minutes
+"10minutes" 0 0 0 0 0
+1 1
+LANG:1 6 1 hour
+"1hour" 0 0 0 0 0
+1 1
+LANG:1 7 8 hours
+"8hours" 0 0 0 0 0
+1 1
+LANG:1 5 1 day
+"1day" 0 0 0 0 0
+1 1
+LANG:1 7 10 days
+"10days" 0 0 0 0 0
+1 1
+LANG:1 14 User specified
+"userSpec" 0 0 0 0 0
+"main() {}
+/*main() {
+	dyn_string timeRange;
+	time tb, te;
+	int span;
+	timeRange = strsplit($TimeRange, \"|\");
+	tb = timeRange[1];
+	te = timeRange[2];
+	span = te - tb;
+	switch(span) {
+		case 600 : this.textItem(\"0\", \"10 minutes  *\"); prevTime = 1; break;
+		case 3600 : this.textItem(\"1\", \"1 hour  *\"); prevTime = 2; break;
+		case 28800 : this.textItem(\"2\", \"8 hours  *\"); prevTime = 3; break;
+		case 86400 : this.textItem(\"3\", \"1 day  *\"); prevTime = 4; break;
+		case 864000 : this.textItem(\"4\", \"10 days  *\"); prevTime = 5; break;
+		default : 
+			this.textItem(\"5\", \"User Specified (\" + span / 86400 + \"d \" + span % 86400 / 3600 + \"h \" + span % 3600 / 60 + \"m)  *\");
+			prevTime = 6;
+			break;
+	}
+	//this.enabled = !trendRunning;
+}*/" 0
+ "void changeTrendTimeRange(string trend, int range) {
+	time tb, te;
+	int inter;
+	getValue(\"TrendRef.\" + trend, \"visibleTimeRange\", 0, tb, te);
+	inter = te - tb;
+	tb = tb + inter / 2 - 300;
+//	if(!trendRunning) {
+		setValue(\"TrendRef.\" + trend, \"timeInterval\", range);
+//		Trend1.timeInterval(range);
+//		setValue(\"TrendRef.\" + trend, \"timeBegin\", tb);
+//		Trend1.timeBegin(tb);
+//	} else {
+//		Trend1.timeInterval(range);
+//		setValue(\"TrendRef.\" + trend, \"timeInterval\", range);		
+//	}
+}
+
+main(string id) {
+	dyn_string ids = makeDynString(\"10minutes\", \"1hour\", \"8hours\", \"1day\", \"10days\", \"userSpec\");
+	dyn_string texts = makeDynString(\"10 minutes\", \"1 hour\", \"8 hours\", \"1 day\", \"10 days\", \"User Specified\");
+	string targetTrend;
+	
+	getValue(\"TrendRef.TargetText\", \"text\", targetTrend);
+	
+	switch (id) {
+		case ids[1] : {
+			this.textItem(prevTime - 1, texts[prevTime]);
+			prevTime = 1;
+			this.textItem(prevTime - 1, texts[prevTime] + \"  *\");
+			changeTrendTimeRange(targetTrend, 600);
+			break;	
+		}
+		case ids[2] : {
+			this.textItem(prevTime - 1, texts[prevTime]);
+			prevTime = 2;
+			this.textItem(prevTime - 1, texts[prevTime] + \"  *\");
+			changeTrendTimeRange(targetTrend, 3600);
+			break;	
+		}
+		case ids[3] : {
+			this.textItem(prevTime - 1, texts[prevTime]);
+			prevTime = 3;
+			this.textItem(prevTime - 1, texts[prevTime] + \"  *\");
+			changeTrendTimeRange(targetTrend, 28800);
+			break;	
+		}
+		case ids[4] : {
+			this.textItem(prevTime - 1, texts[prevTime]);
+			prevTime = 4;
+			this.textItem(prevTime - 1, texts[prevTime] + \"  *\");
+			changeTrendTimeRange(targetTrend, 86400);
+			break;	
+		}
+		case ids[5] : {
+			this.textItem(prevTime - 1, texts[prevTime]);
+			prevTime = 5;
+			this.textItem(prevTime - 1, texts[prevTime] + \"  *\");
+			changeTrendTimeRange(targetTrend, 864000);
+			break;	
+		}
+		case ids[6] : {
+			dyn_string ds; dyn_float df;
+			ChildPanelOnCentralModalReturn(\"fwTrending/fwTrendingTimeSpec.pnl\", \"Specify a Time Period\",
+				makeDynString(), df, ds);
+			if(dynlen(ds) > 0 && ds[1] == \"ok\") {
+				int d, h, m, t; d = df[1]; h = df[2]; m = df[3];
+				//this.textItem(prev - 1, texts[prev] + \"  *\");
+				t = d * 86400 + h * 3600 + m * 60;
+				d = t / 86400;
+				h = t % 86400 / 3600;
+				m = t % 3600 / 60;
+				if(t > 0) {
+					this.textItem(prevTime - 1, texts[prevTime]);
+					prevTime = 6;
+					this.textItem(\"5\", texts[6] + \" (\" + d + \"d \" + h + \"h \" + m + \"m)  *\");
+					changeTrendTimeRange(targetTrend, t);
+				}
+			}
+			break;
+		}
+	}
+}" 0
+ 0 
+13 44
+"Button3"
+""
+1 530 760 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+528 758 622 792
+T 
+1
+LANG:1 9 Edit Plot
+"main() {
+	dyn_string ds; dyn_float df; dyn_int di;
+	string val, workPlotName;
+	
+	fwTrending_copyPlot($PlotName, workPlotName);
+	ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfPanel.pnl\",\"Plot Configuration\",
+		makeDynString(\"$Command:edit\", \"$PlotName:\" + $PlotName, \"$WorkPlotName:\"+workPlotName),0,0, df, ds);
+	if(ds[1] == \"OK\") {
+		fwTrending_copyPlotData(workPlotName, $PlotName);
+		dpDelete(workPlotName);
+	} else if(ds[1] == \"OK_ALL\") {
+		fwTrending_copyPlotData(workPlotName, $PlotName);
+		fwTrending_reapplyPlotSettingsToAll($PlotName);
+	} else {
+		dpDelete(workPlotName);
+	}
+}" 0
+ E E "main() {
+	if($bEdit == \"FALSE\")
+		this.visible = false;
+}" 0
+
+1 54 2 "" 0
+2 "visible" 0 0 0 
+0
+1 55 2 "" 12
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+1 12 1 "" 0
+0
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 1 "TrendRef"
+"fwTrending\\fwTrendingSingleTrend.pnl" 10 40 T 4 1 0 0.9999999999999999  0 4.440892098500626e-015  
+4
+"$OpenPageName""$OpenPageName"
+"$PageName""$PageName"
+"$Parent""zoom"
+"$PlotName""$PlotName"
+3 2 ""
+"fwTrending\\fwTrendingTrendCaption.pnl" 10 720 T 40 1 0 1  0 -20  
+4
+"$OpenPageName""$OpenPageName"
+"$PageName""$PageName"
+"$PlotName""$PlotName"
+"$bEdit""$bEdit"
+0

@@ -1,0 +1,626 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 623 670 N "_3DFace" 1
+"$sysDp"
+"main()
+{
+  string host, dbProject, hostDpName, dbHost; //distState, sysName;
+  dyn_string projects, projectDpNames, exceptionInfo;
+//  int sysNumber;   // eventport, dataport, distport;
+  dyn_int distNumbers;
+  string sysDp = $sysDp;  
+  string managerDp1, managerDp2;
+  
+  sysDp = $sysDp;     
+ 
+  dpConnect(\"stateCB\", sysDp + fwSysOverview_STATE);
+    
+  dpGet(sysDp + fwSysOverview_SYSTEM_NUMBER, sysNumber, 
+        sysDp + fwSysOverview_SYSTEM_NAME, sysName);
+
+  fwSysOverview_getSystemProjects(sysDp, projectDpNames, exceptionInfo);
+  if(dynlen(exceptionInfo)){return;}    
+    
+  for(int i=1; i<= dynlen(projectDpNames); i++)
+  {
+    fwSysOverview_getProjectDb(projectDpNames[i], dbProject, exceptionInfo);
+    if(dynlen(exceptionInfo)){continue;}        
+    fwSysOverview_getProjectPc(projectDpNames[i], hostDpName, exceptionInfo);
+    if(dynlen(exceptionInfo)){continue;}
+    fwSysOverview_getHostDb(hostDpName, dbHost, exceptionInfo);
+    if(dynlen(exceptionInfo)){continue;}
+      
+    tblProjects.appendLine(\"project\", dbProject, \"host\", dbHost); 
+  }
+  
+  dpConnect(\"distState\", getSystemName() + \"_DistManager.State.SystemNums\");
+ 
+  if(txDistState.text != \"NOT OK\")
+  {    
+    if(isSystemIntegrityInstalled(sysName))
+    {      
+      txSystemIntegrity.visible = false;
+        
+      addSymbol(myModuleName(), myPanelName(),\"fwSystemOverview/fwSystemOverview_SystemIntegrityInfo.pnl\", \"System Integrity\", 
+                makeDynString(\"$systemName:\" + sysName), 99, 345, 0,0,0);
+//              makeDynString(\"$sysDp:\" + $sysDp), 99, 345, 0,0,0);
+                
+
+      getManagerDp(projectDpNames[1], \"unSystemIntegrity.ctl\", \"WCCOActrl\", managerDp1);
+      getManagerDp(projectDpNames[1], \"unicos_scripts.lst\", \"WCCOActrl\", managerDp2);
+
+      if(dpExists(managerDp1))
+      {  
+        dpConnect(\"managerState\", managerDp1 + fwSysOverview_STATE);
+       
+        txSI.visible = true;
+        txSIStatus.visible = true;
+        shSI.visible = true;
+        }
+      else if(dpExists(managerDp2))
+      {
+        dpConnect(\"managerState\", managerDp2 + fwSysOverview_STATE);
+       
+        txSI.visible = true;
+        txSIStatus.visible = true;
+        shSI.visible = true;
+      }
+ 
+    }
+    else
+    {
+      txSystemIntegrity.visible = true;
+      txSystemIntegrity.text = \"System Integrity is not installed in the remote system: \" + sysName + \".\";
+      txSI.visible = false;
+      txSIStatus.visible = false;
+      shSI.visible = false;
+    }
+  }
+ 
+  tfName.text = sysName;
+  tfNumber.text = sysNumber;
+  txRemoteSys.text = getSystemName() + \" - \" + sysName;
+}
+
+
+" 0
+ E E E E 1 -1 -1 0  30 53
+""0  1
+E "string sysName;
+int sysNumber;
+
+void stateCB(string dpe, int state)
+{
+  string sstate;
+  
+  if(state == fwSysOverview_STOPPED_NORMAL) 
+  {
+    shState.backCol = \"FwStateOKNotPhysics\";
+    sstate = \"STOPPED\";
+  }
+  else if(state == fwSysOverview_RUNNING) 
+  {
+    shState.backCol = \"FwStateOKPhysics\";
+    sstate = \"RUNNING\";
+  }
+  else if(state == fwSysOverview_PROJNAME_MISMATCH) 
+  {
+    shState.backCol = \"FwStateAttention3\";
+    sstate = \"PROJECT_NAME_MISMATCH\";
+  }
+  else if(state == fwSysOverview_PMON_NO_RESPONSE)
+  {
+    shState.backCol = \"FwStateAttention3\";
+    sstate = \"PMON_NO_RESPONSE\";
+  }
+  else if(state == fwSysOverview_INITIALIZE) 
+  {
+    shState.backCol = \"FwStateAttention1\";
+    sstate = \"INITIALIZING\";
+  }
+  else if(state == fwSysOverview_MONITORING_STOPPED)
+  {
+    shState.backCol = \"FwEquipmentDisabled\";
+    sstate = \"NOT MONITORED\";
+  }    
+  txState.text = sstate;
+  
+  return;
+}
+     
+bool isSystemIntegrityInstalled(string systemName)
+{
+//  if(!dpExists(systemName + \"PVSSDB_systemIntegrityInfo\"))
+  if(!dpExists(systemName + \"fwInstallation_unSystemIntegrity\"))
+    return false;
+   
+  return true;
+}
+
+void distState(string dpe, dyn_int distNumbers)
+{
+  string managerDp;
+    
+  if(dynContains(distNumbers, sysNumber) || sysNumber == getSystemId()) // getSystemId for a local system
+  {
+    if(sysNumber == getSystemId())
+    {
+    txDistState.text = \"LOCAL SYSTEM\";
+//    shDist.backCol = \"FwEquipmentDisabled\";
+    shDist.backCol = \"FwStateOKPhysics\";
+    }
+    else
+    {
+    txDistState.text = \"OK\";
+    shDist.backCol = \"FwStateOKPhysics\";
+    }    
+  }
+  else
+  {
+    txDistState.text = \"NOT OK\";
+    shDist.backCol = \"FwStateAttention3\";
+  }
+}
+
+
+void getManagerDp(string projectDp, string managerOption, string managerType, string &managerDp)
+{
+  dyn_string managersDps;
+  string type, option;
+
+  managersDps = dpNames(projectDp + \"*\", \"FwSystemOverviewManager\");
+  
+  for(int i=1; i<=dynlen(managersDps); i++)
+  {
+    if(!dpExists(managersDps[i]))
+      return;
+    
+    dpGet(managersDps[i] + fwSysOverview_MANAGER_TYPE, type);
+    if(type == managerType)
+    {
+      dpGet(managersDps[i] + fwSysOverview_MANAGER_OPTIONS, option);
+      if(option == managerOption)
+      {
+        managerDp = managersDps[i];
+        return;
+      }
+    }
+  }
+}
+
+void managerState(string managerDp, int state)
+{
+  switch(state)
+  {
+    case fwSysOverview_STOPPED_NORMAL:
+      txSIStatus.text = fwSysOverview_getStrFromState(state);
+      txSIStatus.foreCol = \"_WindowText\";
+      shSI.backCol = \"FwStateAttention3\";
+      break;
+    case fwSysOverview_INITIALIZE:
+      txSIStatus.text = fwSysOverview_getStrFromState(state);
+      txSIStatus.foreCol = \"_WindowText\";
+      shSI.backCol = \"FwStateAttention1\";
+      break;
+    case fwSysOverview_RUNNING:
+      txSIStatus.text = fwSysOverview_getStrFromState(state);
+      txSIStatus.foreCol = \"_WindowText\";
+      shSI.backCol = \"FwStateOKPhysics\";
+      break;
+    case fwSysOverview_BLOCKED:
+      txSIStatus.text = fwSysOverview_getStrFromState(state);
+      txSIStatus.foreCol = \"FwStateAttention3\";
+      shSI.backCol = \"FwStateAttention3\";
+      break;
+    case fwSysOverview_MONITORING_STOPPED:
+      txSIStatus.text = fwSysOverview_getStrFromState(state);
+      txSIStatus.foreCol = \"_WindowText\";
+      shSI.backCol = \"FwEquipmentDisabled\";
+      break;
+    case fwSysOverview_STOPPED_ABNORMAL:
+      txSIStatus.text = fwSysOverview_getStrFromState(state);
+      txSIStatus.foreCol = \"FwStateAttention3\";
+      shSI.backCol = \"FwStateAttention3\";
+      break;
+    default:
+      txSIStatus.text = \"STATE NOT DEFINED\";
+      txSIStatus.foreCol = \"_WindowText\";
+      break;
+  }
+   
+}
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 0
+"FRAME1"
+""
+1 30 53 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+0 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.01694915254238 0 2.25589225589225 -20.5084745762713 -119.562289562289 0 E 30 53 621 351
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 11 PVSS System
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 34 472.0000000000002 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 34 472.0000000000002 214.0000000000002 492.0000000000002
+0 2 2 "0s" 0 0 0 64 0 0  34 472.0000000000002 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 12 System Name:
+2 2
+"PRIMITIVE_TEXT2"
+""
+1 32 510.0000000000002 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 32 510.0000000000002 212.0000000000002 530
+0 2 2 "0s" 0 0 0 64 0 0  32 510.0000000000002 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 System Number:
+30 5
+"FRAME3"
+""
+1 30 113 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+8 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 2.7027027027027 -10 94.59459459459492 0 E 30 113 591 151
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 General
+2 6
+"PRIMITIVE_TEXT4"
+""
+1 192 383 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 192 383 372 403
+0 2 2 "0s" 0 0 0 64 0 0  192 383 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 18 PVSS System State:
+30 10
+"FRAME4"
+""
+1 30 113 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 2.97297297297298 -10 174.054054054054 0 E 30 113 591 151
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 20 Linked from projects
+25 11
+"tblProjects"
+""
+1 49.9999999999998 600 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  48 598 572 666
+EE 1 0 1 2 0 "project" 30 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 0 
+
+285 "host" 23 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 0 
+
+215 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+14 12
+"tfName"
+""
+1 124.0000000000002 470.0000000000002 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  122 468 226 491
+3 "0s" 0 0 0 0 0 -1  E E E
+14 13
+"tfNumber"
+""
+1 124.0000000000002 507.0000000000002 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  122 505 176 528
+3 "0s" 0 0 0 0 0 -1  E E E
+2 20
+"txState"
+""
+1 350 380 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 350 380 530 400
+0 2 2 "0s" 0 0 0 64 0 0  350 380 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 State:
+7 21
+"shState"
+""
+1 470 60 E E E 1 E 0 E N {0,0,0} E N {255,255,255} E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 -138.0000000000002 330 1 E 470 60 10 10
+7 26
+"shDist"
+""
+1 470 60 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 -7.999999999999801 419.9999999999999 1 E 470 60 10 10
+2 28
+"txDistState"
+""
+1 490 44 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 490 44 670 63.9999999999997
+0 2 2 "0s" 0 0 0 64 0 0  490 44 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 State:
+2 30
+"PRIMITIVE_TEXT8"
+""
+1 244.0000000000002 471.9999999999999 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 244.0000000000002 471.9999999999999 328 486
+0 2 2 "0s" 0 0 0 192 0 0  244.0000000000002 471.9999999999999 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Dist. Connection :
+2 33
+"txSystemIntegrity"
+""
+1 192 350 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 192 350 387 364
+0 2 2 "0s" 0 0 0 192 0 0  192 350 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 45 System Integrity is not installed in system: 
+7 34
+"shSI"
+""
+1 470 60 E E E 1 E 0 E N {0,0,0} E N {255,255,255} E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 -7.999999999999801 459.9999999999999 1 E 470 60 10 10
+2 35
+"txSIStatus"
+""
+1 490 84 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 490 84 670 104
+0 2 2 "0s" 0 0 0 64 0 0  490 84 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 State:
+2 36
+"txSI"
+""
+1 244.0000000000002 511.9999999999999 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 244.0000000000002 511.9999999999999 403 526
+0 2 2 "0s" 0 0 0 192 0 0  244.0000000000002 511.9999999999999 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 31 Remote SystemIntegrity Manager:
+2 37
+"txRemoteSys"
+""
+1 334.0000000000002 471.9999999999999 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 334.0000000000002 471.9999999999999 343 486
+0 2 2 "0s" 0 0 0 192 0 0  334.0000000000002 471.9999999999999 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 3 ...
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

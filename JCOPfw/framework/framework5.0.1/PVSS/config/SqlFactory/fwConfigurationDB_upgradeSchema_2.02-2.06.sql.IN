@@ -1,0 +1,37 @@
+
+-- treat the recipes with the same name, and different hierarchies:
+-- simply: join them together
+DECLARE
+    recipeName varchar2(512);
+    tag_id number;
+    TYPE refCurType IS REF CURSOR;
+    cur refCurType;
+BEGIN
+    open cur for
+	SELECT  name  from (
+	    SELECT name, COUNT(*) cnt from recipes GROUP BY name
+	    )
+	where cnt>1;
+
+    loop
+	fetch cur into recipeName;
+	exit when cur%notfound;
+
+	-- find out what is the tagid of the first recipe with this name
+	select tagid into tag_id from recipes where name=recipeName and rownum=1;
+
+	-- make the other recipes point actually to the first one...
+	update recipe_tags set tagid=tag_id
+	    where tagid in (
+		select tagid from recipes where name=recipeName
+        	)
+	;
+	-- delete the other recipe tags	
+	DELETE FROM recipes where name=recipeName and tagid!=tag_id;
+	-- clean up the hierarchy indication for this recipe: it is mixed now
+	UPDATE recipes set hver=null where tagid=tag_id;
+    end loop;
+END;
+/
+
+#include "fwConfigurationDB_upgradeSchema_2.03-2.06.sql.IN"

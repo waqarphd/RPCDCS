@@ -1,0 +1,972 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 797 776 N "_3DFace" 0
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"majority_treeCache/treeCache.ctl\"
+#uses \"majority_treeCache/majorityLib.ctl\"
+
+bool browsing = false;
+string selected_node = \"\";
+string filename = \"\";
+
+void refresh() {
+   dyn_string caches = dpNames(\"*\",\"treeCache\");
+   
+   cbCaches.deleteAllItems();
+   for (int i=1; i<= dynlen(caches); i++) {
+      caches[i] = dpSubStr(caches[i], DPSUB_DP) ;
+      strreplace(caches[i],\"treeCache_\",\"\");
+      cbCaches.appendItem(caches[i]);      
+   } 
+}
+
+void createCache(string topNode, bool logical = false) {
+
+   
+  if (! logical) {
+    if (! fwFsmTree_isNode(topNode) ) {
+       showMsg(topNode + \" is not an FSM node\");
+       return; 
+    }    
+  }
+  
+  dyn_string exc;  
+  fwOpenProgressBar(\"Creating cache...\", \"Creating Cache\", 1);
+  treeCache_create(topNode, makeDynString() , exc  , logical); 
+  fwCloseProgressBar();
+
+  if (dynlen(exc)>0) {
+     fwExceptionHandling_display(exc);
+     return; 
+  }
+  
+  if (! logical) {  
+    if ( promptUser(\"Do you want to create and set the dp functions the data points with the information about the inclusion/exclusion of the nodes?\") ) {
+      initIncluded(topNode);
+     }  
+  }
+  
+  
+  refresh();
+  
+  showMsg(\"Cache for \" + topNode + \" created\"); 
+}
+
+initIncluded(string topNode) {
+      fwOpenProgressBar(\"Creating/updating inclusion information\",\"Creating/updating inclusion information\",1);
+     treeCache_initIncluded(topNode);        
+     fwCloseProgressBar(); 
+}
+void appendNode(int i) {
+        tblNodes.appendLine(\"index\",i,\"name\", treeCache_getNode(i),  \"level\", treeCache_getLevel(i,true),
+                           \"type\", treeCache_getType(i, true), \"parent\", treeCache_getParent(i, true),\"details\",\"...\"); 
+}
+
+void showDetails(int index) {
+  tblDetails.visible = true;
+  selected_node = treeCache_getNode(index);
+  btnOpenFsm.text = \"FSM panel for \\n\" + treeCache_getFsmUserLabel(selected_node) ;
+  btnOpenFsm.visible = true; 
+  btnMajority.visible = dpExists(majority_getDpFromNode(selected_node));
+  
+  tblDetails.deleteAllLines();
+  tblDetails.appendLine(\"property\", \"index\", \"value\", ((string) index));
+  tblDetails.appendLine(\"property\", \"Node Name\", \"value\", treeCache_getNode(index));
+  for (int i=1; i<= dynlen(treeCache_items); i++) {
+     tblDetails.appendLine(\"property\", treeCache_items[i],
+                           \"value\", _treeCache_getData(treeCache_items[i], index, true) );
+  }
+  
+  
+  dyn_string children = treeCache_getChildren(index, true);
+  
+  string ch;
+  fwGeneral_dynStringToString(children, ch,\", \");
+  tblDetails.appendLine(\"property\", \"children names\",
+                           \"value\", ch ); 
+}
+
+void showMsg(string msg) {
+    bool ok; dyn_string exc;
+     fwGeneral_openMessagePanel(msg,ok, exc,\"\",true); 
+     return; 
+}
+
+bool promptUser(string msg) {
+  dyn_string result;
+  dyn_float float_result;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageInfo\",(\"information\"),makeDynString(msg,\"Yes\",\"No\"),float_result, result);
+  return result[1]==\"true\";
+
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 16 8 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 16 8 460 63
+0 2 2 "0s" 0 0 0 64 0 0  16 8 1
+1
+LANG:1 33 MS Shell Dlg,-1,19,5,75,0,0,0,0,0
+0 1
+LANG:1 24 Tree Cache Control Panel
+30 1
+"FRAME6"
+""
+1 287 144 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+3 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 4.72839506172839 0 1.17924528301887 -1337.04938271605 -135.811320754717 0 E 287 144 450 251
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Create Cache
+22 2
+"cbRoot"
+""
+1 37 81 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  35 79 238 106
+0
+
+"main()
+{
+  dyn_string CUs = fwFsm_getDomains();
+  for (int i=dynlen(CUs); i>0; i--) {
+    if (substr(CUs[i],0,1) == \"&\") {
+       dynRemove(CUs,i); 
+    }
+  }
+		
+  setValue(\"\",\"items\",CUs);
+  this.enabled = true;
+}" 0
+
+E
+E
+ 0 0
+2 4
+"PRIMITIVE_TEXT5"
+""
+1 41 57 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 41 57 229 78
+0 2 2 "0s" 0 0 0 64 0 0  41 57 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Select Control Unit
+13 5
+"Button2"
+""
+1 62.1111111111111 346.362980769231 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  36 110 132 150
+
+T 
+2
+LANG:1 6 Create
+LANG:0 2 OK
+"main()
+{
+  string topNode = cbRoot.text;
+  
+  createCache(topNode);
+}
+" 0
+ E E E
+30 6
+"FRAME7"
+""
+1 287 144 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+11 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 4.74074074074074 0 5.19811320754719 -1341.5925925926 -580.528301886795 0 E 287 144 450 251
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Manage Tree Cache
+22 7
+"cbCaches"
+""
+1 40 221 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  38 219 241 246
+0
+
+"main()
+{
+refresh();
+}" 0
+
+E
+E
+ 0 0
+13 8
+"PUSH_BUTTON1"
+""
+1 258 221 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  256 219 314 248
+
+P 
+4294967295
+"pictures/refresh_e.gif"
+1
+LANG:1 7 Refresh
+"main()
+{
+  refresh();
+}" 0
+ E E E
+2 9
+"PRIMITIVE_TEXT3"
+""
+1 39 190 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 39 190 227 211
+0 2 2 "0s" 0 0 0 64 0 0  39 190 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Tree Caches in system
+13 10
+"PUSH_BUTTON2"
+""
+1 353.9375 456.697115384615 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  327 214 426 255
+
+T 
+2
+LANG:1 12 Update Cache
+LANG:0 2 OK
+"main()
+{
+  string topNode = cbCaches.text;
+  createCache(topNode);        
+}
+" 0
+ E E E
+25 13
+"tblNodes"
+""
+1 26 368 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  
+  
+  dyn_anytype res;
+  getValue(\"\",\"getLineN\", row, res);
+  int index = res[1];
+  
+ if (column == \"details\") {
+     showDetails(index); return;
+  }
+  if (! browsing ) return;
+  
+  
+  dyn_int children = treeCache_getChildrenI(index, true);
+  if (dynlen(children) == 0) {
+     showMsg(\"This Node has no children\"); return;
+  }
+  tblNodes.deleteAllLines();
+  
+  for (int i=1; i<= dynlen(children); i++) {
+     appendNode(children[i]); 
+  }
+}" 0
+
+24 0 0 0 0 0
+E E "main(bool enter)
+{
+  string tooltip;
+  if (browsing) {
+      tooltip = \"Double click to go to the children\\n\";
+  }
+  tooltip += \"Click on details column to open the details\";
+  this.toolTipText = tooltip;
+}" 0
+
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  24 366 481 629
+E"main(int row, string column, string value)
+{
+  dyn_anytype res;
+  getValue(\"\",\"getLineN\", row, res);
+  int index = res[1];
+  if (column == \"details\") {
+     showDetails(index); 
+  }
+}" 0
+ 1 0 1 6 0 "index" 1 1 0 "s" 1
+LANG:1 1  
+E
+1
+LANG:1 0 
+
+20 "name" 11 1 0 "s" 1
+LANG:1 4 name
+E
+1
+LANG:1 0 
+
+110 "level" 3 1 0 "s" 1
+LANG:1 5 level
+E
+1
+LANG:1 0 
+
+40 "type" 11 1 0 "s" 1
+LANG:1 4 type
+E
+1
+LANG:1 0 
+
+109 "parent" 11 1 0 "s" 1
+LANG:1 6 parent
+E
+1
+LANG:1 0 
+
+110 "details" 4 1 0 "s" 1
+LANG:1 7 details
+E
+1
+LANG:1 0 
+
+50 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 14
+"PUSH_BUTTON5"
+""
+1 182 327 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  180 325 307 360
+
+T 
+1
+LANG:1 20 Show All Cached Info
+"main()
+{
+    string topNode = cbCaches.text;
+    treeCache_start(topNode);
+    
+    int start, stop;
+    treeCache_getVisitIndexes(1, start, stop, true);
+    
+    tblNodes.deleteAllLines();
+    browsing = false;
+    btnParent.visible = false;
+    for (int i=start; i<= stop; i++) {
+      appendNode(i);
+    }
+    
+}" 0
+ E E E
+25 16
+"tblDetails"
+""
+1 488 370.490566037736 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E "main(bool enter)
+{
+  this.toolTipText = \"Click to see the details for the element\";
+}" 0
+
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  486 368 780 632
+E"main(int row, string column, string value)
+{
+  dyn_anytype res;
+  string name;
+  getValue(\"\",\"getLineN\", 1, res);
+  name = res[2];
+  
+  getValue(\"\",\"getLineN\", row, res);
+  
+  string txt = \"Value of property \" + res[1] + \" for \" + name + \":\\n\" + res[2];
+  txtReport.visible = true;
+  txtReport.text = txt;
+  
+}" 0
+ 1 0 1 2 0 "property" 8 1 0 "s" 1
+LANG:1 8 property
+E
+1
+LANG:1 0 
+
+85 "value" 19 1 0 "s" 1
+LANG:1 5 value
+E
+1
+LANG:1 0 
+
+185 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+29 18
+"txtReport"
+""
+1 26 639 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  26 639 778 708
+15 PVSS.TextEdit.1
+0
+"main() {
+    this.readOnly = true;
+
+    
+}
+" 0
+13 19
+"PUSH_BUTTON6"
+""
+1 35 327 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  33 325 157 360
+
+T 
+1
+LANG:1 18 Browse Cached Info
+"main()
+{
+    string topNode = cbCaches.text;
+    treeCache_start(topNode);
+    DebugN(\"Loaded \" + topNode);
+      browsing = true;
+    btnParent.visible = true;
+    
+    tblNodes.deleteAllLines();
+    appendNode(1);
+  
+    
+}" 0
+ E E E
+13 20
+"btnParent"
+""
+1 429 335 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 12 go to parent
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  427 333 478 367
+
+P 
+4294967295
+"pictures/PT_jumpUp.gif"
+1
+LANG:1 12 Go to parent
+"main()
+{
+  dyn_anytype res;
+  getValue(\"tblNodes\",\"getLineN\", 0, res);
+  int index = res[1];
+  if (treeCache_getLevel(index, true) == 1) {
+     showMsg(\"This is the root of the cached information\");
+     return; 
+  }
+  int parent = treeCache_getParentI(index, true);
+  
+  dyn_int children;
+  if (treeCache_getLevel(parent,true)>1) {
+     parent = treeCache_getParentI(parent, true);
+     children = treeCache_getChildrenI(parent, true);
+   } else {
+     children = makeDynInt(parent);     
+   }
+   
+   tblNodes.deleteAllLines();
+   for (int i=1; i<= dynlen(children); i++) {
+     appendNode(children[i]); 
+  }        
+}" 0
+ E E E
+13 21
+"PUSH_BUTTON7"
+""
+1 695 736 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  693 734 790 769
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+13 22
+"btnOpenFsm"
+""
+1 606 327 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  604 325 779 367
+
+T 
+1
+LANG:1 8 Open FSM
+"main()
+{
+  treeCache_fsmView(selected_node);
+}" 0
+ E E E
+13 23
+"PUSH_BUTTON8"
+""
+1 169.075925925926 348.884615384616 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  143 112 239 152
+
+T 
+2
+LANG:1 18 Init Included
+Info
+LANG:0 2 OK
+"main()
+{
+  string topNode = cbRoot.text;
+  
+  initIncluded(topNode);
+}
+" 0
+ E E E
+13 25
+"btnSave"
+""
+1 318 300 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 21 Save data to TXT file
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  316 298 374 327
+
+P 
+4294967295
+"pictures/save.png"
+1
+LANG:1 17 Save Data to CSV
+
+"main()
+{
+
+ 
+ if (fileSelector(filename,\"/\",false,\"*.txt\",false) != 0) return;      
+
+ 
+ if (filename == \"\") return;
+ 
+ if (substr(filename, strlen(filename)-4,4)!= \".txt\") filename += \".txt\";
+   
+    string topNode = cbCaches.text;
+    treeCache_start(topNode);
+    
+
+    dyn_string rows;
+    
+    treeCache_display(treeCache_getNode(1), rows, true);
+    
+    file f = fopen(filename,\"w\");
+    for (int i=1; i<= dynlen(rows); i++) {
+      fputs(rows[i] + \"\\n\", f);
+    }
+  
+    fclose(f);
+   btnOpen.visible = true;
+}" 0
+ E E E
+13 26
+"btnOpen"
+""
+1 317 333 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+46 0 0 0 0 0
+E E "main(bool enter)
+{
+  this.toolTipText = \"Open last saved CSV file (\" + filename + \")\";
+}" 0
+
+0
+1
+LANG:1 24 Open last saved CSV file
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  315 331 373 360
+
+P 
+4294967295
+"pictures/open_en.gif"
+1
+LANG:1 17 Save Data to CSV
+
+"main()
+{
+ system( filename);
+ 
+ 
+ 
+}" 0
+ E E E
+14 27
+"txtLogical"
+""
+1 317 84 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  315 82 462 105
+3 "0s" 0 0 0 0 0 -1  E E E
+13 28
+"btnCreateFromLogical"
+""
+1 341.111111111111 348.362980769231 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  315 112 411 152
+
+T 
+2
+LANG:1 24 Create From
+Logical View
+LANG:0 2 OK
+"main()
+{
+  string topNode = txtLogical.text;
+  treeCache_setDebug(4);
+  
+  createCache(topNode, true);
+}
+" 0
+ E E E
+13 29
+"btnShowLogical"
+""
+1 316 80 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  314 78 473 127
+
+T 
+1
+LANG:1 46 Create From Logical
+(experimental
+for experts)
+"main()
+{
+  lblLogical.visible = true;
+  btnCreateFromLogical.visible = true;
+  txtLogical.visible = true;
+  this.visible = false;
+}" 0
+ E E E
+2 30
+"lblLogical"
+""
+1 318 64 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 318 64 506 85
+0 2 2 "0s" 0 0 0 64 0 0  318 64 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Enter Logical Node
+13 32
+"PUSH_BUTTON10"
+""
+1 353.9375 433.643840956341 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 87 Use this function if the structure of the hierarchy is the same but the aliases changed
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  327 256 426 287
+
+T 
+2
+LANG:1 12 Update DevDp
+LANG:0 2 OK
+"main()
+{
+  string topNode = cbCaches.text;
+  int count = treeCache_updateDevDps(topNode, true);        
+  showMsg(count + \" differences updated\");
+}
+" 0
+ E E E
+13 33
+"btnMajority"
+""
+1 495 327 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  493 325 593 367
+
+T 
+1
+LANG:1 21 Open Majority
+Details
+"main()
+{
+  majority_openDetails(selected_node);
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

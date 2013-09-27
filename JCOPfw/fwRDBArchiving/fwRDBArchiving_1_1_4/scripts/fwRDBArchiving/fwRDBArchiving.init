@@ -1,0 +1,80 @@
+#uses "CtrlPv2Admin"
+#uses "pmon.ctl"
+
+bool setArchiveManagersToManual() {
+	bool failed;
+	dyn_int diManPos, diStartMode, diSecKill, diRestartCount, diResetMin;
+	dyn_string dsManager, dsCommandLine, dsProps;
+	string str, host;
+	int port, iErr = paGetProjHostPort(paGetProjName(), host, port);
+
+	pmonGetManagers(failed, paGetProjName(), diManPos, dsManager, diStartMode, diSecKill, 
+										diRestartCount, diResetMin, dsCommandLine);
+	
+	if(!failed && !iErr) {
+  		DebugN("Setting start mode of old archive managers to manual...");
+		int managerCount=dynlen(dsManager);
+		int managerIndex;
+		for (managerIndex=1;managerIndex<=managerCount;managerIndex++) {
+			if (dsManager[managerIndex]=="PVSS00valarch") {
+				if (diStartMode!=1) { //manual
+					str = "##SINGLE_MGR:PROP_PUT " + (managerIndex-1) +
+		        		" " + "manual" +
+		        		" " + diSecKill[managerIndex] +
+		        		" " + diRestartCount[managerIndex] +
+		        		" " + diResetMin[managerIndex] +
+		        		" " + dsCommandLine[managerIndex];
+  					iErr = pmon_command(str, host, port, false, true);
+				}
+			}
+		}
+	}
+	return iErr==0 && failed==0;
+}
+
+void setDefaultParameters() {
+	//set the values which would be set if we clicked the 'Set Defaultvalues' button
+  	//since the actual default values are invalid
+	int iReConnectDelay=30;
+ 	int iDBWriteDelay=5000;
+	int iDBWriteDelayError=5*1000;
+	int iRetPeriod=50*1000;
+	int iMaxEntries=500;
+	int iMaxBlocks=2;
+	int iDBWriteMisses=5;
+	int iReconnectMisses=3;
+	string dpThis = "_RDBArchive";
+ 
+  iReConnectDelay =  30;
+  iDBWriteDelay = 5000;
+  iReConnectDelay = 30*1000;
+  iDBWriteDelayError = 5*1000;
+  iRetPeriod = 50*1000;
+
+  DebugN("Setting default values...");
+
+  dpSet(dpThis+".buffer.maxEntries:_original.._value", iMaxEntries,
+    dpThis+".buffer.maxBlocks:_original.._value", iMaxBlocks,
+    dpThis+".buffer.retentionPeriod:_original.._value", iRetPeriod,
+    dpThis+".dbConfig.reConnectMisses:_original.._value", iReconnectMisses,
+    dpThis+".dbConfig.reConnectDelay:_original.._value", iReConnectDelay,
+    dpThis+".dbConfig.dbWriteMisses:_original.._value", iDBWriteMisses,
+    dpThis+".dbConfig.dbWriteDelay:_original.._value", iDBWriteDelay,
+    dpThis+".dbConfig.dbWriteDelayError:_original.._value", iDBWriteDelayError);
+}
+
+bool parametersAreInvalid() {
+	int iRetPeriod;
+	//by default, the retention period is 0, which is invalid. If it is still 0 then we know that nobody has
+	//customised the settings, so we can set it to the 'defaults'
+	if (dpGet("_RDBArchive.buffer.retentionPeriod:_original.._value",iRetPeriod)==0) {
+		return iRetPeriod==0;
+	}
+	DebugN(getLastError());
+	return true;
+}
+
+main() {
+	setArchiveManagersToManual();
+	if (parametersAreInvalid()) setDefaultParameters();
+}

@@ -1,0 +1,1907 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 748 606 N "_3DFace" 0
+"main()
+{
+	initDevices();
+	getBitmapPanels();
+}" 0
+ "main()
+{
+;
+
+}" 0
+ E E E 1 0 0 0  10 20
+""0  1
+E "// 
+// For Framework Device stuff..
+dyn_string deviceDpTypes;
+int	currentDeviceDpType;
+
+// which device properties are stored in the widget data
+dyn_string widgetSelectedProperties;
+// Current widget type descriptions
+dyn_string currentWidgetTypeDescriptions;
+
+// Current device element and properties
+dyn_dyn_string elementsAndProperties;
+
+// Current device instance properties
+dyn_string properties;
+
+// Current device instance dpes
+dyn_string dpes;
+
+// Current setpoints, readbacks and values of a plant 
+dyn_dyn_string propertiesPlant;
+dyn_dyn_string dpesPlant;
+dyn_dyn_string descriptionPlant;
+
+//It set to 1 when the widget type is Setting_withUnits and the Device Type is CaV Plant or CaV Group
+bool plant = 0;
+
+/** The functions obtains data about Framework registered device types
+	  and populates the selection boxes
+*/ 
+initDevices()
+{
+
+	string deviceType, deviceDpType, defDp;
+	dyn_string exceptionInfo, deviceDefinitionDps = dpNames(\"*\", \"_FwDeviceDefinition\");
+	dyn_string deviceItems;
+	dyn_dyn_string types;
+	
+	fwOpenProgressBar(\"Initializing...\", \"Initializing...\", 1, 0);
+	deviceTypes.deleteAllItems();
+
+	dynAppend(deviceItems,\"Choose a device type...\");
+	dynAppend(deviceDpTypes,\"\");
+	
+	fwDevice_getAllTypes(types, exceptionInfo);
+	dynAppend(deviceItems, types[1]);
+	deviceTypes.items = deviceItems;
+	dynAppend(deviceDpTypes, types[2]);
+
+	deviceTypes.selectedPos(1);
+	currentDeviceDpType = 1;
+	
+	deviceInstances.items = makeDynString(\"No type selected\");
+	deviceInstances.selectedPos(1);
+	deviceInstances.enabled = FALSE;
+	
+	deviceModels.items = makeDynString(\"No type selected\");
+	deviceModels.selectedPos(1);
+	deviceModels.enabled = FALSE;
+
+        changeP.enabled = FALSE;        
+        	
+	fwCloseProgressBar(\"Finished initialization\");
+}
+
+/** The function obtains the information about registered synoptics
+	  panels.
+	  NOTE: It already fetches the details for the selected panel
+*/
+getBitmapPanels(string select=\"\")
+{
+	int position;
+	dyn_string types;
+
+	fwCaV_listSynopticsPanels(types);
+        for(int i=1; i<=dynlen(types); i++)
+          types[i] = dpSubStr(types[i], DPSUB_DP);
+	
+	bitmapPanelSelector.deleteAllItems;
+	bitmapPanelSelector.items=types;
+
+	position = 1;
+	if(dynContains(types, select)!=0)
+		position = dynContains(types, select);
+	bitmapPanelSelector.selectedPos = position;		
+	
+	// Get the details
+	if(bitmapPanelSelector.selectedText!=\"\")
+		getBitmapDetails();
+}
+
+/** This function obtains the list of widgets belonging to the specific synoptics
+	  panel.
+	  NOTE: It obtains the data about selected widget
+*/
+getBitmapDetails(string select=\"\")
+{
+	int position;
+	dyn_string items;
+	dyn_string exceptionInfo;
+//	dpGet(bitmapPanelSelector.selectedText+\".widgets\", items);
+	fwCaV_listStrippedSynopticsPanelWidgets(bitmapPanelSelector.selectedText, items, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+	}
+	
+	configuredWidgets.deleteAllItems;
+
+	configuredWidgets.items=items;
+	position = 1;
+	if(dynContains(items, select)!=0)
+		position = dynContains(items, select);
+	configuredWidgets.selectedPos = position;			
+	
+	getBitmapWidgetDetails();
+}
+
+/** The function gets the detailed configuration of the selected widget.	  
+*/
+getBitmapWidgetDetails()
+{
+	string widgetType;
+	string visible;
+	string device, model, dp;
+	dyn_string exceptionInfo;
+		
+	if(configuredWidgets.itemCount==0)
+	{
+		isVisible.state(0)=0;
+		dynClear(widgetSelectedProperties);
+		getWidgetTypes();
+		return;
+	}
+
+	dyn_anytype parameters;
+	fwCaV_getWidgetInstanceDetails(bitmapPanelSelector.selectedText, configuredWidgets.selectedText, parameters, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	widgetType = parameters[fwCaV_SynopticsBitmap_Type];
+	isVisible.state(0) = parameters[fwCaV_WidgetInstance_Visible];
+	dp = parameters[fwCaV_WidgetInstance_DeviceDp];
+	widgetSelectedProperties = parameters[fwCaV_WidgetInstance_Properties];
+	
+	
+	// Select the Device, Model, DP	
+	int pos;
+	if(dpExists(dp))
+	{
+		fwDevice_getType(dpTypeName(dp),device,exceptionInfo);
+		fwDevice_getModel(makeDynString(dp), model, exceptionInfo);
+	}
+	else
+	{
+		device=\"\"; model=\"\";
+	}
+	pos = dynContains(deviceTypes.items, device);
+	if(pos<=0)
+	{
+		pos = 1;
+		deviceTypes.selectedPos = pos;
+		deviceTypeChange();
+	}
+	else
+	{
+		deviceTypes.selectedPos = pos;
+		deviceTypeChange();
+		if(deviceModels.itemCount>1)
+		{
+			pos = dynContains(deviceModels.items, model);
+			if(pos<=0)
+			{
+				pos = 1;
+			}
+			else
+			{
+				deviceModels.selectedPos = pos;
+				getDeviceInstances();
+			}
+		}
+	}
+	if(pos!=1)
+        {
+		deviceInstances.selectedPos = dynContains(deviceInstances.items, dp);        
+        }
+	
+	// get the details for the type
+	getWidgetTypes(widgetType);
+        // fill in dpe aliases and dpe names
+        getDpeAliasesAndNames(); 
+}
+
+/** The functions obtains data about specific widget type - that is the
+	  description and description of the parameters
+*/
+getWidgetTypes(string select=\"\")
+{
+	int position;
+	dyn_string types;
+	dyn_string extraParameters;
+	dyn_anytype _parameters;
+	dyn_string exceptionInfo;
+	//string desc;
+	
+	types=dpNames(\"*\",fwCaV_SynopticsWidgetDefinitionDPT);
+	for(int i=1; i<=dynlen(types); i++)
+		types[i] = dpSubStr(types[i],DPSUB_DP);
+	widgetTypeSelection.deleteAllItems;
+	widgetTypeSelection.items=types;
+
+	position = 1;
+	if(dynContains(types, select)!=0)
+		position = dynContains(types, select);
+	widgetTypeSelection.selectedPos = position;
+
+	/*
+	dpGet(widgetTypeSelection.selectedText+\".description\", desc,
+				widgetTypeSelection.selectedText+\".dpesDescription\", currentWidgetTypeDescriptions,
+				widgetTypeSelection.selectedText+\".extraParametersDescription\", extraParameters);
+	*/
+	fwCaV_getWidgetTypeDetails(widgetTypeSelection.selectedText, _parameters, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	widgetTypeDescription.text = _parameters[fwCaV_WidgetDefinition_Description];
+	currentWidgetTypeDescriptions = _parameters[fwCaV_WidgetDefinition_DpeDescriptions];
+	extraParameters = _parameters[fwCaV_WidgetDefinition_ExtraParametersDescription];
+	
+	if(dynlen(extraParameters)==0)
+		additionalParameters.enabled = false;
+	else
+		additionalParameters.enabled = true;
+	
+	// fill the table
+	fillDataMappings();
+}
+
+setBitmapWidgetDetails()
+{
+	string model;
+	if (deviceModels.enabled)
+		model = deviceModels.selectedText;
+	else
+		model = \"\";
+	/*
+	string _dp = bitmapPanelSelector.selectedText+\"/\"+configuredWidgets.selectedText;
+	dpSetWait(_dp+\".panel\", widgetTypeSelection.text,
+				_dp+\".visible\",isVisible.state(0),
+//				_dp+\".Data.deviceName\",deviceTypes.selectedText,
+//				_dp+\".Data.modelName\",model,
+				_dp+\".Data.deviceDp\",deviceInstances.selectedText,
+				_dp+\".Data.properties\",widgetSelectedProperties);
+	*/
+	dyn_string exceptionInfo;
+	dyn_anytype parameters;
+	fwCaV_getWidgetInstanceDetails(bitmapPanelSelector.selectedText, configuredWidgets.selectedText, parameters, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	parameters[fwCaV_SynopticsBitmap_Type] = widgetTypeSelection.text;
+	parameters[fwCaV_WidgetInstance_Visible] = isVisible.state(0);
+	parameters[fwCaV_WidgetInstance_DeviceDp] = deviceInstances.selectedText;
+	parameters[fwCaV_WidgetInstance_Properties] = widgetSelectedProperties;
+	fwCaV_setWidgetInstanceDetails(bitmapPanelSelector.selectedText, configuredWidgets.selectedText, parameters, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+}
+
+
+/** This function populates the table from the global dyn_strings
+*/
+fillDataMappings()
+{
+	int howMany = dynlen(widgetSelectedProperties);
+	if(dynlen(currentWidgetTypeDescriptions) > howMany)
+		howMany = dynlen(currentWidgetTypeDescriptions);
+        
+	if (howMany < dynlen(widgetSelectedProperties))
+		while (howMany < dynlen(widgetSelectedProperties))
+			dynRemove(widgetSelectedProperties,dynlen(widgetSelectedProperties));
+
+	dataMappingTable.deleteAllLines();
+        
+	for(int i=1; i<=howMany; i++)
+	{
+		string desc, prop;
+                
+                if(dynlen(currentWidgetTypeDescriptions)==dynlen(widgetSelectedProperties))
+                {
+                   desc = currentWidgetTypeDescriptions[i]; 
+                   prop = widgetSelectedProperties[i];
+                }
+                else 
+                {
+                  desc = \"\";
+                  prop = \"\";
+                  if(dynlen(currentWidgetTypeDescriptions)>dynlen(widgetSelectedProperties))
+                    desc = currentWidgetTypeDescriptions[i];
+                  else
+                    prop = widgetSelectedProperties[i];
+                }
+
+		dataMappingTable.appendLine(\"description\",desc,
+					    \"count\", i,
+					    \"dpe\",prop);
+	}
+	parameterName.selectedPos=1;
+	parameterName.enabled = false;
+	parameterDpe.selectedPos=1;
+	parameterDpe.enabled = false;
+	parameterDescription.text = \"\";
+	parameterNumber.text=\"\";
+        
+}
+
+
+getDeviceInstances()
+{	
+	dyn_string items,dps;
+	
+	dyn_string tmp;
+	dyn_anytype models;
+	
+	dyn_string exceptionInfo;
+
+	fwOpenProgressBar(\"Getting device instances...\", \"Getting device instances...\", 1, 0);
+	
+  	dynAppend(items,\"Select the device DP...\");
+  	      
+	// Get the DPs of that particular device type
+	fwDevice_dpNames(\"*\", deviceDpTypes[currentDeviceDpType], dps, exceptionInfo);
+
+	// And filter by the model..
+	if(dynlen(dps)!=0&&deviceModels.itemCount>1)
+	{
+		for(int i=1; i<=dynlen(dps); i++)
+			dynAppend(tmp,dps[i]+\".model\");
+		
+		dpGet(tmp, models);
+		for(int i=1; i<=dynlen(dps); i++)
+		{
+			if(models[i]==deviceModels.selectedText)
+				dynAppend(items,dps[i]);
+		}
+	}
+	else
+	{
+		dynAppend(items, dps);
+	}
+
+	// Append to the combo box - if there were any results
+	if(dynlen(items)<=1)
+	{
+		deviceInstances.items = makeDynString(\"No instances of given type/model combination\");
+		deviceInstances.selectedPos=1;
+		deviceInstances.enabled = 0;
+		fillDeviceProperties(0);
+	}
+	else
+	{
+		deviceInstances.items = items;
+		deviceInstances.enabled = 1;
+	}
+	deviceInstances.selectedPos = 1;
+	getDpeAliasesAndNames(); 
+        
+	fwCloseProgressBar(\"Finished retrieving device instances\");
+}
+
+fillDeviceProperties(bool enable)
+{
+	int i;
+	
+        dyn_string requiredDeviceTypes = makeDynString(\"CaV Plant\",\"CaV Areaflow\",\"CaV Areatemp\",\"CaV Loop\");
+        dyn_string requiredWidgetTypes = makeDynString(\"CV/Setting_withUnits\",\"CV/SettingReadBackActual_withUnits\",\"CV/Actual_withUnits\",\"CV/SettingReadBack_withUnits\");
+                
+	if((dynContains(requiredWidgetTypes,widgetTypeSelection.selectedText)>0) && (dynContains(requiredDeviceTypes,deviceTypes.selectedText)>0))
+		plant = 1;
+	else 
+                plant = 0;       
+
+	if(enable==1)
+	{
+
+		dyn_string exceptionInfo, tmp;
+		
+		string model = \"\";
+		dynClear(properties);
+		dynClear(dpes);
+
+		for (i=1; i<=3; i++)
+		{
+			dynClear(propertiesPlant[i]);
+			dynClear(dpesPlant[i]);
+			dynClear(descriptionPlant[i]);
+		}
+			
+		if(deviceModels.enabled && deviceModels.selectedPos!=1)
+			model = deviceModels.selectedText;
+		dynAppend(properties,\"Select a property\");
+		dynAppend(dpes,\"Select a dpe\");
+		fwDevice_getConfigElements(deviceDpTypes[currentDeviceDpType], fwDevice_ALL, elementsAndProperties, exceptionInfo, model);
+                //tmp = elementsAndProperties[2];   
+		//dynAppend(properties,tmp);
+		tmp = elementsAndProperties[1];
+                for(int j=1; j<=dynlen(tmp); j++)
+                {
+                   //DebugN(deviceInstances.selectedText+tmp[j]);
+                   dynAppend(properties,dpGetAlias(deviceInstances.selectedText+tmp[j]));
+                }
+                //DebugN(\"properties\",properties);
+		dynAppend(dpes,tmp);
+                //DebugN(properties,deviceDpTypes[currentDeviceDpType],model);  
+		//if(dynlen(properties) > 1 && (widgetTypeSelection.selectedText == \"CV/Setting_withUnits\" || widgetTypeSelection.selectedText == \"CV/SetpAndRB_withUnits\") && (deviceTypes.selectedText == \"CaV Plant\" || deviceTypes.selectedText == \"CaV Areaflow\" || deviceTypes.selectedText == \"CaV Areatemp\" || deviceTypes.selectedText == \"CaV Loop\"))
+	        if(dynlen(properties) > 1 && (dynContains(requiredWidgetTypes,widgetTypeSelection.selectedText)>0) && (dynContains(requiredDeviceTypes,deviceTypes.selectedText)>0))                                              
+		{                  
+			getSeparateParam();
+		}          
+
+	}
+	else
+	{
+		parameterName.items = makeDynString(\"\");
+		parameterName.selectedPos = 1;
+		parameterName.enabled = false;	
+		parameterDpe.items = makeDynString(\"\");
+		parameterDpe.selectedPos = 1;
+		parameterDpe.enabled = false;	
+		parameterDescription.text = \"\";
+	}
+}
+
+getSeparateParam()
+{
+	int i,j;
+
+        // add \"select a property\" and \"select a dpe\"
+	for (i=1; i<=3; i++)
+	{
+		dynAppend(propertiesPlant[i], properties[1]);
+		dynAppend(dpesPlant[i], properties[1]);
+	}
+
+        bool valAdded = FALSE;
+	for (i=2; i<= dynlen(properties); i++)
+	{
+		if (strpos(properties[i],\"_setp\")>=0)
+		{
+			dynAppend(propertiesPlant[1],properties[i]);
+			dynAppend(dpesPlant[1],dpes[i]);
+			dynAppend(descriptionPlant[1],elementsAndProperties[fwDevice_DESCRIPTION_INDEX][i-1]);
+                        valAdded = TRUE;
+		}
+		else if (strpos(properties[i],\"_status\")>=0 && strpos(properties[i],\"setp\")>=0)
+		{
+			dynAppend(propertiesPlant[2],properties[i]);
+			dynAppend(dpesPlant[2],dpes[i]);
+			dynAppend(descriptionPlant[2],elementsAndProperties[fwDevice_DESCRIPTION_INDEX][i-1]);	
+                        valAdded = TRUE;
+		}
+	}
+
+	int pos;
+	string param;
+
+	for (i=2; i<= dynlen(propertiesPlant[1]); i++)
+	{	
+		pos = strpos(propertiesPlant[1][i],\"_setp\");
+		param = substr(propertiesPlant[1][i],pos+6);
+
+		for (j=2; j<= dynlen(properties); j++)
+			if (strpos(properties[j],\"_status_\"+param)>=0 && strpos(properties[j],\"setp\")<0)
+			{
+				dynAppend(propertiesPlant[3],properties[j]);
+				dynAppend(dpesPlant[3],dpes[j]);
+				dynAppend(descriptionPlant[3],elementsAndProperties[fwDevice_DESCRIPTION_INDEX][j-1]);
+			}
+	}
+}
+
+
+deviceTypeChange()
+{
+	dyn_string models, items, exceptionInfo;
+	
+	deviceTypes.enabled(FALSE);
+	
+	// If info message selected don't do anything
+	if(deviceTypes.selectedPos != 1)
+	{		
+		fwOpenProgressBar(\"Looking for device models.\", \"Looking for device models.\", 1, 0);
+		
+		currentDeviceDpType=(deviceTypes.selectedPos());	
+		fwDevice_getTypeModels(deviceDpTypes[currentDeviceDpType], \"\", models, exceptionInfo);
+		deviceModels.deleteAllItems();
+
+		if(dynlen(models) == 0)
+		{
+			// No models, disable model selection, populate device instances
+			deviceModels.items = makeDynString(\"No models available for the selected type.\");
+			deviceModels.enabled = FALSE;
+			getDeviceInstances();
+		}
+		else
+		{
+			// Models do exists, populate model selection
+			dynAppend(items, \"Choose a device model...\");
+			dynAppend(items, models);
+			deviceModels.items = items;
+			deviceModels.enabled = TRUE;			
+			deviceInstances.items = makeDynString(\"No model selected\");
+			deviceInstances.selectedPos=1;
+			deviceInstances.enabled	= FALSE;
+		}
+		
+		fwCloseProgressBar(\"Finished looking for device models\");
+	}
+	else
+	{
+		// No type has been choosen
+		deviceModels.items = makeDynString(\"No type selected\");
+		deviceModels.selectedPos=1;
+		deviceModels.enabled = FALSE;
+		deviceInstances.items = makeDynString(\"No type selected\");
+		deviceInstances.selectedPos=1;
+		deviceInstances.enabled	= FALSE;
+		fillDeviceProperties(0);
+	}
+
+	deviceModels.selectedPos(1);
+	
+	deviceTypes.enabled(TRUE);
+}
+
+getDpeAliasesAndNames()
+{
+  	if(deviceInstances.selectedPos != 1)
+        {
+		fillDeviceProperties(1);
+                dataMappingTable.selectLineN(0);    
+        }
+        else
+          return;
+        
+        //DebugN(\"dpesPlant\",dpesPlant,\"propertiesPlant\",propertiesPlant);  
+        
+        bool noElements = FALSE;
+        if(dynlen(dpesPlant)!=0)
+        {
+            if(dynlen(dpesPlant[1])==0)
+              noElements = TRUE;     
+        }        
+        else
+          noElements = TRUE;
+        
+        if(noElements && plant==1)
+        {
+         	parameterName.items = makeDynString(\"No dpes found..\");
+	        parameterDpe.items = makeDynString(\"No dpes found..\");                      
+	        parameterName.selectedPos = 1;
+	        parameterName.enabled = FALSE;
+	        parameterDpe.selectedPos = 1;
+	        parameterDpe.enabled = FALSE;
+	        parameterDescription.text = \"\";       
+                return;     
+        }        
+        //DebugN(\"test\",plant);
+        changeP.enabled = TRUE;
+        
+        // to learn more about the plant variable look at the declaration in the ScopeLib
+	if (plant == 1)
+	{
+                dyn_string dpeAliases, dpeNames;
+                for(int i=1;i<=3;i++)
+                {
+                   if(dynlen(dpesPlant[i])>1)
+                   for(int j=2; j<=dynlen(dpesPlant[i]); j++)
+                   {
+                        dynAppend(dpeAliases,propertiesPlant[i][j]);
+			dynAppend(dpeNames,dpesPlant[i][j]);                     
+                   }
+                }
+                dynInsertAt(dpeAliases,propertiesPlant[1][1],1);
+                dynInsertAt(dpeNames,dpesPlant[1][1],1);
+                parameterName.items = dpeAliases;
+                parameterDpe.items = dpeNames;
+		
+	}
+	else
+        {
+		parameterDpe.items = dpes; 
+                parameterName.items = properties;
+        }            
+        changeP.state(0,TRUE);
+	parameterName.enabled = FALSE;
+	parameterDpe.enabled = TRUE;                      
+	parameterName.selectedPos = 0;
+	parameterDpe.selectedPos = 0;  
+} " 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 19
+"Text2"
+""
+1 10 46 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 48 108 64
+0 2 0 "0s" 0 0 0 64 0 0  12 48 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 Bitmap panel:
+2 22
+"Text3"
+""
+1 20 76 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 78 208 94
+0 2 0 "0s" 0 0 0 64 0 0  22 78 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22 Widgets in the bitmap:
+2 29
+"Text6"
+""
+1 220 136 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 222 138 298 154
+0 2 0 "0s" 0 0 0 64 0 0  222 138 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Widget type:
+2 32
+"Text7"
+""
+1 210 166 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 212 168 308 184
+0 2 0 "0s" 0 0 0 64 0 0  212 168 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Type information:
+2 49
+"Text1"
+""
+1 220 250 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  3 0 8 0 E 222 252 254 269
+0 2 0 "0s" 0 0 0 192 0 0  222 252 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Type:
+2 50
+"Text8"
+""
+1 464 250 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  3 0 8 0 E 466 252 505 269
+0 2 0 "0s" 0 0 0 192 0 0  466 252 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Model:
+2 54
+"Text9"
+""
+1 224 290 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 226 292 362 318
+0 2 0 "0s" 0 0 0 64 0 0  226 292 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Device instance:
+30 55
+"Frame1"
+""
+1 210 320 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+56 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 0 10 0 E 210 220 730 320
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Framework Device
+2 61
+"Text4"
+""
+1 8 8 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 10 306 36
+0 2 0 "0s" 0 0 0 64 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 26 Bitmap Panel Configuration
+22 20
+"bitmapPanelSelector"
+""
+1 120 46 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 118 44 382 71
+0
+
+E
+"main()
+{
+	getBitmapDetails();
+}" 0
+
+E
+ 0 0
+17 21
+"configuredWidgets"
+""
+1 10 96 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 94 202 542
+0
+
+E
+"main()
+{
+	getBitmapWidgetDetails();
+}" 0
+
+E
+
+0 0
+20 25
+"isVisible"
+""
+1 224 200 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 222 198 306 222
+1
+T 
+1
+LANG:1 7 Visible
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE25 27
+"dataMappingTable"
+""
+1 -76 190 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+"main()
+{
+
+}" 0
+ E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 218 338 722 462
+"main()
+{
+	this.tableMode(TABLE_SELECT_BROWSE);
+	this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+"main(int row, string column, string value)
+{
+	string text;
+	text = this.cellValueRC(row,\"dpe\");
+        
+        // no rows, end script	
+	if(row<0)
+	    return;       
+        	
+	parameterNumber.text = row+1;	
+        
+        //shape schangeP = getShape(\"changeP\");
+	int pos = dynContains(parameterName.items, text);  // check for dpe aliases
+        //DebugN(descriptionPlant, pos, row);        
+        if(pos<=0 || strlen(text)==0) // no aliases, or the selected row is empty
+        {
+                pos = dynContains(parameterDpe.items, text); // check for dpe names
+                if(pos>0) 
+                {
+                      // displaying dpe names
+                      changeP.state(0,TRUE);
+                      //setValue(schangeP, \"state\", 0, TRUE);
+		      parameterName.enabled = FALSE;
+		      parameterDpe.enabled = TRUE;                      
+		      parameterName.selectedPos = pos;
+		      parameterDpe.selectedPos = pos;
+                      int posDesc = dynContains(elementsAndProperties[1],parameterDpe.selectedText);
+                      parameterDescription.text = elementsAndProperties[fwDevice_DESCRIPTION_INDEX][posDesc];
+                } 
+                else  
+                {
+                      // print default values    
+                      changeP.state(0,TRUE);          
+                      //setValue(schangeP, \"state\", 0, TRUE);                  
+	              parameterName.selectedPos = 1;
+	              parameterName.enabled = FALSE;
+	              parameterDpe.selectedPos = 1;
+	              parameterDpe.enabled = TRUE;
+	              parameterDescription.text = \"\";                
+                }        
+        }
+        else
+	{ 
+                // displaying dpe aliases
+                changeP.state(0,FALSE);
+                //setValue(schangeP, \"state\", 0, FALSE);	     
+		parameterName.selectedPos = pos;
+		parameterDpe.selectedPos = pos;
+		parameterName.enabled = TRUE;
+		parameterDpe.enabled = FALSE;                  
+                int posDesc = dynContains(elementsAndProperties[1],parameterDpe.selectedText);
+                parameterDescription.text = elementsAndProperties[fwDevice_DESCRIPTION_INDEX][posDesc];            
+	}	
+}" 0
+ 0 0 1 3 1 "count" 1 1 0 "s" 1
+LANG:1 1 #
+E
+1
+LANG:1 0 
+
+25 "dpe" 24 1 0 "s" 1
+LANG:1 17 DataPoint Element
+E
+1
+LANG:1 0 
+
+275 "description" 15 1 0 "s" 1
+LANG:1 11 Description
+E
+1
+LANG:1 0 
+
+180 
+20 20 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+22 30
+"widgetTypeSelection"
+""
+1 310 136 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 308 134 722 161
+0
+
+E
+"main()
+{
+	dataMappingTable.deleteAllLines();
+	widgetSelectedProperties = \"\";
+	if(bitmapPanelSelector.selectedText==\"\")
+	{
+		dyn_string exceptionInfo;
+		fwException_raise(exceptionInfo, \"ERROR\", \"Please select the instance of the bitmap first\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	getWidgetTypes(this.selectedText);
+}" 0
+
+E
+ 0 0
+14 31
+"widgetTypeDescription"
+""
+1 310 166 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 308 164 722 191
+2 "0s" 0 0 0 0 0 -1  E E E
+13 34
+"saveChanges"
+""
+1 596 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 594 558 698 592
+
+T 
+1
+LANG:1 13 Save settings
+"main()
+{
+	dyn_string exceptionInfo;
+	if(deviceTypes.selectedPos==1)
+		fwException_raise(exceptionInfo, \"ERROR\", \"No type selected\", \"\");
+	else if (deviceModels.enabled&&deviceModels.selectedPos==1)
+		fwException_raise(exceptionInfo, \"ERROR\", \"No model selected\", \"\");
+	else if (deviceInstances.selectedPos==1)
+		fwException_raise(exceptionInfo, \"ERROR\", \"No device instance selected\", \"\");
+	
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		setBitmapWidgetDetails();
+}" 0
+ E E E
+13 35
+"newBitmapPanel"
+""
+1 400 46 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 398 44 482 78
+
+T 
+1
+LANG:1 3 New
+"main()
+{
+	string name;
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	ChildPanelOnRelativModalReturn(fwCaV_SynopticsNewPATH,
+		\"New bitmap panel name\",
+		makeDynString(\"$bNew:1\"),
+		0,0,
+		df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+
+	name = ds[2];
+	getBitmapPanels(name);
+}" 0
+ E E E
+13 38
+"applyEntry"
+""
+1 668 468 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+ 668 468 708 496
+
+P 
+12632256
+"pictures/ok_en.gif"
+1
+LANG:1 0 
+"main()
+{
+        dyn_int selectedLines; 
+        getValue(\"dataMappingTable\", \"getSelectedLines\", selectedLines); 
+  	int line = selectedLines[1];
+
+	if(parameterDpe.selectedPos!=1)
+        {
+		if (plant == 1)
+		{
+                        dyn_string parameterVal;
+                        
+                        // get dpe aliases if not checkbox is checked                        
+                        if(changeP.state(0)==FALSE)
+                        {
+                          for(int i=1; i<=3; i++)
+                            if(dynlen(propertiesPlant[i])>=2)
+                               parameterVal[i] = propertiesPlant[i][2];                   
+                        }     
+                        
+                        // get dpe names if checkbox is checked, or if there are no aliases for the selected items
+                        if(changeP.state(0)==TRUE || dynlen(parameterVal)==0)
+                        {
+                          for(int i=1; i<=3; i++)
+                            if(dynlen(dpesPlant[i])>=2)
+                               parameterVal[i] = dpesPlant[i][2];
+                        } 
+                        
+                        
+                        
+			dataMappingTable.cellValueRC(0, \"dpe\", parameterVal[1]);
+                        widgetSelectedProperties[1] = parameterVal[1];
+                        
+                        if(dynlen(parameterVal)>1)
+                        {
+			  dataMappingTable.cellValueRC(1, \"dpe\", parameterVal[2]);
+			  widgetSelectedProperties[2] = parameterVal[2];                          
+                        }
+			
+			if (dynlen(parameterVal)==3)
+			{
+				dataMappingTable.cellValueRC(2, \"dpe\", parameterVal[3]);
+				widgetSelectedProperties[3] = parameterVal[3];
+			}
+		}
+		else 
+		{       
+                        string fillInName;
+                        if(changeP.state(0)==FALSE)
+                            fillInName = parameterName.selectedText;			    
+                        else
+                            fillInName = parameterDpe.selectedText;
+
+                        dataMappingTable.cellValueRC(line, \"dpe\", fillInName);  
+			widgetSelectedProperties[line+1] = fillInName;
+		}
+	}
+}" 0
+ E E E
+13 39
+"deleteWidget"
+""
+1 220 90 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 218 88 322 122
+
+T 
+1
+LANG:1 13 Delete widget
+"main()
+{
+	
+	// Remove the DP
+	// dpDelete(configuredWidgets.selectedText);
+	
+	dyn_string exceptionInfo;
+	dyn_string ds;
+	dyn_float df;
+	ChildPanelOnRelativModalReturn(\"fwGeneral/fwOkCancel.pnl\",
+		\"Confirm the deletion\",
+		makeDynString(\"$text:You are about to delete \"+configuredWidgets.selectedText+\" widget instance?\"),
+		0,0,
+		df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+		
+	fwOpenProgressBar(\"Information\", \"Deleting\", 1);
+	fwCaV_deleteWidgetInstance(bitmapPanelSelector.selectedText, configuredWidgets.selectedText, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	fwCloseProgressBar(\"Success\");
+
+  // Refresh display
+	getBitmapDetails();
+}" 0
+ E E E
+13 42
+"newWidget"
+""
+1 340 90 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 338 88 442 122
+
+T 
+1
+LANG:1 10 New widget
+"main()
+{
+	string name;
+	// Getting input from the user
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	
+	if(bitmapPanelSelector.itemCount==0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"No bitmap panel selected.\",\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	ChildPanelOnRelativModalReturn(fwCaV_InputDialogPATH,
+		\"New widget name\",
+		makeDynString(\"$sText:Name for widget:\"),
+		0,0,
+		df,ds);
+	if((ds[1]==\"cancel\") || (ds[2] == \"\"))
+		return;
+	
+	/*
+	name = dpSubStr(bitmapPanelSelector.selectedText,DPSUB_DP)+\"/\"+ds[2];	
+	// Checking for duplicates
+	
+	if(dpExists(name))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Widget with name:\" +ds[2]+\" already exists.\",\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Create the DP	
+	dpCreate(name,\"_FwCaVSynopticsWidget\");
+	*/
+	
+	fwCaV_createWidgetInstance(bitmapPanelSelector.selectedText, ds[2], exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+  // Refresh display
+	getBitmapDetails(ds[2]);
+}" 0
+ E E E
+14 45
+"parameterNumber"
+""
+1 220 470 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 218 468 252 495
+2 "0s" 0 0 0 0 0 -1  E E E
+22 51
+"deviceTypes"
+""
+1 254 250 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 252 248 460 275
+0
+
+E
+"main()
+{
+	dataMappingTable.deleteSelection();
+	widgetSelectedProperties = \"\";
+	
+	getWidgetTypes(widgetTypeSelection.selectedText);
+	
+	parameterName.enabled = false;
+	parameterDpe.enabled = false;
+	
+	if(bitmapPanelSelector.selectedText==\"\")
+	{
+		dyn_string exceptionInfo;
+		fwException_raise(exceptionInfo, \"ERROR\", \"Please select the instance of the bitmap first\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	deviceTypeChange();	
+}" 0
+
+E
+ 0 0
+22 52
+"deviceModels"
+""
+1 504 250 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 502 248 725 275
+0
+
+E
+"main()
+{
+	dataMappingTable.deleteSelection();
+	widgetSelectedProperties = \"\";
+	getWidgetTypes(widgetTypeSelection.selectedText);
+	
+	parameterName.enabled = false;
+	parameterDpe.enabled = false;
+        
+	if(deviceModels.selectedPos != 1)
+		getDeviceInstances();
+        else if(deviceModels.selectedPos == 1)
+                deviceInstances.enabled(false);
+	else
+		fillDeviceProperties(0);
+}" 0
+
+E
+ 0 0
+22 53
+"deviceInstances"
+""
+1 324 290 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 322 288 725 315
+0
+
+E
+"main()
+{
+    getDpeAliasesAndNames(); 
+}" 0
+
+E
+ 0 0
+22 57
+"parameterName"
+""
+1 250 470 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 248 468 662 495
+0
+
+E
+"main()
+{
+	int row,column;
+	getValue(\"dataMappingTable\", \"currentCell\", row, column);
+	
+	parameterDpe.selectedPos = this.selectedPos;
+	if(this.selectedPos>1)
+	{
+		if (plant == 1 && dynlen(descriptionPlant)!=0)
+			parameterDescription.text = descriptionPlant[row+1][1];
+		else 
+                        parameterDescription.text = elementsAndProperties[fwDevice_DESCRIPTION_INDEX][this.selectedPos-1];
+	}
+	else 
+		parameterDescription.text = \"\";
+}" 0
+
+E
+ 0 0
+13 58
+"additionalParameters"
+""
+1 574 200 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 572 198 726 232
+
+T 
+1
+LANG:1 21 Additional parameters
+"// SimpleCtrlScriptStart {invalid}
+main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentralModal(fwCaV_PanelConfiguratorParametersPATH,
+      \"Additional Parameters\",
+      makeDynString(\"$sWidgetDp:\" + bitmapPanelSelector.selectedText+\"/\"+configuredWidgets.selectedText, \"$sWidgetTypeDp:\" + widgetTypeSelection.selectedText));
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnCentralModal}
+// File {fwCaV/fwCaVSynopticsBitmapPanelConfiguratorAdditionalParameters.pnl}
+// Panel {Additional Parameters}
+// Parent {}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// PanelPara1 {$sWidgetDp:$sWidgetDp}
+// PanelPara2 {$sWidgetTypeDp:$sWidgetTypeDp}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ E E E
+13 59
+"modifyBitmapPanel"
+""
+1 490 46 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 44 572 78
+
+T 
+1
+LANG:1 6 Modify
+"main()
+{
+	if(bitmapPanelSelector.selectedText==\"\")
+		return;
+	string name;
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	ChildPanelOnRelativModalReturn(fwCaV_SynopticsNewPATH,
+		\"New bitmap panel name\",
+		makeDynString(\"$bNew:0\",\"$sBitmapName:\"+bitmapPanelSelector.selectedText),
+		0,0,
+		df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+}" 0
+ E E E
+22 62
+"parameterDpe"
+""
+1 250 496 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 248 494 662 521
+0
+
+E
+"main()
+{
+	int row, column;
+	getValue(\"dataMappingTable\", \"currentCell\", row, column);
+	
+	parameterName.selectedPos = this.selectedPos;
+	if(this.selectedPos>1)
+	{
+		if (plant == 1 && dynlen(descriptionPlant)!=0)
+			parameterDescription.text = descriptionPlant[row+1][1];
+		else 
+                        parameterDescription.text = elementsAndProperties[fwDevice_DESCRIPTION_INDEX][this.selectedPos-1];
+	}
+	else 
+		parameterDescription.text = \"\";
+}" 0
+
+E
+ 0 0
+13 64
+"close"
+""
+1 622 598 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 558 571 592
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOffReturn(makeDynFloat(0), makeDynString(\"close\"));
+}" 0
+ E E E
+13 65
+"deleteBitmapPanel"
+""
+1 580 46 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 578 44 662 78
+
+T 
+1
+LANG:1 6 Delete
+"main()
+{
+	dyn_string exceptionInfo;
+	dyn_string ds;
+	dyn_float df;
+	ChildPanelOnRelativModalReturn(\"fwGeneral/fwOkCancel.pnl\",
+		\"Confirm the deletion\",
+		makeDynString(\"$text:You are about to delete the Synoptics Panel:\"+bitmapPanelSelector.selectedText),
+		0,0,
+		df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+		
+	fwOpenProgressBar(\"Information\", \"Unpublishing\", 1);
+	fwCaV_unregisterSynopticsPanel(bitmapPanelSelector.selectedText,exceptionInfo, true);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwCloseProgressBar(\"There were errors during deletion of the Synoptics Panel\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	fwCloseProgressBar(\"Success\");
+
+	getBitmapPanels();
+}" 0
+ E E E
+14 66
+"parameterDescription"
+""
+1 250 521 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 248 519 661 546
+2 "0s" 0 0 0 0 0 -1  E E E
+1 71 0 "" 0
+0
+13 68
+"copyWidget"
+""
+1 459 90 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 457 88 561 122
+
+T 
+1
+LANG:1 11 Copy Widget
+"main()
+{
+	string name;
+	// Getting input from the user
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	
+	if(bitmapPanelSelector.itemCount==0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"No bitmap panel selected.\",\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	ChildPanelOnRelativModalReturn(fwCaV_InputDialogPATH,
+		\"New widget name\",
+		makeDynString(\"$sText:Name for widget:\"),
+		0,0,
+		df,ds);
+	if(ds[1]==\"cancel\")
+		return;
+	
+	/*
+	name = dpSubStr(bitmapPanelSelector.selectedText,DPSUB_DP)+\"/\"+ds[2];	
+	// Checking for duplicates
+	
+	if(dpExists(name))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Widget with name:\" +ds[2]+\" already exists.\",\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Create the DP	
+	dpCreate(name,\"_FwCaVSynopticsWidget\");
+	*/
+	
+	fwOpenProgressBar(\"Information\", \"Copying\", 1);
+	
+	fwCaV_createWidgetInstance(bitmapPanelSelector.selectedText, ds[2], exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	dyn_anytype parameters;
+	fwCaV_getWidgetInstanceDetails(bitmapPanelSelector.selectedText, configuredWidgets.selectedText, parameters, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	};
+	
+	//Set default values for the visibility and position
+	parameters[fwCaV_WidgetInstance_Visible] = \"FALSE\";
+	parameters[fwCaV_WidgetInstance_Position_x] = 0;
+	parameters[fwCaV_WidgetInstance_Position_y] = 0;
+	
+	fwCaV_setWidgetInstanceDetails(bitmapPanelSelector.selectedText, ds[2], parameters, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	};
+	fwCloseProgressBar(\"Success\");
+	
+  // Refresh display
+	getBitmapDetails(ds[2]);
+}" 0
+ E E E
+20 70
+"changeP"
+""
+1 229 496 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 227 494 244 520
+1
+T 
+1
+LANG:1 6 change
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	if (changeP.state(0) == 0)
+	{
+		parameterName.enabled = true;
+		parameterDpe.enabled = false;
+	}
+	else
+	{
+		parameterName.enabled = false;
+		parameterDpe.enabled = true;
+	}
+}" 0
+2 72
+"PRIMITIVE_TEXT1"
+""
+1 255 12 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 257 14 353 30
+0 2 0 "0s" 0 0 0 64 0 0  257 14 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 on system:
+14 74
+"TEXT_FIELD2"
+""
+1 330 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 328 8 442 35
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = strrtrim(getSystemName(), \":\");
+}" 0
+ E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 350 20 T 63 1 0 1 360 -10
+1
+"$sPanelRelativePath""fwCaV/fwCaVSynopticsBitmapPanelConfigurator"
+0

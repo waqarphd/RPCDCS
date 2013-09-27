@@ -1,0 +1,747 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,306 170 688 517 N "_3DFace" 0
+"main()
+{
+	int iRes;
+	dyn_string exceptionInfo;
+	string systName = getSystemName();
+	
+	confTable.tableMode(TABLE_SELECT_BROWSE);
+	confTable.selectByClick(TABLE_SELECT_LINE); 
+	confTable.sortOnClick(false);
+	
+	if(isFunctionDefined(\"unGenericDpFunctionsHMI_setCallBack_user\"))
+		unGenericDpFunctionsHMI_setCallBack_user(\"userCB\",iRes, exceptionInfo);
+
+	loadData();
+	localSystemName.text = substr(systName, 0, strpos(systName, \":\"));
+	localSystemId.text = getSystemId();
+}" 0
+EE E E 1 -1 -1 0  10 10
+"" 0 1
+E"//---------------------------------------------------------------------------------------------------------
+loadData()
+{
+	dyn_string dsSystemName, dsHostName;
+	dyn_int diSystemId, diPortNumber;
+	int i, len;
+	string sHostName, sPortNumber;
+	
+	confTable.deleteAllLines();
+	unDistributedControl_getAllDeviceConfig(dsSystemName, diSystemId, dsHostName, diPortNumber);
+	len = dynlen(dsSystemName);
+	for(i=1;i<=len;i++) {
+		if(diPortNumber[i] <=0)
+			sPortNumber = \"\";
+		else
+			sPortNumber = diPortNumber[i];
+		if(dsHostName[i] == \"localhost\")
+			sHostName = \"\";
+		else
+			sHostName = dsHostName[i]; 
+		if(dsSystemName[i]+\":\" == getSystemName()) {
+			localPortNumber.text = sPortNumber;
+			localHostName.text = sHostName;
+		}
+		else
+			confTable.appendLine(\"remoteSystemName\", dsSystemName[i], \"remoteSystemId\", diSystemId[i], 
+										\"remoteHostName\", sHostName, \"remotePortNumber\", sPortNumber);
+	}
+	confTable.appendLine(\"remoteSystemName\", \"\", \"remoteSystemId\", \"\", \"remoteHostName\", \"\", \"remotePortNumber\", \"\");
+
+}
+
+//---------------------------------------------------------------------------------------------------------
+
+checkData(dyn_string &exceptionInfo)
+{
+	int length, i;
+	dyn_string dsSystemName, dsSystemId, dsPortNumber, dsHostName;
+	string sPortNumber, sHostName, sTemp;
+	
+// get all new config
+	dynAppend(dsSystemName, localSystemName.text);
+	dynAppend(dsSystemId, localSystemId.text);
+	dynAppend(dsPortNumber, localPortNumber.text);
+	dynAppend(dsHostName, localHostName.text);
+
+	length = confTable.lineCount() - 1;
+	for(i=0;i<=length;i++) {
+		sTemp = confTable.cellValueRC(i, \"remoteSystemName\");
+		if(sTemp != \"\") {
+			dynAppend(dsSystemName, sTemp);
+			dynAppend(dsSystemId, confTable.cellValueRC(i, \"remoteSystemId\"));
+			dynAppend(dsPortNumber, confTable.cellValueRC(i, \"remotePortNumber\"));
+			dynAppend(dsHostName, confTable.cellValueRC(i, \"remoteHostName\"));
+		}
+	}
+	dynUnique(dsSystemName);
+	dynUnique(dsSystemId);
+	
+// check that the system name, system Id are unique and port number is unique if on different computer.
+	if(dynlen(dsSystemName) != dynlen(dsSystemId))
+		fwException_raise(exceptionInfo, \"ERROR\", \"saving unDistribtuedControl configuration: incorrect data, redundant systemName or systemId\", \"\");
+	else {
+		sPortNumber = dsPortNumber[1];
+		dynRemove(dsPortNumber, 1);
+		sHostName = dsHostName[1];
+		dynRemove(dsHostName, 1);
+
+		while(dynlen(dsPortNumber) > 0) {
+			i = dynContains(dsPortNumber, sPortNumber);
+			if(i>0) {
+				if(sHostName == dsHostName[i]) {
+					fwException_raise(exceptionInfo, \"ERROR\", \"saving unDistribtuedControl configuration: same portNumber on same host\", \"\");
+//					DebugN(i, dsSystemName, dsHostName, dsPortNumber, sPortNumber, sHostName);
+				}
+			}
+			sPortNumber = dsPortNumber[1];
+			dynRemove(dsPortNumber, 1);
+			sHostName = dsHostName[1];
+			dynRemove(dsHostName, 1);
+		}
+	}
+}
+
+//---------------------------------------------------------------------------------------------------------
+
+saveData()
+{
+	dyn_string exceptionInfo;
+	int i, length, iSystemId, iPortNumber;
+	string sSystemName, sHostName, sPortNumber;
+	dyn_string dsOldSystemName, dsSystemName, dsHostName;
+	dyn_int diSystemId, diPortNumber;
+	
+// check data and do not save if the data are not correct
+	checkData(exceptionInfo);
+	
+	if(dynlen(exceptionInfo) <=0) {
+	// save local config
+		sSystemName = localSystemName.text;
+		iSystemId = localSystemId.text;
+		sHostName = localHostName.text;
+		sPortNumber = localPortNumber.text;
+		if(sPortNumber == \"\")
+			iPortNumber = 0;
+		else
+			iPortNumber = sPortNumber;
+			
+	// get current configs
+		unDistributedControl_getAllDeviceConfig(dsOldSystemName, diSystemId, dsHostName, diPortNumber);
+	
+	// create the local system if not already created
+		unDistributedControl_checkCreateDp(c_unDistributedControl_dpName+sSystemName, exceptionInfo);
+		if(dynlen(exceptionInfo) <= 0) {
+			unDistributedControl_setDeviceConfig(sSystemName, iSystemId, sHostName, iPortNumber, exceptionInfo);
+			dynAppend(dsSystemName, sSystemName);
+		}
+	// save remote PVSS server config
+		length = confTable.lineCount() - 1;
+		for(i=0;i<=length;i++) {
+			sSystemName = confTable.cellValueRC(i, \"remoteSystemName\");
+			iSystemId = confTable.cellValueRC(i, \"remoteSystemId\");
+			sHostName = confTable.cellValueRC(i, \"remoteHostName\");
+			sPortNumber = confTable.cellValueRC(i, \"remotePortNumber\");
+			if(sPortNumber == \"\")
+				iPortNumber = 0;
+			else
+				iPortNumber = sPortNumber;
+			if(sSystemName != \"\") {
+	// create the remote system if not already created
+				unDistributedControl_checkCreateDp(c_unDistributedControl_dpName+sSystemName, exceptionInfo);
+				if(dynlen(exceptionInfo) <= 0) {
+					unDistributedControl_setDeviceConfig(sSystemName, iSystemId, sHostName, iPortNumber, exceptionInfo);
+					dynAppend(dsSystemName, sSystemName);
+				}
+			}
+		}
+	}
+	
+// in case of error do nothing
+	if (dynlen(exceptionInfo) <= 0)
+		{
+	// delete the others
+		length = dynlen(dsOldSystemName);
+		for(i=1;i<=length;i++) {
+			iPortNumber = dynContains(dsSystemName, dsOldSystemName[i]);
+			if(iPortNumber <= 0) {
+// delete systemIntegrity
+				deleteSystemIntegrity(dsOldSystemName[i]);
+// delete unDistributedControl DP
+				dpDelete(c_unDistributedControl_dpName+dsOldSystemName[i]);
+			}
+		}
+	// save config in the config file
+		saveInConfigFile(exceptionInfo);
+		
+	// feedback to the user
+		ChildPanelOnCentralModal(\"vision/MessageInfo1\",\"Info\",makeDynString(\"$1:configuration saved\"));
+
+// 2. Reload data
+		loadData();
+		}
+	else
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+//---------------------------------------------------------------------------------------------------------
+
+deleteSystemIntegrity(string sSystemName)
+{
+	// send the command
+	dpSetWait(UN_SYSTEM_INTEGRITY_DIST+UN_SYSTEMINTEGRITY_EXTENSION+\".interface.command\", UN_SYSTEMINTEGRITY_DELETE, 
+				UN_SYSTEM_INTEGRITY_DIST+UN_SYSTEMINTEGRITY_EXTENSION+\".interface.parameters\", 
+									makeDynString(c_unDistributedControl_dpName+sSystemName));
+// just wait it is done. not the best secure way but this is the only available.
+	delay(1);
+//	DebugN(\"delete systemIntegrity: \", sSystemName);
+}
+
+//---------------------------------------------------------------------------------------------------------
+saveInConfigFile(dyn_string &exceptionInfo)
+{
+	int i, length;
+	string sHostName, sPortNumber;
+	dyn_string dsSystemName, dsHostName;
+	dyn_int diSystemId, diPortNumber;
+	int res;
+	dyn_string dsSection;
+	
+// get current configs
+	unDistributedControl_getAllDeviceConfig(dsSystemName, diSystemId, dsHostName, diPortNumber);
+	length = dynlen(dsSystemName);
+	for(i=1; i<=length;i++) {
+		if(dsSystemName[i]+\":\" == getSystemName()) {
+			if(diPortNumber[i] > 0) {
+//				DebugN(\"distPort = \" + diPortNumber[i]);
+				dynAppend(dsSection, \"distPort = \" + diPortNumber[i]);
+			}
+		}
+		else {
+			if(diPortNumber[i] > 0)
+				sPortNumber = \":\"+diPortNumber[i];
+			else
+				sPortNumber = \"\";
+			if(dsHostName[i] == \"\")
+				sHostName = \"localhost\";
+			else
+				sHostName = dsHostName[i];
+			dynAppend(dsSection, \"distPeer = \\\"\" + sHostName + sPortNumber + \"\\\" \"+  diSystemId[i]);
+			DebugN(\"distPeer = \\\"\" + sHostName + sPortNumber + \"\\\" \"+  diSystemId[i], dsHostName[i]);
+		}
+	}
+	dynAppend(dsSection, \"\");
+	res = fwInstallation_setSection(\"dist\", dsSection);
+//DebugN(res);
+	if(res < 0)
+		fwException_raise(exceptionInfo, \"ERROR\", \"saving unDistribtuedControl configuration: cannot write config file\", \"\");
+}
+//---------------------------------------------------------------------------------------------------------
+
+userCB(string sDp, string sUser)
+{
+	bool granted = false;
+	int installed;
+	dyn_string exceptionInfo, domainList, priviledgeList;
+	string user;
+
+	if(isFunctionDefined(\"fwAccessControl_getDomainList\")) {
+		fwAccessControl_getDomainList(domainList, exceptionInfo);
+		fwAccessControl_getPriviledgeList(priviledgeList, exceptionInfo);
+		
+	// get the priviledge and domain list. The configuration of the windowTree needs the first domain and the highest priviledge level
+		if(dynlen(exceptionInfo)<=0)
+		{
+			fwAccessControl_getUserPermission(priviledgeList[4], domainList[1], granted, exceptionInfo);
+		}
+	}
+	else {
+		user = getUserName();
+		
+		installed = fwInstallation_checkInstalledComponent(\"unCore\", \"3.6\");
+		if(installed < 0)
+			granted = true;
+		else if(user == c_systemIntegrity_noFwAccessControl_userAdmin) 
+			granted = true;
+		else
+			granted = false;
+	}
+	buttonApply.enabled = granted;
+	
+	if(isFunctionDefined(\"unMessageText_sendException\")) {
+		if(dynlen(exceptionInfo)>0)
+			unMessageText_sendException(getSystemName(), myManNum(), \"Distribtued Control configuration\", \"user\", \"*\", exceptionInfo);
+	}
+	
+// handle here any error during the the send message:
+	if(dynlen(exceptionInfo)>0) {
+		fwExceptionHandling_display(exceptionInfo);
+	}
+}
+
+//---------------------------------------------------------------------------------------------------------
+
+eventClose()
+{
+	int pos;
+	
+	if(isFunctionDefined(\"unGenericButtonFunctionsHMI_closePanel\")) {
+		if(globalExists(\"g_unGraphicalFrame_childOpenedPanel\")) {
+			pos = dynContains(g_unGraphicalFrame_childOpenedPanel, myModuleName()+\"/\"+myPanelName());
+			if(pos >0)
+				dynRemove(g_unGraphicalFrame_childOpenedPanel, pos);
+		}
+	
+		unGenericButtonFunctionsHMI_closePanel(true);
+	}
+	else
+		PanelOff();
+}
+
+//---------------------------------------------------------------------------------------------------------
+
+
+
+" 0
+ 2
+"CBRef""1"
+"EClose""main()
+{
+	eventClose();
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text16"
+""
+1 10 10 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 468 38
+0 2 0 "s" 0 0 0 64 0 0  12 12
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-140-100-100-*-*-iso8859-1|-16,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 52 DistributedControl: Remote PVSS System configuration
+2 1
+"Text4"
+""
+1 10 113 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 115 558 136
+0 2 0 "s" 0 0 0 64 0 0  12 115
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 91 List of Distribtued Control device: PVSS remote system (click on a cell to add a new entry)
+2 9
+"Text1"
+""
+1 10 68 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 70 108 86
+0 2 0 "s" 0 0 0 64 0 0  12 70
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 22 Local PVSS System Name
+2 10
+"Text5"
+""
+1 160 68 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 162 70 308 86
+0 2 0 "s" 0 0 0 64 0 0  162 70
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 20 Local PVSS System Id
+2 11
+"Text6"
+""
+1 290 68 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 292 70 438 86
+0 2 0 "s" 0 0 0 64 0 0  292 70
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 10 Local host
+2 12
+"Text7"
+""
+1 490 68 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 492 70 638 86
+0 2 0 "s" 0 0 0 64 0 0  492 70
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 17 Local port number
+13 4
+"cancelButton"
+""
+1 506 477 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 11 Close Panel
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+504 475 623 509
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	eventClose();
+}" 0
+ E E E
+25 6
+"confTable"
+""
+1 -2130 -87 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+8 132 622 475
+E "main(int row, string column, string value)
+{
+	if ((value == \"\") && (column == \"remoteSystemName\"))
+		{
+		this.deleteLineN(row);
+		}
+	else {
+//		DebugN(value, row, column);
+		if(this.cellValueRC(row, \"remoteSystemName\") == \"\")
+			this.deleteLineN(row);
+	}
+
+	if (this.cellValueRC(this.lineCount() - 1,\"remoteSystemName\") != \"\")
+		{
+		if(this.cellValueRC(this.lineCount() - 1,\"remoteSystemId\") == \"\")
+			this.cellValueRC(this.lineCount() - 1,\"remoteSystemId\") = this.lineCount();
+		this.appendLine(\"remoteSystemName\", \"\", \"remoteSystemId\", \"\",
+							\"remoteHostName\", \"\", \"remotePortNumber\", \"\");
+		}
+}" 0
+ 1 0 1 4 1 "remoteSystemName" 0 1 -1 "s" 1
+LANG:1 23 PVSS Remote System Name
+E1
+LANG:1 23 PVSS remote system name
+ 150 "remoteSystemId" 0 1 -1 "s" 1
+LANG:1 21 PVSS Remote System Id
+E1
+LANG:1 21 PVSS remote system id
+ 130 "remoteHostName" 0 1 -1 "s" 1
+LANG:1 9 Host name
+E1
+LANG:1 35 host name of the remote PVSS system
+ 200 "remotePortNumber" 0 1 -1 "s" 1
+LANG:1 18 Remote port number
+E1
+LANG:1 45 port number of the remote distributed manager
+ 110 24 24 "" 1 1
+LANG:1 3 #30
+8 30 1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 1 3 0
+1 0
+1 13 0 "" 0
+0
+1 14 0 "" 1
+0
+14 13
+"localSystemName"
+""
+1 10 87 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+8 85 162 110
+2 "s" 0 0 0 0 0 0 
+E
+E
+E
+14 14
+"localSystemId"
+""
+1 160 87 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+158 85 292 110
+2 "s" 0 0 0 0 0 0 
+E
+E
+E
+14 15
+"localHostName"
+""
+1 290 87 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+288 85 492 110
+2 "s" 0 0 0 0 0 0 
+E
+E
+E
+14 16
+"localPortNumber"
+""
+1 490 87 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+488 85 602 110
+3 "s" 0 0 0 0 0 0 
+E
+E
+E
+13 17
+"buttonApply"
+""
+1 387 477 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+385 475 504 509
+T 
+1
+LANG:1 19 Apply Modifications
+"main()
+{
+	deleteEntry.enabled(false);
+	cancelButton.enabled(false);
+	buttonApply.enabled(false);
+	reloadButton.enabled(false);
+	
+// 1. Save data
+	saveData();
+
+	deleteEntry.enabled(true);
+	cancelButton.enabled(true);
+	reloadButton.enabled(true);
+	userCB(\"\", \"\");
+}" 0
+ E E E
+13 18
+"reloadButton"
+""
+1 10 476 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+8 474 257 508
+T 
+1
+LANG:1 48 Reload Data (Unsaved modifications will be lost)
+"main()
+{
+	deleteEntry.enabled(false);
+	cancelButton.enabled(false);
+	buttonApply.enabled(false);
+	reloadButton.enabled(false);
+
+	loadData();
+
+	deleteEntry.enabled(true);
+	cancelButton.enabled(true);
+	reloadButton.enabled(true);
+	userCB(\"\", \"\");
+}
+" 0
+ E E E
+13 19
+"deleteEntry"
+""
+1 621 133 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+EE E
+0
+2
+LANG:1 0 
+LANG:0 0 
+0
+2
+LANG:1 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+LANG:0 107 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,500,0,0,0,0,0,0,0,16,arial
+0 ""
+620 132 679 166
+P 
+10862530
+"pictures/dpeMon_del.gif"
+1
+LANG:1 0 
+"main()
+{
+	dyn_int diLines;
+	
+	deleteEntry.enabled(false);
+	cancelButton.enabled(false);
+	buttonApply.enabled(false);
+	reloadButton.enabled(false);
+
+	diLines = confTable.getSelectedLines();
+	if(dynlen(diLines) >= 1) {
+		if(confTable.cellValueRC(diLines[1], \"remoteSystemName\") != \"\") {
+			confTable.deleteLineN(diLines[1]);
+		}
+//	DebugN(confTable.getSelectedLines());
+	}
+
+	deleteEntry.enabled(true);
+	cancelButton.enabled(true);
+	reloadButton.enabled(true);
+	userCB(\"\", \"\");
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\STD_INFOS\\currentUser_text_time.pnl" 430 27 T 8 1 0 1  197 448  
+0
+0

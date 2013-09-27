@@ -1,0 +1,591 @@
+V 10
+1
+LANG:1 0 
+PANEL,107 81 409 476 N "_3DFace" 2
+"$domainName"
+"$mode"
+"main()
+{
+
+//
+// $domainName should contain domain name that needs to be edited
+// or empty string if new domain should be defined.
+//
+// optional $mode should contain string \"RO\" for read-only (browse) mode
+//
+
+
+	string domainName, domainFullName, domainComment,domainId;
+	dyn_string exceptionInfo,privileges;
+
+	fwAccessControl_setupPanel(\"AccessControl\",exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		AccessControl(\"\",\"\"); // global \"reject\"
+		fwExceptionHandling_display(exceptionInfo);
+	};
+
+
+
+	if (!isDollarDefined(\"$domainName\")) {
+		fwException_raise(exceptionInfo,
+					\"PANEL ERROR\",
+					\"Domain name not specified in $domainName\",
+					\"\");
+		setValue(\"ApplyButton\",\"enabled\",FALSE);
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	};
+
+	domainName=$domainName;
+	if (domainName==\"\") {
+		setValue(\"ApplyButton\",\"text\",\"Create\");
+		setValue(\"ShowPrivHoldersButton\",\"visible\",FALSE);
+	}
+
+	populatePanel();
+
+}" 0
+ E E E E 1 -1 -1 0  20 80
+""0  1
+E "void populatePanel()
+{
+	string domainName, domainFullName, domainComment,domainId;
+	dyn_string exceptionInfo,privileges;
+	dyn_int privIds;
+
+	domainName=$domainName;
+
+	if (domainName!=\"\") {
+		fwAccessControl_getDomain(domainName,
+				  domainFullName,
+				  domainComment,
+				  domainId,
+				  privileges,
+				  privIds,
+				  exceptionInfo);
+	} else {
+		_fwAccessControl_GetDefaultPrivileges(privileges, privIds);
+	}
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+	} else {
+		setValue(\"Name\",\"text\",domainName);
+		setValue(\"FullName\",\"text\",domainFullName);
+		setValue(\"Comment\",\"text\",domainComment);
+		setValue(\"Id\",\"text\",domainId);
+		setValue(\"PrivilegeTable\",\"deleteAllLines\");
+		for (int i=1;i<=dynlen(privileges);i++) {
+			setValue(\"PrivilegeTable\",\"updateLine\",1,
+					\"Level\",privIds[i],
+					\"Name\",privileges[i]);
+		}
+		setValue(\"PrivilegeTable\",\"lineVisible\",0);
+	}
+
+	if (isDollarDefined(\"$mode\")) {
+		if ($mode==\"RO\") {
+			setValue(\"Name\",\"editable\",false);
+			setValue(\"FullName\",\"editable\",false);
+			setValue(\"Comment\",\"editable\",false);
+			setValue(\"OKButton\",\"visible\",false);
+			setValue(\"ResetPermNamesButton\",\"visible\",false);
+			setValue(\"PrivilegeTable\",\"columnEditable\",1,false);
+		}
+	}
+
+}
+
+void AccessControl(string dp, string username_from_ui)
+{
+	dyn_string exceptionInfo;
+	bool granted;
+
+	if (dp==\"\") {
+		// means reject mode:
+
+		granted=false;
+	} else {
+
+		// you need either system:Administration or system:FwAccessControl
+		bool granted1, granted2;
+
+		fwAccessControl_checkUserPrivilege(\"\",
+			g_fwAccessControl_systemDomainName,
+			\"Administration\",
+			granted1, exceptionInfo);
+
+		fwAccessControl_checkUserPrivilege(\"\",
+			g_fwAccessControl_systemDomainName,
+			\"FwAccessCtrl\",
+			granted2, exceptionInfo);
+		granted=granted1||granted2;
+	}
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		granted=false;
+	}
+
+
+
+	bool ReadOnlyMode=false;
+	if (isDollarDefined(\"$mode\")) {
+		if ($mode==\"RO\") ReadOnlyMode=true;
+	}
+
+	
+	if (granted && (!ReadOnlyMode)) {
+		setValue(\"OKButton\",\"visible\",TRUE);
+		setValue(\"Name\",\"editable\",true);
+		setValue(\"FullName\",\"editable\",true);
+		setValue(\"Comment\",\"editable\",false);
+		setValue(\"ResetPermNamesButton\",\"visible\",true);
+		setValue(\"PrivilegeTable\",\"columnEditable\",1,true);
+
+	} else {
+		setValue(\"OKButton\",\"visible\",FALSE);
+		setValue(\"Name\",\"editable\",false);
+		setValue(\"FullName\",\"editable\",false);
+		setValue(\"Comment\",\"editable\",false);
+		setValue(\"ResetPermNamesButton\",\"visible\",false);
+		setValue(\"PrivilegeTable\",\"columnEditable\",1,false);
+
+	}
+
+}
+
+
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 1
+"CloseButton"
+""
+1 320 440 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  320 440 400 467
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+	
+	df[1]=0;
+	PanelOffReturn(df,ds);
+}" 0
+ E E E
+2 5
+"PRIMITIVE_TEXT1"
+""
+1 20 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 10 255 28
+0 2 2 "s" 0 0 0 192 0 0  20 10 1
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 29 JCOP Framework Access Control
+2 7
+"PRIMITIVE_TEXT2"
+""
+1 20 64 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 60 20 60
+0 2 2 "s" 0 0 0 192 0 0  20 60 1
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 12 Domain name:
+2 8
+"PRIMITIVE_TEXT2"
+""
+1 18 82 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 100 20 100
+0 2 2 "s" 0 0 0 192 0 0  20 100 1
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 17 Domain full name:
+2 9
+"PRIMITIVE_TEXT2"
+""
+1 0 4 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 140 20 140
+0 2 2 "s" 0 0 0 192 0 0  20 140 1
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 15 Domain comment:
+2 10
+"PRIMITIVE_TEXT2"
+""
+1 30 4 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 340 60 340 60
+0 2 2 "s" 0 0 0 192 0 0  340 60 1
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 3 id:
+14 12
+"Name"
+""
+1 140 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  140 50 320 79
+3 "s" 0 0 0 0 0 -1  E E E
+14 13
+"FullName"
+""
+1 140 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  140 90 399.9999999999999 119
+3 "s" 0 0 0 0 0 -1  E E E
+14 14
+"Comment"
+""
+1 140 130 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  140 130 400 159
+3 "s" 0 0 0 0 0 -1  E E E
+14 15
+"Id"
+""
+1 360 50 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  360 50 400 79
+2 "s" 0 0 0 0 0 -1  E E E
+13 16
+"OKButton"
+""
+1 220 440 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  220 440 300 467
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_float df;
+	dyn_string ds,exceptionInfo;
+	dyn_string privileges;
+	string newDomainName, domainFullName, domainComment;
+
+	getValue(\"Name\",\"text\",newDomainName);
+	getValue(\"FullName\",\"text\",domainFullName);
+	getValue(\"Comment\",\"text\",domainComment);
+
+	int nPrivs;
+	getValue(\"PrivilegeTable\",\"lineCount\",nPrivs);
+
+	dyn_string tablerow;
+	for (int i=0;i<nPrivs;i++) {
+		getValue(\"PrivilegeTable\",\"getLineN\",i,tablerow);
+		privileges[i+1]=tablerow[2];
+	}
+
+	if ($domainName==\"\") {
+		fwAccessControl_createDomain(newDomainName,
+				domainFullName,
+				domainComment,
+				privileges,
+				exceptionInfo);
+
+	} else {
+		fwAccessControl_updateDomain($domainName,
+				newDomainName,
+				domainFullName,
+				domainComment,
+				privileges,
+				exceptionInfo);
+	}	
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	};
+
+	df[1]=1;
+	PanelOffReturn(df,ds);
+}" 0
+ E E E
+25 17
+"PrivilegeTable"
+""
+1 40 200 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  40 200 350 360
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_BROWSE );
+}" 0
+E 1 0 1 2 8 "Level" 6 1 0 "s" 1
+LANG:1 5 Level
+E
+1
+LANG:1 0 
+
+60 "Name" 30 1 1 "s" 1
+LANG:1 14 Privilege Name
+E
+1
+LANG:1 0 
+
+250 
+17 17 "?" 0 "?" 0 "?" 0 "?" 0 "?" 0 "?" 0 "?" 0 "?" 0 10 84
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1 1 1 1 8
+1 0
+30 18
+"FRAME1"
+""
+1 20 180 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+42 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.090909090909091 0 -16.36363636363635 0 E 20 180 380 400
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+"" 1
+LANG:1 11 Privileges:
+13 19
+"ResetPermNamesButton"
+""
+1 40 380 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  40 380 120 407
+
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+	populatePanel();
+}" 0
+ E E E
+13 21
+"ShowPrivHoldersButton"
+""
+1 280.0000000000001 380 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 33 Groups holding selected privilege
+
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-10,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0
+""  280.0000000000001 380 360.0000000000001 407
+
+T 
+1
+LANG:1 10 Holders...
+"main()
+{
+	dyn_int lineno;
+	dyn_float df;
+	dyn_string ds,selline,holders,exceptionInfo;
+	int i;
+	getValue(\"PrivilegeTable\",\"getSelectedLines\",lineno);
+	if (dynlen(lineno) < 1) return;
+
+	getValue(\"PrivilegeTable\",\"getLineN\",lineno[1],selline);
+
+	ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_PrivHoldersList.pnl\",
+				\"Privilege holders\",
+				makeDynString(
+				 \"$domain:\"+$domainName,
+				 \"$privilege:\"+selline[2]
+				));
+
+}
+" 0
+ E E E
+1 22 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 270 20 T 52 1 0 1 102 -8
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_EditDomain"
+0

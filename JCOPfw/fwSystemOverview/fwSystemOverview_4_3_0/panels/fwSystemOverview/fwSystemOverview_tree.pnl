@@ -1,0 +1,400 @@
+V 11
+2
+LANG:1 9 treeViews
+LANG:35 9 treeViews
+PANEL,-1 -1 1214 732 N "_3DFace" 1
+"$1"
+"main()
+{  
+ string type = $1;
+ int countSystems;
+ pSysNProcTree = getShape(tree.name());
+ fwSysOverviewUi_gTreeShape = getShape(tree.name());
+        
+ if(type == \"hierarchy\")
+    fwSysOverviewUi_addColToSysTree(pSysNProcTree);
+  else if (type == \"host\")
+    fwSysOverviewUi_addColToHostTree(pSysNProcTree);
+  else if (type == \"plcs\")
+    fwSysOverviewUi_addColToPlcTree(pSysNProcTree);  
+  
+  dpConnect(\"updateTree\",fwSysOverview_PARAMETRIZATION + fwSysOverview_ENABLE_MONITORING); 
+
+}
+
+updateTree(string updateDp, int val)
+{
+  string type = $1;
+  dyn_string ChildIds;
+  
+  if(val == 1)
+  {
+    tree.clear();
+     switch(type)
+        {   
+        case \"hierarchy\": 
+             fwSysOverviewUi_populateSysView(pSysNProcTree);
+             break;
+
+        case \"host\": 
+             fwSysOverviewUi_populateHostView(pSysNProcTree);
+             break;
+        case \"plcs\": 
+             
+             fwSysOverviewUi_populatePlcView(pSysNProcTree);
+             break;             
+        default:
+             DebugN(\"tree type is not defined!\");
+        }
+        fwSysOverviewUi_connectProjState(\"updateState\",true);
+  }
+  else if(val == 0)
+    tree.clear();
+  }
+
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+#uses \"fwSystemOverview/fwSystemOverviewUi.ctl\"
+
+shape pSysNProcTree;
+shape fsmTree;
+
+refreshInfoText(string id)
+{
+  string systemName,deviceType,device;
+  dyn_mixed systemData, projectData,pcData;
+ 
+// systemData   1. system number | 2. data port number | 3. event port number
+//              4. dist port number | 5. parent ID | 6. pc host name
+// projectData   1. pmon number | 2. pmon user name | 3. pmon user password |
+//               4. dirpath | 5. system name | 6. host name
+// pcData        1. IP | 2. operating systems | 3. PVSS versions  
+   
+  if(id!=fwSysOverviewUi_gInstanceName) 
+  {
+    deviceType = dpTypeName(id);
+  
+    info.visible(TRUE);
+  
+    switch(deviceType)
+     {   
+       case \"FwSystemOverviewPC\": 
+           fwSysOverview_getPcConfigData(id, pcData);
+           deviceInfo.text(\" IP: \" + pcData[1]+\"\\n PVSS versions: \" + pcData[3]+\"\\n Operating System: \" + pcData[2]);
+           break;
+
+       case \"FwSystemOverviewSystem\": 
+           fwSysOverview_getSystemConfigData(id, systemData);
+           fwSysOverview_getDeviceName(id, systemName);
+           deviceInfo.text(\" System Name: \"+systemName+\"\\n System Number: \"+systemData[1]+\"\\n Pc host Name: \"+systemData[6]);
+           break;
+   
+       case \"FwSystemOverviewProject\": 
+           fwSysOverview_getProjAccessData(id,projectData);
+           deviceInfo.text(\" System Name: \"+projectData[5]+\"\\n Pmon port number: \"+projectData[1]+\"\\n Dir. path: \"+projectData[4]);
+           break;
+     }
+
+   fwSysOverview_getDeviceName(id, device);
+   deviceTitle.text = device; 
+  }
+  
+  else{
+      deviceInfo.text(\"\"); 
+      info.visible(FALSE);
+      deviceTitle.text = \"\"; 
+      PanelOffModule(\"ProjectConsole\",\"console\");
+    }
+}
+
+void updateState(string deviceDpe, anytype value)
+{
+  shape tree;
+  strreplace(deviceDpe, fwSysOverview_STATE + \":_online.._value\", \"\");
+  tree = pSysNProcTree;
+  fwSysOverviewUi_updateDevStateInTree(tree, deviceDpe);
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+29 31
+"console"
+""
+1 260.0000000000001 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:35 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  260 10 1200 720
+15 Canvas.Canvas.1
+0
+"main()
+{
+//DebugN(\"$1\", $1);
+  this.ModuleName = $1 + \"console\"; 
+  if(this.ModuleName == \"hierarchyconsole\")
+  {
+    RootPanelOnModule(\"fwSystemOverview/fwSystemOverview_projectsSummary.pnl\",\"SysOverview_1\",this.ModuleName,makeDynString(\"$projectDps:\", \"$embedded:TRUE\"));     
+    tfPreviousPanel.text = \"SysOverview_1\";
+  }
+  else if(this.ModuleName == \"hostconsole\")
+  {
+    dyn_string nodes;
+    fwFMC_getNodes(nodes);
+    RootPanelOnModule( \"fwFMC/fwFMC_nodesSummaryNavigator.pnl\",\"SysOverview_2\",this.ModuleName,makeDynString(\"$view:\", \"$sDpName:\", \"$group:\", \"$nodes:\"+nodes));     
+    tfPreviousPanel.text = \"SysOverview_2\";
+  }
+  else if(this.ModuleName == \"plcsconsole\")
+  {
+    RootPanelOnModule( \"objects/PLCMONITORING/icemonWidgetContainerModule.pnl\",\"SysOverview_3\",this.ModuleName,makeDynString(\"$1:\", \"$2:\", \"$deviceType:PLCS\", \"$modName:plcsModule\"));     
+    tfPreviousPanel.text = \"SysOverview_3\";
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+6 33
+"info"
+""
+1 441 32 E E E 1 E 0 E N "_AlertPanelBackground" E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+2
+2
+LANG:1 0 
+LANG:35 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 1 1 E 1.73399014778325 0 1 -324.689655172412 8 1 E 441 32 847 132
+29 0
+"tree"
+""
+1 0 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:35 0 
+
+1
+"selectionMode" "enum 0"
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  0 10 250 720
+10 TreeWidget
+2
+0 "clicked" "(string id, int column)"
+"  string type;
+  string version = \"\";
+  dyn_string exceptionInfo;
+  type = $1;
+
+  if(id != \"\")
+  {     
+    fwSysOverviewUi_openConsole(type+\"console\",id);  
+  }"
+0 "rightClicked" "(string id, int column)"
+"  dyn_string menu;
+  int answer;
+  string sysSO, command;
+  dyn_mixed projectData;
+  int idx,projState,startV;
+  bool err;
+  int enable;
+  
+  bool granted = false;
+  dyn_string exception;
+  string title;
+//  string row = tree.selectedItem();  
+//DebugN(\"id\", id);
+
+   
+  if(dpExists(id) && dpTypeName(id) == \"FwSystemOverviewProject\")
+  {
+    sysSO = getSystemName();
+
+    fwSysOverview_getProjAccessData(id, projectData);
+
+    dpGet(id + fwSysOverview_STATE, projState);
+      
+    if(projState == fwSysOverview_STOPPED_NORMAL)
+      startV =1;
+    else if(projState == fwSysOverview_RUNNING)
+      startV =0;
+    
+    if(projectData[fwSysOverview_PROJECT_DISABLE_MONITORING_IDX] == TRUE)
+      enable = 1;
+    else
+      enable = 0;
+
+    if(fwSysOverviewUi_gAccessControl > 0 && projState!=fwSysOverview_PMON_NO_RESPONSE)   //projState<5  // && sysSO != projectData[fwSysOverview_PROJECT_SYSTEM_NAME_IDX]
+    {
+      menu = makeDynString (\"PUSH_BUTTON, Start project,1,\"+ startV,
+                            \"PUSH_BUTTON, Stop project,2,\"+ (1-startV),
+                            \"SEPARATOR\",
+                            \"CASCADE_BUTTON, Monitoring, 1\",
+                            \"PUSH_BUTTON, Show trend,5,1\",
+                            \"Monitoring\", 
+                            \"PUSH_BUTTON,Enable monitoring,3,\" + enable,
+                            \"PUSH_BUTTON, Disable monitoring,4,\" + (1-enable)
+                            );
+   
+      if(sysSO == projectData[fwSysOverview_PROJECT_SYSTEM_NAME_IDX] || projState == fwSysOverview_PROJNAME_MISMATCH || projState == fwSysOverview_MONITORING_STOPPED)
+      {
+        menu[1] = \"PUSH_BUTTON, Start project,1,0\";
+        menu[2] =\"PUSH_BUTTON, Stop project,2,0\";
+      }
+
+    }
+    else
+      menu = makeDynString (\"PUSH_BUTTON, Start project,1,0\",
+                            \"PUSH_BUTTON, Stop project,2,0\",
+                            \"SEPARATOR\",
+                            \"CASCADE_BUTTON, Monitoring, 1,\",
+                            \"PUSH_BUTTON, Show trend,5,1\",
+                            \"Monitoring\", 
+                            \"PUSH_BUTTON,Enable monitoring,3,0\",
+                            \"PUSH_BUTTON, Disable monitoring,4,0\"
+                            );
+ 
+      popupMenu(menu,answer); 
+     
+    if(answer == 1) 
+    {
+      command = \"##START_ALL:\";
+      err = pmon_command(command, projectData[fwSysOverview_PROJECT_HOST_IDX], projectData[fwSysOverview_PROJECT_PMON_NUM_IDX], false, true); 
+    }
+    else if(answer == 2)
+    {
+      command = \"##STOP_ALL:\";
+      err = pmon_command(command, projectData[fwSysOverview_PROJECT_HOST_IDX], projectData[fwSysOverview_PROJECT_PMON_NUM_IDX], false, true); 
+    }
+    else if(answer == 3)
+    {
+      if(dpExists(id + fwSysOverview_PROJECT_DISABLE_MONITORING))
+        dpSet(id + fwSysOverview_PROJECT_DISABLE_MONITORING, false);
+    }
+    else if(answer == 4)
+    {
+      if(dpExists(id + fwSysOverview_PROJECT_DISABLE_MONITORING))
+        dpSet(id + fwSysOverview_PROJECT_DISABLE_MONITORING, true);
+    }
+    else if(answer ==5)
+    {    
+      title = dpGetDescription(id + \".\");
+    
+      id += fwSysOverview_STATE;
+      
+      ChildPanelOnCentral(\"fwSystemOverview/fwSystemOverview_trend.pnl\", title + \" status\",
+                          makeDynString(\"$title:\" + title, \"$dpes:\" + id)
+                          );
+    }
+    
+    if(err)
+      DebugN(\"Command not executed\");
+   }"
+E2 36
+"deviceInfo"
+""
+1 445 45 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:35 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 445 45 446 60
+0 2 2 "0s" 0 0 0 192 0 0  445 45 1
+2
+LANG:1 26 Arial,-1,12,5,50,0,0,0,0,0
+LANG:35 84 -*-Arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:1 0 
+LANG:35 0 
+14 39
+"tfPreviousPanel"
+""
+1 410 650 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:35 0 
+
+0
+2
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+LANG:35 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0  408 648 1212 671
+3 "0s" 0 0 0 0 0 -1  E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

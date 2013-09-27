@@ -1,0 +1,1181 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 402 589 N "_3DFace" 2
+"$mode"
+"$userName"
+"main()
+{
+  
+//
+// $userName should contain user name that needs to be edited
+// or empty string if new domain should be defined.
+//
+// optional $mode should contain string \"RO\" for read-only (browse) mode
+//
+
+	dyn_string exceptionInfo;
+
+        AccessControl(\"\",\"\"); // disable all in panel
+        
+
+	if (!isDollarDefined(\"$userName\")) {
+		fwAccessControl_raiseException(exceptionInfo,
+					\"PANEL ERROR\",
+					\"User name not specified in $userName\",
+					\"\");
+		setValue(\"OKButton\",\"enabled\",FALSE);
+
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	};
+
+	if ($userName==\"\") {
+		setValue(\"OKButton\",\"text\",\"Create\");
+		setValue(\"ShowPrivsButton\",\"visible\",FALSE);
+		setValue(\"ReviewButton\",\"visible\",FALSE);
+	} else {
+		g_userName=$userName;
+	}
+
+	fwAccessControl_setupPanel(\"AccessControl\",exceptionInfo); 
+ 
+	if (dynlen(exceptionInfo)) { fwAccessControl_displayException(exceptionInfo); return;}; 
+
+
+	populatePanel();
+        
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "// general-purpose functions
+
+// privileges that are edited
+dyn_string g_Groups;
+
+// original privileges 
+dyn_string g_OriginalGroups;
+
+string g_userName, g_userFullName, g_userComment;
+bool g_enabled, g_localAuth;
+int g_userId=-99;
+
+
+
+void populatePanel()
+{
+
+	string userName;
+	string userFullName;
+	string description;
+	int    userId;
+	bool   enabled=TRUE; // fix #17127
+	dyn_string groupNames;
+	dyn_string exceptionInfo;
+        bool localAuth=FALSE;
+		
+	dynClear(g_Groups);
+	dynClear(g_OriginalGroups);
+
+	userName=$userName;
+
+	if (g_userId==-99) { // only at initialization...
+		g_userName=$userName;
+	}
+
+	userName=g_userName;
+	setValue(\"Name\",\"text\",userName);
+
+                
+        if ($userName!=\"\"){
+           		fwAccessControl_getUser(userName,
+                        userFullName,
+                        description,
+                        userId,
+			enabled,
+			g_OriginalGroups,
+                        exceptionInfo);
+		if (dynlen(exceptionInfo)) {
+			fwAccessControl_displayException(exceptionInfo);
+			return;
+		}
+
+
+                if (userId==0 || userId==1024) {
+                 // root and para account - force local
+                  LocalAccount.state(0,TRUE);
+                  LocalAccount.enabled=FALSE; 
+                  localAuth=0;
+                } else {
+                  localAuth=fwAccessControl_isUserAccountLocal(userName,exceptionInfo);    
+                  if (dynlen(exceptionInfo)) {
+			fwAccessControl_displayException(exceptionInfo);
+			return;
+                  }
+                  LocalAccount.state(0,localAuth);
+		}
+
+		if (g_userId==-99) {
+			// only at initialization!
+			g_userName=userName;
+			g_userFullName=userFullName;
+			g_userComment=description;
+			g_userId=userId;
+			g_enabled=enabled;
+                        g_localAuth=localAuth;
+		}
+	
+
+
+		setValue(\"FullName\",\"text\",userFullName);
+		setValue(\"Comment\",\"text\",description);
+		setValue(\"Id\",\"text\",userId);
+		g_Groups=g_OriginalGroups;
+                
+
+               
+		GroupsChanged();
+	}
+        Enabled.state(0,enabled);
+        
+if ($userName!=\"\"){        
+  PasswordOpt.number(0);
+  PasswordOptSelected(0);
+  } else {
+    PasswordOpt.itemEnabled(0,FALSE);
+    PasswordOpt.itemEnabled(2,FALSE);
+    PasswordOpt.number(1);
+    PasswordOptSelected(1);    
+  }
+}
+
+
+void GroupsChanged()
+{
+	setValue(\"GroupsTable\",\"deleteAllLines\");
+	setValue(\"GroupsTable\",\"appendLines\",dynlen(g_Groups),\"Name\",g_Groups);
+	setValue(\"GroupsTable\",\"lineVisible\",0);
+}
+
+
+
+//__________________________________________________________________________
+
+
+
+void CompareGroups(	dyn_string &addedGroups, dyn_string &removedGroups)
+{
+
+int i;
+
+
+// look for added privileges:
+for (i=1;i<=dynlen(g_Groups);i++) {
+	if ( !(dynContains(g_OriginalGroups,g_Groups[i]))) {
+		dynAppend(addedGroups,g_Groups[i]);
+	}
+
+}
+
+// look for removed privileges:
+for (i=1;i<=dynlen(g_OriginalGroups);i++) {
+	if (!(dynContains(g_Groups,g_OriginalGroups[i]))) {
+		dynAppend(removedGroups,g_OriginalGroups[i]);
+	};
+
+}
+
+
+}
+
+
+bool CheckApplyChanges()
+{
+
+dyn_string   addedGroups, removedGroups, exceptionInfo,ds,origGroups;
+dyn_float df;
+
+string newUserName, userFullName, userComment;
+string newPassword;
+bool enabled,resetPwd, isLocal;
+int userId;
+string changes;
+
+getValue(\"Name\",\"text\",newUserName);
+getValue(\"FullName\",\"text\",userFullName);
+getValue(\"Comment\",\"text\",userComment);
+getValue(\"Enabled\",\"state\",0,enabled);
+getValue(\"LocalAccount\",\"state\",0,isLocal);
+getValue(\"Password\",\"text\",newPassword);
+
+  int pOpt=PasswordOpt.number;
+  
+  if (pOpt!=0 && pOpt!=2 && newPassword==\"\") {
+   //  the password was actually not changed!
+    PasswordOpt.number(0);
+    pOpt=0;
+  }
+
+if (g_userName!=\"\") {
+
+  if (newUserName!=g_userName) changes=changes+\"\\n * user name\";
+  if (userFullName!=g_userFullName) changes=changes+\"\\n * user full name\";
+  if (userComment!=g_userComment) changes=changes+\"\\n * user description\";
+  if (isLocal!=g_localAuth) {
+      changes=changes+\"\\n * authentication set to \";
+      if (!isLocal) changes=changes+\"not \";
+      changes=changes+\"local\";
+    }
+  
+  
+  switch (pOpt) {
+   case 1: changes = changes+\"\\n * password\"; break;
+   case 2: changes = changes+\"\\n * password reset\"; break;
+   case 3: changes = changes+\"\\n * random password generated\"; break;
+  }
+  
+  if (enabled!=g_enabled) changes=changes+\"\\n * enabled flag\";
+
+
+  CompareGroups(addedGroups, removedGroups);
+
+  if ( (changes==\"\") && (dynlen(addedGroups)==0) && (dynlen(removedGroups)==0) ) return TRUE;
+
+  ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_ConfirmChangeUser.pnl\",
+		\"Confirm user changes\",
+		makeDynString(
+		\"$userName: \"+g_userName,
+		\"$changes:\"+changes,
+		\"$addedItems:\"+addedGroups,
+		\"$removedItems:\"+removedGroups),
+		df,ds);
+  if (dynlen(df)<1) return FALSE;
+  if (df[1]==0.0) return FALSE;
+
+}
+
+//apply changes...
+
+if (g_userName==\"\") {
+	fwAccessControl_createUser(newUserName,
+				userFullName,
+				userComment,
+				enabled,
+				newPassword,
+				g_Groups,
+				exceptionInfo,
+                                -1, // choose the next free user ID
+                                FALSE, // password is not yet crypted
+                                isLocal
+                                );
+
+} else {
+      bool pwdAlreadyCrypted=FALSE;  
+      // special cases:
+      if (pOpt==2) { 
+        // set empty password
+        newPassword=crypt(\"\");
+        pwdAlreadyCrypted=TRUE;  
+      } else if (pOpt==0) {
+         // no change in password!
+        newPassword=\"\";
+        pwdAlreadyCrypted=\"\";    
+      }
+	fwAccessControl_updateUser(g_userName,
+				newUserName,
+				userFullName,
+				userComment,
+				enabled,
+				newPassword,
+				g_Groups,
+				exceptionInfo,
+                                pwdAlreadyCrypted,
+                                isLocal
+                                );
+}	
+
+if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return FALSE;
+};
+
+
+// we may finaly return true, confirming that the dialog may be closed
+	return TRUE;
+}
+
+void AccessControl(string s1, string s2)
+{
+	dyn_string exceptionInfo;
+	bool granted=FALSE;
+	bool editOwnOnly=FALSE;
+	string currentUser;
+	fwAccessControl_getUserName(currentUser);
+
+// deny all:
+        Name.enabled=FALSE;
+        FullName.enabled=FALSE;
+        Comment.enabled=FALSE;
+        Enabled.enabled=FALSE;
+        LocalAccount.enabled=FALSE;
+        Password.visible=FALSE;
+        PasswordFrame.enabled=FALSE;
+        PasswordOpt.enabled=FALSE;
+        GenerateRandomPassword.visible=FALSE;
+        RandomPassword.visible=FALSE;
+        PasswordOpt.number(0);
+        OKButton.visible=FALSE;
+        ResetButton.visible=FALSE;
+        EditButton.visible=FALSE;
+        ReviewButton.visible=FALSE;
+        
+        if (s1==\"\") return; //dp==\"\" means: deny all
+
+	if (isDollarDefined(\"$mode\")) {
+          if ($mode==\"RO\") {
+            Name.editable(FALSE);
+            FullName.editable(FALSE);
+            Comment.editable(FALSE);
+            Name.enabled(TRUE);
+            FullName.enabled(TRUE);
+            Comment.enabled(TRUE);
+            Name.backCol(\"lightgrey\");
+            FullName.backCol(\"lightgrey\");
+            Comment.backCol(\"lightgrey\");
+
+            return;
+          }
+	}
+                      
+	granted=fwAccessControl_HasUserAdminPrivilege(exceptionInfo,\"\",FALSE); 
+	if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+        if (!granted) {
+          // still last chance: we edit our own account...
+          if (currentUser==g_userName){
+            // we allow for restricted edit...
+	    editOwnOnly=TRUE;
+	    granted=TRUE;
+          }
+        }
+
+	if (granted) {
+          FullName.enabled=TRUE;
+          Comment.enabled=TRUE;
+          PasswordOpt.enabled=TRUE;          
+          PasswordOpt.itemEnabled(0,TRUE); // leave passwd unchanged
+          PasswordOpt.itemEnabled(1,TRUE);// set new
+          Password.visible=TRUE;
+          PasswordOpt.itemEnabled(2,FALSE);// reset to empty
+          PasswordOpt.itemEnabled(3,TRUE);//reset to random
+          ResetButton.visible=TRUE;
+          OKButton.visible=TRUE;
+          
+	  if (!editOwnOnly) { // non-restricted one...
+            LocalAccount.enabled=TRUE;
+            Name.enabled=TRUE;
+            Enabled.enabled=TRUE;
+            EditButton.visible=TRUE;
+            ReviewButton.visible=TRUE;
+            PasswordOpt.itemEnabled(2,TRUE);
+          }
+          if ($userName==\"\") { // \"CREATE\" mode
+             PasswordOpt.itemEnabled(0,FALSE);
+              PasswordOpt.itemEnabled(2,FALSE);
+          }
+
+	} 
+}
+
+
+void UsersChangedCB(string s1, anytype a2)
+{
+dyn_float df;
+dyn_string ds;
+
+if (g_userName==\"\") return; // the mode is \"create\"
+
+// find out if this is the domain we edit, that was changed.
+dyn_int userIds;
+dyn_string userNames;
+
+bool isReadOnly=FALSE;
+if (isDollarDefined(\"$mode\")) {
+	if ($mode==\"RO\") isReadOnly=TRUE;
+}
+
+dpGet(g_fwAccessControl_UsersDP+\".UserName\",userNames,
+      g_fwAccessControl_UsersDP+\".UserId\",userIds);
+
+int idx=dynContains(userIds,g_userId);
+if (!idx) {
+	if (isReadOnly) {
+		ChildPanelOnCentralModalReturn(\"vision/MessageWarning\", \"WARNING:AC Data changed\",
+		makeDynString(\"User has been deleted!\\n I will close the panel.\"),df,ds);
+		PanelOff();
+	} else {
+		ChildPanelOnCentralModalReturn(\"vision/MessageWarning1\",\"WARNING:AC Data changed\",
+		makeDynString(\"User has been deleted!\\n Do you wish to re-create it?\",
+			\"OK\",\"Cancel\"),df,ds);
+		if (df[1]) {
+			g_userName=\"\"; // activate the \"create\" mode
+		}
+	}
+return;
+}
+
+
+string userName=userNames[idx];
+if (userName!=g_userName) {
+	ChildPanelOnCentralModalReturn(\"vision/MessageWarning\",\"WARNING:AC Data changed\",
+	makeDynString(\"The name of the user you edit has been changed!\\n I will update it in the panel.\"),df,ds);
+	g_userName=userName;
+	setValue(\"Name\",\"text\",userName);
+}
+
+
+
+string userFullName, userComment;
+int userId;
+dyn_string exceptionInfo,groups;
+bool enabled;
+
+fwAccessControl_getUser(userName,
+                        userFullName,
+                        userComment,
+                        userId,
+			enabled,
+			groups,
+                        exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+
+
+
+if ( g_userFullName!=userFullName ||
+     g_userComment!=userComment ||
+     g_enabled != enabled ||
+     g_Groups!=groups) {
+	ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\",\"WARNING:AC Data changed\",
+		makeDynString(\"User data has changed.\\nDo you want to update the data in the panel?\",\"OK\",\"Cancel\"),df,ds);
+
+	if (df[1]) populatePanel();
+}
+}
+
+void GroupsChangedCB(string s1, anytype a2)
+{
+
+dyn_string exceptionInfo,groups,ds;
+dyn_float df;
+
+if ($userName==\"\") {
+	// we are in \"create\" mode
+	ChildPanelOnCentralModalReturn(\"vision/MessageWarning\",\"WARNING:AC Data changed\",
+		makeDynString(\"Groups have changed.\\nI will reset them.\"),df,ds);
+	g_OriginalGroups=makeDynString();
+	g_Groups=makeDynString();
+	GroupsChanged();
+	return;
+}
+
+string userFullName,description;
+int userId;
+bool enabled;
+
+fwAccessControl_getUser(g_userName,userFullName,description,userId,
+                        enabled, groups, exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+
+if ( groups!=g_OriginalGroups) {
+
+	ChildPanelOnCentralModalReturn(\"vision/MessageWarning\",\"WARNING:AC Data changed\",
+		makeDynString(\"Group names have changed.\\nI will reset them in the panel\"),df,ds);
+}
+
+g_OriginalGroups=groups;
+g_Groups=groups;
+	
+GroupsChanged();
+
+}
+
+void PasswordOptSelected(int button)
+{
+  
+  GenerateRandomPassword.visible=FALSE;
+  RandomPassword.visible=FALSE; 
+  Password.enabled=FALSE;
+  Password.editable=FALSE;
+  
+  if (button==0){
+    Password.text=\"\";
+    }else if (button==1) {
+   Password.enabled=TRUE; 
+   Password.editable=TRUE; 
+   Password.text=\"\";
+   setInputFocus(myModuleName(),myPanelName(),\"Password\");
+   } else if (button==2) {
+    Password.text=\"\";
+  } else if (button==3) {
+     GenerateRandomPassword.visible=TRUE;
+     RandomPassword.visible=TRUE;
+     string pwd=_fwAccessControl_generateRandomPassword();
+     RandomPassword.text=pwd;
+     Password.text=pwd;
+   } 
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"CloseButton"
+""
+1 308 553 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 308 553 388 583
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	if (myModuleName()==\"User Details\") ModuleOff(\"User Details\");
+
+	dyn_float df;
+	dyn_string ds;
+	
+	df[1]=0;
+	PanelOffReturn(df,ds);
+}" 0
+ E E E
+14 1
+"Name"
+""
+1 107.8863636363636 43 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 108 43 298 72
+3 "0s" 0 0 0 0 0 -1  E E E
+14 2
+"FullName"
+""
+1 107.8515625 73 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 108 73 387 102
+3 "0s" 0 0 0 0 0 -1  E E E
+14 3
+"Comment"
+""
+1 107.8515625 103 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 108 103 387 132
+3 "0s" 0 0 0 0 0 -1  E E E
+20 4
+"Enabled"
+""
+1 51.00000000000001 146.3333333333333 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 31 Indicates if account is enabled
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 13 138 167 161
+1
+T 
+1
+LANG:1 15 Account enabled
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE19 5
+"PasswordOpt"
+""
+1 35 185 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 33 183 167 287
+4
+T 
+1
+LANG:1 15 Leave unchanged
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 7 Set new
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 14 Reset to empty
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 15 Reset to random
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  PasswordOptSelected(button);
+}" 0
+
+14 6
+"Password"
+""
+1 168.59375 208 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 208 352 237
+3 "0S" 0 0 0 0 0 -1  E E E
+14 7
+"RandomPassword"
+""
+1 169.375 258 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 258 252 287
+2 "8s" 8 0 0 0 0 -1  E E E
+13 8
+"GenerateRandomPassword"
+""
+1 250 260 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 248 258 272 287
+
+P 
+4294967295
+"pictures/refresh_e.gif"
+1
+LANG:1 19 Set random password
+"main()
+{
+  string pwd=_fwAccessControl_generateRandomPassword();
+  Password.text=pwd;
+  RandomPassword.text=pwd;
+}" 0
+ E E E
+20 9
+"LocalAccount"
+""
+1 25 290 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 23 288 177 312
+1
+T 
+1
+LANG:1 20 Local authentication
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE25 10
+"GroupsTable"
+""
+1 23.13291139240507 342.3275862068966 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 23 343 322 502.0000000000001
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_BROWSE );
+}" 0
+E 1 0 1 1 1 "Name" 24 1 0 "s" 1
+LANG:1 10 Group Name
+E
+1
+LANG:1 0 
+
+280 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 11
+"EditButton"
+""
+1 323.5526315789473 373 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 17 Modify privileges
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 323 373 382 403
+
+T 
+1
+LANG:1 7 Edit...
+"main()
+{
+dyn_float df;
+dyn_string ds;
+
+
+ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_EditUserGroups.pnl\",
+			\"Edit groups of user \"+$userName,
+			makeDynString(\"$userName:\"+$userName,
+				      \"$groups:\"+g_Groups),
+			df,ds);
+if (dynlen(df)<1) return;
+if (df[1]==1.0) {
+	g_Groups=ds;
+	GroupsChanged();
+}
+
+}" 0
+ E E E
+13 12
+"ReviewButton"
+""
+1 323.5526315789473 413 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 28 Review changes in privileges
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 323 413 382 443
+
+T 
+1
+LANG:1 6 Review
+"main()
+{
+
+dyn_string addedGroups, removedGroups;
+
+CompareGroups(addedGroups, removedGroups);
+
+ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_ReviewChanges.pnl\",
+		\"Changes in membership\",
+		makeDynString(
+		\"$whatText:Changes in group membership\\n of user: \"+$userName,
+		\"$what:groups\",
+		\"$addedItems:\"+addedGroups,
+		\"$removedItems:\"+removedGroups));
+
+}" 0
+ E E E
+13 13
+"ShowPrivsButton"
+""
+1 13 513 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 13 513 213 543
+
+T 
+1
+LANG:1 26 Show Current Access Rights
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+	ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_ShowUserPrivileges.pnl\",
+			\"Access rights of user \"+$userName,
+			makeDynString(\"$userName:\"+$userName),df,ds);
+}" 0
+ E E E
+13 14
+"ResetButton"
+""
+1 13 553 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 13 553 93 583
+
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+	populatePanel();
+}" 0
+ E E E
+13 15
+"OKButton"
+""
+1 223 553 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 223 553 303 583
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	if (CheckApplyChanges()) {
+		PanelOffReturn(makeDynFloat(1.0),makeDynString());
+	}
+
+}" 0
+ E E E
+1 16 0 "" 0
+0
+14 17
+"Id"
+""
+1 332.8260869565217 43 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 333 43 387 72
+2 "0s" 0 0 0 0 0 -1  E E E
+2 18
+"PRIMITIVE_TEXT1"
+""
+1 4 -92 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 10 306 29
+0 2 2 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 40 JCOP Framework Access Control: edit user
+2 19
+"PRIMITIVE_TEXT2"
+""
+1 7 34 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 15 50 79 65
+0 2 2 "0s" 0 0 0 192 0 0  15 50 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 User name:
+2 20
+"Text1"
+""
+1 5 42 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 15 80 99 95
+0 2 2 "0s" 0 0 0 192 0 0  15 80 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 User full name:
+2 21
+"Text4"
+""
+1 -13 -56 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 15 110 81 125
+0 2 2 "0s" 0 0 0 192 0 0  15 110 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Description:
+2 22
+"Text3"
+""
+1 22 -14 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 320 50 331 65
+0 2 2 "0s" 0 0 0 192 0 0  320 50 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 id:
+30 23
+"PasswordFrame"
+""
+1 180 178 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+46 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.85 0 2.152777777777778 -318 -218.1944444444445 0 E 180 178 381 251
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Password
+30 24
+"FRAME1"
+""
+1 20 230 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.030640668523677 0 0.9523809523809526 -5.612813370473541 105.9523809523809 0 E 20 230 380 420
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Group membeship:
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "Group3"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 352 2 T 32 1 0 1 6 1
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_EditUser"
+0

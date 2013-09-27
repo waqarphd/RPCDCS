@@ -1,0 +1,1075 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 707 757 N "_3DFace" 0
+"main()
+{
+  refresh();
+
+   PopulatePanel();  
+  deviceConfigs = fwConfigurationDB_deviceConfig_VALUE
+    + fwConfigurationDB_deviceConfig_ADDRESS
+    + fwConfigurationDB_deviceConfig_ALERT
+    + fwConfigurationDB_deviceConfig_ARCHIVING
+    + fwConfigurationDB_deviceConfig_DPFUNCTION
+    + fwConfigurationDB_deviceConfig_CONVERSION
+    + fwConfigurationDB_deviceConfig_PVRANGE
+    + fwConfigurationDB_deviceConfig_SMOOTHING
+    + fwConfigurationDB_deviceConfig_UNITANDFORMAT;
+  
+  	RepaintDeviceConfigs();
+
+}" 0
+ E E E E 1 -1 -1 0  130 80
+""0  1
+E "#uses \"CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl\"
+dyn_string deviceList;
+
+int deviceConfigs ;
+
+
+void refresh() {
+    dyn_string configs = dpNames(\"*\",\"CMSfwInstallUtilsDeviceList\");
+ string name; dyn_string exc;
+  cbConfigs.deleteAllItems();
+  
+  for (int i=1; i<=dynlen(configs); i++) {
+    fwDevice_getName(configs[i], name, exc);
+      cbConfigs.appendItem(name);
+  }
+  
+  
+    
+}
+viewDps(){ 
+   tblDev.deleteAllLines();
+  for (int i=1; i<= dynlen(deviceList); i++) {
+    tblDev.appendLine(\"dp\", deviceList[i], \"type\", dpTypeName(deviceList[i]));
+  }  
+}
+
+
+void RepaintDeviceConfigs()
+{
+ConfigSelect1.state(0,deviceConfigs & fwConfigurationDB_deviceConfig_VALUE);
+ConfigSelect1.state(1,deviceConfigs & fwConfigurationDB_deviceConfig_ADDRESS);
+ConfigSelect1.state(2,deviceConfigs & fwConfigurationDB_deviceConfig_ALERT);
+
+ConfigSelect2.state(0,deviceConfigs & fwConfigurationDB_deviceConfig_ARCHIVING);
+ConfigSelect2.state(1,deviceConfigs & fwConfigurationDB_deviceConfig_DPFUNCTION);
+ConfigSelect2.state(2,deviceConfigs & fwConfigurationDB_deviceConfig_CONVERSION);
+
+ConfigSelect3.state(0,deviceConfigs & fwConfigurationDB_deviceConfig_PVRANGE);
+ConfigSelect3.state(1,deviceConfigs & fwConfigurationDB_deviceConfig_SMOOTHING);
+ConfigSelect3.state(2,deviceConfigs & fwConfigurationDB_deviceConfig_UNITANDFORMAT);
+
+}
+
+editDeviceList(string confName) {
+    string configDp = \"CMSfwInstallUtils/deviceList/\" + confName;
+    ChildPanelOnCentral(\"CMSfwInstallUtils/deviceList.pnl\",\"Device List\" , makeDynString(\"$sDpName:\" + configDp));
+    
+}
+
+newDeviceList() {
+      ChildPanelOnCentral(\"CMSfwInstallUtils/deviceList.pnl\",\"Device List\" , makeDynString(\"$sDpName:\" ));
+}
+void PopulatePanel()
+{
+
+
+	
+	dyn_string exceptionInfo;
+	fwConfigurationDB_checkInit(exceptionInfo); // exception handling a few lines below...
+	ConfDBSetup.text=fwConfigurationDB_currentSetupName;
+	fwConfigurationDB_updateDBStatusIndicator();
+
+
+        if (dynlen(exceptionInfo)) { 
+            if ( (exceptionInfo[2]!=\"No database schema\")
+              && (strpos(exceptionInfo[2],\"Database schema version\")<0)) {
+		fwExceptionHandling_display(exceptionInfo); 
+		return; 
+             } else {
+                  dynClear(exceptionInfo);
+             }
+	} 
+
+        if (fwConfigurationDB_DBConfigured) {
+          
+	  if (!g_fwConfigurationDB_DBConnectionOpen) {
+		return;
+	  }
+	  float schemaVersion=fwConfigurationDB_verifyDBSchema(g_fwConfigurationDB_DBConnection, exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+		
+	if (schemaVersion==0.0) {
+		fwException_raise(exceptionInfo,
+			\"WARNING\",
+			\"The schema in DB is not created yet\",
+			\"\");
+		fwExceptionHandling_display(exceptionInfo); 
+	
+ }else if (schemaVersion<fwConfigurationDB_minimalDBSchemaVersion) { 
+
+		fwException_raise(exceptionInfo,
+			\"WARNING\",
+			\"The schema in DB is out of date\",
+			\"\");	
+  } else if (schemaVersion>fwConfigurationDB_minimalDBSchemaVersion) { 
+		fwException_raise(exceptionInfo,
+			\"WARNING\",
+			\"The schema in DB (\"+schemaVersion+\" is newer than \"+
+			\"the one that can be used with this tool.\"+
+			\"Please update the ConfigurationDB component\",
+			\"\");
+		fwExceptionHandling_display(exceptionInfo); 
+		return; 
+	}
+      }
+
+}
+
+bool promptUser(string msg) {
+  dyn_string result;
+  dyn_float float_result;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageInfo\",(\"information\"),makeDynString(msg,\"Yes\",\"No\"),float_result, result);
+  return result[1]==\"true\";
+
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+22 0
+"cbConfigs"
+""
+1 16 57 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  14 55 198 78
+0
+
+E
+"main()
+{
+  if (this.selectedText == \"New...\") {
+      editDeviceList(\"\");
+  }
+}" 0
+
+E
+ 0 0
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 16 37 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 16 37 79 51
+0 2 2 "0s" 0 0 0 192 0 0  16 37 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Select Config
+13 2
+"btnGetDps"
+""
+1 20 180 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  18 178 142 212
+
+T 
+1
+LANG:1 10 Get Dps...
+"main()
+{
+  string configDp = \"CMSfwInstallUtils/deviceList/\" + cbConfigs.selectedText;
+  deviceList = CMSfwInstallUtils_getDeviceList(configDp);
+  lblNFound.text = dynlen(deviceList) + \" found\";
+  string confName;
+   dpGet(configDp + \".configurationName\", confName);
+   txtConfigurationName.text = confName;
+}" 0
+ E E E
+2 3
+"lblNFound"
+""
+1 176 387 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 176 387 185 402
+0 2 2 "0s" 0 0 0 192 0 0  176 387 1
+1
+LANG:1 34 MS Shell Dlg 2,9,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 1 #
+25 4
+"tblDev"
+""
+1 26 417 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  24 415 608 689
+EE 1 0 1 2 0 "dp" 42 1 0 "s" 1
+LANG:1 2 dp
+E
+1
+LANG:1 0 
+
+350 "type" 24 1 0 "s" 1
+LANG:1 4 type
+E
+1
+LANG:1 0 
+
+200 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 5
+"PUSH_BUTTON2"
+""
+1 26 387 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  24 385 148 412
+
+T 
+1
+LANG:1 15 View deviceList
+"main()
+{
+viewDps();
+  
+}" 0
+ E E E
+14 6
+"txtConfigurationName"
+""
+1 182 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  180 138 304 161
+3 "0s" 0 0 0 0 0 -1  E E E
+2 7
+"PRIMITIVE_TEXT3"
+""
+1 182 120 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 182 120 293 134
+0 2 2 "0s" 0 0 0 192 0 0  182 120 1
+1
+LANG:1 34 MS Shell Dlg 2,8,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 18 Configuration Name
+13 8
+"PUSH_BUTTON3"
+""
+1 380 330 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  378 328 512 372
+
+T 
+1
+LANG:1 15 Save to Conf Db
+"main()
+{
+  
+  DebugN(\"Delete = \", (cbDelete.selectedText == \"Yes\"));
+  CMSfwInstallUtils_save(txtConfigurationName.text, deviceList, deviceConfigs, (cbDelete.selectedText == \"Yes\"));
+}" 0
+ E E E
+30 12
+"SqlDebugLevelFrame"
+""
+1 240 100 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+12 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 286 -23 0 E 240 100 400 240
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 15 SQL Debug Level
+20 13
+"SqlDebugLevel"
+""
+1 536 97 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  536 97 674 209
+4
+T 
+1
+LANG:1 13 Print Selects
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 11 Print Stmts
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 18 #Results in select
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 16 Data from select
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+4
+E E
+E E
+E E
+E E
+"main()
+{
+this.state(0)= (g_fwConfigurationDB_DebugSQL & 1);
+this.state(1)= (g_fwConfigurationDB_DebugSQL & 2);
+this.state(2)= (g_fwConfigurationDB_DebugSQL & 4);
+this.state(3)= (g_fwConfigurationDB_DebugSQL & 8);
+}" 0
+"main(int button, int state)
+{
+int lvl=0;
+if (this.state(0)) lvl=lvl+1;
+if (this.state(1)) lvl=lvl+2;
+if (this.state(2)) lvl=lvl+4;
+if (this.state(3)) lvl=lvl+8;
+g_fwConfigurationDB_DebugSQL=lvl;
+DebugN(\"SQL Debug Level set to\",g_fwConfigurationDB_DebugSQL);
+}" 0
+30 14
+"DebugLevelFrame"
+""
+1 240 100 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+14 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 116 -23 0 E 240 100 400 240
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Debug Level
+20 15
+"DebugLevel"
+""
+1 366 97 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  366 97 501 209
+4
+T 
+1
+LANG:1 16 fn name on entry
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 11 timing info
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 functional blocks
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 13 massive debug
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+4
+E E
+E E
+E E
+E E
+"main()
+{
+this.state(0)= (g_fwConfigurationDB_Debug & 1);
+this.state(1)= (g_fwConfigurationDB_Debug & 2);
+this.state(2)= (g_fwConfigurationDB_Debug & 4);
+this.state(3)= (g_fwConfigurationDB_Debug & 8);
+}" 0
+"main(int button, int state)
+{
+int lvl=0;
+if (this.state(0)) lvl=lvl+1;
+if (this.state(1)) lvl=lvl+2;
+if (this.state(2)) lvl=lvl+4;
+if (this.state(3)) lvl=lvl+8;
+g_fwConfigurationDB_Debug=lvl;
+DebugN(\"Debug Level set to\",g_fwConfigurationDB_Debug);
+}" 0
+20 16
+"ConfigSelect2"
+""
+1 164 215 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  164 225 268 309
+3
+T 
+1
+LANG:1 9 Archiving
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 11 DP Function
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 Conversion
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, int state)
+{
+if (button==0) deviceConfigs^=fwConfigurationDB_deviceConfig_ARCHIVING;
+else if (button==1) deviceConfigs^=fwConfigurationDB_deviceConfig_DPFUNCTION;
+else if (button==2) deviceConfigs^=fwConfigurationDB_deviceConfig_CONVERSION;
+
+}" 0
+20 17
+"ConfigSelect3"
+""
+1 304 215 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  304 225 433 309
+3
+T 
+1
+LANG:1 8 PV Range
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 9 Smoothing
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 15 Unit and Format
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, int state)
+{
+if (button==0) deviceConfigs^=fwConfigurationDB_deviceConfig_PVRANGE;
+else if (button==1) deviceConfigs^=fwConfigurationDB_deviceConfig_SMOOTHING;
+else if (button==2) deviceConfigs^=fwConfigurationDB_deviceConfig_UNITANDFORMAT;
+
+}" 0
+20 18
+"ConfigSelect1"
+""
+1 34 225 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  34 225 114 309
+3
+T 
+1
+LANG:1 5 Value
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 7 Address
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 6 Alerts
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+3
+E E
+E E
+E E
+E"main(int button, int state)
+{
+if (button==0) deviceConfigs^=fwConfigurationDB_deviceConfig_VALUE;
+else if (button==1) deviceConfigs^=fwConfigurationDB_deviceConfig_ADDRESS;
+else if (button==2) deviceConfigs^=fwConfigurationDB_deviceConfig_ALERT;
+
+}" 0
+13 19
+"PUSH_BUTTON4"
+""
+1 20 150 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  18 148 142 175
+
+T 
+1
+LANG:1 4 Edit
+"main()
+{
+    if (cbConfigs.selectedText == \"New...\") {
+        return;
+          }
+  editDeviceList(cbConfigs.selectedText);
+}" 0
+ E E E
+13 20
+"PUSH_BUTTON5"
+""
+1 20 93 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  18 91 142 118
+
+T 
+1
+LANG:1 3 New
+"main()
+{
+  newDeviceList();
+}" 0
+ E E E
+2 23
+"PRIMITIVE_TEXT4"
+""
+1 468 239 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 468 239 584 253
+0 2 2 "0s" 0 0 0 192 0 0  468 239 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Delete Previous Entries?
+22 24
+"cbDelete"
+""
+1 466 257 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  464 255 568 278
+2
+1
+LANG:1 3 Yes
+
+0
+1
+LANG:1 2 No
+
+0
+
+"main()
+{
+  this.selectedPos = 1;
+}" 0
+
+"main()
+{
+  if (this.selectedText == \"New...\") {
+      editDeviceList(\"\");
+  }
+}" 0
+
+E
+ 0 0
+13 25
+"PUSH_BUTTON6"
+""
+1 520 329.9019607843137 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  518 328 652 372
+
+T 
+1
+LANG:1 28 Save Logical
+View to Conf Db
+"main()
+{
+  
+
+  CMSfwInstallUtils_saveLogicalFromDeviceList(txtConfigurationName.text, deviceList);
+}" 0
+ E E E
+13 26
+"PUSH_BUTTON7"
+""
+1 213 54 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  211 52 305 79
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{
+  refresh();
+}" 0
+ E E E
+2 27
+"PRIMITIVE_TEXT5"
+""
+1 22 17 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 22 7 356 27
+0 2 2 "0s" 0 0 0 192 0 0  22 7 1
+1
+LANG:1 26 Arial,12,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 45 CMS Install Utils - Save device configuration
+13 28
+"CanceButton"
+""
+1 605 720 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  603 718 683 748
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+30 29
+"FRAME1"
+""
+1 240 100 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+29 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 2.679245283018868 0 0.7841726618705036 -618.0188679245281 133.5827338129496 0 E 240 100 400 240
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Options
+1 44 0 "" 6
+0
+1 45 0 "" 7
+0
+1 46 0 "" 8
+0
+14 35
+"ConfDBSetup"
+""
+1 38 339 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  38 338 181 365
+2 "0s" 0 0 0 0 0 -1  E E E
+13 39
+"PUSH_BUTTON8"
+""
+1 200 170 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  198 168 272 202
+
+T 
+1
+LANG:1 6 Delete
+"main()
+{
+  string confName = txtConfigurationName.text;
+  if (strlen(confName) == 0) return;
+  
+  dyn_string exc;  
+  if (! promptUser(\"Do you want to delete \" + confName + \"?\")) return;
+  
+  CMSfwInstallUtils_deleteConfiguration(confName, exc);
+  
+  if (dynlen(exc) >0 ) fwExceptionHandling_display(exc);
+  
+}" 0
+ E E E
+13 43
+"PUSH_BUTTON9"
+""
+1 20 120 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  18 118 142 145
+
+T 
+1
+LANG:1 18 Create From Config
+"main()
+{
+        ChildPanelOnCentral(\"CMSfwInstallUtils/createDeviceListFromConfiguration.pnl\",\"Create From Configuration\" , makeDynString());
+}" 0
+ E E E
+13 47
+"PUSH_BUTTON10"
+""
+1 30 700 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  28 698 152 725
+
+T 
+1
+LANG:1 11 Save to CSV
+"main()
+{
+  string fn;
+  fileSelector(fn, PROJ_PATH + DATA_REL_PATH, false,\"*.csv\", false);
+  
+  tblDev.writeToFile(fn,TABLE_WRITE_COLUMN_HEADER,\",\");
+  
+  
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "PANEL_REF0" -1
+"objects\\fwConfigurationDB\\fwConfigurationDB_CDBStatusIndicator.pnl" 310 220 T 30 1 0 1 -80 115
+0
+0

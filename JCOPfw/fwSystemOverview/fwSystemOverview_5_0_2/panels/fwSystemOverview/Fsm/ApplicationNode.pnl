@@ -1,0 +1,281 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 879 700 N "unSynopticBackground" 2
+"$1"
+"$2"
+"#uses \"icemon/icemon.ctl\"
+main()
+{
+  dyn_string projectDps = fwSysOverviewFsm_getChildrenOfType($2, \"FwSystemOverviewProject\");  
+  dyn_string nodeDps = fwSysOverviewFsm_getChildrenOfType($2, \"FwFMCNode\");
+  dyn_string plcAliases = fwSysOverviewFsm_getChildrenOfType($2, \"IcemonPlc\");  
+  dyn_string systemIntegrityChildren = fwSysOverviewFsm_getChildrenOfType($2, \"IcemonSystemIntegrity\");
+  
+  dyn_string dps;
+  dyn_string tmp;
+  tmp = projectDps;
+  dynAppend(dps, tmp);
+  tmp = nodeDps;
+  dynAppend(dps, tmp);
+  
+  dyn_string plcDps;
+  for(int i=1; i<= dynlen(plcAliases); i++)
+  {
+    string plcDp = dpAliasToName(plcAliases[i]);  
+    plcDps[i] = dpSubStr(plcDp, DPSUB_DP);
+  }
+  dynAppend(dps, plcDps);
+  
+  if (dynlen(systemIntegrityChildren) > 0)
+  {
+    dyn_string systemIntegrityDPs = icemon_getSystemIntegrityDPs(systemIntegrityChildren);
+    dynAppend(dps, systemIntegrityDPs);    
+  }
+  
+  
+  addSymbol(myModuleName(), 
+            myPanelName(), 
+            \"fwSystemOverview/fwSystemOverview_alarmSummary.pnl\", 
+            \"Alarms in \" + $2, makeDynString(\"$dps:\"+dps), 
+            810, 12, 0, 1, 1);
+  
+  if (dynlen(nodeDps) > 0)
+  {  
+      string node = fwFMC_getNodeName(nodeDps[1]);
+      addSymbol(myModuleName(), 
+            myPanelName(), 
+            \"objects/HOSTMONITORING/hostWidget_IcemonHostSquare.pnl\", 
+            \"Host widget for \" + nodeDps[1] , makeDynString(\"$1:\"+$1, 
+                                                            \"$2:\"+nodeDps[1],
+                                                            \"$sIdentifier:\"+node), 
+            239, 44, 0, 1, 1);  
+  }
+  if (dynlen(projectDps) > 0)
+  {  
+     string projectName;
+     dpGet(projectDps[1] + \".config.project\", projectName);
+     projectName = strtoupper(projectName);
+     addSymbol(myModuleName(), 
+            myPanelName(), 
+            \"objects/PROJECTMONITORING/projectWidget_IcemonProjectSquare.pnl\",
+            \"Project widget for \" + projectDps[1] , makeDynString(\"$1:\"+$1, 
+                                                                  \"$2:\"+projectDps[1],
+                                                                  \"$sIdentifier:\"+projectName), 
+            262, 170, 0, 1, 1);  
+  }
+ 
+  if (dynlen(plcAliases) > 0)
+  {
+    int startX = 147;
+    int startY = 256;
+    int plcWidth = 110;
+    int plcHeight = 80;
+    int plcsCount = dynlen(plcAliases);
+    int rows = plcsCount/3;
+    int residue = plcsCount % 3;
+    
+    if (rows > 0)
+    {
+        int k = 1;
+        int z;
+        for(int i = 1; i <= plcsCount; i++)
+        {
+
+          if(k > 3)
+          {
+            k = 1;
+            z++;
+          }
+          int x = plcWidth*(k-1) + startX;
+          int y = plcHeight*z + startY;
+
+          addSymbol(myModuleName(), 
+            myPanelName(), 
+            \"objects/PLCMONITORING/plcWidget_IcemonPlcSquare.pnl\",
+            \"Plc widget for \" + plcAliases[i] , makeDynString(\"$1:\"+$1, 
+                                                                  \"$2:\"+plcAliases[i],
+                                                                  \"$sIdentifier:\"+plcAliases[i]), 
+            x, y, 0, 1, 1);
+          k++;  
+
+        }
+
+    }
+    else
+    {
+      if (residue == 2) // two plcs
+      {
+        addSymbol(myModuleName(), 
+            myPanelName(), 
+            \"objects/PLCMONITORING/plcWidget_IcemonPlcSquare.pnl\",
+            \"Plc widget for \" + plcAliases[1] , makeDynString(\"$1:\"+$1, 
+                                                                  \"$2:\"+plcAliases[1],
+                                                                  \"$sIdentifier:\"+plcAliases[1]), 
+            startX + plcWidth/2, startY, 0, 1, 1);  
+        addSymbol(myModuleName(), 
+            myPanelName(), 
+            \"objects/PLCMONITORING/plcWidget_IcemonPlcSquare.pnl\",
+            \"Plc widget for \" + plcAliases[2] , makeDynString(\"$1:\"+$1, 
+                                                                  \"$2:\"+plcAliases[2],
+                                                                  \"$sIdentifier:\"+plcAliases[2]), 
+            startX + plcWidth + plcWidth/2, startY, 0, 1, 1);  
+      }
+      else //one plc
+      {
+          addSymbol(myModuleName(), 
+            myPanelName(), 
+            \"objects/PLCMONITORING/plcWidget_IcemonPlcSquare.pnl\",
+            \"Plc widget for \" + plcAliases[1] , makeDynString(\"$1:\"+$1, 
+                                                                  \"$2:\"+plcAliases[1],
+                                                                  \"$sIdentifier:\"+plcAliases[1]), 
+            startX + plcWidth, startY, 0, 1, 1);  
+      }
+        
+    }  
+    
+  }
+  
+ }" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E E 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+1 442 19 "" 0
+0
+1 443 20 "" 0
+0
+1 444 20 "" 1
+0
+1 445 20 "" 2
+0
+1 446 20 "" 7
+0
+1 447 20 "" 10
+0
+1 448 21 "" 0
+0
+1 449 21 "" 1
+0
+1 450 21 "" 2
+0
+1 451 21 "" 7
+0
+1 452 21 "" 10
+0
+1 453 22 "" 0
+0
+1 454 22 "" 1
+0
+1 455 22 "" 2
+0
+1 456 22 "" 7
+0
+1 457 22 "" 10
+0
+4 440
+"LINE5"
+""
+1 320 140 E E E 1 E 1 E N "White" E N {255,255,255} E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E  320 140 320 180
+4 441
+"LINE6"
+""
+1 320 240 E E E 1 E 1 E N "White" E N {255,255,255} E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E  320 240 320 260
+1 458 23 "" 0
+0
+1 459 24 "" 0
+0
+1 460 24 "" 1
+0
+1 461 24 "" 3
+0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 19 "PANEL_REF15" -1
+"fwSystemOverview/fwSystemOverview_detailsButton.pnl" 680 0 T 33 1 0 1 -5 2
+2
+"$1""$1"
+"$2""$2"
+3 20 "PANEL_REF8" -1
+"fwSystemOverview/fwSystemOverview_summaryWidget.pnl" 60 10 T 34 1 0 1 -50 -10
+4
+"$1""$1"
+"$deviceType""Hosts"
+"$foreCol""White"
+"$node""$2"
+3 21 "PANEL_REF9" -1
+"fwSystemOverview/fwSystemOverview_summaryWidget.pnl" 60 10 T 35 1 0 1 150 -10
+4
+"$1""$1"
+"$deviceType""Projects"
+"$foreCol""White"
+"$node""$2"
+3 22 "PANEL_REF12" -1
+"fwSystemOverview/fwSystemOverview_summaryWidget.pnl" 60 10 T 36 1 0 1 350 -9.999999999999993
+4
+"$1""$1"
+"$deviceType""Plcs"
+"$foreCol""White"
+"$node""$2"
+3 23 "PANEL_REF23" -1
+"fwSystemOverview/fwSystemOverview_webHelp.pnl" 830 9 T 48 1 0 1 20 3
+1
+"$url""\"http://cern.ch/wikis/display/ENICECOL/Standby+Service+Documentation\""
+3 24 "PANEL_REF13" -1
+"fwSystemOverview/fwSystemOverview_openedUIsWidget.pnl" 440 13 T 48 1 0 1 170 -10
+1
+"$2""$2"
+0

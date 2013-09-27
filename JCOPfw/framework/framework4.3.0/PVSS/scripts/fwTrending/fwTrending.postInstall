@@ -1,0 +1,42 @@
+#uses "fwTrending/fwTrendingTree.ctl"
+
+main()
+{
+	int error, pos, versionNumber;
+	dyn_string excInfo;
+	bool tempBool;
+
+	DebugN("fwTrending: post install file");
+
+	DebugN("fwTrending: configuring default panels");
+	dpGet("TrendingConfiguration.UNICOS.isUNICOS:_original.._value", tempBool);
+	if(tempBool)
+	{
+		dpSet(		"TrendingConfiguration.PageSettings.operationPanels:_original.._value", makeDynString("fwTrending/fwTrendingPage"),
+				"TrendingConfiguration.PageSettings.configurationPanels:_original.._value", makeDynString("fwTrending/fwTrendingPlotsPage","fwTrending/fwTrendingManageChildren"),
+				"TrendingConfiguration.PlotSettings.operationPanels:_original.._value", makeDynString("fwTrending/fwTrendingPlot"),
+				"TrendingConfiguration.PlotSettings.configurationPanels:_original.._value", makeDynString("fwTrending/fwTrendingPlotConfPanel","fwTrending/fwTrendingManageChildren"));
+	} else {
+		dpSet(		"TrendingConfiguration.PageSettings.operationPanels:_original.._value", makeDynString("fwTrending/fwTrendingStandardViewNavigator"),
+				"TrendingConfiguration.PageSettings.configurationPanels:_original.._value", makeDynString("fwTrending/fwTrendingStandardViewEditor","fwTrending/fwTrendingPlotsPage"),
+				"TrendingConfiguration.PlotSettings.operationPanels:_original.._value", makeDynString("fwTrending/fwTrendingStandardViewNavigator"),
+				"TrendingConfiguration.PlotSettings.configurationPanels:_original.._value", makeDynString("fwTrending/fwTrendingStandardViewEditor","fwTrending/fwTrendingPlotConfPanel"));
+	}	
+
+	DebugN("fwTrending: adding clipboard to trend tree");
+	_fwTrendingTree_addClipboard();
+
+	dpGet("TrendingConfiguration.versionNumber", versionNumber);
+	if(versionNumber < 2300)
+		_fwTrendingTree_upgradeTree();
+	
+	dpSet("TrendingConfiguration.versionNumber", 2300);
+
+	DebugN("fwTrending: updating device references");
+	_fwTrendingTree_addSystemNameRecursive(fwTrendingTree_TREE_NAME);
+
+	DebugN("fwTrending: adding user interface manager in console");
+
+	fwInstallationManager_append(0,"FW","PVSS00ui","manual",5,3,5,
+		"-p fwTrending/fwTrending.pnl -iconBar -menuBar");
+}

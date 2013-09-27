@@ -1,0 +1,1933 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 833 850 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  userFunctions = makeDynString(\"\",\"\",\"\");
+  CMSfwDetectorProtection_initObject(obj);
+  int y;
+  getValue(\"dp\",\"position\",dplist_baseX,y);
+  if ((strlen($sDpName)>0) && (dpExists($sDpName))) {
+     loadDp($sDpName); 
+  }
+  
+    getValue(\"txtSelectPackage\",\"position\", txtSelectPackage_x, txtSelectPackage_y);
+    getValue(\"cbSelectPackage\",\"position\",  cbSelectPackage_x,cbSelectPackage_y);
+}" 0
+ "main()
+{
+   //
+}" 0
+ E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"CMSfwDetectorProtection/CMSfwDetectorProtection.ctl\"
+#uses \"majority_treeCache/treeCache.ctl\"
+
+dyn_mixed obj;
+dyn_string exc;
+string loadedDp= \"\";
+dyn_string userFunctions;
+int dplist_baseX;
+int currentIndex;
+bool loadedMerged = false;
+bool saved = true;
+
+int txtSelectPackage_x, txtSelectPackage_y, cbSelectPackage_x, cbSelectPackage_y;
+
+void showMsg(string msg) {
+    bool ok; dyn_string exc;
+     fwGeneral_openMessagePanel(msg,ok, exc,\"\",true); 
+     return; 
+}
+
+void setAnswer(int answer) {
+   setValue(\"txtAnswer\",\"text\",answer); 
+}
+
+int getAnswer() {
+  int answer;
+   getValue (\"txtAnswer\",\"text\",answer); 
+   return answer;
+}
+bool promptUser(string msg) {
+  dyn_string result;
+  dyn_float float_result;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageInfo\",(\"information\"),makeDynString(msg,\"Yes\",\"No\"),float_result, result);
+  return result[1]==\"true\";
+
+}
+
+void removeAllFromCb(string shapeName) {
+  string child;
+  string next; int type;  
+  getValue(shapeName,\"firstChild\",\"\",child,type);
+  shape cb = getShape(shapeName);
+  
+  while (strlen(child) ) {
+    getValue( shapeName,\"nextSibling\",child,next,type);
+    cb.removeItemId(child);
+    child = next;   
+  } 
+}
+void refreshConfigs() {
+  dyn_string dps = dpNames(\"*:*\",CMSfwDetectorProtection_configType);
+  
+  removeAllFromCb(\"cbConfig\");
+
+  cbConfig.insertItemId(\"\",CB_ITEM,-1,\"####new\",\"New configuration\");
+  cbConfig.insertItemId(\"\",CB_SEPARATOR,-1,\"#####\",\"\");
+  
+  
+  string sys; dyn_string systems;  
+  for (int i=1; i<= dynlen(dps); i++) {
+    fwGeneral_getSystemName(dps[i],sys,exc);
+    if (! dynContains(systems, sys) ) dynAppend(systems, sys);
+  }
+  
+  
+  for (int i=1; i<= dynlen(dps); i++) {
+     cbConfig.insertItemId(\"\",CB_ITEM, -1, dps[i],dps[i]);
+  }
+  cbConfig.insertItemId(\"\",CB_POPUP,-1,\"localconfigs\",\"Local configuration for system...\");
+  for (int i=1; i<= dynlen(systems); i++) {
+    cbConfig.insertItemId(\"localconfigs\",CB_ITEM, -1, \"SYS \" + systems[i],systems[i]);
+  }
+}
+
+
+bool handleExc() {
+  if (dynlen(exc) > 0) {
+     fwExceptionHandling_display(exc); 
+     dynClear(exc);
+     return false;
+  }   
+  return true;
+}
+void loadDp(string configDp) {
+  dyn_string split = strsplit(configDp,\" \");
+  if (dynlen(split) == 2) {
+     CMSfwDetectorProtection_loadLocalConfiguration(obj, exc,split[2], false);
+     handleExc();
+     loadedMerged = true; 
+     obj[CMSfwDetectorProtection_CONFIGDP] = split[2] + \"Configuration/mergedConfig\";   
+     txtDp.text =obj[CMSfwDetectorProtection_CONFIGDP]; 
+ } else {
+     loadedMerged = false;
+      txtDp.text = configDp;
+    CMSfwDetectorProtection_loadFromDp(obj,configDp, exc, false);
+    handleExc();
+    bool active;
+    dpGet(configDp + \".config.active\", active);
+    if (active) {
+       txtActive.text = \"ACTIVE\";
+       txtActive.backCol = \"FwStateOKPhysics\"; 
+     } else {
+       txtActive.text = \"NOT ACTIVE\";
+       txtActive.backCol = \"FwEquipmentDisabled\";        
+     }
+     saved = true;
+   }
+  refreshConditionTable();
+  
+}
+
+void refreshConditionTable() {
+  tblConditions.deleteAllLines();
+   for (int i=1; i<= dynlen(obj[CMSfwDetectorProtection_CONDITIONNAME]); i++) {
+    tblConditions.appendLine(\"index\", i,\"name\", obj[CMSfwDetectorProtection_CONDITIONNAME][i],\"condition\",   
+                             obj[CMSfwDetectorProtection_INPUTDPES][i]);
+    tblConditions.cellBackColRC(tblConditions.lineCount -1, \"name\",  ((obj[CMSfwDetectorProtection_CONDITIONACTIVE][i])?\"_Window\":\"FwEquipmentDisabled\"));
+    tblConditions.cellBackColRC(tblConditions.lineCount -1, \"condition\",  ((obj[CMSfwDetectorProtection_CONDITIONACTIVE][i])?\"_Window\":\"FwEquipmentDisabled\"));
+  } 
+}
+void setVisibleInput(bool vis) {
+   lblInput.visible = vis;
+   txtInput.visible = vis;
+   btnOk.visible = vis; 
+}
+
+
+string getInput(string label, string value= \"\") {
+  lblInput.text = label;
+  txtInput.text = value;
+  setVisibleInput(true);
+  setAnswer(0);
+  while (getAnswer() == 0)  delay(0,500);
+  setVisibleInput(false);
+  return txtInput.text;
+  
+}
+
+void setVisibleInputForm( bool vis) {
+   cbInput.visible = vis;
+   lblInputForm1.visible = vis;
+   lblInputForm2.visible = vis;
+   lblInputForm3.visible = vis;
+   lblInputForm4.visible = vis;
+   lblInputForm5.visible = vis;
+   lblInputForm6.visible = vis;
+   lblInputForm7.visible = vis;
+   lblInputForm8.visible = vis;
+   frmInputForm1.visible = vis;
+   frmInputForm2.visible = vis;
+   btnOkInput.visible = vis;
+   btnOkInput2.visible= vis;
+   txtConditionDp.visible = vis;
+   txtFunction.visible = vis;
+   btnSelectDp.visible = vis;
+   btnViewInput.visible = vis;
+   btnEditInput.visible = vis;
+   btnCancel.visible = vis;
+   txtInputName.visible = vis;
+   txtInputDp.visible = vis; 
+   txtDelay.visible = vis;
+   txtInputDescription.visible = vis;
+   btnApply.visible = vis; 
+   if (! vis) {
+      setVisibleSelectPackage(false); 
+   }
+}
+void setVisibleSelectPackage(bool vis, bool forReplace = false) {
+  if (vis) {
+    if (forReplace) {
+      setValue(\"txtSelectPackage\",\"position\", 35,570);
+      setValue(\"cbSelectPackage\",\"position\", 35,600);
+    } else {
+      setValue(\"txtSelectPackage\",\"position\", txtSelectPackage_x, txtSelectPackage_y);
+      setValue(\"cbSelectPackage\",\"position\",  cbSelectPackage_x,cbSelectPackage_y); 
+    }
+  }
+  
+  cbSelectPackage.visible = vis;
+  txtSelectPackage.visible = vis;
+}
+
+void setVisibleCommands(bool vis) {
+  btnNewCondition.enabled = vis;
+  btnDelete.enabled = vis;
+  cbEdit.enabled = vis;
+  btnSave.enabled = vis;
+  btnGlobalSettings.enabled = vis;
+  cbConfig.enabled = vis;
+  btnSummaryCondition.enabled = vis;
+}
+
+void setVisibleTreeCacheVerify(bool vis) {
+   slTreeCacheVerify.visible = vis;
+   txtElementVerify.visible = vis;
+   slElementsVerify.visible = vis;
+   lblTcv1.visible = vis;
+   lblTcv2.visible = vis;
+   btnTcv1.visible = vis;
+   btnTcv2.visible = vis;
+    
+}
+
+bool setInput(string name) {
+  txtTitle.text = \"Set Input condition for condition \" + name;
+  txtTitle.visible = true;
+  dyn_string inputs = dpNames(\"*:*\", CMSfwDetectorProtection_inputType);
+  dynInsertAt(inputs,\"\",1);
+  cbInput.items = inputs;
+  int index = CMSfwDetectorProtection_getConditionIndex(obj,name);
+  string dpinput;
+  dpinput = (obj[CMSfwDetectorProtection_INPUTDPES][index]);
+  if (substr(dpinput,strlen(dpinput)-7) == \".status\") dpinput = substr(dpinput,0, strlen(dpinput) - 7);
+  
+  int selectIndex = dynContains(inputs,CMSfwDetectorProtection_replaceComponentsWithSystem(dpinput) );
+
+  if (selectIndex>0) cbInput.selectedPos = selectIndex;
+  else cbInput.selectedPos = 1;
+  
+  txtInputDp.text = dpinput;
+  txtDelay.text = (obj[CMSfwDetectorProtection_DELAY][index]);
+  setVisibleInputForm(true);
+  setVisibleSelectPackage(populateSelectPackage()); // populate returns true if the list must be shown
+  
+  int answerInput;
+
+  do {
+    setAnswer(0) ;
+    while (getAnswer()== 0) delay(0,500);
+    
+    answerInput = getAnswer();
+    if (answerInput == 2) {
+       dpinput = CMSfwDetectorProtection_createInput(txtInputName.text, txtConditionDp.text,txtFunction.text, exc, txtInputDescription.text);
+       if (! handleExc() ) return;
+       dpinput =  dpSubStr(dpinput, DPSUB_SYS_DP);
+       inputs = dpNames(\"*:*\", CMSfwDetectorProtection_inputType);
+       dynInsertAt(inputs,\"\",1);
+       cbInput.items = makeDynString();
+       cbInput.items = inputs;
+       selectIndex =  dynContains(inputs, dpinput);
+     //  DebugN(inputs, dpinput,selectIndex);
+       if (selectIndex>0)
+         cbInput.selectedPos = selectIndex;
+       else
+         cbInput.selectedPos = 1;
+       
+       txtInputDp.text = dpinput;
+     } else if (answerInput == 3) {
+       txtInputDp.text = cbInput.selectedText;    
+       setVisibleSelectPackage(populateSelectPackage()); // populate returns true if the list must be shown
+     }
+  } while ((answerInput != -1) && (answerInput != 1));
+     
+    setVisibleInputForm(false);
+    txtTitle.visible = false;
+    txtTitle.text = \"\";
+    dpinput = \"\";
+    
+  
+    if (answerInput == -1) return;
+        
+
+    
+  dpinput = txtInputDp.text;
+  int del = (int) txtDelay.text;
+  CMSfwDetectorProtection_setInput(obj,name,dpinput,exc);
+  CMSfwDetectorProtection_setDelay(obj,name, del, exc);
+
+  bool ok = handleExc();
+  if (ok) saved = false;
+  return ok;
+  
+    
+}
+
+
+
+
+bool populateSelectPackage(string sys = \"\") {
+
+   if (sys == \"\") {
+      string input = txtInputDp.text;
+      dyn_string exc;
+      fwGeneral_getSystemName(input, sys, exc);
+    }
+
+    if (substr(sys,0,1)==\"{\") {
+      return false;  
+    } else {
+        cbSelectPackage.deleteAllItems();
+        dyn_string packages = CMSfwDetectorProtection_getInstalledComponents(sys);
+        for (int i=1; i<= dynlen(packages); i++) {
+            cbSelectPackage.appendItem(packages[i]);
+        }
+       // cbSelectPackage.appendItem(\"Leave the explicit system name\");
+        return true;  
+    }
+}
+
+setVisibleDpList(bool vis, int shift = 0) {
+    dp.visible = vis;
+    dptext.visible = vis;
+    delsel.visible = vis;
+    dpadd.visible = vis;
+    dpsel.visible = vis;
+    if (vis) selPreprocess.visible = false;
+    
+    shiftPosition(\"dp\",shift);
+    shiftPosition(\"dptext\",shift);
+    shiftPosition(\"delsel\",shift);
+    shiftPosition(\"dpadd\",shift);
+    shiftPosition(\"dpsel\",shift);
+}
+
+void shiftPosition(string shapeName, int shift) {
+   int x,y;
+   getValue(shapeName, \"position\",x,y);
+   x = dplist_baseX + shift;
+   if ((shapeName != \"dp\") && (shapeName != \"dptext\")) x+= 300;
+   setValue(shapeName, \"position\",x,y);
+}
+setVisibleSelMode(bool vis) {
+  cbOutputMode.visible = vis;
+  lblSelectMode.visible = vis;
+  btnApply.visible = vis;
+  btnCancel.visible = vis;
+  lblOutputValue.visible = vis;
+  lblOutputValue2.visible = vis;
+  cbOutputValueType.visible = vis;
+  txtOutputValue.visible = vis;
+  cbOutputValueUserFunction.visible = vis;
+  if (! vis) {
+    setVisibleDpList(false); 
+    setVisibleUserFunction(false, txtNumUserFunction.text);
+    setVisibleTreeCacheMode(false);  
+    selPreprocess.visible = false;
+    setVisibleUserFunction2(false);
+  }
+}
+
+setVisibleVerify(bool vis) {
+  cbOutputModeV.visible = vis;
+  lblSelectModeV.visible = vis;
+  btnApplyV.visible = vis;
+  btnCancel.visible = vis;
+  cbVerify.visible = vis;
+  lblVerify1.visible - vis;
+   if (! vis) {
+     setVisibleDpList(false); 
+     setVisibleTreeCacheVerify(false);
+    setVisibleUserFunction(false, txtNumUserFunction.text);
+     setVisibleVerifyDelay(false);
+     selPreprocessV.visible = false;
+     
+  }
+}
+
+setVisibleTreeCacheMode(bool vis) {
+  lbltc1.text = \"TreeCache Top Node\";
+  lbltc2.text = \"Top Node to act on\";
+  lbltc3.text = \"Device Unit Type\"; 
+  lbltc1.visible = vis;
+   lbltc2.visible = vis;
+   lbltc3.visible = vis;
+   lbltc4.visible = vis;
+   txtTreeCacheTopNode.visible = vis;
+   txtTopNode.visible = vis;
+   btnTcRef.visible = vis;
+   cbDuTypes.visible = vis;
+   if (vis) cbDuTypes.items = makeDynString();
+   cbElements.visible =vis; 
+   slDuTypes.visible = vis;
+   slElements.visible = vis;
+   btnTc1.visible = vis;
+   btnTc2.visible = vis;   
+}
+
+setVisibleDpNamesMode(bool vis) {
+  lbltc2.text = \"Prefix\";
+  lbltc3.text = \"Data Point Type\"; 
+  lbltc1.visible = false;
+   lbltc2.visible = vis;
+   lbltc3.visible = vis;
+   lbltc4.visible = false;
+   txtTreeCacheTopNode.visible = false;
+   txtTopNode.visible = vis;
+   btnTcRef.visible = false;
+   cbDuTypes.visible = vis;
+   if (vis) cbDuTypes.items = dpTypes();   
+   cbElements.visible =vis; 
+   slDuTypes.visible = vis;
+   slElements.visible = vis;
+   btnTc1.visible = vis;
+   btnTc2.visible = vis;  
+}
+
+
+void setVisibleUserFunction(bool vis, int type = 1) {
+    if (vis) {
+      txtNumUserFunction.text = type;
+      if (type == 1) {
+       if (userFunctions[1] == \"\")
+           userFunctions[1] =  \"dyn_string main(string conditionName, string conditionDp, string systemName, bool getVerifyDpes = false) {\\n\"+
+                            \"}\" ;  
+       } else if (type == 2) {
+         if (userFunctions[2] == \"\")
+           userFunctions[2] = \"dyn_string main(dyn_mixed object, int index, bool stop_at_first_error, string systemName, int checkInvalid, dyn_string maskedDpes) {\\n // must return \\\"0\\\" or \\\"1\\\" in the first position and then the list of problems \\n }\";
+       } else if (type == 3) {  
+           if (userFunctions[3] == \"\")
+              userFunctions[3]  = \"bool main(anytype value) { \\n }\";
+       } else if (type == 4) {
+         if (userFunctions[4] == \"\") {
+           userFunctions[4] = \"/* void CMSfwDetectorProtectionUser_pre_fired() { } */\\n\" + 
+                              \"/* void CMSfwDetectorProtectionUser_post_fired() { } */\\n\" + 
+                              \"/* void CMSfwDetectorProtectionUser_pre_gone() { } */\\n\" + 
+                              \"/* void CMSfwDetectorProtectionUser_post_gone() { } */\\n\"  + 
+                              \"/* dyn_string CMSfwDetectorProtectionUser_convertToReadback(string dpe) { \\n \" +
+                              \"// this is used to convert settings to readback, only if the user function is used to find the output dpes \\n\"
+                              \"\\nreturn dpe; } */\\n\"  
+                              ;
+         }      
+       } else if (type == 5) {
+         if (userFunctions[5] == \"\") {
+           userFunctions[5] = \"void main() { // Code here the action to give additional info about the condition \\n } \";
+         }  
+       }  
+     }
+    
+    if (vis) {
+       txtUserFunction.text = userFunctions[ type ];
+    } else {
+      int index = txtNumUserFunction.text;
+      if (index>0)
+       userFunctions[ index ] =   txtUserFunction.text;  
+    }   
+    btnUserFunction.visible = vis;
+    txtUserFunction.visible = vis; 
+}
+
+void setVisibleUserFunction2(bool vis ) {  
+
+   btnUserFunction2.visible = vis;
+   txtUserFunction2.visible =  vis;
+}
+
+setVisibleVerifyDelay(bool vis) {
+   txtVerifDelay.visible = vis;
+   lblVerifDelay.visible =vis; 
+   if (strlen(txtVerifDelay.text) == 0) txtVerifDelay.text = \"60\";
+}
+lockDpList() { return; }
+
+changeMode(int outputMode) {
+   setVisibleDpList(outputMode ==  CMSfwDetectorProtection_MODE_DPES);
+   setVisibleUserFunction(outputMode ==  CMSfwDetectorProtection_MODE_USERFUNCTION);
+   if ((outputMode ==  CMSfwDetectorProtection_MODE_TREECACHE) || (outputMode ==  CMSfwDetectorProtection_MODE_DPNAMES) 
+        || (outputMode ==  CMSfwDetectorProtection_MODE_DPALIASES)) {
+      if (outputMode ==  CMSfwDetectorProtection_MODE_TREECACHE) setVisibleTreeCacheMode(true);    
+      else setVisibleDpNamesMode(true);
+   } else {
+      setVisibleTreeCacheMode(false); 
+   } 
+}
+
+changeVerify(bool enabled, int mode, bool custom) {
+  setVisibleUserFunction(false, txtNumUserFunction.text);
+  setVisibleVerifyDelay(enabled);
+  setVisibleDpList(false);
+  setVisibleTreeCacheVerify(false);
+  if (! enabled) {   
+    return;
+  }  
+  
+  if (custom) {
+    setVisibleUserFunction(true,2);
+    return;
+  } 
+  bool tc_or_dp = (mode == CMSfwDetectorProtection_MODE_TREECACHE) || (mode == CMSfwDetectorProtection_MODE_DPNAMES) || (mode == CMSfwDetectorProtection_MODE_DPALIASES);
+  setVisibleUserFunction(true, 3);
+  if (mode == CMSfwDetectorProtection_MODE_DPES) {
+     setVisibleDpList(true, 350); 
+  } else if (tc_or_dp) {
+    setVisibleTreeCacheVerify(true); 
+  }
+  
+  if ((enabled) && (tc_or_dp)) {
+    dyn_string type_element;
+    int index = currentIndex;
+    for (int i=1; i<= dynlen(obj[CMSfwDetectorProtection_DUTYPE][index]); i++) {
+       type_element[i] = obj[CMSfwDetectorProtection_DUTYPE][index][i] + \" / \" + obj[CMSfwDetectorProtection_DPELEMENT][index][i];         
+    }
+    slTreeCacheVerify.items = type_element;
+  }
+}
+
+string getStringRepresentationType(int type) {
+  switch (type) {
+   case DPEL_FLOAT: return \"FLOAT\";
+   case DPEL_BOOL: return \"BOOL\";
+   case DPEL_INT: return \"INT\";
+   case DPEL_CHAR: return  \"CHAR\";
+   case DPEL_STRING: return   \"STRING\" ;
+  } 
+  return \"\";
+}
+
+int getTypeFromString(string t) {
+  int type;
+  evalScript(type,  \"int main() {return DPEL_\" + t + \"; }\",makeDynString());
+  return type;
+}
+
+bool setOutput(string name) {
+ txtTitle.text = \"Set Output action for condition \" + name;
+ txtTitle.visible = true;
+ int index = CMSfwDetectorProtection_getConditionIndex(obj,name);
+ int mode = 0;
+ if (dynlen(obj[CMSfwDetectorProtection_OUTPUTMODE]) >= index) {
+   mode = obj[CMSfwDetectorProtection_OUTPUTMODE][index];
+ }
+ 
+ int pureMode = CMSfwDetectorProtection_getPureMode(mode);
+
+ string value;
+ if (dynlen(obj[CMSfwDetectorProtection_OUTPUTVALUE]) >= index) {
+    setValue(\"txtOutputValue\",\"text\", obj[CMSfwDetectorProtection_OUTPUTVALUE][index]);
+ }
+ if (dynlen(obj[CMSfwDetectorProtection_OUTPUTVALUE_USERFUNCTION]) >= index) {
+   if (strlen( obj[CMSfwDetectorProtection_OUTPUTVALUE_USERFUNCTION][index])>0 ) {
+      setValue(\"txtUserFunction2\",\"text\", obj[CMSfwDetectorProtection_OUTPUTVALUE_USERFUNCTION][index]);
+      cbOutputValueUserFunction.selectedPos = 2;
+      setVisibleUserFunction2(true);     
+      txtOutputValue.visible = false;
+   } else {
+     setValue(\"txtUserFunction2\",\"text\", \"anytype main() {\\n return 0; /* please customize */\\n}\" );          
+   }    
+ }
+ 
+ if (dynlen(obj[CMSfwDetectorProtection_OUTPUTVALUETYPE]) >= index) {
+   dyn_string items;
+    getValue(\"cbOutputValueType\",\"items\",items);
+    int pos = dynContains(items,getStringRepresentationType( obj[CMSfwDetectorProtection_OUTPUTVALUETYPE][index]));
+    if (pos >0)
+      setValue(\"cbOutputValueType\",\"selectedPos\",pos);
+ }
+ 
+ 
+ if (pureMode == CMSfwDetectorProtection_MODE_DPES) {
+    setValue(\"dp\",\"items\",obj[CMSfwDetectorProtection_OUTPUTDPES][index]); 
+ }
+ if ((pureMode == CMSfwDetectorProtection_MODE_TREECACHE) ||(pureMode == CMSfwDetectorProtection_MODE_DPNAMES) || (pureMode == CMSfwDetectorProtection_MODE_DPALIASES))  {
+    setValue( \"txtTreeCacheTopNode\",\"text\", obj[CMSfwDetectorProtection_TREECACHETOPNODE][index]);
+    setValue( \"txtTopNode\",\"text\", obj[CMSfwDetectorProtection_TOPNODE][index]);
+    setValue( \"slDuTypes\",\"items\", obj[CMSfwDetectorProtection_DUTYPE][index]); 
+    setValue( \"slElements\",\"items\", obj[CMSfwDetectorProtection_DPELEMENT][index]); 
+ }
+  
+ if (pureMode == CMSfwDetectorProtection_MODE_USERFUNCTION) {
+    userFunctions[1] = obj[CMSfwDetectorProtection_USERFUNCTION][index];
+ }
+
+ setVisibleSelMode(true);
+  
+ if (mode == 0) {
+    mode = CMSfwDetectorProtection_MODE_DPES; pureMode = CMSfwDetectorProtection_MODE_DPES;
+ }
+ cbOutputMode.selectedPos(pureMode); 
+
+ changeMode(pureMode);
+
+
+
+ 
+ setValue(\"selPreprocess\",\"visible\",(mode > CMSfwDetectorProtection_MODE_DPES));
+ setValue(\"selPreprocess\",\"state\",0,(mode>100));
+ 
+ setAnswer(0);
+ while (getAnswer() == 0) delay(0,500);
+ setVisibleSelMode(false);
+  txtTitle.visible = false;
+ txtTitle.text = \"\"; 
+ 
+ if (getAnswer() == -1) return;
+ 
+ int newMode = cbOutputMode.selectedPos;
+ bool preprocess;
+ getValue(\"selPreprocess\",\"state\",0,preprocess);
+ value = txtOutputValue.text;
+ int valueType = getTypeFromString(cbOutputValueType.selectedText);
+ DebugN(\"value, valueType\",value, valueType);
+ dyn_string dpes;
+ getValue(\"dp\",\"items\",dpes);
+ switch (newMode) {
+    case CMSfwDetectorProtection_MODE_DPES:      
+       CMSfwDetectorProtection_setOutputModeDpes(obj,name,dpes, value,valueType, exc);
+      break;
+    case CMSfwDetectorProtection_MODE_TREECACHE:
+       CMSfwDetectorProtection_setOutputModeTreeCache(obj,name,txtTopNode.text, txtTreeCacheTopNode.text, slDuTypes.items, slElements.items, value, valueType, preprocess, exc);
+       break;
+    case CMSfwDetectorProtection_MODE_USERFUNCTION:
+       CMSfwDetectorProtection_setOutputModeUserFunction(obj,name, txtUserFunction.text, value, valueType,preprocess, exc);
+       //DebugN(obj);       
+       break;
+    case CMSfwDetectorProtection_MODE_DPNAMES:
+    case CMSfwDetectorProtection_MODE_DPALIASES:      
+      CMSfwDetectorProtection_setOutputModeDpNamesOrAliases(obj,name,newMode,txtTopNode.text, slDuTypes.items, slElements.items, value, valueType, preprocess, exc);
+      break;
+     
+ }
+ 
+ if (cbOutputValueUserFunction.selectedPos == 2) {
+    CMSfwDetectorProtection_setOutputValueUserFunction(obj,name, txtUserFunction2.text, exc);
+ }
+ 
+ bool ok = handleExc();
+ if (ok) saved = false;
+ return ok;
+ 
+
+       
+}
+
+setVerify(string name) {
+ txtTitle.text = \"Set Verify action for condition \" + name;
+ txtTitle.visible = true;
+ int index = CMSfwDetectorProtection_getConditionIndex(obj,name);
+ int mode = 0;
+ if (dynlen(obj[CMSfwDetectorProtection_OUTPUTMODE]) < index) {
+    showMsg(\"Configure the output action first\");
+    txtTitle.visible= false;
+    return;
+ }
+
+ mode = obj[CMSfwDetectorProtection_OUTPUTMODE][index];
+ int pureMode = CMSfwDetectorProtection_getPureMode(mode);
+
+ setVisibleVerify(true);
+  
+
+ cbOutputModeV.selectedPos(pureMode); 
+ setValue(\"selPreprocessV\",\"visible\",(mode > CMSfwDetectorProtection_MODE_DPES));
+ setValue(\"selPreprocessV\",\"state\",0,(mode>100));
+
+ string userFunction = \"\";
+ 
+ if (dynlen(obj[CMSfwDetectorProtection_VERIFY_USERFUNCTION])>= index) {
+    userFunction = obj[CMSfwDetectorProtection_VERIFY_USERFUNCTION][index]; 
+ }
+ if (dynlen(obj[CMSfwDetectorProtection_VERIFY_DELAY])>= index) {
+   int del = obj[CMSfwDetectorProtection_VERIFY_DELAY][index]; 
+   if (del== 0) del = 60;
+    txtVerifDelay.text = del;
+    
+ } else {
+   txtVerifDelay.text = \"60\";     
+ }
+ 
+ if (strlen(userFunction) > 0) userFunctions[2] = userFunction;
+
+ 
+ if (! obj[CMSfwDetectorProtection_ENABLEVERIFY][index] ) {
+    cbVerify.selectedPos = 1; 
+  } else if (strlen(userFunction) > 0) {
+    cbVerify.selectedPos = 3;    
+  } else {
+     if (pureMode == CMSfwDetectorProtection_MODE_DPES) {
+       if (dynlen(obj[CMSfwDetectorProtection_VERIFY_DPES]) >= index) {
+          setValue(\"dp\",\"items\",obj[CMSfwDetectorProtection_OUTPUTDPES][index]); 
+        }
+    }
+     if ((mode == CMSfwDetectorProtection_MODE_TREECACHE) || (mode == CMSfwDetectorProtection_MODE_DPNAMES) || (mode == CMSfwDetectorProtection_MODE_DPALIASES)) {
+        if (dynlen(obj[CMSfwDetectorProtection_VERIFY_DPELEMENT]) >= index) {
+             setValue(\"slElementsVerify\",\"items\",obj[CMSfwDetectorProtection_VERIFY_DPELEMENT][index]);
+        }  
+     }
+     userFunctions[3] = \"\";
+     if (dynlen(obj[CMSfwDetectorProtection_VERIFY_FUNCTION]) >= index) {
+          userFunctions[3] = obj[CMSfwDetectorProtection_VERIFY_FUNCTION][index]; 
+      }
+    cbVerify.selectedPos = 2;    
+  }
+ 
+ changeVerify(obj[CMSfwDetectorProtection_ENABLEVERIFY][index],pureMode,strlen(userFunction) > 0);
+
+
+
+ 
+ setValue(\"selPreprocessV\",\"visible\",(mode > CMSfwDetectorProtection_MODE_DPES));
+ setValue(\"selPreprocessV\",\"state\",0,(mode>100));
+ 
+ setAnswer(0);
+ while (getAnswer() == 0) delay(0,500);
+ setVisibleVerify(false);
+  txtTitle.visible = false;
+ txtTitle.text = \"\";   
+ 
+ if (getAnswer() == -1) return;
+ 
+ int verifySel = cbVerify.selectedPos;
+ int verifyDelay = txtVerifDelay.text;
+ string function = txtUserFunction.text;
+  dyn_string dpes;
+
+
+  
+ switch (verifySel         ) {
+    case 1: // disable
+       CMSfwDetectorProtection_setVerifyDisabled(obj,name, exc);
+       handleExc();       
+      break;
+    case 2: // depend on the mode
+    switch (pureMode) {
+        case CMSfwDetectorProtection_MODE_DPES:
+         getValue(\"dp\",\"items\",dpes);
+         DebugN(dpes);
+         CMSfwDetectorProtection_setVerifyModeDpes(obj,name,dpes, function,verifyDelay, exc);
+        break;
+      case CMSfwDetectorProtection_MODE_TREECACHE:
+      case CMSfwDetectorProtection_MODE_DPNAMES:
+      case CMSfwDetectorProtection_MODE_DPALIASES:
+         CMSfwDetectorProtection_setVerifyModeTreeCache(obj,name, slElementsVerify.items, function, verifyDelay, exc);
+         break;
+      case CMSfwDetectorProtection_MODE_USERFUNCTION:
+         CMSfwDetectorProtection_setVerifyModeUserFunction(obj,name,function, verifyDelay, exc);
+         //DebugN(obj);       
+         break;                   
+       }
+       break;
+    case 3:
+       CMSfwDetectorProtection_setVerifyCustomVerifyFunction(obj,name, function, verifyDelay, exc);
+    //   DebugN(obj);       
+       break;
+       
+       
+     
+     }
+  if (handleExc()) saved = false;
+  
+}
+
+void setTimeout(string name) {
+  
+    int currentTimeout = 120;
+    if (dynlen(obj[CMSfwDetectorProtection_DISCONNECTED_TIMEOUT])>= currentIndex) {
+      currentTimeout = obj[CMSfwDetectorProtection_DISCONNECTED_TIMEOUT][currentIndex];
+    }
+    int timeout = getInput(\"After # seconds the condition will be fired if the system is disconnected (enter -1 for infinite)\",currentTimeout);
+    CMSfwDetectorProtection_setTimeout(obj,name,timeout, exc);
+    if (handleExc()) saved = false;
+}  
+
+void setActive(string name) {
+    bool active = true;
+    if (dynlen(obj[CMSfwDetectorProtection_CONDITIONACTIVE])>= currentIndex) {
+      active = obj[CMSfwDetectorProtection_CONDITIONACTIVE][currentIndex];
+    }
+    active  =  (bool) getInput(\"Set condition active (0 or 1)\",active);
+    CMSfwDetectorProtection_setActive(obj,name,active, exc);
+    if (handleExc()) saved=false;
+}  
+
+void setConditionType(string name) {  
+    string type = obj[CMSfwDetectorProtection_CONDITIONTYPE][currentIndex];
+    type = getInput(\"Enter the condition type\",type);
+    CMSfwDetectorProtection_setConditionType(obj,name,type, exc);
+    if (handleExc()) saved = false;
+}  
+
+void setPrePost(string name) {
+  userFunctions[4] = \"\";
+  if (dynlen(obj[CMSfwDetectorProtection_PREPOST_USERFUNCTION])>= currentIndex) {
+    if (strlen(obj[CMSfwDetectorProtection_PREPOST_USERFUNCTION][currentIndex])>0){
+       userFunctions[4] =  obj[CMSfwDetectorProtection_PREPOST_USERFUNCTION][currentIndex];
+    }   
+  }
+   DebugN(\"Setting prepost \", name);
+   
+ setVisibleUserFunction(true, 4);  
+ btnApply.visible = true; btnCancel.visible = true;
+ setAnswer(0);
+ while (getAnswer() == 0) delay(0,500);
+ 
+ 
+
+ btnApply.visible = false; btnCancel.visible = false;
+ setVisibleUserFunction(false, 4);  
+ if (getAnswer() == -1) return;
+  
+ CMSfwDetectorProtection_setPrePostUserFunction(obj, name, txtUserFunction.text, exc);
+ if (handleExc())  saved = false;
+}  
+
+
+void setInfoFunct(string name) {
+  userFunctions[5] = \"\";
+  if (dynlen(obj[CMSfwDetectorProtection_INFOFUNCTION])>= currentIndex) {
+    if (strlen(obj[CMSfwDetectorProtection_INFOFUNCTION][currentIndex])>0){
+       userFunctions[5] =  obj[CMSfwDetectorProtection_INFOFUNCTION][currentIndex];
+    }   
+  }
+
+   
+ setVisibleUserFunction(true, 5);  
+ btnApply.visible = true; btnCancel.visible = true;
+ setAnswer(0);
+ while (getAnswer() == 0) delay(0,500);
+ 
+ 
+
+ btnApply.visible = false; btnCancel.visible = false;
+ setVisibleUserFunction(false, 5);  
+ if (getAnswer() == -1) return;
+  
+ CMSfwDetectorProtection_setInfoFunction(obj, name, txtUserFunction.text, exc);
+ if (handleExc())  saved = false;
+}  
+
+
+void setFrequency() {
+    int frequency = getInput(\"Set verify frequency in seconds (should be >= 30 s)\",obj[CMSfwDetectorProtection_VERIFY_FREQUENCY]);
+    CMSfwDetectorProtection_setVerifyFrequency(obj,frequency);
+    saved = false;
+       
+}
+void setDebugLevel() {
+    int lev = getInput(\"Set debug level (1-4)\",obj[CMSfwDetectorProtection_DEBUGLEVEL]);
+    CMSfwDetectorProtection_setDebugLevel(obj,lev);  
+    saved = false;    
+}
+
+void setVisibleSummary(bool vis) {
+   txtSummary.visible = vis;
+   btnSummary.visible = vis;
+}
+void showSummary(string text) {
+  
+   txtSummary.text = text;
+   setAnswer(0);
+   setVisibleSummary(true);
+   while(getAnswer() == 0) delay(0,500);
+   setVisibleSummary(false);    
+}
+
+
+void replace() {
+    cbSelectPackage.deleteAllItems();
+
+    setVisibleSystems(true);
+    setVisibleSelectPackage(true, true);
+    
+    dyn_string systems;
+    string sys; dyn_string exc;
+    for (int i=1; i<= dynlen(obj[CMSfwDetectorProtection_INPUTDPES]); i++) {
+      fwGeneral_getSystemName(obj[CMSfwDetectorProtection_INPUTDPES][i], sys, exc);
+      if ((substr(sys,0,1) != \"{\") && (! dynContains(systems, sys))) dynAppend(systems, sys);
+    }    
+    
+    cbSystems.deleteAllItems();
+    dynSortAsc(systems);
+    for (int i=1; i<= dynlen(systems); i++) {
+       cbSystems.appendItem(systems[i]); 
+    }    
+    setAnswer(0);
+    while(getAnswer() == 0) delay(0,500);
+           
+    setVisibleSystems(false);
+    setVisibleSelectPackage(false);
+
+    if (getAnswer() == -1) return;
+    CMSfwDetectorProtection_remapSystemToComponent(obj, cbSystems.selectedText, \"{\" + cbSelectPackage.selectedText + \"}:\");
+    saved = false;
+    refreshConditionTable();
+    
+}
+
+void setVisibleSystems(bool vis) {
+    cbSystems.visible = vis;
+    txtSelectAllSystems.visible = vis;
+    btnApply.visible = vis;
+    btnCancel.visible = vis;
+}
+bool promptUser(string msg) {
+  dyn_string result;
+  dyn_float float_result;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageInfo\",(\"information\"),makeDynString(msg,\"Yes\",\"No\"),float_result, result);
+  return result[1]==\"true\";
+
+}
+
+
+int change_privileges() {
+   string sys = getInput(\"Enter system where to change privileges\",getSystemName());
+   sys = strrtrim(sys,\":\")+ \":\";
+   if (! CMSfwDetectorProtection_hasRequiredPrivileges(sys)) {
+
+     return -1;
+   }
+   dyn_string privileges; string priv;
+   privileges = CMSfwDetectorProtection_getRequiredPrivileges(sys);
+   fwGeneral_dynStringToString(privileges, priv,\",\");
+   
+   priv = getInput(\"Enter new privileges (comma separated, it is enough to have one of them to be able to change)\", priv);
+   
+   fwGeneral_stringToDynString(priv, privileges,\",\");
+   return ( CMSfwDetectorProtection_setRequiredPrivileges(sys, privileges));
+   
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+  int i;
+  //
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+26 3
+"cbConfig"
+""
+1 55 62 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  53 60 210 87
+ 0 1
+LANG:1 20 Select configuration
+"" 0 0 0 0 0
+ 0 "main()
+{
+  refreshConfigs();
+}" 0
+ "main(string id)
+{
+  string name; 
+  if (! saved ) {
+     if (! promptUser(\"There are unsaved changes. Do you want to continue anyway?\") ) return; 
+  }
+  string dppref;
+  if (id == \"####new\") {
+     dynClear(obj);
+     CMSfwDetectorProtection_initObject(obj);
+     loadedDp = obj[CMSfwDetectorProtection_CONFIGDP];
+     dppref = loadedDp; int i=1;
+     while (dpExists(loadedDp)) {
+        loadedDp = dppref + \"_\" + i; 
+        i++;
+     }
+     obj[CMSfwDetectorProtection_CONFIGDP] = loadedDp;
+     txtDp.text = loadedDp; 
+     refreshConditionTable();
+     this.text = \"Select configuration\";  
+     return;
+  }
+  loadDp(id);
+ // DebugN(\"merged \", loadedMerged);
+  if (loadedMerged) {
+    this.text = \"Merged \" + strsplit(id,\" \")[2];
+  } else {  
+    fwDevice_getName(id, name, exc);
+    this.text = name;      
+  }
+  
+  loadedDp = id;
+}" 0
+0 
+13 4
+"PUSH_BUTTON1"
+""
+1 220 61 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  218 59 276 88
+
+P 
+4294967295
+"pictures/refresh_e.gif"
+1
+LANG:1 7 Refresh
+"main()
+{
+  refreshConfigs();
+}" 0
+ E E E
+14 5
+"txtDp"
+""
+1 53 123 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  51 121 689 144
+2 "0s" 0 0 0 0 0 -1  E E E
+25 6
+"tblConditions"
+""
+1 58 160 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  56 158 604 396
+"main()
+{
+  
+  this.selectByClick(TABLE_SELECT_LINE);
+  this.tableMode(TABLE_SELECT_BROWSE);
+  this.sortOnClick(false);
+}" 0
+E 1 0 1 3 0 "index" 2 1 0 "s" 1
+LANG:1 1 #
+E
+1
+LANG:1 0 
+
+30 "name" 16 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+160 "condition" 38 1 0 "s" 1
+LANG:1 9 Condition
+E
+1
+LANG:1 0 
+
+350 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 7
+"PUSH_BUTTON7"
+""
+1 657 779 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  655 777 752 812
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  if (! saved ) {
+    if (! promptUser(\"Are you sure you want to exit without saving the changes?\")) return;
+  }
+  
+  PanelOff();
+}" 0
+ E E E
+13 8
+"btnNewCondition"
+""
+1 616 163 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  614 161 738 188
+
+T 
+1
+LANG:1 13 New Condition
+"main()
+{
+setVisibleCommands(false);
+  string name = getInput(\"Enter Condition name...\");
+  CMSfwDetectorProtection_addCondition(obj, name, exc);
+  refreshConditionTable();
+  bool ok = false;
+  if (handleExc()) {     
+    ok = setInput(name);      
+    refreshConditionTable();
+    if (ok)  {
+       ok = setOutput(name);
+    }
+  }
+  setVisibleCommands(true);
+  if (ok) {
+     showMsg(\"Don't forget to set the verification properties!\");
+  }
+}" 0
+ E E E
+26 23
+"cbEdit"
+""
+1 616.035398230089 218 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  614 216 738 243
+ 0 1
+LANG:1 7 Edit...
+"" 0 0 0 0 0
+ 0 "main()
+{
+    removeAllFromCb(this.name);
+  this.insertItemId(\"\",CB_ITEM,-1,\"input\",\"Input\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"output\",\"Output\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"verify\",\"Verify\");
+  this.insertItemId(\"\",CB_SEPARATOR,-1,\"separ\",\"\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"timeout\",\"Set timeout for system disconnection\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"prepost\",\"Set user functions to be called when the condition is fired/gone\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"infofunct\",\"Set info function for the analysis\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"type\",\"Set condition type\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"active\",\"Set active\");
+
+}" 0
+ "main(string id)
+{
+setVisibleCommands(false);
+  string name;
+  
+  dyn_int lines;
+  getValue(\"tblConditions\",\"getSelectedLines\",lines);
+
+  if (dynlen(lines)== 0) return;
+  dyn_anytype cols;
+  getValue(\"tblConditions\" ,\"getLineN\",lines[1],cols);
+
+  string name = cols[2];
+  currentIndex = CMSfwDetectorProtection_getConditionIndex(obj,name);
+  if (currentIndex >0) {
+    setVisibleInput(false);
+    setVisibleVerify(false);
+    setVisibleSelMode(false);
+  
+    switch (id) {
+     case \"input\":
+       setInput(name);
+       break; 
+     case \"output\":
+       setOutput(name);
+       break;
+     case \"verify\":
+       setVerify(name);
+       break;
+     case \"timeout\":
+       setTimeout(name);
+       break;
+     case \"prepost\":
+       setPrePost(name);
+       break;
+     case \"infofunct\":
+       setInfoFunct(name);
+       break;
+     case \"type\":
+       setConditionType(name);
+       break;
+     case \"active\":
+       setActive(name);
+       break;                
+    }
+    refreshConditionTable();
+    tblConditions.selectLineN(currentIndex - 1);
+    setVisibleCommands(true);
+  } else {
+    showMsg(\"Please select a condition\");      
+  }
+}" 0
+0 
+13 25
+"btnCancel"
+""
+1 216 777 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  214 775 332 810
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+     setValue(\"txtAnswer\",\"text\",-1); ;
+}" 0
+ E E E
+1 403 0 "" 0
+0
+1 405 0 "" 2
+0
+1 413 0 "" 10
+0
+1 414 0 "" 11
+0
+1 415 0 "" 12
+0
+1 417 0 "" 14
+0
+1 418 0 "" 15
+0
+1 419 0 "" 16
+0
+1 422 0 "" 20
+0
+1 423 0 "" 21
+0
+1 426 0 "" 24
+0
+1 404 0 "" 1
+0
+1 406 0 "" 3
+0
+1 407 0 "" 4
+0
+1 408 0 "" 5
+0
+1 409 0 "" 6
+0
+1 410 0 "" 7
+0
+1 411 0 "" 8
+0
+1 412 0 "" 9
+0
+1 416 0 "" 13
+0
+1 420 0 "" 17
+0
+1 421 0 "" 19
+0
+1 424 0 "" 22
+0
+1 425 0 "" 23
+0
+1 428 1 "" 1
+0
+1 431 1 "" 4
+0
+1 434 1 "" 7
+0
+1 427 1 "" 0
+0
+1 429 1 "" 2
+0
+1 430 1 "" 3
+0
+1 432 1 "" 5
+0
+1 433 1 "" 6
+0
+1 435 1 "" 8
+0
+1 436 2 "" 0
+0
+1 437 2 "" 1
+0
+1 438 2 "" 2
+0
+1 439 2 "" 3
+0
+1 440 2 "" 4
+0
+1 443 3 "" 2
+0
+1 441 3 "" 0
+0
+1 442 3 "" 1
+0
+1 444 4 "" 0
+0
+1 446 4 "" 2
+0
+1 455 4 "" 11
+0
+1 456 4 "" 12
+0
+1 445 4 "" 1
+0
+1 447 4 "" 3
+0
+1 448 4 "" 4
+0
+1 449 4 "" 5
+0
+1 450 4 "" 6
+0
+1 451 4 "" 7
+0
+1 452 4 "" 8
+0
+1 453 4 "" 9
+0
+1 454 4 "" 10
+0
+14 86
+"txtAnswer"
+""
+1 4 103 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  2 101 40 124
+3 "0s" 0 0 0 0 0 -1  E E E
+14 120
+"txtChangeMode"
+""
+1 4 142 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"textChangedCB" "main(string newText)
+{
+  if (newText==\"\") return;
+  
+  changeMode((int) newText);
+  
+  this.text = \"\";
+}"
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  2 140 43 163
+3 "0s" 0 0 0 0 0 -1  E E E
+26 121
+"btnSave"
+""
+1 286.5037593984962 61 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+91 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  285 59 421 86
+ 0 1
+LANG:1 4 Save
+"" 0 0 0 0 0
+ 0 "main()
+{
+      removeAllFromCb(this.name);
+  this.insertItemId(\"\",CB_ITEM,-1,\"save\",\"Save into current dp\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"saveas\",\"Save into new dp\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"savenotactive\",\"Save into current dp and set not active\");
+}" 0
+ "main(string id)
+{
+  bool active;
+  if ((id == \"save\") || (id == \"savenotactive\")) {
+    active = (id == \"save\");
+    string name;
+    fwDevice_getName(obj[CMSfwDetectorProtection_CONFIGDP],name, exc);
+    if (! promptUser(\"Are you sure you want to overwrite dp \" + name + \"?\")) {
+       return;
+    }
+    if ((loadedMerged) && (active)) {
+        if (! promptUser(\"You are saving a merged configuration: you need to set the others to NOT ACTIVE. Do you want to continue?\") ) return; 
+    }
+  
+      CMSfwDetectorProtection_saveToDp(obj, exc, active);
+      saved = ( handleExc());
+      loadDp(obj[CMSfwDetectorProtection_CONFIGDP]);
+      return;
+  }  
+  
+  string dp ;
+    if ((loadedMerged)) {
+        if (! promptUser(\"You are saving a merged configuration: you need to set the others to NOT ACTIVE. Do you want to continue?\") ) return; 
+    }
+  
+  if (id == \"saveas\") {
+      string name = getInput(\"Enter configuration name\");
+      string sys = getInput(\"Enter system where to save\",getSystemName());
+      dp = CMSfwDetectorProtection_getConfigDpName(name,sys);
+      if (dpExists(dp)) {
+        if (! promptUser(\"Are you sure you want to overwrite dp \" + name + \"?\"))      return;
+      }   
+      CMSfwDetectorProtection_setConfigDp(obj,dp);
+      CMSfwDetectorProtection_saveToDp(obj,exc, false);
+      saved = handleExc();                       
+      loadDp(obj[CMSfwDetectorProtection_CONFIGDP]);
+  }
+}" 0
+0 
+1 457 5 "" 1
+0
+1 458 5 "" 2
+0
+1 459 5 "" 3
+0
+2 192
+"txtTitle"
+""
+1 35 420 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 35 420 703 446
+0 2 2 "0s" 0 0 0 64 0 0  35 420 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,75,0,0,0,0,0
+0 1
+LANG:1 52 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+14 193
+"txtChangeVerify"
+""
+1 4 180 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+99 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"textChangedCB" "main(string newText)
+{
+  if (newText==\"\") return;
+  dyn_string spl = strsplit(newText,\",\");
+  bool enabled = (bool) spl[1];
+  int mode = (int) spl[2];
+  bool custom = (bool) spl[3];
+  
+  changeVerify(enabled, mode, custom);
+  this.text = \"\";
+}"
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  2 178 43 201
+3 "0s" 0 0 0 0 0 -1  E E E
+1 461 6 "" 1
+0
+1 465 6 "" 8
+0
+1 466 6 "" 10
+0
+1 460 6 "" 0
+0
+1 462 6 "" 2
+0
+1 463 6 "" 3
+0
+1 464 6 "" 7
+0
+1 467 6 "" 11
+0
+1 472 7 "" 7
+0
+1 473 7 "" 8
+0
+1 468 7 "" 2
+0
+1 469 7 "" 3
+0
+1 470 7 "" 4
+0
+1 471 7 "" 5
+0
+1 474 7 "" 9
+0
+26 247
+"btnGlobalSettings"
+""
+1 452 61 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+101 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  450 59 587 86
+ 0 1
+LANG:1 15 Global Commands
+"" 0 0 0 0 0
+ 0 "main()
+{
+  removeAllFromCb(this.name);
+  this.insertItemId(\"\",CB_ITEM,-1,\"frequency\",\"Set verify frequency\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"debuglevel\",\"Set debug level\");
+  this.insertItemId(\"\",CB_SEPARATOR,-1,\"sep1\",\"\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"summary\",\"View Summary for this object\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"code\",\"View Code to create this object\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"codesys\",\"View Code to create this system\");
+    this.insertItemId(\"\",CB_SEPARATOR,-1,\"sep2\",\"\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"replace\",\"Replace systems with references to packages\");
+  this.insertItemId(\"\",CB_ITEM,-1,\"privileges\",\"Change privileges for system\");
+}" 0
+ "main(string id)
+{
+  setVisibleCommands(false);
+  string sys; dyn_string exc;
+  fwGeneral_getSystemName(obj[CMSfwDetectorProtection_CONFIGDP], sys, exc);
+  
+  string script;
+  int res = -1000;
+  switch (id) {
+     case \"frequency\":
+       setFrequency();
+       break; 
+     case \"debuglevel\":
+       setDebugLevel();
+       break;
+     case \"summary\":
+       showSummary(CMSfwDetectorProtection_summaryObject(obj));
+       break;
+     case \"code\":
+         script = CMSfwDetectorProtection_codeToCreateObject(obj);
+         scriptEditor(script);
+         break;
+    case \"codesys\":
+         script = CMSfwDetectorProtection_codeToCreateSystem(sys);
+         scriptEditor(script);
+         break;         
+     case \"replace\":
+       replace();
+       break;
+     case \"privileges\":
+       res = change_privileges();
+       break; 
+  }
+  refreshConditionTable();
+  setVisibleCommands(true);
+
+  // for unknown reasons i had to move the showmsg here otherwise the commands were not visible
+  
+  if (res == -1) {
+      showMsg(\"You do not have the required privileges for the system\");
+  } else if (res == 0)  {
+      showMsg(\"There was some error setting the privileges\");
+  }
+}" 0
+0 
+2 248
+"PRIMITIVE_TEXT1"
+""
+1 21 8 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+103 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 21 8 465 63
+0 2 2 "0s" 0 0 0 64 0 0  21 8 1
+1
+LANG:1 33 MS Shell Dlg,-1,19,5,75,0,0,0,0,0
+0 1
+LANG:1 33 Detector Protection Configuration
+14 250
+"txtActive"
+""
+1 705 122 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  703 120 783 143
+2 "0s" 0 0 0 0 0 -1  E E E
+13 251
+"btnDelete"
+""
+1 616 189 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+109 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  614 187 738 214
+
+T 
+1
+LANG:1 16 Delete Condition
+"main()
+{
+  string name;
+  
+  dyn_int lines;
+  getValue(\"tblConditions\",\"getSelectedLines\",lines);
+
+  if (dynlen(lines)== 0) return;
+  dyn_anytype cols;
+  getValue(\"tblConditions\" ,\"getLineN\",lines[1],cols);
+
+  string name = cols[2];
+
+  if (! promptUser(\"Are you sure you want to delete condition \" + name + \"?\")) return;
+  setVisibleCommands(false);
+  
+  CMSfwDetectorProtection_deleteCondition(obj,name,exc);
+  handleExc();
+  saved  = false;
+  refreshConditionTable();
+  setVisibleCommands(true);
+  
+  
+}" 0
+ E E E
+2 252
+"PRIMITIVE_TEXT2"
+""
+1 58 101 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+110 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 58 101 110 115
+0 2 2 "0s" 0 0 0 192 0 0  58 101 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Current DP
+13 255
+"btnSummaryCondition"
+""
+1 616 249 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+113 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  614 247 738 274
+
+T 
+1
+LANG:1 17 Condition Summary
+"main()
+{
+setVisibleCommands(false);
+string name;
+  
+  dyn_int lines;
+  getValue(\"tblConditions\",\"getSelectedLines\",lines);
+
+  if (dynlen(lines)== 0) return;
+  dyn_anytype cols;
+  getValue(\"tblConditions\" ,\"getLineN\",lines[1],cols);
+
+  int index  = cols[1];
+
+  setVisibleCommands(false);
+  
+  showSummary(CMSfwDetectorProtection_summaryCondition(obj,index));
+  
+  
+  refreshConditionTable();
+  setVisibleCommands(true);
+
+  
+}" 0
+ E E E
+1 475 10 "" 0
+0
+1 476 10 "" 1
+0
+1 477 10 "" 2
+0
+1 478 11 "" 0
+0
+1 479 11 "" 1
+0
+14 322
+"txtShowUserFunction2"
+""
+1 8 219 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+120 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"textChangedCB" "main(string newText)
+{
+  if (newText==\"\") return;
+  
+  if (newText == 1) setVisibleUserFunction2(true);
+  else if (newText == 0) setVisibleUserFunction2(false);
+  this.text = \"\";
+  
+}"
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  6 217 47 240
+3 "0s" 0 0 0 0 0 -1  E E E
+1 480 12 "" 2
+0
+1 481 12 "" 1
+0
+1 482 12 "" 4
+0
+22 401
+"cbSystems"
+""
+1 34.99999999999999 500 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+121 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  33 498 305 521
+0
+
+E
+"main()
+{
+
+   populateSelectPackage(this.text);
+   
+}" 0
+
+E
+ 0 0
+2 402
+"txtSelectAllSystems"
+""
+1 -1817.31709757535 1659 E E E 1 E 0 E N "Blue" E N "_Transparent" E E
+ E E
+122 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.9889705882352942 0 1 -273.5257352941177 169 0 E 315 307 583 341
+0 2 2 "0s" 0 0 0 64 0 0  315 307 1
+1
+LANG:1 35 MS Shell Dlg 2,10,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 38 Select the system name to be replaced:
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "PANEL_REF1" -1
+"CMSfwDetectorProtection\\input.pnl" 28 396 T 83 1 0 1 -1 73
+0
+3 1 "PANEL_REF2" -1
+"CMSfwDetectorProtection\\output.pnl" 26 399 T 84 1 0 1 10 81
+0
+3 2 "PANEL_REF3" -1
+"CMSfwDetectorProtection\\dpSelector.pnl" 22 476 T 85 1 0 1 27 36
+0
+3 3 "PANEL_REF4" -1
+"CMSfwDetectorProtection\\simpleInput.pnl" 53 398 T 86 1 0 1 -26 74
+0
+3 4 "PANEL_REF5" -1
+"CMSfwDetectorProtection\\modeTreeCache.pnl" 25 417 T 87 1 0 1 -8 86
+0
+3 5 "PANEL_REF6" -1
+"CMSfwDetectorProtection\\userFunction.pnl" 51 484 T 96 1 0 1 -5 82
+0
+3 6 "PANEL_REF7" -1
+"CMSfwDetectorProtection\\verify.pnl" 34 449 T 100 1 0 1 -40 -3
+0
+3 7 "PANEL_REF8" -1
+"CMSfwDetectorProtection\\verifyTreeCache.pnl" 433 435 T 100 1 0 1 0 32
+0
+3 10 "PANEL_REF11" -1
+"CMSfwDetectorProtection\\summary.pnl" -5 429 T 115 U 
+2
+"$refpanel""1"
+"$sDpName"""
+3 11 "PANEL_REF12" -1
+"CMSfwDetectorProtection\\userFunction2.pnl" 516 459 T 116 U 
+0
+3 12 "PANEL_REF0" -1
+"objects\\fwAccessControl\\fwAccessControl_CurrentUser.pnl" 10 10 T 121 1 0 1 612 -15
+0
+0

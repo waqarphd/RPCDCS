@@ -1,0 +1,407 @@
+/*
+const int FwFreeBit = 0;
+const int FwOwnerBit = 1;
+const int FwExclusiveBit = 2;
+const int FwCompleteBit = 3;
+const int FwUseStatesBit = 4;
+const int FwSendCommandsBit = 5;
+const int FwLockedOutBit = 6;
+
+int Init, Ninits;
+string ModeCallback;
+
+fwFsmUi_connectModeBits(string callback, string domain, string obj)
+{
+string modeObj;
+
+	Init = 0;
+	Ninits = 0;
+	ModeCallback = callback;
+	modeObj = _findModeObj(domain, obj);
+	if(fwFsm_isCU(domain, obj))
+	{
+		fwUi_connectCurrentState("show_comp_state", domain, obj+"_FWCNM");
+		Ninits++;
+		fwUi_connectCurrentState("show_state", domain, modeObj+"_FWM");
+		Ninits++;
+		if(domain != obj)
+		{
+			fwUi_connectOwnerExclusivity("show_parent_ownership",domain, domain+"_FWM");
+			Ninits++;
+		}
+	}
+	else if(fwFsm_isDU(domain, obj))
+	{
+		if(fwUi_connectEnabled("show_enable",domain, obj))
+			Ninits++;
+	}
+	fwUi_connectOwnerExclusivity("show_ownership", domain, modeObj+"_FWM");
+	Ninits++;
+}
+
+string _findModeObj(string domain, string obj)
+{
+string modeObj;
+
+	modeObj = domain;
+	if(fwFsm_isCU(domain, obj))
+	{
+		if(fwFsm_isAssociated(obj))
+		{
+			modeObj = fwFsm_getAssociatedDomain(obj);
+		}
+	}
+	return modeObj;
+}
+
+show_state(string dp, string state)
+{
+	if(state == "EXCLUDED")
+	{
+		setBit(StatusBits,FwUseStatesBit,0);
+		setBit(StatusBits,FwSendCommandsBit,0);
+	}
+	else if(state == "INCLUDED")
+	{
+		setBit(StatusBits,FwUseStatesBit,1);
+		setBit(StatusBits,FwSendCommandsBit,1);
+	}
+	else if(state == "MANUAL")
+	{
+		setBit(StatusBits,FwUseStatesBit,1);
+		setBit(StatusBits,FwSendCommandsBit,0);
+	}
+	else if(state == "IGNORED")
+	{
+		setBit(StatusBits,FwUseStatesBit,0);
+		setBit(StatusBits,FwSendCommandsBit,1);
+	}
+//DebugN("show_state", dp, state, StatusBits);
+	Init++;
+	if(Init >= Ninits)
+		do_show_it();
+}
+
+show_parent_ownership(string dp1, string owned, string dp2, bool value)
+{
+	int exclusive, enabled, owner, free;
+	enabled = fwUi_checkOwnershipMode(owned);
+	if(enabled != 2)
+		setBit(StatusBits,FwLockedOutBit,1);
+	else		
+		setBit(StatusBits,FwLockedOutBit,0);
+//DebugN("show_parent_ownership", dp1, enabled, StatusBits);
+	Init++;
+	if(Init >= Ninits)
+		do_show_it();
+}
+
+show_ownership(string dp1, string owned, string dp2, bool value)
+{
+	int exclusive, enabled, owner, free;
+	
+	exclusive = value;
+	enabled = fwUi_checkOwnershipMode(owned);
+	free = (enabled == 1);
+	owner = (enabled == 2);
+	setBit(StatusBits,FwFreeBit,free);
+	setBit(StatusBits,FwOwnerBit,owner);
+	setBit(StatusBits,FwExclusiveBit,exclusive);
+//DebugN("show_ownership", dp1, enabled, StatusBits);
+	Init++;
+	if(Init >= Ninits)
+		do_show_it();
+}
+
+show_comp_state(string dp, string state)
+{
+	int complete;
+
+   	if(state == "COMPLETE")
+   		complete = 1;
+   	else
+   		complete = 0;
+	setBit(StatusBits,FwCompleteBit,complete);
+	Init++;
+	if(Init >= Ninits)
+		do_show_it();
+}
+
+show_enable(string dp, int enabled)
+{
+	setBit(StatusBits,FwUseStatesBit,enabled);
+	setBit(StatusBits,FwSendCommandsBit,enabled);
+	Init++;
+//DebugN("show_enabled", dp, enabled, StatusBits);
+//DebugN(Init, Ninits);
+	if(Init >= Ninits)
+		do_show_it();
+}
+
+do_show_it()
+{
+//	DebugN("calling show_it", $domain, $obj, ModeCallback);
+	if(isFunctionDefined(ModeCallback))
+	{
+
+		execScript("main() { "+
+			ModeCallback+"();}",
+			makeDynString());
+	}
+}
+
+string fwFsmUi_getCUModeName(string domain, string obj, bit32 statusBits)
+{
+	string mode, modeObj;
+
+	modeObj = _findModeObj(domain, obj);
+	fwUi_getCurrentState(domain, modeObj+"_FWM", mode);
+  	fwUi_convertObjState(domain, modeObj+"_FWM", mode);
+	return mode;
+}
+
+string fwFsmUi_getDUModeName(string domain, string obj, bit32 statusBits)
+{
+	string mode;
+
+	if(getBit(statusBits, FwUseStatesBit))
+	{
+		mode = "Enabled";
+	}
+	else
+	{
+		mode = "Disabled";
+	}
+	return mode;
+}
+
+dyn_string fwFsmUi_getCUModeActions(string domain, string obj, bit32 statusBits)
+{
+	string mode, modeObj;
+	dyn_string modes, actions;
+
+	if(getBit(statusBits, FwOwnerBit))
+	{
+		if(getBit(statusBits, FwExclusiveBit))
+		{
+			dynAppend(modes,"Share");
+		}
+		else
+		{
+			dynAppend(modes,"Exclusive");
+		}
+	}
+	if( (getBit(statusBits, FwOwnerBit)) ||
+		  ((getBit(statusBits, FwFreeBit)) &&
+		   (!getBit(statusBits, FwLockedOutBit))) )
+	{
+		modeObj = _findModeObj(domain, obj);
+		fwUi_getCurrentState(domain, modeObj+"_FWM", mode);
+	  	fwUi_convertObjState(domain, modeObj+"_FWM", mode);
+		fwUi_getObjStateActions(domain, modeObj+"_FWM", mode, actions);
+		dynAppend(modes, actions);
+	}
+	return modes;
+}
+
+dyn_string fwFsmUi_getDUModeActions(string domain, string obj, bit32 statusBits)
+{
+	dyn_string modes;
+
+	if( (getBit(statusBits, FwOwnerBit)) ||
+			( (!getBit(statusBits, FwFreeBit)) &&
+				(!getBit(statusBits, FwExclusiveBit))) )
+	{
+		if(getBit(statusBits, FwUseStatesBit))
+		{
+			dynAppend(modes,"Disable");
+		}
+		else
+		{
+			dynAppend(modes,"Enable");
+		}
+	}
+	return modes;
+}
+
+int fwFsmUi_isFree(string domain, string obj, bit32 statusBits)
+{
+	return getBit(statusBits, FwFreeBit);
+}
+
+int fwFsmUi_isOwner(string domain, string obj, bit32 statusBits)
+{
+	return getBit(statusBits, FwOwnerBit);
+}
+
+int fwFsmUi_isExclusive(string domain, string obj, bit32 statusBits)
+{
+	return getBit(statusBits, FwExclusiveBit);
+}
+
+int fwFsmUi_isShared(string domain, string obj, bit32 statusBits)
+{
+	return !getBit(statusBits, FwExclusiveBit);
+}
+
+int fwFsmUi_isComplete(string domain, string obj, bit32 statusBits)
+{
+	return getBit(statusBits, FwCompleteBit);
+}
+
+int fwFsmUi_areStatesUsed(string domain, string obj, bit32 statusBits)
+{
+	return getBit(statusBits, FwUseStatesBit);
+}
+
+int fwFsmUi_areCommandsSent(string domain, string obj, bit32 statusBits)
+{
+	return getBit(statusBits, FwSendCommandsBit);
+}
+
+fwFsmUi_setCUModeByName(string domain, string obj, string cmd)
+{
+	string modeObj;
+
+	if(cmd == "Share")
+		fwUi_shareTree(domain, obj);
+	else if(cmd == "Exclusive")
+		fwUi_exclusiveTree(domain, obj);
+	else
+	{
+		modeObj = _findModeObj(domain, obj);
+		fwUi_convertObjAction(domain, modeObj+"_FWM", cmd);
+		fwUi_sendCommand(domain, modeObj+"_FWM", cmd);
+	}
+}
+
+fwFsmUi_setDUModeByName(string domain, string obj, string cmd)
+{
+	if(cmd == "Enable")
+		fwUi_enableDevice(domain, obj);
+	else if(cmd == "Disable")
+		fwUi_disableDevice(domain, obj);
+}
+
+int fwFsmUi_shareTree(string domain, string obj, bit32 statusBits)
+{
+	if(getBit(statusBits, FwOwnerBit))
+	{
+		if(getBit(statusBits, FwExclusiveBit))
+		{
+			fwFsmUi_setCUModeByName(domain, obj, "Share");
+			return 1;
+		}
+	}
+	return 0;
+}
+
+fwFsmUi_exclusiveTree(string domain, string obj, bit32 statusBits)
+{
+	if(getBit(statusBits, FwOwnerBit))
+	{
+		if(!getBit(statusBits, FwExclusiveBit))
+		{
+			fwFsmUi_setCUModeByName(domain, obj, "Exclusive");
+			return 1;
+		}
+	}
+	return 0;
+}
+
+fwFsmUi_takeTree(string domain, string obj, bit32 statusBits)
+{
+	if( (getBit(statusBits, FwOwnerBit)) ||
+		  ((getBit(statusBits, FwFreeBit)) &&
+		   (!getBit(statusBits, FwLockedOutBit))) )
+	{
+		fwFsmUi_setCUModeByName(domain, obj, "Take");
+		return 1;
+	}
+	return 0;
+}
+
+fwFsmUi_returnTree(string domain, string obj, bit32 statusBits)
+{
+	if( (getBit(statusBits, FwOwnerBit)) ||
+		  ((getBit(statusBits, FwFreeBit)) &&
+		   (!getBit(statusBits, FwLockedOutBit))) )
+	{
+		fwFsmUi_setCUModeByName(domain, obj, "Return");
+		return 1;
+	}
+	return 0;
+}
+
+fwFsmUi_ignoreStates(string domain, string obj, bit32 statusBits)
+{
+	if( (getBit(statusBits, FwOwnerBit)) ||
+		  ((getBit(statusBits, FwFreeBit)) &&
+		   (!getBit(statusBits, FwLockedOutBit))) )
+	{
+		if(getBit(statusBits, FwUseStatesBit))
+		{
+			if(getBit(statusBits, FwSendCommandsBit))
+				fwFsmUi_setCUModeByName(domain, obj, "Ignore");
+			else
+				fwFsmUi_setCUModeByName(domain, obj, "Exclude");
+			return 1;
+		}
+	}
+	return 0;
+}
+
+fwFsmUi_useStates(string domain, string obj, bit32 statusBits)
+{
+	if( (getBit(statusBits, FwOwnerBit)) ||
+		  ((getBit(statusBits, FwFreeBit)) &&
+		   (!getBit(statusBits, FwLockedOutBit))) )
+	{
+		if(getBit(!statusBits, FwUseStatesBit))
+		{
+			if(getBit(statusBits, FwSendCommandsBit))
+				fwFsmUi_setCUModeByName(domain, obj, "Include");
+			else
+				fwFsmUi_setCUModeByName(domain, obj, "Manual");
+			return 1;
+		}
+	}
+	return 0;
+}
+
+fwFsmUi_noCommands(string domain, string obj, bit32 statusBits)
+{
+	if( (getBit(statusBits, FwOwnerBit)) ||
+		  ((getBit(statusBits, FwFreeBit)) &&
+		   (!getBit(statusBits, FwLockedOutBit))) )
+	{
+		if(getBit(statusBits, FwSendCommandsBit))
+		{
+			if(getBit(statusBits, FwUseStatesBit))
+				fwFsmUi_setCUModeByName(domain, obj, "Manual");
+			else
+				fwFsmUi_setCUModeByName(domain, obj, "Exclude");
+			return 1;
+		}
+	}
+	return 0;
+}
+
+fwFsmUi_sendCommands(string domain, string obj, bit32 statusBits)
+{
+	if( (getBit(statusBits, FwOwnerBit)) ||
+		  ((getBit(statusBits, FwFreeBit)) &&
+		   (!getBit(statusBits, FwLockedOutBit))) )
+	{
+		if(!getBit(!statusBits, FwSendCommandsBit))
+		{
+			if(getBit(statusBits, FwUseStatesBit))
+				fwFsmUi_setCUModeByName(domain, obj, "Include");
+			else
+				fwFsmUi_setCUModeByName(domain, obj, "Ignore");
+			return 1;
+		}
+	}
+	return 0;
+}
+*/

@@ -1,0 +1,564 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 946 598 N "_3DFace" 0
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "
+
+int records = 0;
+
+dyn_string t_status,t_refnumb,t_meaning,t_datatyp,t_comment,t_datapnt,t_rootnam,t_polling;
+
+
+void t_initall()
+{
+  records = 0;
+  
+  Table.deleteAllLines();
+       
+  t_status = makeDynString();
+  t_refnumb = makeDynString();
+  t_meaning = makeDynString();
+  t_datatyp = makeDynString();
+  t_comment = makeDynString();
+  t_datapnt = makeDynString();
+  t_rootnam = makeDynString();
+  t_polling = makeDynString();
+}
+
+t_displayall()
+{
+  Table.appendLines(dynlen(t_status),
+        \"Status\",t_status,
+        \"Address\",t_refnumb,
+        \"DpeName\",t_datapnt,
+        \"Meaning\",t_meaning,
+        \"DataTyp\",t_datatyp,
+        \"RefAddr\",t_rootnam,
+        \"PollGrp\",t_polling,
+        \"Comment\",t_comment);
+}
+
+int t_checkentry ( int ad )
+{
+  for ( int i = 1 ; i <= records ; ++i )
+  {
+    if ( t_refnumb[i] == ad ) return ( i );
+  }
+  
+  return ( -1 );
+}
+    
+int analyseCaVFile ( string fileName , string logging )
+{
+file fd;
+int entry;
+int logcnt = 0;
+int temp1,temp2;
+string confLine;
+string plant,ident,addrs,types,commt;
+string thePlant = \"\";
+dyn_string CaV_DPs, dps;
+dyn_string exceptionInfo;
+
+  t_initall();
+  
+  fd = fopen(fileName,\"r\");
+  
+  while ( feof(fd) == 0 )
+  {
+    fgets(confLine,1000,fd);
+      
+    if ( ( ++logcnt % 10 ) == 0 ) { setValue(logging,\"text\",\"Analysed '\"+logcnt+\"' Entries from File/Pvss\"); }
+
+    if ( patternMatch(\"* AT %M[FW]*\",confLine) )
+    {
+      confLine = substr(confLine,0,strlen(confLine)-1);
+      // DebugN(\"Address Config: \"+confLine);
+      
+      temp1 = strpos(confLine,\"_\");
+      temp2 = strpos(confLine,\" AT %M\");
+      plant = substr(confLine,0,temp1);
+      ident = substr(confLine,temp1+1,temp2-temp1-1);
+      
+      if ( records == 0 ) { thePlant = plant; }
+      else
+      {
+        if ( thePlant != plant )
+        {
+          DebugN(\"Multiple CaV-Plants in the same file - \"+thePlant+\" vs \"+plant);
+          continue;
+        }
+      }
+      
+      confLine = substr(confLine,temp2+7);
+      temp1 = strpos(confLine,\" : \");
+      addrs = substr(confLine,0,temp1);
+      
+      confLine = substr(confLine,temp1+3);
+      temp1 = strpos(confLine,\" \");
+      types = substr(confLine,0,temp1);
+      
+      temp1 = strpos(confLine,\"(*\");
+      temp2 = strpos(confLine,\"*)\");
+      commt = substr(confLine,temp1+2,temp2-temp1-2);
+          
+      // DebugN(plant,ident,addrs,types,commt);
+      
+      if ( ( entry = t_checkentry ( addrs ) ) != -1 )
+      {
+        DebugN(\"Twice the same ref-address '\"+addrs+\"' found in CaV-File! This one Ignored...\");
+        DebugN(\"--> First:  \"+t_meaning[entry]+\" - \"+t_comment[entry]);
+        DebugN(\"--> Second: \"+ident+\" - \"+commt);
+        
+        continue;
+      }
+      
+      dynAppend ( t_status , \"File Only\" );
+      dynAppend ( t_refnumb , addrs );
+      
+      dynAppend ( t_meaning , ident );
+      dynAppend ( t_datatyp , types );
+      dynAppend ( t_comment , commt );
+       
+      dynAppend ( t_datapnt , \"-\" );
+      dynAppend ( t_rootnam , \"-\" );
+      dynAppend ( t_polling , \"-\" );
+
+      ++records;
+    }
+  }
+    
+  fclose(fd);
+  
+  if ( records == 0 ) return 0;
+  
+  dps = dpNames(\"CaV/\"+thePlant+\"*\",\"FwCaVPlant\");
+  dynAppend(CaV_DPs,dps);
+            
+  dps = dpNames(\"CaV/\"+thePlant+\"*\",\"FwCaVLoop\");
+  dynAppend(CaV_DPs,dps);
+
+  // DebugN(CaV_DPs);
+    
+dyn_string tmp_dpes;
+dyn_anytype configData;
+bool configExists, isActive;
+
+  for ( int idx = 1 ; idx <= dynlen(CaV_DPs) ; ++idx )
+  {
+    // DebugN(\"Datapoint: \"+CaV_DPs[idx]);
+    
+    tmp_dpes = dpNames(CaV_DPs[idx]+\".**\");
+    // DebugN(tmp_dpes);
+    
+    for ( int dpe = 1 ; dpe <= dynlen(tmp_dpes) ; ++dpe )
+    {
+      if ( ( ++logcnt % 10 ) == 0 ) { setValue(logging,\"text\",\"Analysed '\"+logcnt+\"' Entries from File/Pvss\"); }
+
+      string sDpe = tmp_dpes[dpe];
+  
+      fwPeriphAddress_get(sDpe, configExists, configData, isActive, exceptionInfo);
+      if ( ( configExists ) && ( configData[fwPeriphAddress_TYPE] == fwPeriphAddress_TYPE_MODBUS ) )
+      {
+        /*
+        DebugN(configData);
+        DebugN(\"fwPeriphAddress_ROOT_NAME\",configData[fwPeriphAddress_ROOT_NAME]);
+        DebugN(\"fwPeriphAddress_MODBUS_SUBINDEX\",configData[fwPeriphAddress_MODBUS_SUBINDEX]);
+        DebugN(\"fwPeriphAddress_MODBUS_START\",configData[fwPeriphAddress_MODBUS_START]);
+        DebugN(\"fwPeriphAddress_MODBUS_INTERVAL\",configData[fwPeriphAddress_MODBUS_INTERVAL]);
+        DebugN(\"fwPeriphAddress_DATATYPE\",configData[fwPeriphAddress_DATATYPE]);
+        DebugN(\"fwPeriphAddress_DIRECTION\",configData[fwPeriphAddress_DIRECTION]);
+        DebugN(\"fwPeriphAddress_MODBUS_LOWLEVEL\",configData[fwPeriphAddress_MODBUS_LOWLEVEL]);
+        DebugN(\"fwPeriphAddress_MODBUS_POLL_GROUP\",configData[fwPeriphAddress_MODBUS_POLL_GROUP]);
+        DebugN(\"fwPeriphAddress_ACTIVE\",configData[fwPeriphAddress_ACTIVE]);  
+        */
+        
+        addrs = configData[fwPeriphAddress_ROOT_NAME];
+        while ( ( entry = strpos(addrs,\".\") ) >= 0 ) { addrs = substr(addrs,entry+1); }
+        
+        if ( ( entry = t_checkentry ( addrs ) ) != -1 )
+        {
+          if ( t_status[entry] == \"File Only\" )
+          {
+            t_status[entry] = \"File/Pvss\";
+          
+            t_datapnt[entry] = sDpe;
+            t_rootnam[entry] = configData[fwPeriphAddress_ROOT_NAME];
+            t_polling[entry] = configData[fwPeriphAddress_MODBUS_POLL_GROUP];
+            
+            continue;
+          }
+
+          if ( t_status[entry] == \"Pvss Only\" )
+          {
+            // DebugN(\"Twice the same ref-address '\"+addrs+\"' found in PVSS! This one Ignored...\");
+            // DebugN(\"--> First:  \"+t_rootnam[entry]+\" - \"+t_datapnt[entry]);
+            // DebugN(\"--> Second: \"+configData[fwPeriphAddress_ROOT_NAME]+\" - \"+sDpe);
+            
+            dynAppend ( t_status , \"Pvss Only\" );
+            dynAppend ( t_refnumb , addrs );
+            
+            dynAppend ( t_meaning , \"-\" );
+            dynAppend ( t_datatyp , \"-\" );
+            dynAppend ( t_comment , \"-\" );
+
+            dynAppend ( t_datapnt , sDpe );
+            dynAppend ( t_rootnam , configData[fwPeriphAddress_ROOT_NAME] );
+            dynAppend ( t_polling , configData[fwPeriphAddress_MODBUS_POLL_GROUP] );
+                      
+            ++records;
+          }
+          else if ( t_status[entry] == \"File/Pvss\" )
+          {
+            // ebugN(\"Twice the same ref-address '\"+addrs+\"' found in PVSS! This one Ignored...\");
+            // DebugN(\"--> First:  \"+t_meaning[entry]+\" - \"+t_comment[entry]);
+            // DebugN(\"--> Second: \"+t_rootnam[entry]+\" - \"+t_datapnt[entry]);
+            // DebugN(\"--> Third:  \"+configData[fwPeriphAddress_ROOT_NAME]+\" - \"+sDpe);
+            
+            dynAppend ( t_status , \"File/Pvss\" );
+            dynAppend ( t_refnumb , addrs );
+            
+            dynAppend ( t_meaning , t_meaning[entry] );
+            dynAppend ( t_datatyp , t_datatyp[entry] );
+            dynAppend ( t_comment , t_comment[entry] );
+
+            dynAppend ( t_datapnt , sDpe );
+            dynAppend ( t_rootnam , configData[fwPeriphAddress_ROOT_NAME] );
+            dynAppend ( t_polling , configData[fwPeriphAddress_MODBUS_POLL_GROUP] );
+                      
+            ++records;
+          }
+          else
+          {
+            DebugN(\"Software Error - CaV Status Unknown!  Ignored...\");
+          }
+        }
+        else
+        {
+          dynAppend ( t_status , \"Pvss Only\" );
+          dynAppend ( t_refnumb , addrs );
+          
+          dynAppend ( t_meaning , \"-\" );
+          dynAppend ( t_datatyp , \"-\" );
+          dynAppend ( t_comment , \"-\" );
+
+          dynAppend ( t_datapnt , sDpe );
+          dynAppend ( t_rootnam , configData[fwPeriphAddress_ROOT_NAME] );
+          dynAppend ( t_polling , configData[fwPeriphAddress_MODBUS_POLL_GROUP] );
+                      
+          ++records;
+        }
+      }
+    }
+  }
+  
+  t_displayall();
+  
+  return ( records );
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 2
+"chooseFile"
+""
+1 9.99999999999989 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 58 222 92
+
+T 
+1
+LANG:1 15 Choose CaV-File
+"
+
+main()
+{
+string fileName;
+int configs;
+  
+  fileSelector ( fileName , getPath(DATA_REL_PATH,\"fwCaV\"), TRUE, \"*\", TRUE);
+  
+  if ( fileName == \"\" ) { return; }
+    
+  FileName.text = fileName;
+  
+  setValue(\"LoggingFile\",\"text\",\"Analaysing the following Cooling-and-Ventilation File...\");
+  
+  setValue(\"chooseFile\",\"enabled\",FALSE);
+  
+  delay(1);
+  
+  configs = analyseCaVFile ( fileName , \"LoggingFile\" );
+  
+  setValue(\"chooseFile\",\"enabled\",TRUE);
+  
+  setValue(\"LoggingFile\",\"text\",\"The following '\"+configs+\"' Address Configurations have been found!\");
+}
+
+
+" 0
+ E E E
+25 3
+"Table"
+""
+1 10 110 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 108 932 532
+EE 1 0 1 8 0 "Status" 5 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+70 "Address" 5 1 0 "s" 1
+LANG:1 7 Address
+E
+1
+LANG:1 0 
+
+70 "DpeName" 23 1 0 "s" 1
+LANG:1 14 Datapoint Name
+E
+1
+LANG:1 0 
+
+270 "Meaning" 10 1 0 "s" 1
+LANG:1 7 Meaning
+E
+1
+LANG:1 0 
+
+120 "DataTyp" 5 1 0 "s" 1
+LANG:1 8 Dat-Type
+E
+1
+LANG:1 0 
+
+70 "RefAddr" 8 1 0 "s" 1
+LANG:1 9 Reference
+E
+1
+LANG:1 0 
+
+100 "PollGrp" 6 1 0 "s" 1
+LANG:1 10 Poll-Group
+E
+1
+LANG:1 0 
+
+80 "Comment" 15 1 0 "s" 1
+LANG:1 7 Comment
+E
+1
+LANG:1 0 
+
+180 
+20 20 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+14 5
+"FileName"
+""
+1 240 60 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 238 58 832 92
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  FileName.text(\"Not Yet Selected...\");
+}" 0
+ E
+14 6
+"LoggingFile"
+""
+1 240 17 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 238 15 832 49
+3 "0s" 0 0 0 0 0 -1  E E E
+2 9
+"PRIMITIVE_TEXT2"
+""
+1 9.89043835957378 20 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.990654205607477 0 1 0.0747663551401869 0 0 E 10 20 220 50
+0 2 2 "0s" 0 0 0 65 0 0  10 20 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 CaV Address Configs
+13 10
+"PUSH_BUTTON1"
+""
+1 10 550 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 548 222 582
+
+T 
+1
+LANG:1 16 Save to CSV File
+"main()
+{
+int rtn;
+int length;
+file filed;
+string filename;
+dyn_anytype items;
+string directory = getPath(DATA_REL_PATH);
+
+  rtn = fileSelector(filename,directory,FALSE,\"*.csv\",FALSE);
+  if ( strpos(filename,\".csv\") < 0 ) filename += \".csv\";
+  // DebugN(\"Filename '\"+filename+\"'\");
+  
+  if ( rtn == 0 )
+  {
+    if ( ( filed = fopen(filename,\"w\") ) == 0 ) return;
+    
+    length = Table.lineCount();
+    
+    fputs(\"Status,Address,Datapoint Names,Meaning,Dat-Type,Reference,Poll-Group,Comment\\n\",filed);
+    
+    for ( int idx = 0 ; idx < length ; ++idx )
+    {
+      items = Table.getLineN(idx);
+      if ( dynlen(items) != 8 ) { DebugN(\"DNS Item Name Table entry \"+(string)(idx+1)+\" Must have '8' Items\"); }
+    
+      strreplace(items[8],\",\",\" -\");
+      
+      for ( int itm = 1 ; itm <= dynlen(items) ; ++itm )
+      {
+        if ( itm > 1 ) fputs(\",\",filed);
+        fputs(items[itm],filed);
+      }
+      fputs(\"\\n\",filed);
+    }
+    
+    fclose(filed);
+  }
+}" 0
+ E E E
+2 13
+"PRIMITIVE_TEXT5"
+""
+1 240 550 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 240 550 930 590
+0 2 2 "0s" 0 0 0 64 0 0  240 550 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 109 The 'Status' info can have three values depending on where the address configuration is defined or was found:
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 115 'File Only' when found in the SCY-File, 'Pvss Only' if found in the Pvss project or 'File/Pvss' when found in both!
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

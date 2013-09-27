@@ -1,0 +1,374 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 343 348 N "_3DFace" 0
+"main()
+{
+	DisableAllInPanel();
+        dyn_string exceptionInfo;
+
+	if (_fwAccessControl_integratedMode()) {
+		fwAccessControl_raiseException(exceptionInfo,
+			\"ERROR! Integrated Access Control mode is active!\",
+			\"To test this panel, please disable \"+
+			\"the Integrated AC mode \"+
+			\"by setting the AC Server to (none) \"+
+			\"in the Setup panel\",\"\");
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	}
+
+/****** This part is specific to setting up domain, groups and users    ******/
+/****** in your panel you should distribute them as a part of component ******/
+        setup(exceptionInfo);
+        if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		dyn_string exceptionInfo2;
+		
+		fwAccessControl_raiseException(exceptionInfo2,
+			\"ERROR\",\"Cannot set up domain, groups and users. \"+
+			\"Please restart this panel as root .\",\"\");
+		fwAccessControl_displayException(exceptionInfo2);
+	}
+/*****************************************************************************/
+	 
+	fwAccessControl_setupPanel(\"AccessControl\",exceptionInfo); 
+        if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	}
+
+
+}
+" 0
+ E E E E 1 -1 -1 0  15 14
+""0  1
+E "
+
+void AccessControl(string s1, anytype a2)
+{
+
+	// revoke previous rights:
+	DisableAllInPanel();
+
+	bool grantedVisualize, grantedOperate, grantedAdvanced, grantedAdminister;
+	dyn_string exceptionInfo;
+
+	if (!dynlen(exceptionInfo)) fwAccessControl_isGranted(\"Demo:Visualize\",grantedVisualize, exceptionInfo);
+	if (!dynlen(exceptionInfo)) fwAccessControl_isGranted(\"Demo:Operate\",grantedOperate, exceptionInfo); 
+	if (!dynlen(exceptionInfo)) fwAccessControl_isGranted(\"Demo:Advanced\",grantedAdvanced, exceptionInfo); 
+	if (!dynlen(exceptionInfo)) fwAccessControl_isGranted(\"Demo:Administer\",grantedAdminister, exceptionInfo); 
+
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	}
+
+	if (grantedVisualize) setValue(\"DisplayButton\",\"enabled\",TRUE);
+	if (grantedOperate) setValue(\"OperateButton\",\"enabled\",TRUE);
+	if (grantedAdvanced) setValue(\"AdvancedButton\",\"enabled\",TRUE);
+	if (grantedAdminister) setValue(\"AdministerButton\",\"enabled\",TRUE);
+
+}
+
+
+void DisableAllInPanel()
+{
+	setValue(\"DisplayButton\",\"enabled\",FALSE);
+	setValue(\"OperateButton\",\"enabled\",FALSE);
+	setValue(\"AdvancedButton\",\"enabled\",FALSE);
+	setValue(\"AdministerButton\",\"enabled\",FALSE);
+}
+
+
+
+void setup(dyn_string &exceptionInfo)
+{
+DebugN(\"verify/create groups,domains,users...\");
+string acComponent=\"fwAccessControl\";
+string acVersion=\"2.5.0\";
+int acInstalled;
+fwInstallation_componentInstalled(acComponent, acVersion, acInstalled);
+if (!acInstalled) { makeDynString(exceptionInfo,\"ERROR\",\"Access Control component \"+acVersion+\" not installed\",\"\");return;};
+if (!dynlen(exceptionInfo)) fwAccessControl_checkAddDomain(\"Demo\",
+                 makeDynString(\"Visualize\",\"Operate\",\"Advanced\",\"Administer\"),
+                exceptionInfo,\"\",\"\");
+if (!dynlen(exceptionInfo)) fwAccessControl_checkAddGroup(\"DemoUsers\",
+                 makeDynString(\"SYSTEM:Visualize\",\"Demo:Visualize\"),
+                 exceptionInfo,\"\",\"\");
+if (!dynlen(exceptionInfo)) fwAccessControl_checkAddGroup(\"DemoOperators\",
+                 makeDynString(\"SYSTEM:Visualize\",\"Demo:Visualize\",\"Demo:Operate\"),
+                 exceptionInfo,\"\",\"\");
+if (!dynlen(exceptionInfo)) fwAccessControl_checkAddGroup(\"DemoExperts\",
+                 makeDynString(\"SYSTEM:Visualize\",\"Demo:Operate\",\"Demo:Advanced\"),
+                 exceptionInfo,\"\",\"\");
+if (!dynlen(exceptionInfo)) fwAccessControl_checkAddGroup(\"DemoAdmins\",
+                 makeDynString(\"SYSTEM:Visualize\",\"Demo:Administer\"),
+                 exceptionInfo,\"\",\"\");
+if (!dynlen(exceptionInfo)) fwAccessControl_checkAddUser(\"demo\",
+                 makeDynString(\"DemoUsers\"),
+                 exceptionInfo,\"Demo User\",\"A demo user account\",
+		\"demo\",TRUE,5000,FALSE);
+if (!dynlen(exceptionInfo)) fwAccessControl_checkAddUser(\"operator\",
+                 makeDynString(\"DemoUsers\",\"DemoOperators\"),
+                 exceptionInfo,\"Operator User\",\"A shifter account\",
+		\"operator\",TRUE,5001,FALSE);
+if (!dynlen(exceptionInfo)) fwAccessControl_checkAddUser(\"expert\",
+                 makeDynString(\"DemoUsers\",\"DemoExperts\"),
+                 exceptionInfo,\"Expert User\",\"A expert user account\",
+		\"expert\",TRUE,5002,FALSE);
+if (!dynlen(exceptionInfo)) fwAccessControl_checkAddUser(\"admin\",
+                 makeDynString(\"DemoUsers\",\"DemoAdmins\"),
+                 exceptionInfo,\"Admin User\",\"An admin user account\",
+		\"admin\",TRUE,5003,FALSE);
+if (!dynlen(exceptionInfo)) fwAccessControl_checkAddUser(\"glimos\",
+                 makeDynString(\"DemoUsers\",\"DemoExperts\",\"DemoAdmins\"),
+                 exceptionInfo,\"Glimos\",\"A glimos user account\",
+		\"glimos\",TRUE,5004,FALSE);
+if (dynlen(exceptionInfo)) return;
+
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+1 13 1 "" 0
+0
+30 6
+"FRAME1"
+""
+1 60 150 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.230593607305936 0 0.9999999999999999 -38.83561643835616 10.00000000000001 0 E 60 150 260 260
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Operations
+2 7
+"PRIMITIVE_TEXT2"
+""
+1 28 186.7297297297297 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.9999999999999999 0 1 6.867119720088688e-15 -5.486486486486477 1 E 40 50.48648648648648 318 137.5135135135135
+0 2 2 "0s" 0 0 0 64 0 0  40 50.48648648648648 5
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 23 Log in as one of users:
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 33 demo,operator,expert,admin,glimos
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 38 (use the button in bottom-left corner,
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 27 password same as user name)
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 39 and observe panel functionality changes
+2 12
+"Text1"
+""
+1 -3 -92 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 7 12 235 31
+0 2 2 "0s" 0 0 0 192 0 0  7 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 JCOP Framework Access Control
+1 14 2 "" 2
+0
+1 15 2 "" 1
+0
+1 16 2 "" 4
+0
+13 1
+"DisplayButton"
+""
+1 47.99999999999999 188 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 47.99999999999999 188 128 218
+
+T 
+1
+LANG:1 7 Display
+E E E E
+13 2
+"OperateButton"
+""
+1 173 188 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 173 188 253 218
+
+T 
+1
+LANG:1 7 Operate
+E E E E
+13 3
+"AdvancedButton"
+""
+1 47.99999999999999 228 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 47.99999999999999 228 128 258
+
+T 
+1
+LANG:1 8 Advanced
+E E E E
+13 4
+"AdministerButton"
+""
+1 173 228 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 173 228 253 258
+
+T 
+1
+LANG:1 10 Administer
+E E E E
+13 5
+"CloseButton"
+""
+1 248 308 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 248 308 328 338
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+PanelOff();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 1 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 7 1 0 1 -37 -11
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_Demo"
+3 2 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl" 160 270 T 1 1 0 1 -156 10
+0
+0

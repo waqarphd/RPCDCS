@@ -1,0 +1,8391 @@
+V 11
+1
+LANG:1 13 PlotConfPanel
+PANEL,-1 -1 971 599 N "_3DFace" 3
+"$Command"
+"$dsShowButtons"
+"$sDpName"
+E "main() 
+{
+	int i;
+}" 0
+ E E E 1 -1 -1 0  0 0
+""0  1
+E "global string plotName, Command;
+int tableRowSelected;
+string customDPSelector;
+dyn_string exceptionInfo;
+
+string g_AccessRightsRequired = \"\";
+
+
+setAutoIfLimitsOn(string sWidgetName)
+{
+  bool bState;
+  string toolTip;
+  int iWidgetindex = substr(sWidgetName,strlen(sWidgetName)-1,1);
+  getValue(sWidgetName,\"state\",0,bState);
+  if(bState)
+  {
+    setValue(\"AutoRangeCheckButton\"+iWidgetindex,\"state\",0,true);
+  	 autoRangeCheckButtonClick(iWidgetindex, true);
+  } 
+  toolTip = bState?\"Enabled only if Limits disabled\":\"\";
+  setValue(\"AutoRangeCheckButton\"+iWidgetindex,\"toolTipText\",toolTip);
+  setValue(\"RangeMinTextField\"+iWidgetindex,\"toolTipText\",toolTip);
+  setValue(\"RangeMaxTextField\"+iWidgetindex,\"toolTipText\",toolTip);
+  
+  setValue(\"AutoRangeCheckButton\"+iWidgetindex,\"enabled\",!bState);
+  setValue(\"RangeMinTextField\"+iWidgetindex,\"enabled\",!bState);
+  setValue(\"RangeMaxTextField\"+iWidgetindex,\"enabled\",!bState);
+}
+
+checkHasSaveRights(string dp, string user)
+{
+  bool isAllowed=TRUE;
+  dyn_string exceptionInfo;
+  
+  if(Command != \"onlineedit\")
+    isAllowed = true;
+  else if(g_AccessRightsRequired!=\"\")
+    fwAccessControl_isGranted(g_AccessRightsRequired, isAllowed, exceptionInfo);
+
+  ButtonOK.enabled = (isAllowed || (Command == \"onlineedit\"));
+  ButtonApply.enabled = isAllowed;
+  saveAsButton.enabled = isAllowed;
+}
+
+fwShowAcOptions(bool shouldShow)
+{
+  saveRights.visible = shouldShow;
+  saveRightsText.visible = shouldShow;
+  saveRightsSelect.visible = shouldShow;
+  accessControlOn.visible = shouldShow;
+  accessControlOnText.visible = shouldShow; 
+}
+
+fwEnableAcOptions(bool shouldEnable)
+{
+  saveRights.enabled = shouldEnable;
+  saveRightsSelect.enabled = shouldEnable;
+}
+
+bool lighter(string _color, int _than) {
+	dyn_int colVals;
+	dyn_string colors;
+	int i, j;
+
+	// stupid fallback, in case of named color
+	if(strlen(_color) < 7 || _color[0] != '{')
+		return TRUE;
+		
+	_color = strltrim(_color, \"{\");
+	_color = strrtrim(_color, \"}\");
+	colors = strsplit(_color, \",\");
+	for(i = 1; i <= 3; i++) {
+		for(j = 0; j < strlen(colors[i]); j++) {
+			switch (colors[i][j]) {
+				case '0': colVals[i] = colVals[i] * 10; break;
+				case '1': colVals[i] = colVals[i] * 10 + 1; break;
+				case '2': colVals[i] = colVals[i] * 10 + 2; break;
+				case '3': colVals[i] = colVals[i] * 10 + 3; break;
+				case '4': colVals[i] = colVals[i] * 10 + 4; break;
+				case '5': colVals[i] = colVals[i] * 10 + 5; break;
+				case '6': colVals[i] = colVals[i] * 10 + 6; break;
+				case '7': colVals[i] = colVals[i] * 10 + 7; break;
+				case '8': colVals[i] = colVals[i] * 10 + 8; break;
+				case '9': colVals[i] = colVals[i] * 10 + 9; break;
+			}
+		}
+	}
+	if(colVals[1] + colVals[2] + colVals[3] > _than)
+		return TRUE;
+	else
+		return FALSE;
+}
+
+void archiveCheckButtonUpdate(int _num, string _dpe) {
+	int archive;
+	string dpe, unit, comment;
+	fwTrending_getPlotDataDpeData(_dpe, dpe, unit, comment);
+	if(isFunctionDefined(\"unGenericDpFunctions_convert_UNICOSDPE_to_PVSSDPE\"))
+		unGenericDpFunctions_convert_UNICOSDPE_to_PVSSDPE(dpe, dpe);
+		
+	if(dpExists(dpe + \":_archive.._type\")) {
+		dpGet(dpe + \":_archive.._type\", archive);	
+		if(archive != DPCONFIG_NONE)
+			setValue(\"ArchiveCheckButton\" + _num, \"state\", 0, TRUE);
+		else
+			setValue(\"ArchiveCheckButton\" + _num, \"state\", 0, FALSE);
+	} else
+		setValue(\"ArchiveCheckButton\" + _num, \"state\", 0, FALSE);
+}
+
+void dpeTextFieldCommand(int _num) 
+{
+  string dpe, _dpe, unit, comment;
+  int archive;
+	bool tempBool;
+  	
+  getValue(\"DPTextField\" + _num, \"text\", _dpe);
+	fwTrending_getPlotDataDpeData(_dpe, dpe, unit, comment);
+	fwTrending_checkCurveName(dpSubStr(dpe, DPSUB_DP), tempBool, exceptionInfo);
+  if(tempBool)
+	{
+	  setValue(\"DPTextField\" + _num, \"toolTipText\", dpe);
+		archiveCheckButtonUpdate(_num, dpe);
+	}
+	else
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The entered dpe name is not legal\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+	  	setValue(\"DPTextField\" + _num, \"toolTipText\", \"Illegal dpe name\");	
+		archiveCheckButtonUpdate(_num, \"NotExistingDatapointElement.\");
+	}
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+void dpeButtonClick(int _num) {
+	string dpe = \"\", legend = \"\", rangeMinMax = \"\";
+	float rangeMin, rangeMax;
+	dyn_string ranges;
+	int archive;
+	
+	if(customDPSelector != \"\") {
+		dyn_string ds; dyn_float df;
+		ChildPanelOnCentralModalReturn(customDPSelector, \"DPE Selection\", makeDynString(), df, ds);
+		if(dynlen(ds) >= 1) dpe = ds[1];
+		if(dynlen(ds) >= 2) legend = ds[2];
+		if(dynlen(ds) >= 3) rangeMinMax = ds[3];
+		if(dpe != \"\") {
+		  	setValue(\"DPTextField\" + _num, \"text\", dpe);
+		  	setValue(\"LegendTextField\" + _num, \"text\", legend);
+			ranges = strsplit(rangeMinMax, \":\");	  	
+			if(dynlen(ranges) == 2)
+			{
+			  	setValue(\"RangeMinTextField\" + _num, \"text\", ranges[1]);
+			  	setValue(\"RangeMaxTextField\" + _num, \"text\", ranges[2]);
+			} else {
+			  	setValue(\"RangeMinTextField\" + _num, \"text\", \"0\");
+			  	setValue(\"RangeMaxTextField\" + _num, \"text\", \"0\");
+			}
+		  	autoRangeCheckButtonUpdate(_num);
+			archiveCheckButtonUpdate(_num, dpe);
+		}
+	} else {
+		dpSelector(dpe, FALSE);
+		if(dpe != \"\") {
+		  	setValue(\"DPTextField\" + _num, \"text\", dpe);
+			archiveCheckButtonUpdate(_num, dpe);
+		}
+	}
+	legendTextFieldCommand(_num);
+}
+
+void legendTextFieldCommand(int _num) 
+{
+	string legend;
+  	getValue(\"LegendTextField\" + _num, \"text\", legend);
+  	setValue(\"LegendTextField\" + _num, \"toolTipText\", legend);
+}
+
+void colorButtonClick(int _num) {
+	dyn_int pos;
+	string color;
+	
+	getValue(\"ColorButton\" + _num, \"backCol\", color);
+
+	colorEditor(color);
+	if(color != \"\") {
+		setValue(\"ColorButton\" + _num, \"backCol\", color);
+	}
+}
+
+void axisCheckButtonClick(int _num, bool _state) {
+	setValue(\"axisOnCurve\" + _num, \"visible\", _state);
+	setValue(\"axisOffCurve\" + _num, \"visible\", !_state);
+	setValue(\"GlobalAxisIndividualButton\", \"visible\", TRUE);
+	setValue(\"GlobalAxisHiddenButton\", \"visible\", FALSE);
+	setValue(\"GlobalAxisVisibleButton\", \"visible\", FALSE);
+}
+
+
+void rangeMinTextFieldCommand(int _num) {
+  	autoRangeCheckButtonUpdate(_num);
+}
+
+void rangeMaxTextFieldCommand(int _num) {
+  	autoRangeCheckButtonUpdate(_num);
+}
+
+void autoRangeCheckButtonUpdate(int _num) {
+	string min, max;
+	getValue(\"RangeMinTextField\" + _num, \"text\", min);
+	getValue(\"RangeMaxTextField\" + _num, \"text\", max);
+	if((float)max <= (float)min)
+		setValue(\"AutoRangeCheckButton\" + _num, \"state\", 0, TRUE);
+	else
+		setValue(\"AutoRangeCheckButton\" + _num, \"state\", 0, FALSE);
+}
+
+void autoRangeCheckButtonClick(int _num, bool _state) {
+}
+
+void visibleCheckButtonClick(int _num, bool _state) 
+{
+	setValue(\"ckShowAlarmLimits\" + _num, \"enabled\", _state);
+ if(!_state)
+	  setValue(\"ckShowAlarmLimits\" + _num, \"state\",0, _state);
+	setValue(\"curveVisible\" + _num, \"visible\", _state);
+	setValue(\"curveNotVisible\" + _num, \"visible\", !_state);
+	setValue(\"GlobalCurveIndividualButton\", \"visible\", TRUE);
+	setValue(\"GlobalCurveHiddenButton\", \"visible\", FALSE);
+	setValue(\"GlobalCurveVisibleButton\", \"visible\", FALSE);
+}
+
+void archiveCheckButtonInitialize(int _num) 
+{
+	string dpe;
+  	getValue(\"DPTextField\" + _num, \"text\", dpe);
+	archiveCheckButtonUpdate(_num, dpe);
+}
+
+void archiveButtonClick(int _num) 
+{
+	string _dpe;
+	dyn_string ds; dyn_int di;
+	int archive;
+	string dpe, unit, comment;
+	
+  	getValue(\"DPTextField\" + _num, \"text\", _dpe);
+
+	fwTrending_getPlotDataDpeData(_dpe, dpe, unit, comment);
+	if((strpos(dpe, fwTrending_TEMPLATE_OPEN) >= 0) && 
+			(strpos(dpe, fwTrending_TEMPLATE_CLOSE) > 0))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\",
+												\"The archive config can not be viewed because \" + 
+												\"the data point element contains template parameters, {}\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+	}
+	else
+	{
+		if(isFunctionDefined(\"unGenericDpFunctions_convert_UNICOSDPE_to_PVSSDPE\"))
+			unGenericDpFunctions_convert_UNICOSDPE_to_PVSSDPE(dpe, dpe);
+	
+		ChildPanelOnCentralReturn(	\"fwConfigs/fwArchiveConfigPopup.pnl\", \"Archive Configuration for \" + dpe,
+									makeDynString(	\"$sDpName:\" + dpSubStr(dpe, DPSUB_SYS_DP),
+// start 19/09/2008: Herve													\"$sDpe:\" + dpSubStr(dpe, DPSUB_DP_EL)),
+													\"$sDpe:\" + dpSubStr(dpe, DPSUB_SYS_DP_EL)),
+// end 19/09/2008: Herve
+                                                                        di, ds);
+		archiveCheckButtonUpdate(_num, dpe);
+	}
+}
+
+void legendTextFieldFillByDP(int _num) 
+{
+	string dp;
+	getValue(\"DPTextField\" + _num, \"text\", dp);
+	if(dpExists(dp)) 
+	{
+		string legend, comment, legendText;
+		getValue(\"LegendTextField\" + _num, \"text\", legendText);
+		legend = dpGetAlias(dp);
+		legend += \"\" + dpGetComment(dp);
+		if(legendText == \"\") 
+			setValue(\"LegendTextField\" + _num, \"text\", legend);
+		legendTextFieldCommand(_num);
+	}
+}
+
+void timeRangeSet() 
+{
+	int timeRange, days, hours, minutes;
+	
+	days = daysSpinButton.text;
+	hours = hoursSpinButton.text;
+	minutes = minutesSpinButton.text;
+	
+	//sscanf(daysSpinButton.text, \"%d\", days);
+	//sscanf(hoursSpinButton.text, \"%d\", hours);
+	//sscanf(minutesSpinButton.text, \"%d\", minutes);
+	timeRange = days * 86400 + hours * 3600 + minutes * 60;
+	dpSet(plotName + fwTrending_PLOT_TIME_RANGE + fwTrending_ORIG_VAL, timeRange);
+}
+
+
+changeCurveType(int curveNum, int selectedPos)
+{
+/*	int type;
+	dyn_int curveTypes;
+	
+	switch(selectedPos) 
+	{
+		case 1: 
+			type = fwTrending_PLOT_TYPE_POINTS; 
+			break;
+		case 2: 
+			type = fwTrending_PLOT_TYPE_LINEAR; 
+			break;
+		case 3: 
+			type = fwTrending_PLOT_TYPE_STEPS; 
+			break;
+		default:
+			break;
+	}
+	
+	dpGet(plotName + fwTrending_CURVE_TYPES + fwTrending_ORIG_VAL, curveTypes);
+	dynRemove(curveTypes, curveNum);
+	dynInsertAt(curveTypes, type, curveNum);
+	dpSet(plotName + fwTrending_PLOT_TYPE + fwTrending_ORIG_VAL, fwTrending_PLOT_TYPE_INDIVIDUAL);
+	dpSet(plotName + fwTrending_CURVE_TYPES + fwTrending_ORIG_VAL, curveTypes);
+*/
+}
+
+enableIndividualCurveTypes(bool enabled)
+{
+	curveTypeCombo1.enabled = enabled;
+	curveTypeCombo2.enabled = enabled;
+	curveTypeCombo3.enabled = enabled;
+	curveTypeCombo4.enabled = enabled;
+	curveTypeCombo5.enabled = enabled;
+	curveTypeCombo6.enabled = enabled;
+	curveTypeCombo7.enabled = enabled;
+	curveTypeCombo8.enabled = enabled;
+}
+
+enableIndividualCurveVisibilities(bool enabled)
+{
+	curveVisible1.enabled = enabled;
+	curveVisible2.enabled = enabled;
+	curveVisible3.enabled = enabled;
+	curveVisible4.enabled = enabled;
+	curveVisible5.enabled = enabled;
+	curveVisible6.enabled = enabled;
+	curveVisible7.enabled = enabled;
+	curveVisible8.enabled = enabled;
+	curveNotVisible1.enabled = enabled;
+	curveNotVisible2.enabled = enabled;
+	curveNotVisible3.enabled = enabled;
+	curveNotVisible4.enabled = enabled;
+	curveNotVisible5.enabled = enabled;
+	curveNotVisible6.enabled = enabled;
+	curveNotVisible7.enabled = enabled;
+	curveNotVisible8.enabled = enabled;
+}
+
+
+
+visibleCheckButtonGlobal(int BUTTON)
+{
+	int i;
+	switch(BUTTON)
+	{
+		case 1:
+		case 3:	
+			for( i = 1; i <= fwTrending_MAX_NUM_CURVES; i++)
+				visibleCheckButtonClick(i, TRUE);
+			setValue(\"GlobalCurveIndividualButton\", \"visible\", FALSE);
+			setValue(\"GlobalCurveHiddenButton\", \"visible\", FALSE);
+			setValue(\"GlobalCurveVisibleButton\", \"visible\", TRUE);
+			break;	
+		case 2:	
+			for( i = 1; i <= fwTrending_MAX_NUM_CURVES; i++)
+				visibleCheckButtonClick(i, FALSE);
+			setValue(\"GlobalCurveIndividualButton\", \"visible\", FALSE);
+			setValue(\"GlobalCurveHiddenButton\", \"visible\", TRUE);
+			setValue(\"GlobalCurveVisibleButton\", \"visible\", FALSE);
+			break;	
+	}
+}
+
+axisCheckButtonGlobal(int BUTTON)
+{
+	int i;
+	switch(BUTTON)
+	{
+		case 1:
+		case 3:	
+			for( i = 1; i <= fwTrending_MAX_NUM_CURVES; i++)
+				axisCheckButtonClick(i, TRUE);
+			setValue(\"GlobalAxisIndividualButton\", \"visible\", FALSE);
+			setValue(\"GlobalAxisHiddenButton\", \"visible\", FALSE);
+			setValue(\"GlobalAxisVisibleButton\", \"visible\", TRUE);
+			break;	
+		case 2:	
+			for( i = 1; i <= fwTrending_MAX_NUM_CURVES; i++)
+				axisCheckButtonClick(i, FALSE);
+			setValue(\"GlobalAxisIndividualButton\", \"visible\", FALSE);
+			setValue(\"GlobalAxisHiddenButton\", \"visible\", TRUE);
+			setValue(\"GlobalAxisVisibleButton\", \"visible\", FALSE);
+			break;	
+	}
+}	
+
+string CheckInput(dyn_string &exceptionInfo)
+{
+	bool tempBool;
+	string tempString, okStr = \"OK\";
+
+	tempString = TextFieldTitle.text;
+	strreplace(tempString, fwTrending_TEMPLATE_OPEN, \"\");
+	strreplace(tempString, fwTrending_TEMPLATE_CLOSE, \"\");
+
+	if(!_fwTrending_isUnicosEnvironment(exceptionInfo))
+		strreplace(tempString, \" \", \"\");
+
+	tempBool = dpIsLegalName(tempString);
+ 	if((!tempBool) || (tempString == \"\"))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"The entered plot title is not legal\", \"\");
+		okStr = \"NoReturn\";
+	}
+	
+	return okStr;
+}
+
+ReadInput(dyn_dyn_string &plotData, dyn_string &exceptionInfo)
+{
+	bool tempBool;
+	string tempString;
+	int tempInt, i, selectedPos, markerType;
+	dyn_string _dpesVal, _legendVal, _colorsVal, _rangeMinVal, _rangeMaxVal, _axiiXFormat;
+ dyn_string _legendValFormat, _scaleValFormat;
+	dyn_bool _axiiVal,_hiddenVal, _showAlarmLimits;
+	dyn_int _curveTypes, _curveScalePos;
+  bool _controlBarOn, _captionOn;
+  dyn_int _curveLinkedTo;
+  int _tmpCurveLinkedTo;
+
+	_dpesVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_legendVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_colorsVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_axiiVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_hiddenVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_rangeMinVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_rangeMaxVal = makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	_curveTypes = makeDynInt(	fwTrending_PLOT_TYPE_STANDARD, fwTrending_PLOT_TYPE_STANDARD, 
+								fwTrending_PLOT_TYPE_STANDARD, fwTrending_PLOT_TYPE_STANDARD, 
+								fwTrending_PLOT_TYPE_STANDARD, fwTrending_PLOT_TYPE_STANDARD, 
+								fwTrending_PLOT_TYPE_STANDARD, fwTrending_PLOT_TYPE_STANDARD);
+  _curveScalePos = makeDynInt(SCALE_LEFT,SCALE_LEFT,SCALE_LEFT,SCALE_LEFT,
+                              SCALE_LEFT,SCALE_LEFT,SCALE_LEFT,SCALE_LEFT);
+ _axiiXFormat = makeDynString(\"\");
+ 
+	tempString = TextFieldTitle.text;
+	plotData[fwTrending_PLOT_OBJECT_MODEL][1] = fwTrending_YT_PLOT_MODEL;
+	plotData[fwTrending_PLOT_OBJECT_TITLE][1] = tempString;
+	plotData[fwTrending_PLOT_OBJECT_BACK_COLOR][1] = ButtonBackgroundColor.backCol;
+	plotData[fwTrending_PLOT_OBJECT_FORE_COLOR][1] = ButtonForegroundColor.backCol;
+
+	tempInt = daysSpinButton.text * fwTrending_SECONDS_IN_ONE_DAY + hoursSpinButton.text * fwTrending_SECONDS_IN_ONE_HOUR + minutesSpinButton.text * fwTrending_SECONDS_IN_ONE_MINUTE;
+	if(tempInt == 0)
+		tempInt = (10 * fwTrending_SECONDS_IN_ONE_MINUTE);
+
+	plotData[fwTrending_PLOT_OBJECT_TIME_RANGE][1] = tempInt;
+	getValue(\"LegendCheckButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_LEGEND_ON][1]);
+	getValue(\"CtrlBarCheckButton\", \"state\", 0, _controlBarOn);
+	getValue(\"CaptionCheckButton\", \"state\", 0, _captionOn);
+  plotData[fwTrending_PLOT_OBJECT_CONTROL_BAR_ON][1] = (!_controlBarOn + 2*(!_captionOn));
+	getValue(\"LogScaleButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1]);
+	getValue(\"GridButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_GRID][1]);
+  getValue(\"MarkerTypeComboBox\", \"selectedPos\", markerType);
+  plotData[fwTrending_PLOT_OBJECT_MARKER_TYPE][1] = markerType-1;
+  plotData[fwTrending_PLOT_OBJECT_ACCESS_CONTROL_SAVE][1] = accessControlOn.state(0)?saveRights.text:\"\";
+  
+  //set font size
+  getValue(\"cmFont\",\"toolTipText\",plotData[fwTrending_PLOT_OBJECT_DEFAULT_FONT][1]);
+
+  //set curve width
+	getValue(\"cmLine\",\"toolTipText\",plotData[fwTrending_PLOT_OBJECT_CURVE_STYLE][1]);
+  
+  //X axis format
+  getValue(\"cmXaxiiFormat\",\"toolTipText\", _axiiXFormat);
+  strreplace(_axiiXFormat[1],\" | \",\"|\");
+  _axiiXFormat = strsplit(_axiiXFormat[1],\"|\");
+  if(dynlen(_axiiXFormat)<2)
+    _axiiXFormat[2]=\"\";
+  plotData[fwTrending_PLOT_OBJECT_AXII_X_FORMAT] = _axiiXFormat;
+  
+  tempInt = PlotTypeComboBox.selectedPos;
+	switch(tempInt)
+	{
+		case 1:
+			plotData[fwTrending_PLOT_OBJECT_TYPE][1] = fwTrending_PLOT_TYPE_POINTS;
+			break;
+		case 2:
+			plotData[fwTrending_PLOT_OBJECT_TYPE][1] = fwTrending_PLOT_TYPE_STEPS;
+			break;
+		case 3:
+			plotData[fwTrending_PLOT_OBJECT_TYPE][1] = fwTrending_PLOT_TYPE_LINEAR;
+			break;
+		case 4:
+			plotData[fwTrending_PLOT_OBJECT_TYPE][1] = fwTrending_PLOT_TYPE_INDIVIDUAL;
+			break;
+	}
+							
+	for( i = 1; i <= fwTrending_MAX_NUM_CURVES; i++)
+	{
+		getValue(\"curveTypeCombo\" + i, \"selectedPos\", selectedPos);
+		switch(selectedPos)
+		{
+			case 1:
+				_curveTypes[i] = fwTrending_PLOT_TYPE_POINTS;
+				break;
+			case 2:
+				_curveTypes[i] = fwTrending_PLOT_TYPE_STEPS;
+				break;
+			case 3:
+				_curveTypes[i] = fwTrending_PLOT_TYPE_LINEAR;
+				break;
+		}
+					
+		if(plotData[fwTrending_PLOT_OBJECT_TYPE][1] != _curveTypes[i])
+		{
+			plotData[fwTrending_PLOT_OBJECT_TYPE][1] = fwTrending_PLOT_TYPE_INDIVIDUAL;
+			PlotTypeComboBox.selectedPos = 4; 
+		}
+//	DebugN(_curveTypes[i], plotData[fwTrending_PLOT_OBJECT_TYPE][1]);
+					
+		getValue(\"DPTextField\" + i, \"text\", _dpesVal[i]);
+		getValue(\"LegendTextField\" + i, \"text\", _legendVal[i]);
+		getValue(\"cmLegendFormat\" + i, \"toolTipText\", _legendValFormat[i]);
+		getValue(\"cmScaleFormat\" + i, \"toolTipText\", _scaleValFormat[i]);
+		getValue(\"ColorButton\" + i, \"backCol\", _colorsVal[i]);
+		getValue(\"axisOnCurve\" + i, \"visible\", _axiiVal[i]);
+		getValue(\"curveNotVisible\" + i, \"visible\", _hiddenVal[i]);
+		getValue(\"AutoRangeCheckButton\" + i, \"state\", 0, tempBool);
+		getValue(\"ckShowAlarmLimits\" + i, \"state\", 0, _showAlarmLimits[i]);
+
+		if(tempBool)
+		{
+			setValue(\"RangeMinTextField\" + i, \"text\", \"0\");
+			setValue(\"RangeMaxTextField\" + i, \"text\", \"0\");
+		}
+
+		getValue(\"scalePosRadioButton\" + i, \"number\", _curveScalePos[i]);
+    _curveScalePos[i]+=2;//L index = 0 , R index = 1 ==> SCALE_LEFT = 2 , SCALE_RIGHT = 3
+		getValue(\"linkCurveCombo\" + i, \"selectedPos\", _tmpCurveLinkedTo);
+    _curveLinkedTo[i] = (_tmpCurveLinkedTo>=1 && _tmpCurveLinkedTo<=8)?_tmpCurveLinkedTo-1 : 0;//if non-zero: curve is linked to that curve index. Else it is not linked.
+		getValue(\"RangeMinTextField\" + i, \"text\", _rangeMinVal[i]);
+		getValue(\"RangeMaxTextField\" + i, \"text\", _rangeMaxVal[i]);
+		plotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE][i] = _rangeMinVal[i] + fwTrending_AXIS_LIMITS_DIVIDER + _rangeMaxVal[i];
+	}
+
+	plotData[fwTrending_PLOT_OBJECT_DPES] = _dpesVal;
+	plotData[fwTrending_PLOT_OBJECT_LEGENDS] = _legendVal;
+	plotData[fwTrending_PLOT_OBJECT_LEGEND_VALUES_FORMAT] = _legendValFormat;
+	plotData[fwTrending_PLOT_OBJECT_COLORS] = _colorsVal;
+	plotData[fwTrending_PLOT_OBJECT_AXII] = _axiiVal;
+	plotData[fwTrending_PLOT_OBJECT_AXII_POS] = _curveScalePos;
+	plotData[fwTrending_PLOT_OBJECT_AXII_LINK] = _curveLinkedTo;
+	plotData[fwTrending_PLOT_OBJECT_AXII_Y_FORMAT] = _scaleValFormat;
+	plotData[fwTrending_PLOT_OBJECT_CURVES_HIDDEN] = _hiddenVal;
+	plotData[fwTrending_PLOT_OBJECT_ALARM_LIMITS_SHOW] = _showAlarmLimits;
+	plotData[fwTrending_PLOT_OBJECT_RANGES_MIN] = _rangeMinVal;
+	plotData[fwTrending_PLOT_OBJECT_RANGES_MAX] = _rangeMaxVal;
+	plotData[fwTrending_PLOT_OBJECT_CURVE_TYPES] = _curveTypes;
+	
+	plotData[fwTrending_PLOT_OBJECT_IS_TEMPLATE] = FALSE;
+	plotData[fwTrending_PLOT_OBJECT_TEMPLATE_NAME] = \"\";
+}
+
+ApplyCancelOKButtonClick(string button)
+{
+	string okStr = \"OK\";
+	bool granted;
+	dyn_string priviledgeList, domainList, tempPlotData;
+	int i;
+	string tempString, tempString2, sDescription;
+	int tempInt, selectedPos, previousType;
+	bool tempBool, tempBool2, isConnected;
+	dyn_dyn_string plotData;
+	
+	if(button != \"Cancel\")
+	{
+		okStr = CheckInput(exceptionInfo);
+	
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+	}
+						
+	if((button != \"Cancel\") && (okStr != \"NoReturn\"))
+	{
+//DebugN(\"plotName:\",plotName,\"System:\",dpSubStr(plotName,DPSUB_SYS));
+		switch(Command) 
+		{
+			case \"copy\":
+			case \"new\": 
+			{
+				plotName = TextFieldName.text;
+
+				if(plotName == \"\") 
+				{
+					fwException_raise(exceptionInfo, \"ERROR\", \"You did not enter a plot name\", \"\");
+					fwExceptionHandling_display(exceptionInfo);
+					okStr = \"NoReturn\";
+				} 
+				else 
+				{
+					tempBool = dpIsLegalName(plotName);
+					if(tempBool)
+						if(!dpExists(plotName))
+         {
+							fwTrending_newPlot(plotName);
+          if(!dpExists(plotName))
+          {
+							  fwException_raise(exceptionInfo, \"ERROR\", \"The plot could not be created\", \"\");
+							  fwExceptionHandling_display(exceptionInfo);
+							  okStr = \"NoReturn\";
+          }
+         }
+         else
+						{
+							fwException_raise(exceptionInfo, \"ERROR\", \"The entered plot name is already in use\", \"\");
+							fwExceptionHandling_display(exceptionInfo);
+							okStr = \"NoReturn\";
+						}						
+					else 
+					{
+						fwException_raise(exceptionInfo, \"ERROR\", \"The entered plot name is not legal\", \"\");
+						tempString = TextFieldTitle.text;
+//						tempBool = dpIsLegalName(tempString);
+						tempBool = TRUE;
+					  	if(!tempBool)
+							fwException_raise(exceptionInfo, \"ERROR\", \"The entered plot title is not legal\", \"\");
+						fwExceptionHandling_display(exceptionInfo);
+						okStr = \"NoReturn\";
+					}
+					if(okStr != \"NoReturn\")
+					{
+//SMS now the device exists, so the fw functions need it WITH system name!
+//						plotName = getSystemName() + plotName;
+					}
+				}
+			}
+			case \"edit\": 
+			case \"onlineedit\": 			
+			if(okStr != \"NoReturn\")
+			{
+				TextFieldName.editable = FALSE;
+				TextFieldName.enabled = FALSE;
+				//change mode to edit once to config has been saved once
+				if(Command == \"new\")
+					Command = \"edit\";
+				
+				if(Command == \"onlineedit\")
+				{
+					plotData = strsplit(getDollarValue(\"$dsPlotData\"), \"|\");
+					for(i=1; i<=fwTrending_SIZE_PLOT_OBJECT; i++)
+					{
+						plotData[i][1] = strltrim(plotData[i][1], \" \");
+						plotData[i][1] = strrtrim(plotData[i][1], \" \");
+						plotData[i] = strsplit(plotData[i][1], fwTrending_CONTENT_DIVIDER);
+					}
+				}
+				else
+					fwTrending_getPlot(plotName, plotData, exceptionInfo);
+
+				ReadInput(plotData, exceptionInfo);
+
+				if(Command != \"onlineedit\")
+				{
+					_fwTrending_isSystemForDpeConnected(plotName, isConnected, exceptionInfo);
+					if(isConnected)
+                                        {
+//                                           bool isAllowed;
+// 					  if(g_AccessRightsRequired != \"\")
+//                                           {
+//                                              fwAccessControl_isGranted(g_AccessRightsRequired, isAllowed, exceptionInfo);
+//                                              if(!isAllowed)
+//                                              {
+//                                                fwException_raise(exceptionInfo, \"ERROR\", \"The current access right for saving this page configuration is: \" + g_AccessRightsRequired
+//                                                                   + \". You do not have sufficient rights to continue.  Your changes have not been saved\", \"\");
+//                                              }
+//                                           }
+// 
+// 					  if(plotData[fwTrending_PLOT_OBJECT_ACCESS_CONTROL_SAVE] != \"\")
+//                                           {
+//                                             fwAccessControl_isGranted(plotData[fwTrending_PLOT_OBJECT_ACCESS_CONTROL_SAVE], isAllowed, exceptionInfo);
+//                                             if(!isAllowed)
+//                                             {
+//                                                fwException_raise(exceptionInfo, \"ERROR\", \"The proposed access control settings would mean you could no longer modify this page configuration. \" 
+//                                                                   + \"You do not have the \\\"\" + saveRights.text + \"\\\" access right. \"
+//                                                                   + \"Please modify your configuration.\", \"\");
+//                                             }
+//                                           }
+//                                           
+                                          if(dynlen(exceptionInfo) == 0)
+                                          {
+                                            g_AccessRightsRequired = plotData[fwTrending_PLOT_OBJECT_ACCESS_CONTROL_SAVE];
+                                            fwTrending_setPlot(plotName, plotData, exceptionInfo);
+                                          }
+                                        }
+					else
+						fwException_raise(exceptionInfo, \"ERROR\", \"The configuration can not be saved because \\\"\" + plotName +
+															\"\\\" is from a remote system which is currently unavailable\", \"\");
+				}
+				else
+				{
+					for(i=1; i<=fwTrending_MAX_NUM_CURVES; i++)
+					{
+						if(plotData[fwTrending_PLOT_OBJECT_DPES][i] != \"\")
+						{
+							fwTrending_getPlotDataDpeData(plotData[fwTrending_PLOT_OBJECT_DPES][i], plotData[fwTrending_PLOT_OBJECT_DPES][i], plotData[fwTrending_PLOT_OBJECT_EXT_UNITS][i], sDescription);
+							plotData[fwTrending_PLOT_OBJECT_EXT_TOOLTIPS][i] = plotData[fwTrending_PLOT_OBJECT_DPES][i] + \" [\" + plotData[fwTrending_PLOT_OBJECT_EXT_UNITS][i] + \"] \" + sDescription;
+						}
+					}
+				
+					for(i=1; i<=fwTrending_SIZE_PLOT_OBJECT; i++)
+					{
+						fwTrending_convertDynToString(plotData[i], tempPlotData[i], exceptionInfo);
+						plotData[i] = makeDynString(tempPlotData[i]);
+					}
+				}
+
+			}
+			break;
+		}
+	
+	/* added by Herve */
+		if(button == \"Apply\") {
+			if(isFunctionDefined(\"unTrendTree_deviceConfiguration_postExecution\")) {
+				execScript(\"main()\"+
+										\"{\"+
+										\"		unTrendTree_deviceConfiguration_postExecution();\"+
+										\"}\", makeDynString());
+			}
+		}
+	/* end added by Herve */
+
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+		else
+			if((button == \"OK\") && (okStr != \"NoReturn\"))
+				PanelOffReturn(makeDynFloat(0.0), makeDynString(okStr, TextFieldName.text, plotData));
+	} else
+		if(okStr != \"NoReturn\") 
+			PanelOffReturn(makeDynFloat(0.0), makeDynString(\"Cancel\", TextFieldName.text));
+}
+
+
+showLineSample(string lineType)
+{
+  if(lineType==\"\" || lineType==0) lineType = fwTrending_DEFAULT_CURVE_STYLE;
+  cmLine.toolTipText = lineType;
+  lineSample.border = lineType;  
+}
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "0"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 10
+"TextTitle"
+""
+1 12 74 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 14 76 64 93
+0 2 0 "0s" 0 0 0 192 0 0  14 76 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 10 Plot Title
+2 1
+"TextName"
+""
+1 12 44 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 14 46 75 63
+0 2 0 "0s" 0 0 0 192 0 0  14 46 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 9 Plot Name
+2 33
+"Text2"
+""
+1 8 7 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	int iRes, i;
+	dyn_string exceptionInfo;
+
+	string tempString, originalData, sShowButtons;
+	int tempInt, selectedPos, position;
+	bool tempBool, showAcOptions = FALSE, isConnected = TRUE;
+	dyn_string buttons, _dpesVal, _legendVal, _colorsVal, _rangeMinVal, _rangeMaxVal, markerTypes;
+ dyn_string _legendValFormat, _scaleValFormat;
+	dyn_dyn_string plotData;
+	dyn_bool _axiiVal,_hiddenVal, _showAlarmLimits;
+	dyn_int curveTypes, _curveScalePos;
+  bit32 b32ControlBarsStatus;
+  int   iControlBarsStatus;
+  dyn_int _curveLinkedTo;
+	while(!isFunctionDefined(\"ApplyCancelOKButtonClick\"));
+
+	plotName = $sDpName;
+	if(isDollarDefined(\"$Command\"))
+	{
+		Command = strtolower($Command);
+		if(Command == \"\") Command = \"edit\";
+	}
+	else {
+		if(plotName == \"\")
+			Command = \"new\";
+		else
+			Command = \"edit\";			
+	}
+
+	if(Command==\"new\")
+		plotName = \"\";
+
+	if((Command==\"copy\") && isDollarDefined(\"$sOriginalPlot\"))
+		plotName = getDollarValue(\"$sOriginalPlot\");
+
+	//get configuration from DP
+// added by Herve
+// origanlly
+//	dpGet(\"TrendingConfiguration.customDPSelector:_online.._value\", customDPSelector);	
+// now
+	dpConnect(\"customDpSelectorCB\", \"TrendingConfiguration.customDPSelector\");
+// end added by Herve
+	//get settings from DP and fill them into the fields
+	//en-/disable appropriate functions
+
+	if(isDollarDefined(\"$dsShowButtons\"))
+	{
+		sShowButtons = $dsShowButtons;
+		strreplace(sShowButtons, \" \", \"\");
+		sShowButtons = strtolower(sShowButtons);
+		buttons = strsplit(sShowButtons, \"|\");
+		
+		if(dynContains(buttons, \"all\") > 0)
+		{
+			ButtonOK.visible = TRUE;
+			ButtonApply.visible = TRUE;
+			ButtonCancel.visible = TRUE;
+		}
+		else
+		{
+			if(dynContains(buttons, \"ok\") > 0)
+				ButtonOK.visible = TRUE;
+	
+			if(dynContains(buttons, \"apply\") > 0)
+				ButtonApply.visible = TRUE;
+	
+			if(dynContains(buttons, \"cancel\") > 0)
+				ButtonCancel.visible = TRUE;		
+		}
+	}
+	else
+	{
+		ButtonOK.visible = TRUE;
+		ButtonApply.visible = TRUE;
+		ButtonCancel.visible = TRUE;
+	}
+
+	if((Command == \"edit\") || (Command == \"onlineedit\"))
+	{
+		TextFieldName.text = plotName;
+		TextFieldName.editable = FALSE;
+		TextFieldName.enabled = FALSE;
+		TextFieldTitle.editable = TRUE;
+		TextFieldTitle.enabled = TRUE;
+	}
+	else {
+		TextFieldName.editable = TRUE;
+		TextFieldName.enabled = TRUE;
+		TextFieldTitle.editable = TRUE;
+		TextFieldTitle.enabled = TRUE;
+	}	
+
+        markerTypes[fwTrending_MARKER_TYPE_FILLED_CIRCLE+1] = \"Filled circle\";
+        markerTypes[fwTrending_MARKER_TYPE_UNFILLED_CIRCLE+1] = \"Unfilled circle\";
+        markerTypes[fwTrending_MARKER_TYPE_NONE+1] = \"None\";
+        MarkerTypeComboBox.items = markerTypes;
+
+	if(Command == \"new\") 
+	{
+		for( i = 1; i <= fwTrending_MAX_NUM_CURVES; i++)
+		{
+			switch(fwTrending_PLOT_TYPE_STANDARD)
+			{
+				case fwTrending_PLOT_TYPE_POINTS:
+					selectedPos = 1;
+					break;
+				case fwTrending_PLOT_TYPE_STEPS:
+					selectedPos = 2;
+					break;
+				case fwTrending_PLOT_TYPE_LINEAR:
+					selectedPos = 3;
+					break;
+			}
+			setValue(\"curveTypeCombo\" + i, \"selectedPos\", selectedPos);
+		}
+		
+		PlotTypeComboBox.selectedPos = selectedPos;
+		enableIndividualCurveTypes(FALSE);
+		visibleCheckButtonGlobal(1);
+		axisCheckButtonGlobal(2);
+		daysSpinButton.text = 0;
+		hoursSpinButton.text = 1;
+		minutesSpinButton.text = 0;		
+   showAcOptions = TRUE;
+	}
+	if((Command == \"edit\") || (Command == \"copy\"))
+	{
+		_fwTrending_isSystemForDpeConnected(plotName, isConnected, exceptionInfo);
+		fwTrending_getPlot(plotName, plotData, exceptionInfo);
+                showAcOptions = TRUE;
+//    DebugN(\"plotData 2: \"+plotData);
+	}
+
+	if(Command == \"onlineedit\")
+	{
+		originalData = getDollarValue(\"$dsPlotData\");
+		strreplace(originalData, \" | \", \"|\");
+		plotData = strsplit(originalData, \"|\");
+// 		DebugN(\"conf - plotData: \" +plotData);
+// 		DebugN(\"conf - plotData: \");
+// 		DebugN(plotData);
+		for(i=1; i<=fwTrending_SIZE_PLOT_OBJECT; i++)
+		{
+			fwTrending_convertStringToDyn(plotData[i][1], plotData[i], exceptionInfo);
+		}
+	}
+// 		DebugN(\"conf - plotData[fwTrending_PLOT_OBJECT_CURVES_HIDDEN]: \" +plotData[fwTrending_PLOT_OBJECT_CURVES_HIDDEN]);
+	
+	if((Command == \"edit\") || (Command == \"onlineedit\") || (Command == \"copy\"))
+	{
+		if(_fwTrending_isUnicosEnvironment(exceptionInfo))
+			strreplace(plotData[fwTrending_PLOT_OBJECT_TITLE][1], \" \", \"\");
+
+		TextFieldTitle.text = plotData[fwTrending_PLOT_OBJECT_TITLE][1];
+		
+		if(plotData[fwTrending_PLOT_OBJECT_TEMPLATE_NAME][1] != \"\")
+		{
+			TextFieldTemplate.text = plotData[fwTrending_PLOT_OBJECT_TEMPLATE_NAME][1];
+			TextFieldTemplate.visible = TRUE;
+			TextTemplate.visible = TRUE;
+		} else {
+			TextFieldTemplate.visible = FALSE;
+			TextTemplate.visible = FALSE;
+		}
+	
+		if(plotData[fwTrending_PLOT_OBJECT_BACK_COLOR][1] == \"\")
+		{
+			ButtonBackgroundColor.backCol = \"FwTrendingTrendBackground\";
+		} else {
+			ButtonBackgroundColor.backCol = plotData[fwTrending_PLOT_OBJECT_BACK_COLOR][1];
+		}
+		
+		if(plotData[fwTrending_PLOT_OBJECT_FORE_COLOR][1] == \"\")
+		{
+			ButtonForegroundColor.backCol = \"FwTrendingTrendForeground\";
+		} else {
+			ButtonForegroundColor.backCol = plotData[fwTrending_PLOT_OBJECT_FORE_COLOR][1];
+		}
+		
+		tempInt = plotData[fwTrending_PLOT_OBJECT_TIME_RANGE][1];
+		daysSpinButton.text = tempInt / fwTrending_SECONDS_IN_ONE_DAY;
+		tempInt %= fwTrending_SECONDS_IN_ONE_DAY;
+		hoursSpinButton.text = tempInt / fwTrending_SECONDS_IN_ONE_HOUR;
+		tempInt %= fwTrending_SECONDS_IN_ONE_HOUR;
+		minutesSpinButton.text = tempInt / fwTrending_SECONDS_IN_ONE_MINUTE;
+	
+   iControlBarsStatus = plotData[fwTrending_PLOT_OBJECT_CONTROL_BAR_ON][1];
+   b32ControlBarsStatus = iControlBarsStatus;
+		setValue(\"LegendCheckButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_LEGEND_ON][1]);
+		setValue(\"CtrlBarCheckButton\", \"state\", 0, !getBit(b32ControlBarsStatus,0));
+		setValue(\"CaptionCheckButton\", \"state\", 0, !getBit(b32ControlBarsStatus,1));
+		setValue(\"LogScaleButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_IS_LOGARITHMIC][1]);
+		setValue(\"GridButton\", \"state\", 0, plotData[fwTrending_PLOT_OBJECT_GRID][1]);
+//DebugN(\"Marker position\", plotData[fwTrending_PLOT_OBJECT_MARKER_TYPE][1]+1);
+		setValue(\"MarkerTypeComboBox\", \"selectedPos\", (int)plotData[fwTrending_PLOT_OBJECT_MARKER_TYPE][1]+1);
+   showLineSample(plotData[fwTrending_PLOT_OBJECT_CURVE_STYLE][1]);
+   setValue(\"cmFont\",\"toolTipText\",plotData[fwTrending_PLOT_OBJECT_DEFAULT_FONT][1]);
+   
+		g_AccessRightsRequired = plotData[fwTrending_PLOT_OBJECT_ACCESS_CONTROL_SAVE][1];
+		setValue(\"saveRights\", \"text\", g_AccessRightsRequired);
+		setValue(\"accessControlOn\", \"state\", 0, (g_AccessRightsRequired==\"\")?FALSE:TRUE);
+		fwEnableAcOptions(g_AccessRightsRequired!=\"\");
+		setValue(\"cmXaxiiFormat\", \"toolTipText\",  plotData[fwTrending_PLOT_OBJECT_AXII_X_FORMAT][1] + \" | \" +  plotData[fwTrending_PLOT_OBJECT_AXII_X_FORMAT][2]);
+
+    _dpesVal = plotData[fwTrending_PLOT_OBJECT_DPES];
+		_legendVal = plotData[fwTrending_PLOT_OBJECT_LEGENDS];
+   _legendValFormat = plotData[fwTrending_PLOT_OBJECT_LEGEND_VALUES_FORMAT];
+		_colorsVal = plotData[fwTrending_PLOT_OBJECT_COLORS];
+		_axiiVal = plotData[fwTrending_PLOT_OBJECT_AXII];
+   _curveScalePos = plotData[fwTrending_PLOT_OBJECT_AXII_POS];
+   _curveLinkedTo = plotData[fwTrending_PLOT_OBJECT_AXII_LINK];
+		_hiddenVal = plotData[fwTrending_PLOT_OBJECT_CURVES_HIDDEN];
+		_rangeMinVal = plotData[fwTrending_PLOT_OBJECT_RANGES_MIN];
+		_rangeMaxVal = plotData[fwTrending_PLOT_OBJECT_RANGES_MAX];
+		curveTypes = plotData[fwTrending_PLOT_OBJECT_CURVE_TYPES];
+    _scaleValFormat = plotData[fwTrending_PLOT_OBJECT_AXII_Y_FORMAT];
+   _showAlarmLimits = plotData[ fwTrending_PLOT_OBJECT_ALARM_LIMITS_SHOW];
+		
+		for( i = 1; (i <= fwTrending_MAX_NUM_CURVES) && (i <= dynlen(_dpesVal)); i++)
+		{
+			archiveCheckButtonInitialize(i);
+
+			switch(curveTypes[i])
+			{
+				case fwTrending_PLOT_TYPE_POINTS:
+					selectedPos = 1;
+					break;
+				case fwTrending_PLOT_TYPE_STEPS:
+					selectedPos = 2;
+					break;
+				case fwTrending_PLOT_TYPE_LINEAR:
+					selectedPos = 3;
+					break;
+				default:
+					break;
+			}
+			setValue(\"curveTypeCombo\" + i, \"selectedPos\", selectedPos);
+		
+			// dpes
+			if(dynlen(_dpesVal) >= i && _dpesVal[i] != \"\") 
+			{
+				position = strpos(_dpesVal[i], fwTrending_ON_VAL);
+				if(position >= 0)
+					_dpesVal[i] = substr(_dpesVal[i], 0, position);
+				setValue(\"DPTextField\" + i, \"text\", _dpesVal[i]);
+				setValue(\"ArchiveButton\" + i, \"enabled\", TRUE);
+			} 
+     else
+     {
+				setValue(\"DPTextField\" + i, \"text\", \"\");
+				setValue(\"ArchiveButton\" + i, \"enabled\", FALSE);
+				_hiddenVal[i] = FALSE;
+			}
+			dpeTextFieldCommand(i);
+			
+			// legend
+			if(dynlen(_legendVal) >= i) 
+				setValue(\"LegendTextField\" + i, \"text\", _legendVal[i]);
+			else
+				setValue(\"LegendTextField\" + i, \"text\", \"\");
+			legendTextFieldCommand(i);
+			
+			// legend value format
+			if(dynlen(_legendValFormat) >= i) 
+				setValue(\"cmLegendFormat\" + i, \"toolTipText\", _legendValFormat[i]);
+			else
+				setValue(\"cmLegendFormat\" + i, \"toolTipText\", \"\");
+			
+			// colors
+			if(dynlen(_colorsVal) >= i && _colorsVal[i] != \"\") 
+			{
+				setValue(\"ColorButton\" + i, \"backCol\", _colorsVal[i]);
+				if(lighter(_colorsVal[i], 300))
+					setValue(\"ColorButton\" + i, \"foreCol\", \"{0,0,0}\");
+				else
+					setValue(\"ColorButton\" + i, \"foreCol\", \"{255,255,255}\");
+			}
+			else 
+			{
+				setValue(\"ColorButton\" + i, \"foreCol\", \"{0,0,0}\");
+			}
+			
+			// axii
+			if((dynlen(_axiiVal) >= i) && _axiiVal[i])
+			{
+				setValue(\"axisOnCurve\" + i, \"visible\", TRUE);
+				setValue(\"axisOffCurve\" + i, \"visible\", FALSE);
+			}
+			else 
+			{
+				setValue(\"axisOnCurve\" + i, \"visible\", FALSE);
+				setValue(\"axisOffCurve\" + i, \"visible\", TRUE);
+			}
+							
+			// visibility
+			if((dynlen(_hiddenVal) >= i) && _hiddenVal[i])
+			{
+				setValue(\"curveVisible\" + i, \"visible\", FALSE);
+				setValue(\"curveNotVisible\" + i, \"visible\", TRUE);				
+				setValue(\"ckShowAlarmLimits\" + i, \"enabled\", FALSE);				
+			}
+			else
+			{
+				setValue(\"curveVisible\" + i, \"visible\", TRUE);
+				setValue(\"curveNotVisible\" + i, \"visible\", FALSE);				
+				setValue(\"ckShowAlarmLimits\" + i, \"enabled\", TRUE);				
+			}
+      
+     //scale position
+     if(dynlen(_curveScalePos) >= i)
+     {
+       setValue(\"scalePosRadioButton\"+ i,\"number\", _curveScalePos[i]-2);
+     }
+     
+     //scale link to
+     if(dynlen(_curveLinkedTo) >= i)
+     {
+       setValue(\"linkCurveCombo\"+ i,\"selectedPos\", _curveLinkedTo[i]+1);
+     }
+     
+     //scale values format
+     if(dynlen(_scaleValFormat) >= i)
+     {
+       setValue(\"cmScaleFormat\"+ i,\"toolTipText\", _scaleValFormat[i]);
+     }
+     
+     //alarm limits
+     if(dynlen(_showAlarmLimits) >= i)
+     {
+       setValue(\"ckShowAlarmLimits\"+ i,\"state\",0, _showAlarmLimits[i]);
+       if( _showAlarmLimits[i])
+       {
+      				setValue(\"RangeMinTextField\" + i, \"text\", 0);
+      				setValue(\"RangeMaxTextField\" + i, \"text\", 0);  
+       }       
+       else
+       {
+      			if(dynlen(_rangeMinVal) >= i)
+      				setValue(\"RangeMinTextField\" + i, \"text\", _rangeMinVal[i]);
+      			else
+      				setValue(\"RangeMinTextField\" + i, \"text\", 0);
+      
+      			if(dynlen(_rangeMaxVal) >= i)
+      				setValue(\"RangeMaxTextField\" + i, \"text\", _rangeMaxVal[i]);
+      			else
+      				setValue(\"RangeMaxTextField\" + i, \"text\", 0);         
+       }
+     }
+     setAutoIfLimitsOn(\"ckShowAlarmLimits\"+ i);
+    	autoRangeCheckButtonUpdate(i);
+     
+     
+		}
+//DebugN(curveTypes);
+		if(dynUnique(curveTypes) > 1)
+			PlotTypeComboBox.selectedPos = 4;
+		else
+		{
+			PlotTypeComboBox.selectedPos = curveTypeCombo1.selectedPos;
+			curveTypeCombo1.enabled = FALSE;
+			curveTypeCombo2.enabled = FALSE;
+			curveTypeCombo3.enabled = FALSE;
+			curveTypeCombo4.enabled = FALSE;
+			curveTypeCombo5.enabled = FALSE;
+			curveTypeCombo6.enabled = FALSE;
+			curveTypeCombo7.enabled = FALSE;
+			curveTypeCombo8.enabled = FALSE;
+		}
+	}
+
+  if(!isFunctionDefined(\"unGenericDpFunctionsHMI_setCallBack_user\")) 
+  {
+    //only show access control options if not UNICOS project
+      if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+          fwShowAcOptions(showAcOptions);
+  }
+  
+	if(isConnected)
+	{
+		// Access Control
+		if(isFunctionDefined(\"unGenericDpFunctionsHMI_setCallBack_user\")) 
+		{
+			unGenericDpFunctionsHMI_setCallBack_user(\"unGenericButtonFunctionsHMI_plotConfPanelselectCB\", iRes, exceptionInfo);
+                        TextFieldTitle.enabled(ButtonApply.visible());
+		}
+                else if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+                {
+                  fwAccessControl_setupPanel(\"checkHasSaveRights\", exceptionInfo);
+                }                 
+	}
+	else
+	{
+		ButtonOK.enabled = FALSE;
+		ButtonApply.enabled = FALSE;
+		saveAsButton.enabled = FALSE;
+
+		fwException_raise(exceptionInfo, \"ERROR\", \"The data point \\\"\" + plotName +
+											\"\\\" can not be edited because it is from a remote system which is currently unavailable\", \"\");
+	}
+	
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+// added by Herve
+customDpSelectorCB(string sDpe, string sCustomDpSelector)
+{
+	customDPSelector = sCustomDpSelector;
+}
+// end added by Herve
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E 0 1 1 0 1 E U  0 E 10 9 178 32
+0 2 0 "0s" 0 0 0 192 0 0  10 9 1
+1
+LANG:1 26 Arial,-1,19,5,69,0,0,0,0,0
+0 1
+LANG:1 18 Plot Configuration
+2 46
+"Text13"
+""
+1 863.9999999999996 1594 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 616.9999999999996 156 634 173
+0 2 0 "0s" 0 0 0 192 0 0  616.9999999999996 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 2 On
+2 132
+"Text1"
+""
+1 675 125 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 666 75 769 92
+0 2 0 "0s" 0 0 0 192 0 0  666 75 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 16 Background Color
+2 42
+"Text3"
+""
+1 35 154 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 37 156 71 173
+0 2 0 "0s" 0 0 0 192 0 0  37 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 4 Name
+2 43
+"Text4"
+""
+1 244 514 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 243 156 266 173
+0 2 0 "0s" 0 0 0 192 0 0  243 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 4 Text
+2 44
+"Text5"
+""
+1 471 874 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 432 156 462 173
+0 2 0 "0s" 0 0 0 192 0 0  432 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 5 Color
+2 213
+"TemplateText"
+""
+1 207 626 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 522 90 539
+0 2 0 "0s" 0 0 0 192 0 0  12 522 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 13 Plot Template
+2 215
+"InstructionsText"
+""
+1 4163 770 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+95 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 520 616 554
+0 2 0 "0s" 0 0 0 192 0 0  10 520 2
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 95 Template parameters can be defined in the plot title, dp elements and legends using {} brackets
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 105 e.g. System:{datapoint}.value  The template parameter values are passed to the plot when it is displayed.
+2 216
+"Text7"
+""
+1 1874 1744 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+96 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 518 156 557 173
+0 2 0 "0s" 0 0 0 192 0 0  518 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Visible
+2 229
+"Text8"
+""
+1 643.9999999999996 484 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+106 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 642.9999999999996 156 664 173
+0 2 0 "0s" 0 0 0 192 0 0  642.9999999999996 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 3 Min
+2 230
+"Text9"
+""
+1 809.9999999999996 624 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 692.9999999999996 156 718 173
+0 2 0 "0s" 0 0 0 192 0 0  692.9999999999996 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 3 Max
+2 252
+"TextTimeRange"
+""
+1 18 137 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+110 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 106 80 123
+0 2 0 "0s" 0 0 0 192 0 0  12 106 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 10 Time Range
+2 254
+"Text14"
+""
+1 146 437 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+111 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 142 106 170 123
+0 2 0 "0s" 0 0 0 192 0 0  142 106 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 4 days
+2 255
+"Text15"
+""
+1 237 436 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+112 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 232 106 264 123
+0 2 0 "0s" 0 0 0 192 0 0  232 106 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 5 hours
+2 257
+"Text16"
+""
+1 331 436 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+113 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 322 106 343 123
+0 2 0 "0s" 0 0 0 192 0 0  322 106 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 3 min
+2 260
+"TextTemplate"
+""
+1 633 96 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+115 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 630 45 685 62
+0 2 0 "0s" 0 0 0 192 0 0  630 45 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 8 Based on
+30 265
+"Frame1"
+""
+1 10 132 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+120 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.330532212885154 0 1.05050505050505 -3.305322128851543 -3.616161616161605 0 E 10 32 725 132
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0 1
+LANG:1 0 
+30 266
+"Frame2"
+""
+1 380 420 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+121 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.317829457364341 0 1 -70.77519379844961 0 0 E 380 140 510 420
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 5 Curve
+30 267
+"Frame3"
+""
+1 1014 680 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+122 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.818181818181818 0 1 -317.2727272727278 0 0 E 510 140 665 420
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Y Axis
+2 272
+"ApplyToAllText"
+""
+1 1810 1058 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+127 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 640 520 794 554
+0 2 0 "0s" 0 0 0 192 0 0  640 520 2
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 27 Apply changes to all plots 
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 18 based on this one.
+30 273
+"Frame5"
+""
+1 665 420 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+128 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 235 0 0 E 665 140 725 420
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Archive
+2 274
+"Text6"
+""
+1 2175 1434 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+129 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 920 156 946 173
+0 2 0 "0s" 0 0 0 192 0 0  920 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 4 Conf
+2 276
+"Text11"
+""
+1 1580 824 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+131 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 730.9999999999996 156 758 173
+0 2 0 "0s" 0 0 0 192 0 0  730.9999999999996 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 4 Auto
+2 289
+"Text17"
+""
+1 512 874 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+142 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 475 156 502 173
+0 2 0 "0s" 0 0 0 192 0 0  475 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 4 Type
+2 347
+"Text18"
+""
+1 819 125 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+197 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 814 75 913 92
+0 2 0 "0s" 0 0 0 192 0 0  814 75 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 16 Foreground Color
+30 352
+"Frame4"
+""
+1 10 470 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+201 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.330532212885154 0 2.06451612903226 -3.30532212885154 -453.2903225806459 0 E 10 423 725 470
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 29 Global Settings for this plot
+13 355
+"GlobalCurveIndividualButton"
+""
+1 526 440 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+356 0 0 0 0 0
+E E E
+0
+1
+LANG:1 22 Set all curves visible
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 438 552 466
+
+P 
+4294967295
+"pictures/eyeCrossed.xpm"
+1
+LANG:1 0 
+"const int BUTTON = 1;
+
+main() 
+{
+	visibleCheckButtonGlobal(BUTTON);
+}" 0
+ E E E
+13 327
+"axisOffCurve4"
+""
+1 613.9999999999996 271 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+292 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 269 636 296
+
+P 
+4294967295
+"pictures/scaleCrossed.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 4;
+
+main() 
+{
+	axisCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 321
+"axisOffCurve1"
+""
+1 613.9999999999996 180 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+249 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 178 636 205
+
+P 
+4294967295
+"pictures/scaleCrossed.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 1;
+
+main() 
+{
+	axisCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 323
+"axisOffCurve2"
+""
+1 613.9999999999996 211 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+263 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 209 636 236
+
+P 
+4294967295
+"pictures/scaleCrossed.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 2;
+
+main() 
+{
+	axisCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 309
+"curveNotVisible4"
+""
+1 526 271 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+289 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 269 552 297
+
+P 
+4294967295
+"pictures/eyeCrossed.xpm"
+1
+LANG:1 0 
+"const int NUM = 4;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 308
+"curveNotVisible3"
+""
+1 526 241 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+275 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 239 552 267
+
+P 
+4294967295
+"pictures/eyeCrossed.xpm"
+1
+LANG:1 0 
+"const int NUM = 3;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 305
+"curveNotVisible2"
+""
+1 526 211 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+261 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 209 552 237
+
+P 
+4294967295
+"pictures/eyeCrossed.xpm"
+1
+LANG:1 0 
+"const int NUM = 2;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 302
+"curveNotVisible1"
+""
+1 526 180 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+246 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 178 552 206
+
+P 
+4294967295
+"pictures/eyeCrossed.xpm"
+1
+LANG:1 0 
+"const int NUM = 1;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 306
+"curveVisible2"
+""
+1 526 211 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+260 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 209 552 237
+
+P 
+4294967295
+"pictures/eye.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 2;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 299
+"curveVisible1"
+""
+1 526 180 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+245 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 178 552 206
+
+P 
+4294967295
+"pictures/eye.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 1;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+22 249
+"PlotTypeComboBox"
+""
+1 440 440 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+355 0 0 0 0 0
+E E E
+0
+1
+LANG:1 29 Set curve type for all curves
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  438 438 527 465
+4
+1
+LANG:1 6 Points
+
+0
+1
+LANG:1 5 Steps
+
+0
+1
+LANG:1 6 Linear
+
+0
+1
+LANG:1 10 Individual
+
+1
+
+E
+"main()
+{
+	int i;
+	switch(this.selectedPos) 
+	{
+		case 1: 
+		case 2: 
+		case 3: 
+			for(i=1; i<=8; i++)
+				setValue(\"curveTypeCombo\"+i,\"selectedPos\",this.selectedPos);
+			enableIndividualCurveTypes(FALSE);
+			break;
+		case 4: 
+			enableIndividualCurveTypes(TRUE);
+			break;				
+	}
+}" 0
+
+E
+ 0 0
+20 212
+"LegendCheckButton"
+""
+1 4814 283 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+237 0 0 0 0 0
+E E E
+0
+1
+LANG:1 45 Show/hide curve names at the top of the trend
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  725 101 796 125
+1
+T 
+1
+LANG:1 7  Legend
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE13 131
+"ButtonBackgroundColor"
+""
+1 913 210 E E E 1 E 1 E N "_3DText" E N "FwTrendingTrendBackground" E E
+ E E
+232 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  778 68 812 92
+
+T 
+1
+LANG:1 0 
+"main() 
+{
+	string color;
+	color = this.backCol;
+	colorEditor(color);
+	this.backCol = color;
+}" 0
+ E E E
+14 3
+"TextFieldTitle"
+""
+1 80 74 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+231 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  78 72 422 99
+3 "0s" 0 0 0 0 0 -1  E E E
+14 2
+"TextFieldName"
+""
+1 80 44 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+171 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  78 42 422 69
+3 "0s" 0 0 0 0 0 -1  E E E
+20 147
+"ArchiveCheckButton1"
+""
+1 1516 360 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+253 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  904 178 918 202
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 168
+"ArchiveCheckButton2"
+""
+1 1516 391 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+267 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  904 209 918 233
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 175
+"ArchiveCheckButton3"
+""
+1 1516 421 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+281 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  904 239 918 263
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 182
+"ArchiveCheckButton4"
+""
+1 1516 451 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+296 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  904 269 918 293
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 189
+"ArchiveCheckButton5"
+""
+1 1516 481 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+310 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  904 299 918 323
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 203
+"ArchiveCheckButton7"
+""
+1 1516 542 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+338 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  904 360 918 384
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 210
+"ArchiveCheckButton8"
+""
+1 1516 563 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+352 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  904 390 918 413
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 196
+"ArchiveCheckButton6"
+""
+1 1516 512 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+324 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  904 330 918 354
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE14 35
+"DPTextField1"
+""
+1 37 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+240 0 0 0 0 0
+E "const int NUM = 1;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}
+" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  35 178 189 205
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 1;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+
+13 38
+"DPEButton1"
+""
+1 425 540 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+241 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  188 178 212 202
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 1;
+
+main() {
+	dpeButtonClick(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E E E
+14 36
+"LegendTextField1"
+""
+1 246.6435742971888 556 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+242 0 0 0 0 0
+E "const int NUM = 1;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  239 178 388 205
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 1;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+
+13 37
+"ColorButton1"
+""
+1 433 180 E E E 1 E 1 E N "_3DText" E N "FwTrendingCurve1" E E
+ E E
+243 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  431 178 455 205
+
+T 
+1
+LANG:1 0 
+"const int NUM = 1;
+
+main() {
+	colorButtonClick(NUM);
+}" 0
+ E E E
+14 233
+"RangeMinTextField1"
+""
+1 640.9999999999996 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+250 0 0 0 0 0
+E "const int NUM = 1;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  639 178 688 205
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 1;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}
+" 0
+
+14 234
+"RangeMaxTextField1"
+""
+1 1725 390 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+251 0 0 0 0 0
+E "const int NUM = 1;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  688 178 737 205
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 1;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+
+13 41
+"ArchiveButton1"
+""
+1 1168 540 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+254 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  921 178 945 202
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 1;
+
+main() {
+	archiveButtonClick(NUM);
+}" 0
+ E E E
+14 162
+"DPTextField2"
+""
+1 37 211 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+255 0 0 0 0 0
+E "const int NUM = 2;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  35 209 189 236
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 2;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+
+13 165
+"DPEButton2"
+""
+1 425 571 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+256 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  188 209 212 233
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 2;
+
+main() {
+	dpeButtonClick(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E E E
+14 163
+"LegendTextField2"
+""
+1 246.6435742971888 587 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+257 0 0 0 0 0
+E "const int NUM = 2;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  239 209 388 236
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 2;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+
+13 164
+"ColorButton2"
+""
+1 433 211 E E E 1 E 1 E N "_3DText" E N "FwTrendingCurve2" E E
+ E E
+258 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  431 209 455 236
+
+T 
+1
+LANG:1 0 
+"const int NUM = 2;
+
+main() {
+	colorButtonClick(NUM);
+}" 0
+ E E E
+14 235
+"RangeMinTextField2"
+""
+1 640.9999999999996 211 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+264 0 0 0 0 0
+E "const int NUM = 2;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}
+" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  639 209 688 236
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 2;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}
+" 0
+
+14 236
+"RangeMaxTextField2"
+""
+1 1727 421 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+265 0 0 0 0 0
+E "const int NUM = 2;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  690 209 739 236
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 2;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}
+" 0
+
+13 167
+"ArchiveButton2"
+""
+1 1168 571 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+268 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  921 209 945 233
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 2;
+
+main() {
+	archiveButtonClick(NUM);
+}" 0
+ E E E
+14 169
+"DPTextField3"
+""
+1 37 241 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+269 0 0 0 0 0
+E "const int NUM = 3;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  35 239 189 266
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 3;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+
+13 172
+"DPEButton3"
+""
+1 425 601 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+270 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  188 239 212 263
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 3;
+
+main() {
+	dpeButtonClick(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E E E
+14 170
+"LegendTextField3"
+""
+1 246.6435742971888 617 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+271 0 0 0 0 0
+E "const int NUM = 3;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  239 239 388 266
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 3;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+
+13 171
+"ColorButton3"
+""
+1 433 241 E E E 1 E 1 E N "_3DText" E N "FwTrendingCurve3" E E
+ E E
+272 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  431 239 455 266
+
+T 
+1
+LANG:1 0 
+"const int NUM = 3;
+
+main() {
+	colorButtonClick(NUM);
+}" 0
+ E E E
+14 237
+"RangeMinTextField3"
+""
+1 640.9999999999996 241 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+278 0 0 0 0 0
+E "const int NUM = 3;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  639 239 688 266
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 3;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}
+" 0
+
+14 238
+"RangeMaxTextField3"
+""
+1 1727 451 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+279 0 0 0 0 0
+E "const int NUM = 3;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  690 239 739 266
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 3;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}
+" 0
+
+13 174
+"ArchiveButton3"
+""
+1 1168 601 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+282 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  921 239 945 263
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 3;
+
+main() {
+	archiveButtonClick(NUM);
+}" 0
+ E E E
+14 176
+"DPTextField4"
+""
+1 37 271 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+283 0 0 0 0 0
+E "const int NUM = 4;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  35 269 189 296
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 4;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+
+13 179
+"DPEButton4"
+""
+1 425 631 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+284 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  188 269 212 293
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 4;
+
+main() {
+	dpeButtonClick(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E E E
+14 177
+"LegendTextField4"
+""
+1 246.6435742971888 647 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+285 0 0 0 0 0
+E "const int NUM = 4;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  239 269 388 296
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 4;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+
+13 178
+"ColorButton4"
+""
+1 433 271 E E E 1 E 1 E N "_3DText" E N "FwTrendingCurve4" E E
+ E E
+286 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  431 269 455 296
+
+T 
+1
+LANG:1 0 
+"const int NUM = 4;
+
+main() {
+	colorButtonClick(NUM);
+}" 0
+ E E E
+14 239
+"RangeMinTextField4"
+""
+1 640.9999999999996 271 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+293 0 0 0 0 0
+E "const int NUM = 4;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  639 269 688 296
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 4;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}
+" 0
+
+14 240
+"RangeMaxTextField4"
+""
+1 1727 481 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+294 0 0 0 0 0
+E "const int NUM = 4;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  690 269 739 296
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 4;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}
+" 0
+
+13 181
+"ArchiveButton4"
+""
+1 1168 631 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+297 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  921 269 945 293
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 4;
+
+main() {
+	archiveButtonClick(NUM);
+}" 0
+ E E E
+14 183
+"DPTextField5"
+""
+1 37 301 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+298 0 0 0 0 0
+E "const int NUM = 5;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  35 299 189 326
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 5;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+
+13 186
+"DPEButton5"
+""
+1 425 661 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+299 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  188 299 212 323
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 5;
+
+main() {
+	dpeButtonClick(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E E E
+14 184
+"LegendTextField5"
+""
+1 246.6435742971888 677 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+300 0 0 0 0 0
+E "const int NUM = 5;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  239 299 388 326
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 5;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+
+13 185
+"ColorButton5"
+""
+1 433 301 E E E 1 E 1 E N "_3DText" E N "FwTrendingCurve5" E E
+ E E
+301 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  431 299 455 326
+
+T 
+1
+LANG:1 0 
+"const int NUM = 5;
+
+main() {
+	colorButtonClick(NUM);
+}" 0
+ E E E
+14 241
+"RangeMinTextField5"
+""
+1 640.9999999999996 301 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+307 0 0 0 0 0
+E "const int NUM = 5;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  639 299 688 326
+3 "0s" 0 0 0 2 0 -1  "const int NUM = 5;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+ E E
+14 242
+"RangeMaxTextField5"
+""
+1 1727 511 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+308 0 0 0 0 0
+E "const int NUM = 5;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}
+" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  690 299 739 326
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 5;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}
+" 0
+
+13 188
+"ArchiveButton5"
+""
+1 1168 661 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+311 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  921 299 945 323
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 5;
+
+main() {
+	archiveButtonClick(NUM);
+}" 0
+ E E E
+14 190
+"DPTextField6"
+""
+1 37 332 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+312 0 0 0 0 0
+E "const int NUM = 6;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  35 330 189 357
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 6;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+
+13 193
+"DPEButton6"
+""
+1 425 692 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+313 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  188 330 212 354
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 6;
+
+main() {
+	dpeButtonClick(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E E E
+14 191
+"LegendTextField6"
+""
+1 246.6435742971888 708 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+314 0 0 0 0 0
+E "const int NUM = 6;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  239 330 388 357
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 6;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+
+13 192
+"ColorButton6"
+""
+1 433 332 E E E 1 E 1 E N "_3DText" E N "FwTrendingCurve6" E E
+ E E
+315 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  431 330 455 357
+
+T 
+1
+LANG:1 0 
+"const int NUM = 6;
+
+main() {
+	colorButtonClick(NUM);
+}" 0
+ E E E
+14 243
+"RangeMinTextField6"
+""
+1 640.9999999999996 332 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+321 0 0 0 0 0
+E "const int NUM = 6;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  639 330 688 357
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 6;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}
+" 0
+
+14 244
+"RangeMaxTextField6"
+""
+1 1727 542 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+322 0 0 0 0 0
+E "const int NUM = 6;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}
+" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  690 330 739 357
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 6;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}
+" 0
+
+13 195
+"ArchiveButton6"
+""
+1 1168 692 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+325 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  921 330 945 354
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 6;
+
+main() {
+	archiveButtonClick(NUM);
+}" 0
+ E E E
+14 197
+"DPTextField7"
+""
+1 37 362 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+326 0 0 0 0 0
+E "const int NUM = 7;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  35 360 189 387
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 7;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+
+13 200
+"DPEButton7"
+""
+1 425 722 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+327 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  188 360 212 384
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 7;
+
+main() {
+	dpeButtonClick(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E E E
+14 198
+"LegendTextField7"
+""
+1 246.6435742971888 738 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+328 0 0 0 0 0
+E "const int NUM = 7;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  239 360 388 387
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 7;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+
+13 199
+"ColorButton7"
+""
+1 433 362 E E E 1 E 1 E N "_3DText" E N "FwTrendingCurve7" E E
+ E E
+329 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  431 360 455 387
+
+T 
+1
+LANG:1 0 
+"const int NUM = 7;
+
+main() {
+	colorButtonClick(NUM);
+}" 0
+ E E E
+14 245
+"RangeMinTextField7"
+""
+1 640.9999999999996 362 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+335 0 0 0 0 0
+E "const int NUM = 7;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  639 360 688 387
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 7;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}
+" 0
+
+14 246
+"RangeMaxTextField7"
+""
+1 1727 572 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+336 0 0 0 0 0
+E "const int NUM = 7;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  690 360 739 387
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 7;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}
+" 0
+
+13 202
+"ArchiveButton7"
+""
+1 1168 722 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+339 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  921 360 945 384
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 7;
+
+main() {
+	archiveButtonClick(NUM);
+}" 0
+ E E E
+14 204
+"DPTextField8"
+""
+1 37 392 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+340 0 0 0 0 0
+E "const int NUM = 8;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  35 390 189 417
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 8;
+
+main() {
+	dpeTextFieldCommand(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+
+13 207
+"DPEButton8"
+""
+1 425 734 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+341 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  188 390 212 413
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 8;
+
+main() {
+	dpeButtonClick(NUM);
+	legendTextFieldFillByDP(NUM);
+}" 0
+ E E E
+14 205
+"LegendTextField8"
+""
+1 246.6435742971888 768 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+342 0 0 0 0 0
+E "const int NUM = 8;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  239 390 388 417
+3 "0s" 0 0 0 0 0 -1  E E "const int NUM = 8;
+
+main() {
+	legendTextFieldCommand(NUM);
+}" 0
+
+13 206
+"ColorButton8"
+""
+1 433 392 E E E 1 E 1 E N "_3DText" E N "FwTrendingCurve8" E E
+ E E
+343 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  431 390 455 416
+
+T 
+1
+LANG:1 0 
+"const int NUM = 8;
+
+main() {
+	colorButtonClick(NUM);
+}" 0
+ E E E
+14 247
+"RangeMinTextField8"
+""
+1 640.9999999999996 392 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+349 0 0 0 0 0
+E "const int NUM = 8;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}
+" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  639 390 688 417
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 8;
+main()
+{
+	rangeMinTextFieldCommand(NUM);
+}" 0
+
+14 248
+"RangeMaxTextField8"
+""
+1 1727 602 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+350 0 0 0 0 0
+E "const int NUM = 8;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  690 390 739 417
+3 "0s" 0 0 0 2 0 -1  E E "const int NUM = 8;
+main()
+{
+	rangeMaxTextFieldCommand(NUM);
+}
+" 0
+
+13 209
+"ArchiveButton8"
+""
+1 1168 734 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+353 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  921 390 945 413
+
+T 
+1
+LANG:1 3 ...
+"const int NUM = 8;
+
+main() {
+	archiveButtonClick(NUM);
+}" 0
+ E E E
+13 0
+"ButtonOK"
+""
+1 670 560 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+369 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  668 558 762 592
+
+T 
+1
+LANG:1 2 OK
+"main() 
+{
+	ApplyCancelOKButtonClick(\"OK\");
+}" 0
+ E E E
+13 22
+"ButtonCancel"
+""
+1 870 560 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+371 0 0 0 27 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  868 558 962 592
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	ApplyCancelOKButtonClick(\"Cancel\");
+}" 0
+ E E E
+20 214
+"TemplateCheckButton"
+""
+1 1100 810 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+372 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  98 518 112 542
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	dpSet(plotName + fwTrending_PLOT_IS_TEMPLATE + fwTrending_ORIG_VAL, state);
+}" 0
+14 259
+"TextFieldTemplate"
+""
+1 780 123 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+373 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  696 41 950 68
+3 "0s" 0 0 0 0 0 -1  E E E
+20 269
+"ApplyToAllCheckButton"
+""
+1 659 470 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+374 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0  657 468 671 492
+1
+T 
+1
+LANG:1 12 CheckButton2
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 275
+"AutoRangeCheckButton1"
+""
+1 2134 590 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+252 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  742 178 756 202
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"const int NUM = 1;
+main(int button, bool state)
+{
+	autoRangeCheckButtonClick(NUM, state);
+}" 0
+20 277
+"AutoRangeCheckButton2"
+""
+1 2884 851 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+266 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  742 209 756 233
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"const int NUM = 2;
+main(int button, bool state)
+{
+	autoRangeCheckButtonClick(NUM, state);
+}
+" 0
+20 278
+"AutoRangeCheckButton3"
+""
+1 3634 1141 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+280 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  742 239 756 263
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"const int NUM = 3;
+main(int button, bool state)
+{
+	autoRangeCheckButtonClick(NUM, state);
+}
+" 0
+20 279
+"AutoRangeCheckButton4"
+""
+1 4384 1461 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+295 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  742 269 756 293
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"const int NUM = 4;
+main(int button, bool state)
+{
+	autoRangeCheckButtonClick(NUM, state);
+}" 0
+20 280
+"AutoRangeCheckButton5"
+""
+1 5134 1811 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+309 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  742 299 756 323
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"const int NUM = 5;
+main(int button, bool state)
+{
+	autoRangeCheckButtonClick(NUM, state);
+}
+" 0
+20 281
+"AutoRangeCheckButton6"
+""
+1 5884 2192 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+323 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  742 330 756 354
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"const int NUM = 6;
+main(int button, bool state)
+{
+	autoRangeCheckButtonClick(NUM, state);
+}
+" 0
+20 282
+"AutoRangeCheckButton7"
+""
+1 6634 2602 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+337 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  742 360 756 384
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"const int NUM = 7;
+main(int button, bool state)
+{
+	autoRangeCheckButtonClick(NUM, state);
+}
+" 0
+20 283
+"AutoRangeCheckButton8"
+""
+1 7384 2909 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+351 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  742 390 756 413
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"const int NUM = 8;
+main(int button, bool state)
+{
+	autoRangeCheckButtonClick(NUM, state);
+}
+" 0
+20 284
+"LogScaleButton"
+""
+1 874 103 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+239 0 0 0 0 0
+E E E
+0
+1
+LANG:1 24 Toggle logarithmic scale
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  872 101 956 125
+1
+T 
+1
+LANG:1 9 Log scale
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE22 291
+"curveTypeCombo1"
+""
+1 455 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+244 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  453 178 527 205
+3
+1
+LANG:1 6 Points
+
+0
+1
+LANG:1 5 Steps
+
+1
+1
+LANG:1 6 Linear
+
+0
+
+E
+"int curveNum = 1;
+
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 292
+"curveTypeCombo2"
+""
+1 455 211 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+259 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  453 209 527 236
+3
+1
+LANG:1 6 Points
+
+0
+1
+LANG:1 5 Steps
+
+1
+1
+LANG:1 6 Linear
+
+0
+
+E
+"int curveNum = 2;
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 293
+"curveTypeCombo3"
+""
+1 455 241 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+273 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  453 239 527 266
+3
+1
+LANG:1 6 Points
+
+0
+1
+LANG:1 5 Steps
+
+1
+1
+LANG:1 6 Linear
+
+0
+
+E
+"int curveNum = 3;
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 294
+"curveTypeCombo4"
+""
+1 455 271 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+287 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  453 269 527 296
+3
+1
+LANG:1 6 Points
+
+0
+1
+LANG:1 5 Steps
+
+1
+1
+LANG:1 6 Linear
+
+0
+
+E
+"int curveNum = 4;
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 295
+"curveTypeCombo5"
+""
+1 455 301 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+302 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  453 299 527 326
+3
+1
+LANG:1 6 Points
+
+0
+1
+LANG:1 5 Steps
+
+1
+1
+LANG:1 6 Linear
+
+0
+
+"main()
+{
+
+}" 0
+
+"int curveNum = 5;
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 296
+"curveTypeCombo6"
+""
+1 455 332 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+316 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  453 330 527 357
+3
+1
+LANG:1 6 Points
+
+0
+1
+LANG:1 5 Steps
+
+1
+1
+LANG:1 6 Linear
+
+0
+
+E
+"int curveNum = 6;
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 297
+"curveTypeCombo7"
+""
+1 455 362 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+330 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  453 360 527 387
+3
+1
+LANG:1 6 Points
+
+0
+1
+LANG:1 5 Steps
+
+1
+1
+LANG:1 6 Linear
+
+0
+
+E
+"int curveNum = 7;
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 298
+"curveTypeCombo8"
+""
+1 455 392 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+344 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  453 390 527 417
+3
+1
+LANG:1 6 Points
+
+0
+1
+LANG:1 5 Steps
+
+1
+1
+LANG:1 6 Linear
+
+0
+
+E
+"int curveNum = 8;
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+13 310
+"curveNotVisible5"
+""
+1 526 301 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+304 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 299 552 327
+
+P 
+4294967295
+"pictures/eyeCrossed.xpm"
+1
+LANG:1 0 
+"const int NUM = 5;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 311
+"curveNotVisible6"
+""
+1 526 332 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+318 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 330 552 358
+
+P 
+4294967295
+"pictures/eyeCrossed.xpm"
+1
+LANG:1 0 
+"const int NUM = 6;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 312
+"curveNotVisible7"
+""
+1 526 362 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+332 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 360 552 388
+
+P 
+4294967295
+"pictures/eyeCrossed.xpm"
+1
+LANG:1 0 
+"const int NUM = 7;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 314
+"curveVisible3"
+""
+1 526 241 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+274 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 239 552 267
+
+P 
+4294967295
+"pictures/eye.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 3;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 315
+"curveVisible4"
+""
+1 526 271 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+288 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 269 552 297
+
+P 
+4294967295
+"pictures/eye.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 4;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 316
+"curveVisible5"
+""
+1 526 301 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+303 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 299 552 327
+
+P 
+4294967295
+"pictures/eye.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 5;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 317
+"curveVisible6"
+""
+1 526 332 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+317 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 330 552 358
+
+P 
+4294967295
+"pictures/eye.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 6;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 318
+"curveVisible7"
+""
+1 526 362 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+331 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 360 552 388
+
+P 
+4294967295
+"pictures/eye.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 7;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 320
+"axisOnCurve1"
+""
+1 613.9999999999996 180 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+247 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 178 636 205
+
+P 
+4294967295
+"pictures/scale.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 1;
+
+main() 
+{
+	axisCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 320
+"axisOnCurve2"
+""
+1 613.9999999999996 211 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+171 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 209 636 236
+
+P 
+4294967295
+"pictures/scale.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 2;
+
+main() 
+{
+	axisCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 325
+"axisOffCurve3"
+""
+1 613.9999999999996 241 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+277 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 239 636 266
+
+P 
+4294967295
+"pictures/scaleCrossed.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 3;
+
+main() 
+{
+	axisCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 329
+"axisOffCurve5"
+""
+1 613.9999999999996 301 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+306 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 299 636 326
+
+P 
+4294967295
+"pictures/scaleCrossed.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 5;
+
+main() 
+{
+	axisCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 331
+"axisOffCurve6"
+""
+1 613.9999999999996 332 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+320 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 330 636 357
+
+P 
+4294967295
+"pictures/scaleCrossed.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 6;
+
+main() 
+{
+	axisCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 333
+"axisOffCurve7"
+""
+1 613.9999999999996 362 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+334 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 360 636 387
+
+P 
+4294967295
+"pictures/scaleCrossed.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 7;
+
+main() 
+{
+	axisCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 338
+"axisOnCurve4"
+""
+1 613.9999999999996 271 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+291 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 269 636 296
+
+P 
+4294967295
+"pictures/scale.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 4;
+
+main() 
+{
+	axisCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 339
+"axisOnCurve5"
+""
+1 613.9999999999996 301 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+305 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 299 636 326
+
+P 
+4294967295
+"pictures/scale.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 5;
+
+main() 
+{
+	axisCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 324
+"axisOnCurve3"
+""
+1 613.9999999999996 241 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+276 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 239 636 267
+
+P 
+4294967295
+"pictures/scale.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 3;
+
+main() 
+{
+	axisCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 322
+"axisOnCurve6"
+""
+1 613.9999999999996 332 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+319 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 330 636 357
+
+P 
+4294967295
+"pictures/scale.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 6;
+
+main() 
+{
+	axisCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 328
+"axisOnCurve7"
+""
+1 613.9999999999996 362 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+333 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 360 636 387
+
+P 
+4294967295
+"pictures/scale.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 7;
+
+main() 
+{
+	axisCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+21 343
+"daysSpinButton"
+""
+1 88 104 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+234 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  86 102 140 127
+0
+
+E
+E
+E
+
+N 0 365 1 0 1 1
+21 345
+"hoursSpinButton"
+""
+1 178 104 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+235 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  176 102 230 127
+0
+
+E
+E
+E
+
+N 0 23 1 0 1 1
+21 346
+"minutesSpinButton"
+""
+1 268 104 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+236 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  266 102 320 127
+0
+
+E
+E
+E
+
+N 0 59 1 0 1 1
+13 348
+"ButtonForegroundColor"
+""
+1 1051 210 E E E 1 E 1 E N "_3DText" E N "FwTrendingTrendForeground" E E
+ E E
+233 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  916 68 950 92
+
+T 
+1
+LANG:1 0 
+"main() 
+{
+	string color;
+	color = this.backCol;
+	colorEditor(color);
+	this.backCol = color;
+}" 0
+ E E E
+13 356
+"GlobalAxisHiddenButton"
+""
+1 613.9999999999996 440 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+361 0 0 0 0 0
+E E E
+0
+1
+LANG:1 15 Show all y axis
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 438 636 465
+
+P 
+4294967295
+"pictures/scaleCrossed.xpm"
+1
+LANG:1 0 
+"const int BUTTON = 3;
+
+main() 
+{
+	axisCheckButtonGlobal(BUTTON);
+}
+" 0
+ E E E
+13 357
+"GlobalAxisVisibleButton"
+""
+1 613.9999999999996 440 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+360 0 0 0 0 0
+E E E
+0
+1
+LANG:1 14 Show no y axis
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 438 636 465
+
+P 
+4294967295
+"pictures/scale.xpm"
+1
+LANG:1 0 
+"const int BUTTON = 2;
+
+main() 
+{
+	axisCheckButtonGlobal(BUTTON);
+}
+" 0
+ E E E
+13 358
+"GlobalAxisIndividualButton"
+""
+1 613.9999999999996 440 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+359 0 0 0 0 0
+E E E
+0
+1
+LANG:1 15 Show all y axis
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 438 636 465
+
+P 
+4294967295
+"pictures/scaleCrossed.xpm"
+1
+LANG:1 0 
+"const int BUTTON = 1;
+
+main() 
+{
+	axisCheckButtonGlobal(BUTTON);
+}
+" 0
+ E E E
+13 359
+"ButtonApply"
+""
+1 770 560 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+370 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  768 558 862 592
+
+T 
+1
+LANG:1 5 Apply
+"main() 
+{
+	ApplyCancelOKButtonClick(\"Apply\");
+}" 0
+ E E E
+13 361
+"curveNotVisible8"
+""
+1 526 392 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+346 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 390 552 417
+
+P 
+4294967295
+"pictures/eyeCrossed.xpm"
+1
+LANG:1 0 
+"const int NUM = 8;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 362
+"curveVisible8"
+""
+1 526 392 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+345 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 390 552 417
+
+P 
+4294967295
+"pictures/eye.xpm"
+1
+LANG:1 0 
+"//Function CurveVisibleCheckButton1_EventClick()
+const int NUM = 8;
+
+main() 
+{
+	visibleCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+13 363
+"axisOffCurve8"
+""
+1 613.9999999999996 392 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+348 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 390 636 416
+
+P 
+4294967295
+"pictures/scaleCrossed.xpm"
+1
+LANG:1 0 
+"const int NUM = 8;
+
+main() 
+{
+	axisCheckButtonClick(NUM, TRUE);
+}" 0
+ E E E
+13 364
+"axisOnCurve8"
+""
+1 613.9999999999996 392 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+347 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  612 390 636 416
+
+P 
+4294967295
+"pictures/scale.xpm"
+1
+LANG:1 0 
+"const int NUM = 8;
+
+main() 
+{
+	axisCheckButtonClick(NUM, FALSE);
+}" 0
+ E E E
+20 365
+"GridButton"
+""
+1 814 103 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+238 0 0 0 0 0
+E E E
+0
+1
+LANG:1 14 Show/hide grid
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  812 101 868 125
+1
+T 
+1
+LANG:1 4 Grid
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE14 366
+"RangeMinTextField9"
+""
+1 641.9999999999996 440 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+362 0 0 0 0 0
+E "main()
+{
+	int i;
+	shape textField;
+
+	if(this.text == \"\")
+		return;
+
+	for(i=1; i<=(fwTrending_MAX_NUM_CURVES+1); i++)
+	{
+		textField = getShape(\"RangeMinTextField\" + i);
+		textField.text = this.text;
+		rangeMinTextFieldCommand(i);
+	}
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  640 438 689 465
+3 "0s" 0 0 0 2 0 -1  E E "main()
+{
+	int i;
+	shape textField;
+
+	if(this.text == \"\")
+		return;
+
+	for(i=1; i<=(fwTrending_MAX_NUM_CURVES+1); i++)
+	{
+		textField = getShape(\"RangeMinTextField\" + i);
+		textField.text = this.text;
+		rangeMinTextFieldCommand(i);
+	}
+}" 0
+
+14 367
+"RangeMaxTextField9"
+""
+1 1727 650 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+363 0 0 0 0 0
+E "main()
+{
+	int i;
+	shape textField;
+
+	if(this.text == \"\")
+		return;
+
+	for(i=1; i<=(fwTrending_MAX_NUM_CURVES+1); i++)
+	{
+		textField = getShape(\"RangeMaxTextField\" + i);
+		textField.text = this.text;
+		rangeMaxTextFieldCommand(i);
+	}
+}" 0
+ E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  690 438 739 465
+3 "0s" 0 0 0 2 0 -1  E E "main()
+{
+	int i;
+	shape textField;
+
+	if(this.text == \"\")
+		return;
+
+	for(i=1; i<=(fwTrending_MAX_NUM_CURVES+1); i++)
+	{
+		textField = getShape(\"RangeMaxTextField\" + i);
+		textField.text = this.text;
+		rangeMaxTextFieldCommand(i);
+	}
+}" 0
+
+20 368
+"AutoRangeCheckButton9"
+""
+1 7384 2957 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+364 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  742 438 756 461
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	int i;
+	shape checkButton;
+
+	for(i=1; i<=8; i++)
+	{
+		checkButton = getShape(\"AutoRangeCheckButton\" + i);
+		checkButton.state(0, state);
+		autoRangeCheckButtonClick(i, state);
+	}
+}
+" 0
+13 369
+"saveAsButton"
+""
+1 150 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+368 0 0 0 0 0
+E E E
+0
+1
+LANG:1 91 Set these settings as default. They will be used as default next time a new plot is created
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  148 558 302 592
+
+T 
+1
+LANG:1 23 Set as default settings
+"main() 
+{
+	bool isFromDp, newDp = FALSE;
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	dyn_dyn_string plotData;
+
+	CheckInput(exceptionInfo);
+	if(dynlen(exceptionInfo)>0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+  ChildPanelOnCentralModalReturn(\"vision/MessageInfo\", \"Set as default?\",
+										makeDynString(	\"Save current setting as default settings? They will be applied when a new plot will be created.\",
+														\"Ok\",
+														\"Cancel\"),
+										df, ds); 
+	if(ds[1])
+	{
+		ReadInput(plotData, exceptionInfo);
+		if(!dpExists(fwTrending_PLOT_DEFAULTS))
+		{
+			fwTrending_createPlot(fwTrending_PLOT_DEFAULTS, exceptionInfo);
+			newDp = TRUE;
+		}
+   plotData[fwTrending_PLOT_OBJECT_IS_TEMPLATE] = true;
+   plotData[fwTrending_PLOT_OBJECT_DPES] = makeDynString(\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\");
+   plotData[fwTrending_PLOT_OBJECT_DPES_X] = makeDynString(\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\");
+   plotData[fwTrending_PLOT_OBJECT_TITLE] = makeDynString(\"\");
+   plotData[fwTrending_PLOT_OBJECT_LEGENDS] = makeDynString(\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"\");
+		fwTrending_setPlot(fwTrending_PLOT_DEFAULTS, plotData, exceptionInfo);
+
+// 		isFromDp = !((TextFieldName.enabled) || (TextFieldName.text == \"\"));
+//DebugN(\"Call UNICOS\", newDp, isFromDp);
+// 
+// 		if(isFunctionDefined(\"unTrendTree_savePlotAs\"))
+// 		{
+// 			unTrendTree_savePlotAs(ds[2], newDp, isFromDp, exceptionInfo);
+// 		}
+	}
+	if(dynlen(exceptionInfo)>0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+}" 0
+ E E E
+1 482 0 "" 0
+0
+13 353
+"GlobalCurveHiddenButton"
+""
+1 526 440 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+358 0 0 0 0 0
+E E E
+0
+1
+LANG:1 22 Set all curves visible
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 438 552 466
+
+P 
+4294967295
+"pictures/eyeCrossed.xpm"
+1
+LANG:1 0 
+"const int BUTTON = 3;
+
+main() 
+{
+	visibleCheckButtonGlobal(BUTTON);
+}" 0
+ E E E
+13 354
+"GlobalCurveVisibleButton"
+""
+1 526 440 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+357 0 0 0 0 0
+E E E
+0
+1
+LANG:1 24 Set all curves invisible
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  524 438 552 466
+
+P 
+4294967295
+"pictures/eye.xpm"
+1
+LANG:1 0 
+"const int BUTTON = 2;
+
+main() 
+{
+	visibleCheckButtonGlobal(BUTTON);
+}" 0
+ E E E
+2 371
+"PRIMITIVE_TEXT1"
+""
+1 18 442 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+214 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 444 95 461
+0 2 0 "0s" 0 0 0 192 0 0  20 444 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 12 Marker Type:
+22 372
+"MarkerTypeComboBox"
+""
+1 100 440 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+354 0 0 0 0 0
+E E E
+0
+1
+LANG:1 29 Set curve type for all curves
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  98 438 207 465
+0
+
+E
+E
+E
+ 0 0
+20 375
+"accessControlOn"
+""
+1 20 473 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+365 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  18 471 42 505
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  fwEnableAcOptions(state);
+}" 0
+2 376
+"accessControlOnText"
+""
+1 43 473 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+222 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 43 473 173 508
+0 2 2 "0s" 0 0 0 64 0 0  43 473 2
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Protect configuration
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 19 with access control
+14 378
+"acNotAvailable"
+""
+1 699 7 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+376 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  697 5 889 31
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  if(!isFunctionDefined(\"unGenericDpFunctionsHMI_setCallBack_user\")) 
+  {
+    //only show access control options if not UNICOS project
+    int x, y;
+  
+    getValue(\"\", \"position\", x, y);
+  
+    if(getPath(PANELS_REL_PATH, \"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl\") != \"\")
+      addSymbol(myModuleName(), myPanelName(), \"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl\", \"currentUser\", makeDynString(), x, y-16, 0, 1, 1);
+    else
+    {
+      this.visible = TRUE;
+      this.text = \"Access Control not available\";
+    }
+  }
+}" 0
+ E
+14 379
+"saveRights"
+""
+1 280 479 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+366 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  278 477 462 504
+2 "0s" 0 0 0 0 0 -1  E E E
+13 380
+"saveRightsSelect"
+""
+1 470 475 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+367 0 0 0 27 0
+E E E
+0
+1
+LANG:1 22 Leave filter unchanged
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  468 473 542 507
+
+T 
+1
+LANG:1 6 Choose
+"main()
+{
+  dyn_string privileges, exceptionInfo;
+		
+  privileges[1] = saveRights.text;
+  if(isFunctionDefined(\"fwAccessControl_selectPrivileges\"))
+  {
+    fwAccessControl_selectPrivileges(privileges, \"Please choose access right\");
+    if(dynlen(privileges))
+      saveRights.text = privileges[1];    
+  }
+  else
+  {
+    fwException_raise(exceptionInfo, \"ERROR\", \"The access control component is not installed.\", \"\");
+    fwExceptionHandling_display(exceptionInfo); 
+  }
+}" 0
+ E E E
+2 381
+"saveRightsText"
+""
+1 181 483 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+232 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 181 483 271 503
+0 2 2 "0s" 0 0 0 64 0 0  181 483 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Required Right:
+20 383
+"CtrlBarCheckButton"
+""
+1 560 103 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+377 0 0 0 0 0
+E E E
+0
+1
+LANG:1 25 Show the Control menu bar
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  558 101 622 125
+1
+T 
+1
+LANG:1 4 Menu
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE19 384
+"scalePosRadioButton1"
+""
+1 769.9999999999996 180 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+378 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  768 178 802 202
+2
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+2 385
+"PRIMITIVE_TEXT2"
+""
+1 1019 1594 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+379 0 0 0 0 0
+E E E
+0
+1
+LANG:1 36 Position the Curve Scale on the Left
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 771.9999999999996 156 779 173
+0 2 0 "0s" 0 0 0 192 0 0  771.9999999999996 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 L
+2 386
+"PRIMITIVE_TEXT3"
+""
+1 1035 1594 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+380 0 0 0 0 0
+E E E
+0
+1
+LANG:1 37 Position the Curve Scale on the Right
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 787.9999999999996 156 797 173
+0 2 0 "0s" 0 0 0 192 0 0  787.9999999999996 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 R
+19 387
+"scalePosRadioButton2"
+""
+1 769.9999999999996 210 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+381 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  768 208 802 232
+2
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+19 388
+"scalePosRadioButton3"
+""
+1 769.9999999999996 240 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+382 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  768 238 802 262
+2
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+19 389
+"scalePosRadioButton4"
+""
+1 769.9999999999996 270 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+383 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  768 268 802 292
+2
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+19 390
+"scalePosRadioButton5"
+""
+1 769.9999999999996 300 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+384 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  768 298 802 322
+2
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+19 391
+"scalePosRadioButton6"
+""
+1 769.9999999999996 330 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+385 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  768 328 802 352
+2
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+19 392
+"scalePosRadioButton7"
+""
+1 769.9999999999996 360 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+386 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  768 358 802 382
+2
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+19 393
+"scalePosRadioButton8"
+""
+1 769.9999999999996 390 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+387 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  768 388 802 412
+2
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+19 394
+"scalePosRadioButton9"
+""
+1 769.9999999999996 440 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+388 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"horizontal" ""
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  768 438 802 462
+2
+T 
+1
+LANG:1 0 
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  int i;
+	shape radioButton;
+
+	for(i=1; i<=8; i++)
+	{
+		radioButton = getShape(\"scalePosRadioButton\" + i);
+		radioButton.number(button);
+	}
+}" 0
+
+20 398
+"CaptionCheckButton"
+""
+1 4842.205882352941 283 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+391 0 0 0 0 0
+E E E
+0
+1
+LANG:1 48 Show/hide curve names at the bottom of the trend
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  633 101 706 125
+1
+T 
+1
+LANG:1 8 Captions
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE2 400
+"PRIMITIVE_TEXT5"
+""
+1 10 180 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+393 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 182 19 199
+0 2 0 "0s" 0 0 0 192 0 0  12 182 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 1
+2 401
+"PRIMITIVE_TEXT6"
+""
+1 10 210 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+394 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 212 19 229
+0 2 0 "0s" 0 0 0 192 0 0  12 212 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 2
+2 402
+"PRIMITIVE_TEXT7"
+""
+1 10 240 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+395 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 242 19 259
+0 2 0 "0s" 0 0 0 192 0 0  12 242 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 3
+2 403
+"PRIMITIVE_TEXT8"
+""
+1 10 270 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+396 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 272 19 289
+0 2 0 "0s" 0 0 0 192 0 0  12 272 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 4
+2 404
+"PRIMITIVE_TEXT9"
+""
+1 10 300 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+397 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 302 19 319
+0 2 0 "0s" 0 0 0 192 0 0  12 302 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 5
+2 405
+"PRIMITIVE_TEXT10"
+""
+1 10 330 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+398 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 332 19 349
+0 2 0 "0s" 0 0 0 192 0 0  12 332 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 6
+2 406
+"PRIMITIVE_TEXT11"
+""
+1 10 360 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+399 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 362 19 379
+0 2 0 "0s" 0 0 0 192 0 0  12 362 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 7
+2 407
+"PRIMITIVE_TEXT12"
+""
+1 10 390 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+400 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 392 19 409
+0 2 0 "0s" 0 0 0 192 0 0  12 392 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 1 8
+2 408
+"PRIMITIVE_TEXT13"
+""
+1 810 154 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+401 0 0 0 0 0
+E E E
+0
+1
+LANG:1 81 Link the axis of this curve to the axis of another curve (elect curve to link to)
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 812 156 836 173
+0 2 0 "0s" 0 0 0 192 0 0  812 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 4 Link
+22 410
+"linkCurveCombo1"
+""
+1 814 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+403 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  812 178 851 205
+9
+1
+LANG:1 1 -
+
+0
+1
+LANG:1 1 1
+
+1
+1
+LANG:1 1 2
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 5
+
+0
+1
+LANG:1 1 6
+
+0
+1
+LANG:1 1 7
+
+0
+1
+LANG:1 1 8
+
+0
+
+E
+"int curveNum = 1;
+
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 414
+"linkCurveCombo2"
+""
+1 814 210 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+407 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  812 208 851 235
+9
+1
+LANG:1 1 -
+
+0
+1
+LANG:1 1 1
+
+1
+1
+LANG:1 1 2
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 5
+
+0
+1
+LANG:1 1 6
+
+0
+1
+LANG:1 1 7
+
+0
+1
+LANG:1 1 8
+
+0
+
+E
+"int curveNum = 1;
+
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 415
+"linkCurveCombo3"
+""
+1 814 240 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+408 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  812 238 851 265
+9
+1
+LANG:1 1 -
+
+0
+1
+LANG:1 1 1
+
+1
+1
+LANG:1 1 2
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 5
+
+0
+1
+LANG:1 1 6
+
+0
+1
+LANG:1 1 7
+
+0
+1
+LANG:1 1 8
+
+0
+
+E
+"int curveNum = 1;
+
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 416
+"linkCurveCombo4"
+""
+1 814 270 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+409 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  812 268 851 295
+9
+1
+LANG:1 1 -
+
+0
+1
+LANG:1 1 1
+
+1
+1
+LANG:1 1 2
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 5
+
+0
+1
+LANG:1 1 6
+
+0
+1
+LANG:1 1 7
+
+0
+1
+LANG:1 1 8
+
+0
+
+E
+"int curveNum = 1;
+
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 417
+"linkCurveCombo5"
+""
+1 814 300 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+410 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  812 298 851 325
+9
+1
+LANG:1 1 -
+
+0
+1
+LANG:1 1 1
+
+1
+1
+LANG:1 1 2
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 5
+
+0
+1
+LANG:1 1 6
+
+0
+1
+LANG:1 1 7
+
+0
+1
+LANG:1 1 8
+
+0
+
+E
+"int curveNum = 1;
+
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 418
+"linkCurveCombo6"
+""
+1 814 330 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+411 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  812 328 851 355
+9
+1
+LANG:1 1 -
+
+0
+1
+LANG:1 1 1
+
+1
+1
+LANG:1 1 2
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 5
+
+0
+1
+LANG:1 1 6
+
+0
+1
+LANG:1 1 7
+
+0
+1
+LANG:1 1 8
+
+0
+
+E
+"int curveNum = 1;
+
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 419
+"linkCurveCombo7"
+""
+1 814 360 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+412 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  812 358 851 385
+9
+1
+LANG:1 1 -
+
+0
+1
+LANG:1 1 1
+
+1
+1
+LANG:1 1 2
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 5
+
+0
+1
+LANG:1 1 6
+
+0
+1
+LANG:1 1 7
+
+0
+1
+LANG:1 1 8
+
+0
+
+E
+"int curveNum = 1;
+
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 420
+"linkCurveCombo8"
+""
+1 814 390 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+413 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  812 388 851 415
+9
+1
+LANG:1 1 -
+
+0
+1
+LANG:1 1 1
+
+1
+1
+LANG:1 1 2
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 5
+
+0
+1
+LANG:1 1 6
+
+0
+1
+LANG:1 1 7
+
+0
+1
+LANG:1 1 8
+
+0
+
+E
+"int curveNum = 1;
+
+main()
+{
+	changeCurveType(curveNum, this.selectedPos);
+}" 0
+
+E
+ 0 0
+22 421
+"linkCurveComboBox"
+""
+1 814 440 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+414 0 0 0 0 0
+E E E
+0
+1
+LANG:1 37 Link all Y axis to the selected curve
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  812 438 851 465
+9
+1
+LANG:1 1 -
+
+0
+1
+LANG:1 1 1
+
+0
+1
+LANG:1 1 2
+
+1
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 5
+
+0
+1
+LANG:1 1 6
+
+0
+1
+LANG:1 1 7
+
+0
+1
+LANG:1 1 8
+
+0
+
+"main()
+{
+  this.text = \"\";
+}" 0
+
+"main()
+{
+	int i;
+	switch(this.selectedPos) 
+	{
+		case 10: //use this if you want to add option \"individual\"
+// 			for(i=1; i<=8; i++)
+// 				setValue(\"linkCurveCombo\"+i,\"enabled\",true);
+			break;				
+		default: 
+			for(i=1; i<=8; i++)
+				setValue(\"linkCurveCombo\"+i,\"selectedPos\",this.selectedPos);
+			break;
+	}
+}" 0
+
+E
+ 0 0
+13 428
+"cmFont"
+""
+1 450 103 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+420 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  448 101 512 127
+
+T 
+1
+LANG:1 7 Font...
+"main()
+{
+  string sFont = this.toolTipText;
+  if(sFont==\"\") sFont = fwTrending_DEFAULT_FONT;
+  fontSelector(sFont);
+  this.toolTipText = sFont;
+}" 0
+ E E E
+13 431
+"cmLine"
+""
+1 224 440 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+422 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  222 438 286 464
+
+T 
+1
+LANG:1 7 Line...
+"main()
+{
+  string sLine = this.toolTipText;
+  lineSelector(sLine);
+  showLineSample(sLine);
+}
+" 0
+ E E E
+4 432
+"lineSample"
+""
+1 294 450 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+423 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E  294 450 356 450
+13 434
+"cmXaxiiFormat"
+""
+1 360 103 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+424 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  358 101 422 127
+
+T 
+1
+LANG:1 9 Format...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfTimeScaleFormat.pnl\",\"Time scale format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1] + \" | \" +ds[2];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E "main()
+{
+  this.toolTipText = \"%d/%m | %H:%M\";
+}" 0
+
+13 436
+"cmLegendFormat1"
+""
+1 635 540 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+425 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  388 178 412 202
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+2 437
+"PRIMITIVE_TEXT14"
+""
+1 374 514 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+426 0 0 0 0 0
+E E E
+0
+1
+LANG:1 12 Value format
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 373 156 414 173
+0 2 0 "0s" 0 0 0 192 0 0  373 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Format
+30 438
+"FRAME1"
+""
+1 380 420 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+427 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.472868217054264 0 1 -329.6899224806201 0 0 E 380 140 510 420
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Legend
+13 447
+"cmLegendFormat2"
+""
+1 635 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+436 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  388 208 412 232
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 448
+"cmLegendFormat3"
+""
+1 635 600 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+437 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  388 238 412 262
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 449
+"cmLegendFormat4"
+""
+1 635 630 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+438 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  388 268 412 292
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 450
+"cmLegendFormat5"
+""
+1 635 660 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+439 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  388 298 412 322
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 451
+"cmLegendFormat6"
+""
+1 635 690 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+440 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  388 328 412 352
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 452
+"cmLegendFormat7"
+""
+1 635 720 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+441 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  388 358 412 382
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 453
+"cmLegendFormat8"
+""
+1 635 750 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+442 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  388 388 412 412
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 454
+"cmLegendFormatAll"
+""
+1 635 800 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+443 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  388 438 412 462
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+  for(i=1 ; i<=8 ; i++)
+    setValue(\"cmLegendFormat\"+i, \"toolTipText\", this.toolTipText);
+}" 0
+ E E E
+13 456
+"cmScaleFormat1"
+""
+1 1105 540 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+444 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  858 178 882 202
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+2 457
+"PRIMITIVE_TEXT15"
+""
+1 846 514 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+445 0 0 0 0 0
+E E E
+0
+1
+LANG:1 12 Value format
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 845 156 886 173
+0 2 0 "0s" 0 0 0 192 0 0  845 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Format
+13 458
+"cmScaleFormat2"
+""
+1 1105 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+446 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  858 208 882 232
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 459
+"cmScaleFormat3"
+""
+1 1105 600 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+447 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  858 238 882 262
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 460
+"cmScaleFormat4"
+""
+1 1105 630 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+448 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  858 268 882 292
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 461
+"cmScaleFormat5"
+""
+1 1105 660 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+449 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  858 298 882 322
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 462
+"cmScaleFormat6"
+""
+1 1105 690 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+450 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  858 328 882 352
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 463
+"cmScaleFormat7"
+""
+1 1105 720 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+451 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  858 358 882 382
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 464
+"cmScaleFormat8"
+""
+1 1105 750 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+452 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  858 388 882 412
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+
+}" 0
+ E E E
+13 465
+"cmScaleFormatAll"
+""
+1 1105 800 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+453 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  858 438 882 462
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  dyn_string dsFormat, ds;
+  dyn_float df;
+  int i;
+  		ChildPanelOnModalReturn(\"fwTrending/fwTrendingPlotConfLegendFormat.pnl\",\"Legend format\",
+			    makeDynString(\"$format:\"+this.toolTipText),0,0, df, ds);
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				dsFormat = strsplit(ds[3], \"|\");
+      this.toolTipText = ds[1];
+//       DebugN(this.toolTipText);
+     }
+  for(i=1 ; i<=8 ; i++)
+    setValue(\"cmScaleFormat\"+i, \"toolTipText\", this.toolTipText);
+}" 0
+ E E E
+20 468
+"ckShowAlarmLimits1"
+""
+1 1961 591 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+455 0 0 0 0 0
+E E E
+0
+1
+LANG:1 55 Show/hide the analog alarm limits of the plotted value.
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  569 179 583 203
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  setAutoIfLimitsOn(this.name);
+}" 0
+2 469
+"PRIMITIVE_TEXT16"
+""
+1 563 514 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+456 0 0 0 0 0
+E E E
+0
+1
+LANG:1 78 Show/hide the alarm limits of the plotted value. NOTE: not for DISCRETE alarms
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 562 156 597 173
+0 2 0 "0s" 0 0 0 192 0 0  562 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Limits
+20 470
+"ckShowAlarmLimits2"
+""
+1 1961 621 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+457 0 0 0 0 0
+E E E
+0
+1
+LANG:1 55 Show/hide the analog alarm limits of the plotted value.
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  569 209 583 233
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  setAutoIfLimitsOn(this.name);
+}" 0
+20 471
+"ckShowAlarmLimits3"
+""
+1 1961 651 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+458 0 0 0 0 0
+E E E
+0
+1
+LANG:1 55 Show/hide the analog alarm limits of the plotted value.
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  569 239 583 263
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 472
+"ckShowAlarmLimits4"
+""
+1 1961 681 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+459 0 0 0 0 0
+E E E
+0
+1
+LANG:1 55 Show/hide the analog alarm limits of the plotted value.
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  569 269 583 293
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 473
+"ckShowAlarmLimits5"
+""
+1 1961 711 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+460 0 0 0 0 0
+E E E
+0
+1
+LANG:1 55 Show/hide the analog alarm limits of the plotted value.
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  569 299 583 323
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 474
+"ckShowAlarmLimits6"
+""
+1 1961 741 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+461 0 0 0 0 0
+E E E
+0
+1
+LANG:1 55 Show/hide the analog alarm limits of the plotted value.
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  569 329 583 353
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 475
+"ckShowAlarmLimits7"
+""
+1 1961 771 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+462 0 0 0 0 0
+E E E
+0
+1
+LANG:1 55 Show/hide the analog alarm limits of the plotted value.
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  569 359 583 383
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 476
+"ckShowAlarmLimits8"
+""
+1 1961 801 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+463 0 0 0 0 0
+E E E
+0
+1
+LANG:1 55 Show/hide the analog alarm limits of the plotted value.
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  569 389 583 413
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 477
+"ckShowAlarmLimitsAll"
+""
+1 1961 851 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+464 0 0 0 0 0
+E E E
+0
+1
+LANG:1 55 Show/hide the analog alarm limits of the plotted value.
+
+0
+1
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+0  569 439 583 463
+1
+T 
+1
+LANG:1 12 CheckButton1
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	int i;
+	shape checkButton;
+  bool enabled;
+
+	for(i=1; i<=8; i++)
+	{
+		checkButton = getShape(\"ckShowAlarmLimits\" + i);
+   getValue(\"ckShowAlarmLimits\"+i,\"enabled\",enabled);
+   if(enabled)
+   {
+		  checkButton.state(0, state);
+		  autoRangeCheckButtonClick(i, state);
+    }
+   setAutoIfLimitsOn(\"ckShowAlarmLimits\" + i);
+	}
+}
+" 0
+30 478
+"FRAME2"
+""
+1 380 420 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+465 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.472868217054263 0 1 -529.68992248062 0 0 E 380 140 510 420
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 10 DP Element
+2 479
+"PRIMITIVE_TEXT17"
+""
+1 172 154 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+466 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 174 156 211 173
+0 2 0 "0s" 0 0 0 192 0 0  174 156 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Select
+13 481
+"PUSH_BUTTON1"
+""
+1 10 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+467 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  8 558 102 592
+
+T 
+1
+LANG:1 10 Save as...
+"main() 
+{
+	bool isFromDp, newDp = FALSE;
+	string proposedName, sDpName;
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	dyn_dyn_string plotData;
+
+	CheckInput(exceptionInfo);
+	if(dynlen(exceptionInfo)>0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	sDpName = TextFieldName.text;
+	proposedName = dpGetAlias(sDpName + \".\");
+	if(proposedName == \"\")
+		proposedName = dpSubStr(sDpName, DPSUB_DP);
+	ChildPanelOnCentralReturn(\"fwTrending/fwTrendingSaveAsSelector.pnl\", \"Save plot settings as...\",
+															makeDynString(\"$sDpType:\" + fwTrending_PLOT, \"$sProposedName:\" + proposedName), df, ds);
+	if(ds[1] == \"ok\")
+	{
+		ReadInput(plotData, exceptionInfo);
+		if(!dpExists(ds[2]))
+		{
+			fwTrending_createPlot(ds[2], exceptionInfo);
+			newDp = TRUE;
+		}
+		fwTrending_setPlot(ds[2], plotData, exceptionInfo);
+
+		isFromDp = !((TextFieldName.enabled) || (TextFieldName.text == \"\"));
+//DebugN(\"Call UNICOS\", newDp, isFromDp);
+
+		if(isFunctionDefined(\"unTrendTree_savePlotAs\"))
+		{
+			unTrendTree_savePlotAs(ds[2], newDp, isFromDp, exceptionInfo);
+		}
+	}
+
+	if(dynlen(exceptionInfo)>0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2" -1
+"objects\\fwGeneral\\fwHelpButton.pnl" 364 10 T 375 1 0 1 558 -5
+1
+"$sPanelRelativePath""fwTrending/fwTrendingPlotConfPanel"
+0

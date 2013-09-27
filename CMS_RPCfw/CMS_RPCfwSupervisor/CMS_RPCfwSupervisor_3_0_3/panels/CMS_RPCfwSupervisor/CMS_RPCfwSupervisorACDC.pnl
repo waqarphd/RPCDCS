@@ -1,0 +1,585 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 779 508 N "_3DFace" 2
+"$exc"
+"$uxc"
+E E E E E 1 -1 -1 0  10 23
+""0  1
+E "dyn_string emaos,bmaos,emajs,bmajs;
+bool panelAccess;
+DisableAllInPanel()
+{
+TABLE1.enabled = false;
+TABLE2.enabled = false;
+TABLE3.enabled = false;
+TABLE4.enabled = false;
+panelAccess = false;
+}
+
+enableDebug(){panelAccess = true;
+
+}
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+//DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+//fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+//if (hasControl) enableControl();
+panelAccess = false;
+if (hasDebug) enableDebug();
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 0
+"FRAME1"
+""
+1 10 23 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+0 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.37037037037037 0 1.186943620178041 -3.703703703703701 12.70029673590505 0 E 10 23 281 361
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Endcap
+25 1
+"TABLE1"
+""
+1 40 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  38 58 352 332
+"dyn_string elements;
+main()
+{
+  RPCfwSupervisor_getAllChannelsFromType($exc,\"MAO\",emaos);
+  //DebugN(emaos);
+  elements = makeDynString(\".actual.status\",\".actual.vMon\",\".actual.iMon\",\".actual.intFail\");
+  dyn_int values;  
+  string nn;
+  int pos;
+  for(int i = 1;i<=dynlen(emaos);i++){
+    nn = fwDU_getLogicalName(emaos[i]);
+    pos = strpos(nn,\"AO/\");     
+    if(pos>0)
+      nn = substr(nn,pos+3);
+    for(int j = 1;j<=dynlen(elements);j++){
+      dpGet(emaos[i]+elements[j],values[j]);    
+    }
+  //  DebugN(values);
+  this.appendLine(\"name\",nn,\"status\",values[1],\"vmon\",values[2],\"imon\",values[3],\"trend\",\"...\");  
+  if((values[4]==1)){  
+    this.cellBackColRC(i-1,\"status\",\"FwAlarmErrorAck\");
+    this.cellValueRC(i-1,\"status\",\"Error\");  
+    }
+  else if(values[1]==1){
+    this.cellBackColRC(i-1,\"status\",\"FwStateOKPhysics\");
+    this.cellValueRC(i-1,\"status\",\"On\"); 
+  }
+  else if(values[1]==0)  {
+    this.cellBackColRC(i-1,\"status\",\"FwStateOKNotPhysics\");
+  this.cellValueRC(i-1,\"status\",\"Off\"); 
+  }
+  else if(values[1]>1){
+    this.cellBackColRC(i-1,\"status\",\"FwAlarmErrorAck\");
+  this.cellValueRC(i-1,\"status\",\"Error\"); 
+  }
+    
+  }  
+  
+  
+  
+}" 0
+"main(int row, string column, string value)
+{
+  if((column == \"trend\")&&(panelAccess))
+  {
+    ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorDetailPanel.pnl\",
+      \"\",
+      makeDynString(\"$channel:\"+emaos[row+1]));  
+  }
+}" 0
+ 1 0 1 5 0 "name" 15 1 0 "s" 1
+LANG:1 8 Location
+E
+1
+LANG:1 0 
+
+130 "status" 4 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+40 "imon" 4 1 0 "s" 1
+LANG:1 4 iMon
+E
+1
+LANG:1 0 
+
+40 "vmon" 4 1 0 "s" 1
+LANG:1 4 vMon
+E
+1
+LANG:1 0 
+
+40 "trend" 4 1 0 "s" 1
+LANG:1 7 details
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 4
+"PRIMITIVE_TEXT6"
+""
+1 152 -4 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+   dyn_string exceptionInfo;
+//This function creates a callback to the function passed as //first parameter every time the user logged in changes
+ fwAccessControl_setupPanel( \"ApplyPanelAccessControl\", exceptionInfo);
+}
+" 0
+ E 0 1 1 2 1 E U  0 E 150 10 545 48
+0 2 1 "0s" 0 0 0 65 0 0  150 10 1
+1
+LANG:1 26 Arial,-1,16,5,75,0,0,0,0,0
+0 1
+LANG:1 36 AC/DC CONVERTER SERVICE POWER SUPPLY
+13 5
+"PUSH_BUTTON3"
+""
+1 330 460 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  328 458 452 492
+
+T 
+1
+LANG:1 5 Close
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+30 6
+"FRAME2"
+""
+1 10 23 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+6 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.37037037037037 0 1.186943620178041 376.2962962962963 12.70029673590505 0 E 10 23 281 361
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Barrel
+25 7
+"TABLE2"
+""
+1 420 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  418 58 732 332
+"dyn_string elements;
+main()
+{
+  RPCfwSupervisor_getAllChannelsFromType($uxc,\"MAO\",bmaos,\"_W\");
+  //DebugN(emaos);
+
+  elements = makeDynString(\".actual.status\",\".actual.vMon\",\".actual.iMon\",\".actual.intFail\");
+  dyn_int values;  
+  string nn;
+  int pos;
+  for(int i = 1;i<=dynlen(bmaos);i++){
+    nn = fwDU_getLogicalName(bmaos[i]);
+    pos = strpos(nn,\"AO/\");     
+    if(pos>0)
+      nn = substr(nn,pos+3);
+    for(int j = 1;j<=dynlen(elements);j++){
+      dpGet(bmaos[i]+elements[j],values[j]);    
+    }
+  //  DebugN(values);
+    this.appendLine(\"name\",nn,\"status\",values[1],\"vmon\",values[2],\"imon\",values[3],\"trend\",\"...\");  
+  if((values[4]==1)){  
+    this.cellBackColRC(i-1,\"status\",\"FwAlarmErrorAck\");
+    this.cellValueRC(i-1,\"status\",\"Error\");  
+    }
+  else if(values[1]==1){
+    this.cellBackColRC(i-1,\"status\",\"FwStateOKPhysics\");
+    this.cellValueRC(i-1,\"status\",\"On\"); 
+  }
+  else if(values[1]==0)  {
+    this.cellBackColRC(i-1,\"status\",\"FwStateOKNotPhysics\");
+  this.cellValueRC(i-1,\"status\",\"Off\"); 
+  }
+  else if(values[1]>1){
+    this.cellBackColRC(i-1,\"status\",\"FwAlarmErrorAck\");
+  this.cellValueRC(i-1,\"status\",\"Error\"); 
+  }
+    
+  } 
+  
+  
+  
+}" 0
+"main(int row, string column, string value)
+{
+  if((column == \"trend\")&&(panelAccess))
+  {
+    ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorDetailPanel.pnl\",
+      \"\",
+      makeDynString(\"$channel:\"+emaos[row+1]));  
+  }
+}" 0
+ 1 0 1 5 0 "name" 15 1 0 "s" 1
+LANG:1 8 Location
+E
+1
+LANG:1 0 
+
+130 "status" 4 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+40 "imon" 4 1 0 "s" 1
+LANG:1 4 iMon
+E
+1
+LANG:1 0 
+
+40 "vmon" 4 1 0 "s" 1
+LANG:1 4 vMon
+E
+1
+LANG:1 0 
+
+40 "trend" 4 1 0 "s" 1
+LANG:1 7 details
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+25 10
+"TABLE3"
+""
+1 40 350 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  38 348 352 432
+"dyn_string elements;
+main()
+{
+  RPCfwSupervisor_getAllChannelsFromType(_hvesys,\"MAO\",emajs);
+  
+  //DebugN(_hvesys,emajs);
+  elements = makeDynString(\".actual.status\",\".actual.vMon\",\".actual.iMon\",\".actual.intFail\");
+  dyn_int values;  
+  string nn;
+  int pos;
+  for(int i = 1;i<=dynlen(emajs);i++){
+    nn = fwDU_getLogicalName(emajs[i]);
+    pos = strpos(nn,\"AO/\");     
+    if(pos>0)
+      nn = substr(nn,pos+3);
+    for(int j = 1;j<=dynlen(elements);j++){
+      dpGet(emajs[i]+elements[j],values[j]);    
+    }
+  //  DebugN(values);
+  this.appendLine(\"name\",nn,\"status\",values[1],\"vmon\",values[2],\"imon\",values[3],\"trend\",\"...\");  
+  if((values[4]==1)){  
+    this.cellBackColRC(i-1,\"status\",\"FwAlarmErrorAck\");
+    this.cellValueRC(i-1,\"status\",\"Error\");  
+    }
+  else if(values[1]==1){
+    this.cellBackColRC(i-1,\"status\",\"FwStateOKPhysics\");
+    this.cellValueRC(i-1,\"status\",\"On\"); 
+  }
+  else if(values[1]==0)  {
+    this.cellBackColRC(i-1,\"status\",\"FwStateOKNotPhysics\");
+  this.cellValueRC(i-1,\"status\",\"Off\"); 
+  }
+  else if(values[1]>1){
+    this.cellBackColRC(i-1,\"status\",\"FwAlarmErrorAck\");
+  this.cellValueRC(i-1,\"status\",\"Error\"); 
+  }
+    
+  }  
+  
+  
+  
+}
+" 0
+"main(int row, string column, string value)
+{
+  if((column == \"trend\")&&(panelAccess))
+  {
+    ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorDetailPanel.pnl\",
+      \"\",
+      makeDynString(\"$channel:\"+emaos[row+1]));  
+  }
+}" 0
+ 1 0 1 5 0 "name" 15 1 0 "s" 1
+LANG:1 8 Location
+E
+1
+LANG:1 0 
+
+130 "status" 4 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+40 "imon" 4 1 0 "s" 1
+LANG:1 4 iMon
+E
+1
+LANG:1 0 
+
+40 "vmon" 4 1 0 "s" 1
+LANG:1 4 vMon
+E
+1
+LANG:1 0 
+
+40 "trend" 4 1 0 "s" 1
+LANG:1 7 details
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+25 11
+"TABLE4"
+""
+1 420 350 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  418 348 732 432
+"dyn_string elements;
+main()
+{
+  RPCfwSupervisor_getAllChannelsFromType(_hvbsys,\"MAO\",bmajs);
+  
+  //DebugN(_hvesys,bmajs);
+  elements = makeDynString(\".actual.status\",\".actual.vMon\",\".actual.iMon\",\".actual.intFail\");
+  dyn_int values;  
+  string nn;
+  int pos;
+  for(int i = 1;i<=dynlen(bmajs);i++){
+    nn = fwDU_getLogicalName(bmajs[i]);
+    pos = strpos(nn,\"AO/\");     
+    if(pos>0)
+      nn = substr(nn,pos+3);
+    for(int j = 1;j<=dynlen(elements);j++){
+      dpGet(bmajs[i]+elements[j],values[j]);    
+    }
+  //  DebugN(values);
+  this.appendLine(\"name\",nn,\"status\",values[1],\"vmon\",values[2],\"imon\",values[3],\"trend\",\"...\");  
+  if((values[4]==1)){  
+    this.cellBackColRC(i-1,\"status\",\"FwAlarmErrorAck\");
+    this.cellValueRC(i-1,\"status\",\"Error\");  
+    }
+  else if(values[1]==1){
+    this.cellBackColRC(i-1,\"status\",\"FwStateOKPhysics\");
+    this.cellValueRC(i-1,\"status\",\"On\"); 
+  }
+  else if(values[1]==0)  {
+    this.cellBackColRC(i-1,\"status\",\"FwStateOKNotPhysics\");
+  this.cellValueRC(i-1,\"status\",\"Off\"); 
+  }
+  else if(values[1]>1){
+    this.cellBackColRC(i-1,\"status\",\"FwAlarmErrorAck\");
+  this.cellValueRC(i-1,\"status\",\"Error\"); 
+  }
+    
+  }  
+  
+  
+  
+}
+" 0
+"main(int row, string column, string value)
+{
+  if((column == \"trend\")&&(panelAccess))
+  {
+    ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorDetailPanel.pnl\",
+      \"\",
+      makeDynString(\"$channel:\"+emaos[row+1]));  
+  }
+}" 0
+ 1 0 1 5 0 "name" 15 1 0 "s" 1
+LANG:1 8 Location
+E
+1
+LANG:1 0 
+
+130 "status" 4 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+40 "imon" 4 1 0 "s" 1
+LANG:1 4 iMon
+E
+1
+LANG:1 0 
+
+40 "vmon" 4 1 0 "s" 1
+LANG:1 4 vMon
+E
+1
+LANG:1 0 
+
+40 "trend" 4 1 0 "s" 1
+LANG:1 7 details
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

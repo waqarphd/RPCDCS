@@ -1,0 +1,413 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 442 549 N "_3DFace" 0
+"main()
+{
+PopulatePanel();
+}" 0
+ E E E E 1 -1 -1 0  60 239
+""0  1
+E "dyn_string g_allAliases;
+dyn_string g_allDps;
+
+void PopulatePanel()
+{
+AliasesTree.clear();
+OKButton.enabled=FALSE;
+
+string aliasFilter=AliasFilter.text;
+g_allAliases=makeDynString();
+g_allDps=makeDynString();
+SelectedAlias.text=\"\";
+SelectedDp.text=\"\";
+
+int num=dpGetAllAliases (g_allDps, g_allAliases, aliasFilter);
+
+if (num<0) {
+	dyn_string exceptionInfo;
+
+	fwException_raise(exceptionInfo,\"ERROR\",
+		\"Cannot retrieve the list of aliases\",\"\");
+	fwExceptionHandling_display(exceptionInfo);
+}
+
+
+bool showInternal=FALSE;
+if (ShowInternal.state(0)) showInternal=TRUE;
+bool showNonFw=FALSE;
+if (ShowNonFw.state(0)) showNonFw=TRUE;
+
+if (num) {
+  dyn_string aliases=g_allAliases;
+  dynSortAsc(aliases);
+  string parentId=\"\";
+  int id=\"\";
+  for (int i=1;i<=dynlen(aliases);i++) {
+     int idx=dynContains(g_allAliases , aliases[i]);
+     string dp=dpSubStr(g_allDps[idx],DPSUB_DP);
+    if (!showInternal) {
+      if (substr(dp,0,1)==\"_\") {
+        continue;
+      }
+    }
+
+    if (!showNonFw) {    
+        string dptype=dpTypeName(dp);
+        string type;
+        dyn_string exceptionInfo;
+        fwDevice_getType(dptype, type, exceptionInfo);
+        if (type==\"\") {
+          continue;
+        }
+    }
+
+    // we short a nice tree only if there is no filter...
+    if (aliasFilter==\"\") {  
+    dyn_string ds=strsplit(aliases[i],\"/\");
+    if (dynlen(ds)<2) {
+      AliasesTree.appendItem(\"\",aliases[i],aliases[i]);
+      } else {
+        string parent=\"\";
+        for (int j=1;j<=(dynlen(ds)-1);j++) {
+         parent=parent+ds[j]; 
+        if (j!=(dynlen(ds)-1)) parent=parent+\"/\";
+      }
+      AliasesTree.appendItem(parent,aliases[i],ds[dynlen(ds)]);
+     }
+
+      } else {
+        // we have a filter: flat list...
+      AliasesTree.appendItem(\"\",aliases[i],aliases[i]);        
+      }
+  }
+}
+
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"OKButton"
+""
+1 338 513 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 338 513 418 543
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_string selectedItems;
+
+        selectedItems=AliasesTree.selectedItems();
+	PanelOffReturn(makeDynFloat(dynlen(selectedItems)),selectedItems);
+}" 0
+ E E E
+13 1
+"CancelButton"
+""
+1 253 513 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 253 513 333 543
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+1 26 0 "" 0
+0
+2 14
+"PRIMITIVE_TEXT1"
+""
+1 15 29 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 35 395 64 410
+0 2 2 "0s" 0 0 0 192 0 0  35 395 1
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Filter:
+14 15
+"AliasFilter"
+""
+1 28.25757575757576 408 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 408 377 431
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+PopulatePanel();
+}" 0
+
+30 16
+"FRAME1"
+""
+1 10 20 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+52 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8281869862173323 0 1.458284645945315 11.71813013782667 0.8343070810937161 0 E 10 20 500 350
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Select DP Aliases:
+2 17
+"SelectedAlias"
+""
+1 30 340 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 30 340 31 355
+0 2 2 "0s" 0 0 0 192 0 0  30 340 1
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 18
+"SelectedDp"
+""
+1 38 322 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 30 360 31 375
+0 2 2 "0s" 0 0 0 192 0 0  30 360 1
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+6 20
+"PressEnter"
+""
+1 320 140 E E E 1 E 1 E N "lightgrey" E N "lightgrey" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 57 Remember to press ENTER after you type-in the description
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -10 0 2  0 1  "pictures/Enter.gif" 13421772 E 385 410 408 433
+29 22
+"AliasesTree"
+""
+1 29.99999999999999 50.00000000000003 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"defaultRenameAction" "enum 1"
+ 29.99999999999999 50.00000000000003 416.0000000000001 336
+10 TreeWidget
+7
+0 "expanded" "(string id)"
+""
+0 "collapsed" "(string id)"
+""
+0 "selectionChanged" "(string id)"
+""
+0 "clicked" "(string id, int column)"
+" 
+ OKButton.enabled=FALSE;
+ string aliastext=\"\";
+ string dptext=\"\";
+ if (id!=\"\") {
+  int idx=dynContains(g_allAliases,id);
+	if (idx) {
+		aliastext=\"Alias: \"+id;
+		dptext=\"Points to: \"+g_allDps[idx];
+	}
+	OKButton.enabled=TRUE;
+ }
+SelectedAlias.text=aliastext;
+SelectedDp.text=dptext;
+
+"
+0 "doubleClicked" "(string id, int column)"
+""
+0 "rightClicked" "(string id, int column)"
+""
+0 "itemRenamed" "(string id, int column, string text)"
+""
+"main()
+{
+  this.selectionMode(\"Extended\");
+  this.multiSelection(TRUE);
+  this.addColumn(\"ALIAS\");
+}" 0
+20 24
+"ShowNonFw"
+""
+1 30 445 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 443 252 472
+1
+T 
+1
+LANG:1 26 Show non-Framework devices
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  PopulatePanel();
+}" 0
+20 25
+"ShowInternal"
+""
+1 30 475 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 85 -*-Arial-*-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 473 252 502
+1
+T 
+1
+LANG:1 28 Show aliases of internal DPs
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  PopulatePanel();
+}" 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 270 20 T 38 1 0 1 130 -15
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_DPAliasSelector"
+0

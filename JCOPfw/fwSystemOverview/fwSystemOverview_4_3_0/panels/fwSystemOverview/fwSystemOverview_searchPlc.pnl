@@ -1,0 +1,609 @@
+V 11
+1
+LANG:1 11 Plcs Filter
+PANEL,-1 -1 648 458 N "_3DFace" 2
+"$domains"
+"$plcs"
+"main()
+{
+  plcs = strsplit($plcs, \"|\");
+  domains = strsplit($domains, \"|\");
+ 
+  for(int i =1; i <= dynlen(plcs); i++)
+  {
+    strreplace(plcs[i], \" \", \"\");
+    strreplace(domains[i], \" \", \"\");    
+  }
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "dyn_string plcs;
+dyn_string domains;
+
+void setPlcs(string plcPattern, string plcState, string plcManufacturer, string plcModel)
+{
+  tblPlcs.deleteAllLines();
+  dyn_string plcAliases;
+  string fsmDp;
+  int matchingPlcs;
+  string plcDp;
+  string ip, model, manufacturer, state, stateColor, plcTime;
+  for(int i =1; i <= dynlen(plcs); i++)
+  {
+    plcDp = dpAliasToName(plcs[i]);
+    if (plcPattern != \"\" && !patternMatch(plcPattern, plcs[i]))
+      continue;
+
+    fwDU_getState(domains[i], plcs[i], state);
+    
+    dpGet(plcDp + \"Configuration.IP\", ip, 
+          plcDp + \"Configuration.type\", model,
+          plcDp + \"Configuration.application\", manufacturer,
+          plcDp + \"ProcessInput.PLCtime\", plcTime);
+    if ((plcState != \"ANY\" && plcState != state) || 
+        (plcManufacturer != \"ANY\" && plcManufacturer != manufacturer) ||
+        (plcModel != \"ANY\" && plcModel != model))
+      continue;
+    
+    // we have found a plc matching the search criteria;
+    matchingPlcs++;
+
+    fwCU_getStateColor(plcs[i], state, stateColor);
+    tblPlcs.updateLine(1, \"plc\", plcs[i], 
+                        \"ip\", ip, 
+                        \"model\", model, 
+                        \"manufacturer\", manufacturer, 
+                        \"time\", plcTime,
+                        \"state\", state);
+             
+
+    switch(state)
+    {
+      case \"OK\":
+        tblPlcs.cellBackColRC(matchingPlcs-1, \"state\") = \"_Window\";
+        break;
+      case \"ERROR\":
+        tblPlcs.cellBackColRC(matchingPlcs-1, \"state\") = stateColor;
+        break;
+      case \"COMM_ERROR\":
+        tblPlcs.cellBackColRC(matchingPlcs-1, \"state\") = stateColor;        
+        break;    
+    }   
+  }
+  
+  matchingCount.text = \"Matching PLCs count: \"+matchingPlcs;
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 -74.96196310339023 -362.1428571428557 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 -10.068493150685 -5 1 E 50 75 125 90
+0 2 2 "0s" 0 0 0 192 0 0  50 75 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Manufacturer:
+30 2
+"FRAME1"
+""
+1 31 34 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+5 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.390134529147984 0 1.746724890829694 -23.09417040358749 -49.38864628820987 0 E 31 34 478 264
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Search
+2 6
+"PRIMITIVE_TEXT2"
+""
+1 -1564.376745262331 211.8571428571441 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 109.616438356164 -5.000000000000002 1 E 280 75 314 90
+0 2 2 "0s" 0 0 0 192 0 0  280 75 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Model:
+2 31
+"PRIMITIVE_TEXT8"
+""
+1 5489.35855837847 -2088.142857142857 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 -8.065753424657601 -82 1 E 50 114 113 129
+0 2 2 "0s" 0 0 0 192 0 0  50 114 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 12 PLC Pattern:
+14 32
+"tfPlcPattern"
+""
+1 130 30.28571428571429 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  128 28 292 51
+3 "0s" 0 0 0 0 0 -1  E E E
+2 33
+"txSystemPattern"
+""
+1 600 41.28571428571439 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 600 41.28571428571439 601 56
+0 2 2 "0s" 0 0 0 192 0 0  600 41.28571428571439 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 36
+"txManagerOptions"
+""
+1 604.0027397260274 63.28571428571439 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 604.0027397260274 63.28571428571439 605 78
+0 2 2 "0s" 0 0 0 192 0 0  604.0027397260274 63.28571428571439 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 37
+"txApply"
+""
+1 712 122 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 712 122 713 137
+0 2 2 "0s" 0 0 0 192 0 0  712 122 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 52
+"PRIMITIVE_TEXT15"
+""
+1 1662.389127147176 -14.1428571428568 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 109.616438356164 -43 1 E 280 75 332 90
+0 2 2 "0s" 0 0 0 192 0 0  280 75 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 PLC state:
+22 53
+"stateSelect"
+""
+1 449.0027397260274 28.28571428571429 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  447 26 611 53
+4
+1
+LANG:1 3 ANY
+
+0
+1
+LANG:1 2 OK
+
+0
+1
+LANG:1 5 ERROR
+
+0
+1
+LANG:1 10 COMM_ERROR
+
+0
+
+E
+E
+E
+ 1 0
+2 55
+"txprojectStateSelect"
+""
+1 678.6916531953 925.1518468028885 E E E 1 E 0 E N "_Transparent" E N "_Transparent" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.999920702575184 0 0.994791666666667 64.05015958606742 23.63988095238094 1 E 600 70 601 85
+0 2 2 "0s" 0 0 0 192 0 0  600 70 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 59
+"txFilter01"
+""
+1 270 141.2857142857143 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+84 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 270 141.2857142857143 610 161.2857142857143
+0 2 2 "0s" 0 0 0 64 0 0  270 141.2857142857143 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 1  
+25 61
+"tblPlcs"
+""
+1 40 170 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+86 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  38 168 612 382
+EE 1 0 1 6 0 "plc" 10 1 0 "s" 1
+LANG:1 3 Plc
+E
+1
+LANG:1 0 
+
+110 "ip" 9 1 0 "s" 1
+LANG:1 2 IP
+E
+1
+LANG:1 0 
+
+100 "model" 6 1 0 "s" 1
+LANG:1 5 Model
+E
+1
+LANG:1 0 
+
+70 "manufacturer" 8 1 0 "s" 1
+LANG:1 12 Manufacturer
+E
+1
+LANG:1 0 
+
+90 "time" 12 1 0 "s" 1
+LANG:1 8 PLC time
+E
+1
+LANG:1 0 
+
+130 "state" 5 1 0 "s" 1
+LANG:1 5 State
+E
+1
+LANG:1 0 
+
+67 
+16 16 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 62
+"txFilter"
+""
+1 160 110 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+87 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 160 110 555 130.342857142857
+0 2 2 "0s" 0 0 0 64 0 0  160 110 2
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 28 ... please select a filter  
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 64
+"matchingCount"
+""
+1 4356.324112786198 3421.857142857144 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1.0013698630137 0 1 429.931506849315 315 1 E 50 75 177 90
+0 2 2 "0s" 0 0 0 192 0 0  50 75 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 22 Matching PLCs count: 0
+2 65
+"PRIMITIVE_TEXT16"
+""
+1 40 110 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+90 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 40 110 154 124
+0 2 2 "0s" 0 0 0 192 0 0  40 110 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 25 Current Filter Settings: 
+22 66
+"manufacturerSelect"
+""
+1 130 66.47321428571423 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+91 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  128 64 292 91
+3
+1
+LANG:1 3 ANY
+
+0
+1
+LANG:1 7 SIEMENS
+
+0
+1
+LANG:1 9 SCHNEIDER
+
+0
+
+E
+E
+E
+ 1 0
+22 67
+"modelSelect"
+""
+1 450.0027397260274 65.47321428571425 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+92 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  448 63 612 90
+5
+1
+LANG:1 3 ANY
+
+0
+1
+LANG:1 6 S7-300
+
+0
+1
+LANG:1 6 S7-400
+
+0
+1
+LANG:1 7 PREMIUM
+
+0
+1
+LANG:1 7 QUANTUM
+
+0
+
+E
+E
+E
+ 1 0
+13 68
+"btnSearch"
+""
+1 510 130.2857142857143 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  508 128 613 162
+
+T 
+1
+LANG:1 6 Search
+"main()
+{
+  string plcPattern, plcState, plcManufacturer, plcModel;
+  
+  getValue(\"tfPlcPattern\", \"text\", plcPattern);
+  getValue(\"stateSelect\", \"selectedText\", plcState);
+  getValue(\"manufacturerSelect\", \"selectedText\", plcManufacturer);
+  getValue(\"modelSelect\", \"selectedText\", plcModel);
+
+  setPlcs(plcPattern, plcState, plcManufacturer, plcModel);
+  
+
+  txFilter.text = \"PLC Pattern: \" + plcPattern + \"  PLC State: \" + plcState +
+                  \"  Manufacturer: \" + plcManufacturer + \"  Model: \" + plcModel;
+}" 0
+ E E E
+13 69
+"PUSH_BUTTON2"
+""
+1 540 420 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+94 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0  538 418 642 452
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+   PanelOff();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

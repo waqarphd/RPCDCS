@@ -1,0 +1,2947 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 968 750 N "_3DFace" 2
+"$sDpName"
+"$sHierarchyType"
+"main()
+{
+	dyn_string exceptionInfo;
+	
+	fwDevice_initialize();
+	
+	// Initialize list of configs to have same indexes as in fwDevice library
+        configOptionList[fwDevice_ADDRESS_INDEX]		= fwConfigs_FW_ADDRESS;
+	configOptionList[fwDevice_ALERT_INDEX]		        = fwConfigs_FW_ALERT_HDL;
+	configOptionList[fwDevice_ARCHIVE_INDEX]		= fwConfigs_FW_ARCHIVE;
+	configOptionList[fwDevice_PVRANGE_INDEX]		= fwConfigs_FW_PV_RANGE;
+	configOptionList[fwDevice_CONVERSION_INDEX]	        = fwDevice_CONFIG[fwDevice_CONVERSION_INDEX];  // FIX         
+	configOptionList[fwDevice_SMOOTHING_INDEX] 	        = fwConfigs_FW_SMOOTH;
+	configOptionList[fwDevice_UNIT_INDEX]			= fwConfigs_FW_UNIT;
+	configOptionList[fwDevice_FORMAT_INDEX]	        	= fwConfigs_FW_FORMAT;	
+	configOptionList[fwDevice_DPFUNCTION_INDEX]	        = fwConfigs_FW_DP_FUNCT;
+	configOptionList[fwDevice_ORIGINAL_INDEX]	        = fwConfigs_FW_ORIGINAL;
+	configOptionList[11]	                                = fwConfigs_FW_MSG_CONV; // FIX
+	configOptionList[12]	                                = fwConfigs_FW_CMD_CONV; // FIX        
+       
+        /*
+            FIX above: The conversion is not split up into message and command in the device library. 
+            The function called enableIndividualElements() in scopeLib is also affected by this.
+        */
+        
+        
+	if(isDollarDefined(\"$sDpName\"))
+	{
+		if(isDollarDefined(\"$sHierarchyType\"))
+		{
+			switch($sHierarchyType)
+			{
+				case fwDevice_HARDWARE:
+					setRestrictedDeviceDpName($sDpName, exceptionInfo);
+					break;
+				case fwDevice_LOGICAL:
+					setRestrictedDeviceDpAlias($sDpName, exceptionInfo);
+					break;
+				default:				
+					break;
+			}
+		}
+		else
+		{
+			// if no hierarchy type specified consider it to be hardware
+			setRestrictedDeviceDpName($sDpName);
+		}
+	}
+}
+
+setRestrictedDeviceDpName(string name, dyn_string &exceptionInfo)
+{
+	if(name != \"\")
+	{
+		deviceNameText.text = name + \"*\";
+		restrictedLabel.text = \"(Restricted to a hardware subtree)\";
+		restrictedLabel.visible = TRUE;
+	}
+}
+
+setRestrictedDeviceDpAlias(string alias, dyn_string &exceptionInfo)
+{
+	if(alias != \"\")
+	{
+		fwGeneral_getNameWithoutSN(alias, deviceDpAliasRestricted, exceptionInfo);
+		deviceAliasText.text = deviceDpAliasRestricted + \"*\";		
+		restrictedLabel.text = \"(Restricted to a logical subtree)\";
+		restrictedLabel.visible = TRUE;
+	}
+}
+" 0
+ "main()
+{
+	int i;
+}" 0
+ E E E 1 -1 -1 0  10 70
+""0  1
+E "
+// indexes to access table columns
+const int DEVICE_DP_NAME_COLUMN         = 2;
+const int DEVICE_MODEL_COLUMN	        = 5;
+const int INCLUDE_COLUMN 		= 11;
+
+string dpType, deviceDpAliasRestricted, deviceDpNameRestricted;
+dyn_string configOptionList;
+dyn_string fwDeviceDpTypes;
+
+/*
+    allDpElements[x][1] - dp element name
+    allDpElements[x][2] - device definition name
+*/
+dyn_dyn_string allDpElements;
+dyn_int selectedDpElements;
+dyn_string g_dpesShown;
+
+/*
+    This function fill the dp element setting table with the elements found in the global dyn_dyn_string called allDpElements 
+*/
+updateDpElementTable()
+{
+      elementsTbl.deleteAllLines();
+      for(int i = 1; i<=dynlen(allDpElements); i++)
+      {
+           
+           if(deviceDefCheckBox.state(0)) // only device definition 
+           {
+               if(strlen(allDpElements[i][2])!=0)  
+                   elementsTbl.appendLine(\"elements\",allDpElements[i][1],\"properties\",allDpElements[i][2],\"types\",allDpElements[i][3]);
+           }
+           else
+           {
+               elementsTbl.appendLine(\"elements\",allDpElements[i][1],\"properties\",allDpElements[i][2],\"types\",allDpElements[i][3]);
+           }   
+        
+      }
+      elementsTbl.selectLineN(0);
+      
+}
+
+/*
+    This function get all the selected rows in the dpe table and send them to a defined config panel.
+*/
+openConfigPanel(string panel, dyn_string dollarParameters, dyn_string &exceptionInfo)
+{
+	dyn_string dpeList; // list with dp elements which are sent to the config panel.
+        
+        // loop through the rows in the dpe table and get the selected elements.
+        for(int i = 0; i < viewSettings.lineCount; i++)
+        {   
+                if(viewSettings.cellValueRC(i, \"selected\")==\"Y\" && viewSettings.cellValueRC(i, \"Device element name\")!=\"\")
+                  dynAppend(dpeList, viewSettings.cellValueRC(i, \"Device element name\"));
+        }
+                
+        // Error handling. 1) No elements in the table, 2) No elements selected.
+        if(viewSettings.lineCount==0) 
+	    fwException_raise(exceptionInfo,\"No elements in the table\",\"No elements found in the DP element table. \\n Did you remember to load the element settings?\",\"\"); 
+        else if(dynlen(dpeList)==0)
+	    fwException_raise(exceptionInfo,\"No elements selected\",\"No elements selected in the DP element table.\",\"\");
+       
+        if(dynlen(exceptionInfo)>0)
+        {
+		fwExceptionHandling_display(exceptionInfo);  
+                return;            
+        }
+        
+	dynAppend(dollarParameters, \"$sDpe:\" + dpeList);
+	ChildPanelOnCentralModal(panel, panel, dollarParameters);
+}
+
+buildDpeList(dyn_string &dpeList, dyn_string &exceptionInfo)
+{
+        dyn_string elements;
+        dyn_int lines;
+        getValue(\"elementsTbl\",\"getSelectedLines\",lines);
+        
+        if(dynlen(lines)==0)
+        {
+                fwException_raise(exceptionInfo,\"DP Elements\",\"No DP Elements are selected.\",\"\");  
+                return;
+        }
+        
+        dyn_anytype result;
+        for(int i = 1; i <= dynlen(lines); i++)
+	{
+                result = elementsTbl.getLineN(lines[i]);
+                dynAppend(elements,result[1]);
+        }        
+        
+	dyn_anytype line;
+	dpeList = makeDynString();
+	for(int i = 0; i < searchResultTable.lineCount; i++)
+	{
+		line =	searchResultTable.getLineN(i);
+		if(line[INCLUDE_COLUMN] == \"Y\")    
+                        for(int j=1;j<=dynlen(elements);j++)
+			        dynAppend(dpeList, line[DEVICE_DP_NAME_COLUMN] + elements[j]);
+	}
+
+        if(dynlen(dpeList)==0)
+        {
+                fwException_raise(exceptionInfo,\"Devices\",\"No devices are selected.\",\"\");  
+                return;
+        }          
+}
+
+/*
+    This function sets the control options for the different controllers in the panel, and it fills out the 
+    drop down list with the different settings.
+*/
+enableIndividualElementsControls(bool enable)
+{
+	elementsTbl.enabled = enable;
+        viewElementSettings.enabled = enable;
+        actionList.enabled = enable;        
+        deviceDefCheckBox.enabled = enable;  
+        onlyConfElements.enabled = enable;
+        
+        // delete all items in the settings list
+        actionList.deleteAllItems();
+
+        dyn_bool possibleConfigs; 
+        dyn_bool possibleConfForSelElements;
+        
+        // start with all settings available
+        for(int i=1; i<=dynlen(configOptionList); i++)
+          possibleConfForSelElements[i]=TRUE;
+                              
+        // if not the device definition checkbox is checked then display all settings
+        if(!deviceDefCheckBox.state(0))
+        {
+                for(int i = 1; i <= dynlen(configOptionList); i++)
+                     if(configOptionList[i]!= \"\" && configOptionList[i]!= \"CONVERSION\") // it may be empty because constants are used in the indexing (see init script)
+                           actionList.appendItem(configOptionList[i]);
+              
+                actionList.selectedPos(1);
+                setSettings.text = \"Set \" + strtolower(actionList.selectedText);
+                return;
+        }
+
+        dyn_string exceptionInfo;            
+
+        // define the pattern for what settings that should be displayed for the conversion
+        int direction=0; // direction for the selected elements. One of the three groups below
+        dyn_dyn_int directionGroups;
+        directionGroups[1] = makeDynInt(DPATTR_ADDR_MODE_OUTPUT, DPATTR_ADDR_MODE_OUTPUT_SINGLE); //output
+        directionGroups[2] = makeDynInt(DPATTR_ADDR_MODE_INPUT_SPONT, DPATTR_ADDR_MODE_INPUT_SQUERY, DPATTR_ADDR_MODE_INPUT_POLL); //input 
+        directionGroups[3] = makeDynInt(DPATTR_ADDR_MODE_IO_SPONT,DPATTR_ADDR_MODE_IO_POLL,DPATTR_ADDR_MODE_IO_SQUERY); // both      
+                
+        // get selected elements
+        dyn_int selLines;
+        dyn_string selDpElements;
+        selLines = elementsTbl.getSelectedLines;
+        if(dynlen(selLines)==0)  // if no lines are selected there is no point to move on to the next steps.
+          return;
+                        
+        // find out what kind of configs that are available for the selected elements
+        for(int i=1; i<=dynlen(selLines); i++)
+        {
+                selDpElements[i] = elementsTbl.cellValueRC(selLines[i],\"elements\");
+                fwDevice_getElementPossibleConfigs(dpType, selDpElements[i], possibleConfigs, exceptionInfo);
+                for(int j=1; j<=dynlen(possibleConfigs); j++) // overwrite possible config list if the current element don't have all configs 
+                     if(!possibleConfigs[j])
+                            possibleConfForSelElements[j]=false;
+               
+        }
+
+        // get the direction of the selected elements. This is needed by the Conversion config.
+        if(possibleConfForSelElements[fwDevice_CONVERSION_INDEX])
+        {
+                dyn_string dpeList;
+                bool configExists, isActive;
+                dyn_anytype config;
+                buildDpeList(dpeList, exceptionInfo);
+                for(int i=1; i<=dynlen(dpeList); i++)
+                {
+                      fwPeriphAddress_get(dpeList[i], configExists, config, isActive, exceptionInfo);
+                      
+                      for(int j=1; j<=dynlen(directionGroups); j++)
+                      {
+                            //DebugN(directionGroups[j],(int)config[fwPeriphAddress_DIRECTION],direction,direction>j,direction==0);
+                            if(dynContains(directionGroups[j],(int)config[fwPeriphAddress_DIRECTION]) && (direction>j || direction==0))
+                                  direction=j;
+                      }
+                }
+                
+        }
+           
+        // add items to the setting/config list
+	for(int i = 1; i <= (MAX_CONFIG_INDEX+1); i++) // msg conv and cmd conv are not included
+	{
+			if(dynlen(possibleConfForSelElements) >= i && configOptionList[i]!= \"\")  
+                        {
+                                if(possibleConfForSelElements[i])  // if configured
+                                {
+                                        if(configOptionList[i]==fwDevice_CONFIG[fwDevice_CONVERSION_INDEX]) // split up the conversion (msg and cmd)
+                                        {
+                                              if(direction==1) // Message conversion
+                                                   actionList.appendItem(configOptionList[12]);
+                                              else if(direction==2) // Command conversion
+                                                   actionList.appendItem(configOptionList[11]);
+                                              else if(direction==3) // Both
+                                              {                                             
+                                                   actionList.appendItem(configOptionList[11]);
+                                                   actionList.appendItem(configOptionList[12]);	
+                                              }	
+//                                              else
+//                                                 DebugN(direction);
+                                        }
+                                        else
+                                              actionList.appendItem(configOptionList[i]);
+                                 }
+                         }	
+	}
+        
+        actionList.selectedPos(1);
+        setSettings.text = \"Set \" + strtolower(actionList.selectedText);
+}
+
+/*
+      When changes are done in the element settings or in the selection of devices in the device list
+      then this function is called.
+*/
+clearDpeList()
+{
+        g_dpesShown = makeDynString();
+        viewSettings.deleteAllLines();  
+        dpeListBtn.enabled(false);
+        setSettings.enabled(false);      
+}
+
+/*
+    This function sets the default configurations for the selected devices in the device list. 
+    It does not require values in the DP element list. 
+*/
+configureDefault(int config, string command, dyn_string messages, dyn_string &exceptionInfo)
+{ 
+	dyn_bool canHaveDefaults;
+	dyn_anytype line;
+	
+	fwOpenProgressBar(\"Mass Configuration\", messages[1], 2);
+//	delay(0, 100);
+
+	for(int i = 0; i < searchResultTable.lineCount; i++)
+	{
+		line = searchResultTable.getLineN(i);
+		if(line[INCLUDE_COLUMN] == \"Y\")
+		{
+			fwDevice_canHaveDefaults(makeDynString(line[DEVICE_DP_NAME_COLUMN], 
+                                                 \"\", 
+                                                 \"\", 
+                                                 line[DEVICE_MODEL_COLUMN]),
+						 canHaveDefaults, 
+                                                 exceptionInfo);
+																			
+			//DebugN(makeDynString(line[DEVICE_DP_NAME_COLUMN], \"\", \"\", line[DEVICE_MODEL_COLUMN]), canHaveDefaults);
+			
+			if(canHaveDefaults[1])
+			{	
+				//DebugN(\"Setting defaults for \" + line[DEVICE_DP_NAME_COLUMN] + \" \" + config + \" \" + command);
+
+				switch(config)
+				{
+					case fwDevice_ADDRESS_INDEX:
+						switch(command)
+						{
+							case fwDevice_ADDRESS_SET:
+								fwDevice_setAddress(line[DEVICE_DP_NAME_COLUMN], makeDynString(fwDevice_ADDRESS_DEFAULT), exceptionInfo);
+								break;
+							case fwDevice_ADDRESS_UNSET:
+								fwDevice_setAddress(line[DEVICE_DP_NAME_COLUMN], makeDynString(fwDevice_ADDRESS_NONE), exceptionInfo);
+								break;			
+							default:
+								break;					
+						}
+						break;
+					case fwDevice_ALERT_INDEX:
+						fwDevice_setAlert(line[DEVICE_DP_NAME_COLUMN], command, exceptionInfo);
+						break;
+					case fwDevice_ARCHIVE_INDEX:
+						/* Archive class still has to be chosen. How??
+						dyn_string archiveClasses;
+						archiveClasses = archiveClassList.items();
+						pos = archiveClassList.selectedPos();
+						fwDevice_setArchive(devices[i], \"\", command, exceptionInfo);
+						*/
+						break;
+					case fwDevice_DPFUNCTION_INDEX:
+						fwDevice_setDpFunction(	line[DEVICE_DP_NAME_COLUMN], command, exceptionInfo, \"\", \"\");
+					default:
+						break;					
+				}
+			}
+		}
+		fwShowProgressBar(messages[2] + (i + 1), (i + 1) * 100 / searchResultTable.lineCount);
+	}
+	
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+		
+	fwCloseProgressBar(messages[3]);
+}" 0
+ 2
+"CBRef" "0"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+30 95
+"Frame1"
+""
+1 244 689 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+27 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.77570093457944 0 0.786982248520711 -423.271028037383 -250.230769230769 0 E 244 520 780 690
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Elements setting
+2 21
+"deviceNameLabel"
+""
+1 25 74 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 27 75 123 92
+0 2 2 "0s" 0 0 0 192 0 0  27 75 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Device DP name
+2 92
+"Text7"
+""
+1 25 182 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 27 183 125 200
+0 2 2 "0s" 0 0 0 192 0 0  27 183 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Select elements:
+2 87
+"deviceAliasLabel"
+""
+1 25 100 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 27 101 118 118
+0 2 2 "0s" 0 0 0 192 0 0  27 101 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Device DP alias
+2 40
+"deviceTypeLabel"
+""
+1 25 48 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 27 49 94 66
+0 2 2 "0s" 0 0 0 192 0 0  27 49 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Device type
+2 27
+"deviceCommentLabel"
+""
+1 25 126 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 27 127 123 144
+0 2 2 "0s" 0 0 0 192 0 0  27 127 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Device comment
+2 2
+"Text1"
+""
+1 8 2 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 3 172 26
+0 2 2 "0s" 0 0 0 192 0 0  10 3 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Mass Configuration
+30 103
+"Frame3"
+""
+1 20 253 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+26 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.907773386034257 0 0.624413145539906 -8.15546772068509 -0.352112676056301 0 E 20 39 780 253
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Search
+2 131
+"restrictedLabel"
+""
+1 176 7 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 178 8 252 25
+0 2 2 "0s" 0 0 0 192 0 0  178 8 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 Restricted to
+22 113
+"deviceTypesCombo"
+""
+1 131 45 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 129 43 483 70
+0
+
+"main()
+{
+	dyn_string exceptionInfo, items;
+	dyn_dyn_string types;
+	
+//	fwOpenProgressBar(\"Initializing...\", \"Initializing...\", 1, 0);
+	
+	deviceTypesCombo.deleteAllItems();
+	deviceDpTypes.deleteAllItems();
+	
+	fwDevice_getAllTypes(types, exceptionInfo);
+	
+	//DebugN(types);
+	fwDeviceDpTypes = types[2];
+	
+	items = makeDynString(\"Any\");
+	dynAppend(items, types[1]);
+	deviceTypesCombo.items = items;
+	
+	items = makeDynString(\"*\");
+	dynAppend(items, types[2]);
+	deviceDpTypes.items = items;
+	
+	deviceTypesCombo.selectedPos(1);
+	deviceDpTypes.selectedPos(1);
+	
+//	fwCloseProgressBar(\"Finished initialization\");
+}" 0
+
+"main()
+{
+	deviceDpTypes.selectedPos(deviceTypesCombo.selectedPos());
+}" 0
+
+E
+ 0 0
+14 88
+"deviceAliasText"
+""
+1 131 97 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 129 95 481 122
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = \"*\";
+}" 0
+ E
+14 28
+"deviceCommentText"
+""
+1 131 123 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 129 121 481 148
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+   this.text = \"*\";
+}" 0
+ E
+14 20
+"deviceNameText"
+""
+1 131 71 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 129 69 481 96
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+		this.text = \"*\";
+}" 0
+ E
+22 112
+"deviceDpTypes"
+""
+1 539 45 E E E 0 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 537 43 683 70
+0
+
+E
+E
+E
+ 0 0
+13 45
+"closeButton"
+""
+1 892 725 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 890 723 954 751
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+1 191 0 "" 0
+0
+13 141
+"deSelAll"
+""
+1 851 314.076923076923 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 849 313 953 341
+
+T 
+1
+LANG:1 12 Deselect All
+"main()
+{
+    if(viewSettings.visible == true)
+    {
+	for(int i = 0; i <= viewSettings.lineCount; i++)
+		viewSettings.cellValueRC(i, \"selected\", \"N\");
+    }
+    else
+    {
+        //dpeListBtn.enabled(false);
+        //viewSettings.deleteAllLines();
+        //setSettings.enabled(false);      
+	for(int i = 0; i <= searchResultTable.lineCount; i++)
+		searchResultTable.cellValueRC(i, \"include\", \"N\");            
+    }
+}" 0
+ E E E
+13 142
+"selAll"
+""
+1 744 314.076923076923 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 742 313 846 341
+
+T 
+1
+LANG:1 10 Select All
+"main()
+{
+    if(viewSettings.visible == true)
+    {
+	for(int i = 0; i <= viewSettings.lineCount; i++)
+		viewSettings.cellValueRC(i, \"selected\", \"Y\");
+    }
+    else
+    {
+        //dpeListBtn.enabled(false);
+        //viewSettings.deleteAllLines();
+        //setSettings.enabled(false);      
+	for(int i = 0; i <= searchResultTable.lineCount; i++)
+		searchResultTable.cellValueRC(i, \"include\", \"Y\");            
+    }
+}" 0
+ E E E
+22 145
+"actionList"
+""
+1 794 200 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 35 Choose which setting to view or set
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 792 198 945 223
+0
+
+"main()
+{
+  this.items(configOptionList);
+  this.selectedPos(1);
+}" 0
+
+"main()
+{
+    setSettings.text(\"Set \"+strtolower(this.selectedText()));
+    clearDpeList();
+}" 0
+
+E
+ 0 0
+13 146
+"setSettings"
+""
+1 770 691.076923076923 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 38 Set new setting for the selected dpes.
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 768 690 954 718
+
+T 
+1
+LANG:1 11 Set address
+"main()
+{
+   dyn_string exceptionInfo;
+	
+   switch(actionList.selectedText) 
+   { 
+        case fwConfigs_FW_ORIGINAL:
+        openConfigPanel(\"fwConfigs/fwOriginalConfigPopup.pnl\", makeDynString(), exceptionInfo); 
+        break; 
+      
+        case fwConfigs_FW_ADDRESS:  
+        openConfigPanel(\"fwConfigs/fwPeriphAddressPopup.pnl\", makeDynString(), exceptionInfo); 
+        break; 
+      
+        case fwConfigs_FW_DP_FUNCT:
+        openConfigPanel(\"fwConfigs/fwDpFunctionConfigPopup.pnl\", makeDynString(), exceptionInfo);
+        break;
+      
+        case fwConfigs_FW_ARCHIVE:
+        openConfigPanel(\"fwConfigs/fwArchiveConfigPopup.pnl\", makeDynString(), exceptionInfo);
+        break;
+      
+        case fwConfigs_FW_ALERT_HDL:
+        openConfigPanel(\"fwConfigs/fwAlertConfigPopup.pnl\", makeDynString(\"$sSummaryDpe:.\"), exceptionInfo);
+        break;
+      
+        case fwConfigs_FW_SMOOTH:
+        openConfigPanel(\"fwConfigs/fwSmoothingConfigPopup.pnl\", makeDynString(), exceptionInfo);
+        break;
+      
+        case fwConfigs_FW_CMD_CONV:
+        openConfigPanel(\"fwConfigs/fwConversionConfigPopup.pnl\", makeDynString(\"$configType:CMD\"), exceptionInfo);
+        break;
+        
+        case fwConfigs_FW_MSG_CONV:
+        openConfigPanel(\"fwConfigs/fwConversionConfigPopup.pnl\", makeDynString(\"$configType:MSG\"), exceptionInfo);
+        break;        
+      
+        case fwConfigs_FW_PV_RANGE:
+        openConfigPanel(\"fwConfigs/fwPvRangeConfigPopup.pnl\", makeDynString(), exceptionInfo);
+        break;
+      
+        case fwConfigs_FW_UNIT:
+        openConfigPanel(\"fwConfigs/fwUnitConfigPopup.pnl\", makeDynString(), exceptionInfo);
+        break;
+      
+        case fwConfigs_FW_FORMAT:
+        openConfigPanel(\"fwConfigs/fwFormatConfigPopup.pnl\", makeDynString(), exceptionInfo);
+        break;                                    
+
+   }
+  
+}	" 0
+ E E E
+2 152
+"PRIMITIVE_TEXT1"
+""
+1 792 179 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 794 180 885 197
+0 2 2 "0s" 0 0 0 192 0 0  794 180 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Choose setting:
+20 161
+"onlyConfElements"
+""
+1 793 263 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 791 261 954 285
+1
+T 
+1
+LANG:1 24 Only configured elements
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE13 154
+"viewElementSettings"
+""
+1 794 230 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 34 Load the list with device elements
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 792 229 945 259
+
+T 
+1
+LANG:1 20 Load device elements
+"main()
+{
+      dyn_string dpes;
+      dyn_string exceptionInfo;
+      
+      // build the device element names from the selected devices and the selected dpe names
+      buildDpeList(dpes, exceptionInfo);      
+            
+      if(dynlen(exceptionInfo)>0)
+      {
+	    fwExceptionHandling_display(exceptionInfo);  
+            return;            
+      }
+              
+      //if(actionList.selectedText!=\"\")
+      displayElementsSettings(actionList.selectedText, dpes, exceptionInfo);
+      
+      if(dynlen(exceptionInfo)>0)
+      {
+            clearDpeList();
+	    fwExceptionHandling_display(exceptionInfo); 
+            return;            
+      }      
+      
+      deviceListBtn.enabled(true);
+      dpeListBtn.enabled(false);
+            
+}	
+
+/*
+    How this work: 
+    
+      1) displayElementsSettings() - Call the right function for getting all the data related to the selected setting.
+      2) getAddressData() - Gets all the data for the selected dpes and the setting which is chosen.
+      3) drawTable() - Updates the table with the new data.
+*/ 
+private void displayElementsSettings(const string configType, const dyn_string dpes, dyn_string &exceptionInfo)
+{
+      fwOpenProgressBar(\"Mass Configuration\", \"Searching for device elements...\", 1, 20);
+      // delay to let the progress bar open
+      delay(0, 100);  
+  
+      // empty the element settings table
+      viewSettings.deleteAllLines();
+      int number;
+      getValue(\"viewSettings\", \"columnCount\",number);
+      for(int i=(number-2); i>=0; i--)
+          viewSettings.deleteColumn(i);                
+      
+      // make the view settings table visible   
+      viewSettings.visible(true);
+      searchResultTable.visible(false);       
+
+      dyn_dyn_string elements;
+      dyn_string columnNames;
+      dyn_int columnWidths; 
+      int rowHeight;    
+      
+      switch(configType)
+      {
+            case fwConfigs_FW_ADDRESS:
+                getAddressData(dpes, elements, columnNames, columnWidths, rowHeight, exceptionInfo);
+                break;
+            case fwConfigs_FW_ALERT_HDL:  
+                getAlarmData(dpes, elements, columnNames, columnWidths, rowHeight, exceptionInfo);  
+                break;
+            case fwConfigs_FW_ORIGINAL:
+                getValues(dpes, elements, columnNames, columnWidths, rowHeight, exceptionInfo);
+                break;
+            case fwConfigs_FW_ARCHIVE:
+                getArchiveData(dpes, elements, columnNames, columnWidths, rowHeight, exceptionInfo);
+                break;
+            case fwConfigs_FW_PV_RANGE:
+                getRangeData(dpes, elements, columnNames, columnWidths, rowHeight, exceptionInfo);
+                break;
+            case fwConfigs_FW_CMD_CONV:
+                getConversionData(dpes, elements, columnNames, columnWidths, rowHeight, \"CMD\", exceptionInfo);
+                break;
+            case fwConfigs_FW_MSG_CONV:
+                getConversionData(dpes, elements, columnNames, columnWidths, rowHeight, \"MSG\", exceptionInfo);
+                break;              
+            case fwConfigs_FW_SMOOTH:
+                getSmoothingData(dpes, elements, columnNames, columnWidths, rowHeight, exceptionInfo);
+                break;       
+            case fwConfigs_FW_UNIT:
+                getUnitData(dpes, elements, columnNames, columnWidths, rowHeight, exceptionInfo);
+                break;  
+            case fwConfigs_FW_FORMAT:
+                getFormatData(dpes, elements, columnNames, columnWidths, rowHeight, exceptionInfo); 
+                break;                                    
+            case fwConfigs_FW_DP_FUNCT:
+                getDpfunctionData(dpes, elements, columnNames, columnWidths, rowHeight, exceptionInfo); 
+                break;                
+            //default:          
+      }         
+      
+      drawTable(columnNames, columnWidths, rowHeight, elements);
+            
+      // if there are elements in the table make the set button visible
+      if(viewSettings.lineCount!=0)
+              setSettings.enabled(true); 
+      else
+              setSettings.enabled(false); 
+      
+      fwCloseProgressBar(\"Finished searching for dp elements\");
+}
+
+private void getValues(dyn_string dpes, dyn_dyn_string &elements, dyn_string &columnNames, dyn_int &columnWidths, int &rowHeight, dyn_string &exceptionInfo)
+{
+        columnNames    = makeDynString(\"Device element name\",\"Value\");
+        columnWidths   = makeDynInt(450, 150);       
+        rowHeight = 22;
+            
+        for(int i=1; i<=dynlen(dpes); i++)
+        { 
+              elements[i][1] = dpes[i];
+              elements[i][2] = \"updateValue,\"+dpes[i];    
+        }  
+}
+        
+private void getAddressData(dyn_string dpes, dyn_dyn_string &elements, dyn_string &columnNames, dyn_int &columnWidths, int &rowHeight, dyn_string &exceptionInfo)
+{
+        bool isActive; 
+        dyn_anytype config;
+        bool configExists;
+        
+        columnNames = makeDynString(\"Device element name\",\"Type\",\"Driver\",\"Root name\",\"Direction\",\"Datatype\",\"Details\");
+        columnWidths = makeDynInt(400,65,45,110,70,70,120); 
+        rowHeight = 22;  
+          
+        int count;
+        for(int i=1; i<=dynlen(dpes); i++)
+        {             
+              fwPeriphAddress_get(dpes[i], configExists, config, isActive, exceptionInfo);
+                  
+              if((!configExists && onlyConfElements.state(0)) || dynlen(exceptionInfo)!=0)
+                    continue;
+              count++;                  
+                            
+              dyn_string values;        
+              if(configExists)
+              {
+                    string direction;  
+                    if(config[fwPeriphAddress_DIRECTION]==DPATTR_ADDR_MODE_OUTPUT_SINGLE)
+                      direction = \"Out\";
+                    else if(config[fwPeriphAddress_DIRECTION]==DPATTR_ADDR_MODE_INPUT_SPONT)
+                      direction = \"In\";
+                    else
+                      direction = config[fwPeriphAddress_DIRECTION];
+                    
+                    string addrType;
+                    if(config[fwPeriphAddress_TYPE]==fwPeriphAddress_TYPE_OPCCLIENT)
+                      addrType = \"OPC\";
+                    else if(config[fwPeriphAddress_TYPE]==fwPeriphAddress_TYPE_DIMCLIENT)
+                      addrType = \"DIM\";
+                    else if(config[fwPeriphAddress_TYPE]==fwPeriphAddress_TYPE_DIP)
+                      addrType = \"DIP\";                    
+                    else if(config[fwPeriphAddress_TYPE]==fwPeriphAddress_TYPE_MODBUS)
+                      addrType = \"MODBUS\";  
+                    else if(config[fwPeriphAddress_TYPE]==fwPeriphAddress_TYPE_S7)
+                      addrType = \"S7\";  
+                    else if(config[fwPeriphAddress_TYPE]==fwPeriphAddress_TYPE_CMW)
+                      addrType = \"CMW\";  
+                    else
+                      addrType = config[fwPeriphAddress_TYPE];  
+                                                 
+                    string details;
+                    if(config[fwPeriphAddress_TYPE]==fwPeriphAddress_TYPE_OPCCLIENT)
+                      details = config[fwPeriphAddress_OPC_GROUP_IN]+\", \"+config[fwPeriphAddress_OPC_GROUP_OUT];
+                    else
+                      details = \"-\";
+                                       
+                    values = makeDynString(dpes[i],
+                                           addrType,
+                                           config[fwPeriphAddress_DRIVER_NUMBER],										
+  			                   config[fwPeriphAddress_ROOT_NAME],									
+  			                   direction,																																
+  			                   config[fwPeriphAddress_DATATYPE],
+                                           details);
+              }
+              else
+                    values = makeDynString(dpes[i],\"-NA-\",\"-NA-\",\"-NA-\",\"-NA-\",\"-NA-\",\"-NA-\");                    
+                                  
+              for(int j=1; j<=dynlen(values); j++)
+                elements[count][j] = values[j];
+                         
+        }
+}            
+
+private void getAlarmData(dyn_string dpes, dyn_dyn_string &elements, dyn_string &columnNames, dyn_int &columnWidths, int &rowHeight, dyn_string &exceptionInfo)
+{
+	    bool configExists, isActive;
+	    int alertConfigType;
+	    dyn_float alertLimits;
+	    dyn_string alertClasses,summaryDpeList,alertPanelParameters, alertTexts;
+	    string alertPanel, alertHelp;
+            
+            columnNames = makeDynString(\"Device element name\",\"Alarm text\",\"Alarm classes\",\"Ranges\",\"Type\");
+            columnWidths = makeDynInt(400,160,180,60,60);                
+            rowHeight = 22;
+            
+            int rowNumber;
+            for(int i=1; i<=dynlen(dpes); i++)
+            { 
+                  fwAlertConfig_get(dpes[i], configExists,alertConfigType,alertTexts,alertLimits,alertClasses,
+                                    summaryDpeList,alertPanel,alertPanelParameters,alertHelp,isActive,exceptionInfo);
+
+                  if((!configExists && onlyConfElements.state(0)) || dynlen(exceptionInfo)!=0)
+                    continue;
+                  
+                  rowNumber++;
+                                    
+                  //ranges and row heights
+                  if(dynlen(alertTexts)==5)
+                      rowHeight = 100;
+                  else if(dynlen(alertTexts)==4 && rowHeight<80)
+                      rowHeight = 80;
+                  else if(dynlen(alertTexts)==3 && rowHeight<60)
+                      rowHeight = 60;        
+                  else if(dynlen(alertTexts)==2 && rowHeight<40)
+                      rowHeight = 40;                            
+   
+                  string alertTexts2, alertClasses2, alertLimits2;
+                  for(int j=dynlen(alertTexts);j>=1;j--)
+                  {
+                        alertTexts2 += alertTexts[j]+\"\\n\";
+                        alertClasses2 += alertClasses[j]+\"\\n\";
+                  }
+                  
+                  if(alertConfigType == DPCONFIG_ALERT_BINARYSIGNAL)
+                    alertLimits2 = \"TRUE\\nFALSE\";
+                  else
+                  {
+                    for(int j=dynlen(alertLimits);j>=1;j--)
+                      alertLimits2 += alertLimits[j]+\"\\n\";
+                  }                 
+                  dyn_string values = makeDynString(dpes[i],
+                                                      alertTexts2 ,										
+			                              alertClasses2 ,									
+			                              alertLimits2 ,																																
+			                              alertConfigType);
+                                                      
+                  for(int j=1; j<=dynlen(columnNames); j++)
+                        elements[rowNumber][j] = values[j];                                          
+            }   
+}
+  
+private void getArchiveData(dyn_string dpes, dyn_dyn_string &elements, dyn_string &columnNames, dyn_int &columnWidths, int &rowHeight, dyn_string &exceptionInfo)
+{
+        bool configExists, isActive; 
+        string archiveClass;
+        int archiveType, smoothProcedure;
+        float deadband, timeInterval;
+    
+        columnNames = makeDynString(\"Device element name\",\"Arc. class\",\"Arc. type\",\"Smoothing\",\"Deadband\",\"Time int.\",\"Active\");
+        columnWidths = makeDynInt(400,120,70,80,70,70,50);
+        rowHeight = 22;
+    
+        int rowNumber;
+        for(int i=1; i<=dynlen(dpes); i++)
+        {
+                  fwArchive_get(dpes[i], configExists, archiveClass, archiveType, smoothProcedure, deadband, timeInterval, isActive, exceptionInfo);
+              
+                  if((!configExists && onlyConfElements.state(0)) || dynlen(exceptionInfo)!=0)
+                      continue;
+                  rowNumber++;   
+                         
+                  elements[rowNumber][1] = dpes[i];
+                  elements[rowNumber][2] = archiveClass;
+                  elements[rowNumber][3] = archiveType;
+                  elements[rowNumber][4] = smoothProcedure;
+                  elements[rowNumber][5] = deadband;
+                  elements[rowNumber][6] = timeInterval;
+                  elements[rowNumber][7] = isActive;             
+        }
+
+}
+
+private void getRangeData(dyn_string dpes, dyn_dyn_string &elements, dyn_string &columnNames, dyn_int &columnWidths, int &rowHeight, dyn_string &exceptionInfo)
+{
+        dyn_bool configExists;
+        dyn_int pvRangeTypes;
+        dyn_dyn_anytype configData;
+        
+        columnNames = makeDynString(\"Device element name\",\"Range type\",\"Negate\",\"Ignore outs.\",\"Min.val.incl.\",\"Max.val.incl.\", \"Min.val.\",\"Max.val.\");
+        columnWidths = makeDynInt(400,85,60,80,70,70,60,60);
+        rowHeight = 22;          
+
+        fwPvRange_getObjectMany(dpes, configExists, pvRangeTypes, configData, exceptionInfo);
+                    
+        if(dynlen(exceptionInfo)>0)
+          return;       
+                
+        int rowNumber;
+        for(int i=1; i<=dynlen(dpes); i++)
+        {            
+                  if(!configExists[i] && onlyConfElements.state(0))
+                      continue;
+                  rowNumber++;   
+                  
+                  elements[rowNumber][1] = dpes[i];
+                  
+                  // if no configs set NA and move on to next dpe
+                  if(!configExists[i])
+                  {
+                        for(int j=2; j<=dynlen(columnNames); j++)
+                            elements[rowNumber][j] = \"-NA-\";             
+                        continue;
+                  }
+                         
+                  elements[rowNumber][3] = configData[i][fwPvRange_NEGATE_RANGE];
+                  elements[rowNumber][4] = configData[i][fwPvRange_IGNORE_OUTSIDE];      
+                              
+                  if(pvRangeTypes[i]==DPCONFIG_MINMAX_PVSS_RANGECHECK) //MIN MAX
+                  {  
+                        elements[rowNumber][2] = \"MINMAX\";
+                        elements[rowNumber][5] = configData[i][fwPvRange_INCLUSIVE_MINIMUM];
+                        elements[rowNumber][6] = configData[i][fwPvRange_INCLUSIVE_MAXIMUM]; 
+                        elements[rowNumber][7] = configData[i][fwPvRange_MINIMUM_VALUE];    
+                        elements[rowNumber][8] = configData[i][fwPvRange_MAXIMUM_VALUE];                 
+                  }
+                  else // Remove columns that only are required by MINMAX.
+                  {
+                        for(int j=dynlen(columnNames); j>5; j--)
+                        {
+                             dynRemove(columnNames,j);
+                             dynRemove(columnWidths,j);
+                        }     
+                        columnNames[dynlen(columnNames)] = \"Values\";               
+                  }
+                  
+                  if(pvRangeTypes[i]==DPCONFIG_SET_PVSS_RANGECHECK) //SET
+                  {
+                        elements[rowNumber][2] = \"SET\";
+                        elements[rowNumber][5] = configData[i][fwPvRange_VALUE_SET];
+                  }
+                  else if(pvRangeTypes[i]==DPCONFIG_MATCH_PVSS_RANGECHECK) // MATCH
+                  {
+                        elements[rowNumber][2] = \"MATCH\";
+                        elements[rowNumber][5] = configData[i][fwPvRange_VALUE_PATTERN];
+                  }
+                              
+        } 
+}
+
+private void getConversionData(dyn_string dpes, dyn_dyn_string &elements, dyn_string &columnNames, dyn_int &columnWidths, int &rowHeight, string confType, dyn_string &exceptionInfo)
+{
+        dyn_bool configExists;
+        int configType;
+        dyn_int conversionType;
+        dyn_int order;
+        dyn_dyn_float arguments;
+        
+        if(confType==\"MSG\")
+              configType = DPCONFIG_CONVERSION_RAW_TO_ING_MAIN; // message conversion
+        else
+              configType = DPCONFIG_CONVERSION_ING_TO_RAW_MAIN; // command conversion
+        
+        columnNames = makeDynString(\"Device element name\",\"Conv. type\",\"Order\",\"Arguments\",\"Conf.type\");
+        columnWidths = makeDynInt(400,100,80,140,80);
+        rowHeight = 22;          
+                        
+        fwConfigConversion_getMany(dpes, configExists, configType, conversionType, order, arguments, exceptionInfo);
+        if(dynlen(exceptionInfo)!=0)
+          return;        
+        
+        int rowNumber;
+        for(int i=1; i<=dynlen(dpes); i++)
+        {            
+                  if(!configExists[i] && onlyConfElements.state(0))
+                      continue;
+                  rowNumber++;   
+
+                  elements[rowNumber][1] = dpes[i];    
+                                      
+                  if(configExists[i])
+                  {
+                        if(conversionType[i]==DPDETAIL_CONV_POLY)
+                          elements[rowNumber][2] = \"Polynomial\";
+                        else if(conversionType[i]==DPDETAIL_CONV_LIN_INT)
+                          elements[rowNumber][2] = \"Base curve\";
+                        else if(conversionType[i]==DPDETAIL_CONV_INVERT)
+                          elements[rowNumber][2] = \"Invert\";     
+                        else
+                          elements[rowNumber][2] = conversionType[i];                      
+                        
+                        elements[rowNumber][3] = order[i];
+
+                        elements[rowNumber][4] = arguments[i]; 
+                              
+                        if(configType==DPCONFIG_CONVERSION_RAW_TO_ENG_MAIN)
+                          elements[rowNumber][5] = \"Message\";
+                        else if(configType==DPCONFIG_CONVERSION_ING_TO_RAW_MAIN) 
+                          elements[rowNumber][5] = \"Command\";  
+                        else
+                          elements[rowNumber][5] = configType;  
+                  }
+                  else
+                  {
+                        elements[rowNumber][2] = \"-NA-\";
+                        elements[rowNumber][3] = \"-NA-\";
+                        elements[rowNumber][4] = \"-NA-\";
+                        elements[rowNumber][5] = \"-NA-\";
+                  }                                       
+        } 
+
+                
+}
+
+private void getSmoothingData(dyn_string dpes, dyn_dyn_string &elements, dyn_string &columnNames, dyn_int &columnWidths, int &rowHeight, dyn_string &exceptionInfo)
+{
+        dyn_bool configExists;
+        dyn_int smoothProcedure;
+        dyn_float deadband;
+        dyn_float timeInterval;
+        
+        columnNames = makeDynString(\"Device element name\",\"Smooth procedure\",\"Deadband\",\"Interval\");
+        columnWidths = makeDynInt(400,240,80,80);
+        rowHeight = 22;          
+
+        fwSmoothing_getMany(dpes, configExists, smoothProcedure, deadband, timeInterval, exceptionInfo); 
+
+        if(dynlen(exceptionInfo)!=0)
+          return;        
+                                    
+        int rowNumber;
+        for(int i=1; i<=dynlen(dpes); i++)
+        {            
+                  if(!configExists[i] && onlyConfElements.state(0))
+                      continue;
+                  rowNumber++;   
+
+                  elements[rowNumber][1] = dpes[i];                           
+                  if(configExists[i])
+                  {
+                        if(smoothProcedure[i]==DPATTR_VALUE_SMOOTH)
+                          elements[rowNumber][2] = \"Value dependent\";
+                        else if(smoothProcedure[i]==DPATTR_VALUE_REL_SMOOTH)
+                          elements[rowNumber][2] = \"Relative value dependent\";
+                        else if(smoothProcedure[i]==DPATTR_TIME_SMOOTH)
+                          elements[rowNumber][2] = \"Time dependent\";                        
+                        else if(smoothProcedure[i]==DPATTR_TIME_AND_VALUE_SMOOTH)
+                          elements[rowNumber][2] = \"Value and time dependent\"; 
+                        else if(smoothProcedure[i]==DPATTR_TIME_AND_VALUE_REL_SMOOTH)
+                          elements[rowNumber][2] = \"Relative value and time dependent\"; 
+                        else if(smoothProcedure[i]==DPATTR_TIME_OR_VALUE_SMOOTH)
+                          elements[rowNumber][2] = \"Value or time dependent\";
+                        else if(smoothProcedure[i]==DPATTR_TIME_OR_VALUE_REL_SMOOTH)
+                          elements[rowNumber][2] = \"Relative value or time dependent\";
+                        else if(smoothProcedure[i]==DPATTR_COMPARE_OLD_NEW)
+                          elements[rowNumber][2] = \"Old-new comparison\";
+                        else if(smoothProcedure[i]==DPATTR_OLD_NEW_AND_TIME_SMOOTH)
+                          elements[rowNumber][2] = \"Old-new comparison and time\";
+                        else if(smoothProcedure[i]==DPATTR_OLD_NEW_OR_TIME_SMOOTH)
+                          elements[rowNumber][2] = \"Old-new comparison or time\";
+                        else
+                          elements[rowNumber][2] = smoothProcedure[i];   
+                                                                                                                                                                                                  
+                        elements[rowNumber][3] = deadband[i];
+                        elements[rowNumber][4] = timeInterval[i];
+                  }
+                  else
+                  {
+                        elements[rowNumber][2] = \"-NA-\";
+                        elements[rowNumber][3] = \"-NA-\";
+                        elements[rowNumber][4] = \"-NA-\";
+                  }                                 
+        } 
+}
+
+private void getUnitData(dyn_string dpes, dyn_dyn_string &elements, dyn_string &columnNames, dyn_int &columnWidths, int &rowHeight, dyn_string &exceptionInfo)
+{
+        dyn_bool configExists;
+        dyn_string dsUnit;
+        
+        columnNames = makeDynString(\"Device element name\",\"Unit\");
+        columnWidths = makeDynInt(400,200);
+        rowHeight = 22;          
+
+        fwUnit_getMany(dpes, configExists, dsUnit, exceptionInfo);
+
+        if(dynlen(exceptionInfo)>0)
+          return;
+                                    
+        int rowNumber;
+        for(int i=1; i<=dynlen(dpes); i++)
+        {            
+                  if(!configExists[i] && onlyConfElements.state(0))
+                      continue;
+                  rowNumber++;   
+                         
+                  elements[rowNumber][1] = dpes[i];                   
+                  if(configExists[i])
+                        elements[rowNumber][2] = dsUnit[i];
+                  else
+                        elements[rowNumber][2] = \"-NA-\";                               
+        } 
+}
+
+private void getFormatData(dyn_string dpes, dyn_dyn_string &elements, dyn_string &columnNames, dyn_int &columnWidths, int &rowHeight, dyn_string &exceptionInfo)
+{
+        dyn_bool configExists;
+        dyn_string dsFormat;
+        
+        columnNames = makeDynString(\"Device element name\",\"\");
+        columnWidths = makeDynInt(450,200);
+        rowHeight = 22;          
+
+        fwFormat_getMany(dpes, configExists, dsFormat, exceptionInfo);
+                        
+        if(dynlen(exceptionInfo)>0)
+          return;
+            
+        int rowNumber;
+        for(int i=1; i<=dynlen(dpes); i++)
+        {            
+                  if(!configExists[i] && onlyConfElements.state(0))
+                      continue;
+                  rowNumber++;   
+                         
+                  elements[rowNumber][1] = dpes[i];                   
+                  if(configExists[i])
+                        elements[rowNumber][2] = dsFormat[i];
+                  else
+                        elements[rowNumber][2] = \"-NA-\";                                     
+        } 
+}
+
+private void getDpfunctionData(dyn_string dpes, dyn_dyn_string &elements, dyn_string &columnNames, dyn_int &columnWidths, int &rowHeight, dyn_string &exceptionInfo)
+{
+        dyn_bool configExists;
+        dyn_dyn_string functionParams;
+        dyn_dyn_string functionGlobals;
+        dyn_string functionDefinition;
+        
+        columnNames = makeDynString(\"Device element name\",\"Params\",\"Globals\",\"Definition\");
+        columnWidths = makeDynInt(350,200,100,150);
+        rowHeight = 22;          
+
+        fwDpFunction_getDpeConnectionMany(dpes, configExists, functionParams, functionGlobals, functionDefinition, exceptionInfo);
+
+        if(dynlen(exceptionInfo)!=0)
+          return;        
+                   
+        int rowNumber;
+        for(int i=1; i<=dynlen(dpes); i++)
+        {            
+                  if(!configExists[i] && onlyConfElements.state(0))
+                      continue;
+                  rowNumber++;   
+
+                  elements[rowNumber][1] = dpes[i]; 
+                  
+                   //ranges and row heights
+                  if(dynlen(functionParams[i])==5)
+                      rowHeight = 100;
+                  else if(dynlen(functionParams[i])==4 && rowHeight<80)
+                      rowHeight = 80;
+                  else if(dynlen(functionParams[i])==3 && rowHeight<60)
+                      rowHeight = 60;        
+                  else if(dynlen(functionParams[i])==2 && rowHeight<40)
+                      rowHeight = 40;      
+                                  
+                  for(int j=1;j<=dynlen(functionParams[i]); j++)
+                      functionParams[i][j] = dpSubStr(functionParams[i][j],DPSUB_SYS_DP);
+
+                  if(configExists[i])
+                  {
+                      string returnString;
+                      fwGeneral_dynStringToString(functionParams[i],returnString,\"\\n\");
+                      elements[rowNumber][2] = returnString; 
+                      
+                      fwGeneral_dynStringToString(functionGlobals[i],returnString,\"\\n\");
+                      elements[rowNumber][3] = returnString; 
+                      
+                      fwGeneral_dynStringToString(functionDefinition[i],returnString,\"\\n\");
+                      elements[rowNumber][4] = returnString;                                             
+                  }
+                  else
+                  {
+                      elements[rowNumber][2] = \"-NA-\";   
+                      elements[rowNumber][3] = \"-NA-\";
+                      elements[rowNumber][4] = \"-NA-\";
+                  }                                 
+        } 
+}
+
+private void drawTable(dyn_string columnNames, dyn_int columnWidths, int rowHeight, dyn_dyn_string elements)
+{
+        for(int i=1; i<=dynlen(columnNames); i++)
+        {
+              viewSettings.insertColumn(i-1);
+              viewSettings.columnName(i-1,columnNames[i]);
+              viewSettings.columnHeader(i-1, columnNames[i]);
+        }   
+    
+        for(int i=1; i<=dynlen(elements); i++)
+        {
+              viewSettings.appendLine(\"Device element name\", \"\"); 
+              for(int j=1; j<=dynlen(columnNames); j++)
+              {
+                    viewSettings.cellValueRC(i-1, columnNames[j], elements[i][j]);
+                    if(strpos(elements[i][j],\"updateValue,\")==0)
+                    {
+                            string cellValue = elements[i][j];
+                            strreplace(cellValue, \"updateValue,\", \"\");
+                            g_dpesShown[i] = cellValue;
+                            dpConnect(\"updateValue\", cellValue);
+                    }
+              }
+            
+              viewSettings.cellValueRC(i-1, \"selected\", \"Y\");
+        }
+      
+        for(int i=1; i<=dynlen(columnWidths); i++)
+              viewSettings.columnWidth(i-1,columnWidths[i]);
+
+        // set background color for editable fields
+        for(int i = 0; i <= viewSettings.lineCount; i++)
+    	  viewSettings.cellBackColRC(i, \"selected\", \"_Window\");      
+    
+        viewSettings.rowHeight(rowHeight);
+        numberOfElements.text(dynlen(elements)); 
+}
+
+// function to dpConnect to table fields
+void updateValue(string dp1, anytype value)
+{                
+  int pos;
+  
+  pos = dynContains(g_dpesShown, dpSubStr(dp1, DPSUB_SYS_DP_EL));
+  if(pos > 0)
+    setValue(\"viewSettings\", \"cellValueRC\", pos-1, \"Value\", value);        
+}" 0
+ E E E
+14 162
+"numberOfElements"
+""
+1 131 695 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 129 693 181 716
+3 "0s" 0 0 0 0 0 -1  E E E
+2 163
+"PRIMITIVE_TEXT2"
+""
+1 18 696 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 18 696 120 713
+0 2 2 "0s" 0 0 0 192 0 0  18 696 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Number of entries
+20 165
+"deviceDefCheckBox"
+""
+1 30 200 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+82 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 28 198 47 238
+1
+T 
+1
+LANG:1 0 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+"main()
+{
+  this.state(0,TRUE);
+}" 0
+"main(int button, int state)
+{
+   updateDpElementTable();
+   clearDpeList();         
+}" 0
+25 168
+"viewSettings"
+""
+1 17 346 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+85 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 15 344 953 689
+"main()
+{
+  this.tableMode (TABLE_SELECT_BROWSE);    
+}" 0
+"main(int row, string column, string value)
+{
+	string currentSelectedValue;
+
+	if(column == \"selected\")
+	{
+		currentSelectedValue = this.cellValueRC(row, \"selected\");
+	
+		if(currentSelectedValue == \"Y\")
+			this.cellValueRC(row, \"selected\") = \"N\";
+		else
+			this.cellValueRC(row, \"selected\") = \"Y\";
+	}
+}" 0
+ 1 0 1 1 1 "selected" 2 1 0 "s" 1
+LANG:1 4 Sel.
+E
+1
+LANG:1 0 
+
+40 
+22 22 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+25 169
+"searchResultTable"
+""
+1 17 345 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E "main(int row, string column)
+{
+      this.selectLineN(row);
+      string deviceName;
+      deviceName = this.cellValueRC(row,\"deviceName\");
+  
+      dyn_float df;
+      dyn_string ds;
+      
+      ChildPanelOnCentralReturn(\"fwDevice/fwDeviceExpertConfiguration.pnl\",
+                                \"expertConf\",
+                                makeDynString(\"$sDpName:\"+deviceName),
+                                df,ds); 
+
+      setInputFocus(myModuleName(), myPanelName(), \"searchResultTable\");      
+      setInputFocus(myModuleName(), myPanelName(), \"deviceNameText\");  
+      setInputFocus(myModuleName(), myPanelName(), \"searchResultTable\");  
+}" 0
+
+87 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 15 343 954 689
+"main()
+{
+  this.tableMode (TABLE_SELECT_BROWSE);  
+}" 0
+"main(int row, string column, string value)
+{
+	string currentIncludeValue;
+
+	if(column == \"include\")
+	{
+                clearDpeList(); // clear dpe list and disable some buttons.
+          
+		currentIncludeValue = this.cellValueRC(row, \"include\");
+	
+		if(currentIncludeValue == \"Y\")
+			this.cellValueRC(row, \"include\") = \"N\";
+		else
+			this.cellValueRC(row, \"include\") = \"Y\";
+	}
+}" 0
+ 1 0 1 11 1 "num" 2 1 0 "s" 1
+LANG:1 1 #
+E
+1
+LANG:1 0 
+
+30 "deviceName" 20 1 0 "s" 1
+LANG:1 14 Device DP name
+E
+1
+LANG:1 0 
+
+230 "deviceAlias" 13 1 0 "s" 1
+LANG:1 15 Device DP alias
+E
+1
+LANG:1 0 
+
+160 "deviceType" 10 1 0 "s" 1
+LANG:1 11 Device type
+E
+1
+LANG:1 0 
+
+120 "deviceModel" 10 1 0 "s" 1
+LANG:1 12 Device model
+E
+1
+LANG:1 0 
+
+120 "deviceComment" 17 1 0 "s" 1
+LANG:1 14 Device comment
+E
+1
+LANG:1 0 
+
+200 "hardwareConConf" 2 0 0 "s" 1
+LANG:1 3  Hw
+E
+1
+LANG:1 31 Hardware connections configured
+
+40 "alarmConf" 2 0 0 "s" 1
+LANG:1 3  Al
+E
+1
+LANG:1 17 Alarms configured
+
+40 "archiveConf" 2 0 0 "s" 1
+LANG:1 4  Arc
+E
+1
+LANG:1 20 Archiving configured
+
+40 "dpFunctionConf" 2 0 0 "s" 1
+LANG:1 3 DpF
+E
+1
+LANG:1 30 Datapoint functions configured
+
+40 "include" 2 1 0 "s" 1
+LANG:1 4 Sel.
+E
+1
+LANG:1 37 Select DPs that you want to configure
+
+35 
+22 22 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 170
+"deviceListBtn"
+""
+1 20 314.076923076923 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+1
+LANG:1 38 Set new setting for the selected dpes.
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 313 172 341
+
+T 
+1
+LANG:1 14 <- Device list
+"main()
+{
+  	viewSettings.visible(false);
+        searchResultTable.visible(true);
+        
+        this.enabled(false);
+        dpeListBtn.enabled(true);
+
+        //int lines;
+        //getValue(\"searchResultTable\",\"lineCount\",lines);
+        numberOfElements.text(searchResultTable.lineCount);
+}" 0
+ E E E
+13 171
+"dpeListBtn"
+""
+1 180 314.076923076923 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+91 0 0 0 0 0
+E E E
+0
+1
+LANG:1 38 Set new setting for the selected dpes.
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 178 313 332 341
+
+T 
+1
+LANG:1 22 Device element list ->
+"main()
+{
+  	viewSettings.visible(true);
+        searchResultTable.visible(false);
+        this.enabled(false);
+        deviceListBtn.enabled(true);
+        
+        //int lines;
+        //getValue(\"viewSettings\",\"lineCount\",lines);
+        numberOfElements.text(viewSettings.lineCount);  
+}" 0
+ E E E
+13 172
+"Button2"
+""
+1 845 75.2692307692308 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 75 Sets the default alarms for all the devices in the table marked as included
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 843 74.0000000000001 890 97
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+	bool ok;
+	dyn_string messages, exceptionInfo;
+	
+	fwGeneral_openMessagePanel(	\"Are you sure you want to set the default alarms for all devices in the table marked as included?\",
+										ok, exceptionInfo, \"Set default alarms\");
+
+	if(ok)
+	{
+		messages = makeDynString(	\"Applying default alarms...\",
+											\"Alarms set for device \",
+											\"Finished applying default alarms.\");
+	
+		configureDefault(fwDevice_ALERT_INDEX, fwDevice_ALERT_SET, messages, exceptionInfo);	
+	}
+}				" 0
+ E E E
+30 173
+"Frame2"
+""
+1 17 690 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+95 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.13063063063063 0 0.781065088757396 689.779279279279 -381.153846153846 0 E 17 520 240 690
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 23 Device default settings
+13 174
+"Button3"
+""
+1 845 50.2692307692307 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 88 Sets the default hardware connection for all the devices in the table marked as included
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 843 49 890 72
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+	bool ok;
+//	time t1, t2;
+	dyn_string messages, exceptionInfo;
+
+
+	fwGeneral_openMessagePanel(\"Are you sure you want to set the default hardware connection for all devices in the table marked as included?\",
+				   ok, exceptionInfo, \"Set default hardware connection\");
+
+	if(ok)
+	{
+		messages = makeDynString(\"Applying default hardware connection...\",
+					 \"Hardware connection set for device \",
+					 \"Finished applying default hardware connection.\");
+		
+//		t1 = getCurrentTime();
+		configureDefault(fwDevice_ADDRESS_INDEX, fwDevice_ADDRESS_SET, messages, exceptionInfo);
+//		t2 = getCurrentTime();
+//		DebugN(\"Mass config default address set: \", t2 - t1);
+	}
+
+//	DebugN(\"Mass config default address set: finish\");
+}				" 0
+ E E E
+13 175
+"Button4"
+""
+1 845 100.269230769231 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+99 0 0 0 0 0
+E E E
+0
+1
+LANG:1 82 Sets the default archived data for all the devices in the table marked as included
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 843 99 890 122
+
+T 
+1
+LANG:1 3 Set
+E E E E
+2 176
+"Text2"
+""
+1 728 50.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+101 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 730 51.0000000000001 838 68
+0 2 2 "0s" 0 0 0 192 0 0  730 51.0000000000001 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Hardware connect:
+13 177
+"PUSH_BUTTON3"
+""
+1 904 50.2692307692308 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+103 0 0 0 0 0
+E E E
+0
+1
+LANG:1 82 Clears the hardware connection for all the devices in the table marked as included
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 902 49.0000000000001 949 72.0000000000001
+
+T 
+1
+LANG:1 5 Clear
+"main()
+{
+	bool ok;
+	dyn_string messages, exceptionInfo;
+
+
+	fwGeneral_openMessagePanel(	\"Are you sure you want to clear the hardware connection for all devices in the table marked as included?\",
+										ok, exceptionInfo, \"Clear hardware connection\");
+
+	if(ok)
+	{
+		messages = makeDynString(	\"Clearing default hardware connection...\",
+											\"Hardware connection cleared for device \",
+											\"Finished clearing default hardware connection.\");
+	
+		configureDefault(fwDevice_ADDRESS_INDEX, fwDevice_ADDRESS_UNSET, messages, exceptionInfo);
+	}
+}" 0
+ E E E
+13 178
+"Button5"
+""
+1 904 75.2692307692307 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+105 0 0 0 0 0
+E E E
+0
+1
+LANG:1 69 Clears the alarms for all the devices in the table marked as included
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 902 74 949 97
+
+T 
+1
+LANG:1 5 Clear
+"main()
+{
+	bool ok;
+	dyn_float df;
+	dyn_string ds, messages, exceptionInfo;
+	
+	fwGeneral_openMessagePanel(	\"Are you sure you want to clear the default alarms for all devices in the table marked as included?\",
+										ok, exceptionInfo, \"Clear default alarms\");
+
+	if(ok)
+	{
+		messages = makeDynString(	\"Clearing default alarms...\",
+											\"Alarms cleared for device \",
+											\"Finished clearing default alarms.\");
+	
+		configureDefault(fwDevice_ALERT_INDEX, fwDevice_ALERT_UNSET, messages, exceptionInfo);	
+	}
+}	" 0
+ E E E
+13 179
+"Button6"
+""
+1 904 100.269230769231 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 72 Stops archiving data for all the devices in the table marked as included
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 902 99 949 122
+
+T 
+1
+LANG:1 5 Clear
+E E E E
+2 180
+"Text4"
+""
+1 728 75.0000000000001 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+109 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 730 76.0000000000001 775 93
+0 2 2 "0s" 0 0 0 192 0 0  730 76.0000000000001 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Alarms:
+2 181
+"Text8"
+""
+1 728 101 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+111 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 730 102 786 119
+0 2 2 "0s" 0 0 0 192 0 0  730 102 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Archiving:
+2 182
+"Text9"
+""
+1 728 127 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+113 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 730 128 799 145
+0 2 2 "0s" 0 0 0 192 0 0  730 128 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Dp function:
+13 183
+"Button10"
+""
+1 845 126.269230769231 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+115 0 0 0 0 0
+E E E
+0
+1
+LANG:1 75 Sets the default alarms for all the devices in the table marked as included
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 843 125 890 148
+
+T 
+1
+LANG:1 3 Set
+"main()
+{
+	bool ok;
+	dyn_string messages, exceptionInfo;
+	
+
+	fwGeneral_openMessagePanel(	\"Are you sure you want to set the default dp functions for all devices in the table marked as included?\",
+										ok, exceptionInfo, \"Set default dp functions\");
+
+	if(ok)
+	{
+		messages = makeDynString(	\"Applying default dp functions...\",
+									\"Dp functions set for device \",
+									\"Finished applying default dp functions.\");
+	
+		configureDefault(fwDevice_DPFUNCTION_INDEX, fwDevice_DPFUNCTION_SET, messages, exceptionInfo);	
+	}
+}				" 0
+ E E E
+13 184
+"Button11"
+""
+1 904 126.269230769231 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+117 0 0 0 0 0
+E E E
+0
+1
+LANG:1 69 Clears the alarms for all the devices in the table marked as included
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 902 125 949 148
+
+T 
+1
+LANG:1 5 Clear
+"main()
+{
+	bool ok;
+	dyn_string messages, exceptionInfo;
+	
+
+	fwGeneral_openMessagePanel(	\"Are you sure you want to clear the default dp functions for all devices in the table marked as included?\",
+										ok, exceptionInfo, \"Clear default dp functions\");
+
+	if(ok)
+	{
+		messages = makeDynString(	\"Clearing default dp functions...\",
+									\"Dp functions cleared for device \",
+									\"Finished clearing default dp functions.\");
+	
+		configureDefault(fwDevice_DPFUNCTION_INDEX, fwDevice_DPFUNCTION_UNSET, messages, exceptionInfo);	
+	}
+}	" 0
+ E E E
+20 185
+"sumSettings"
+""
+1 553 125 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+119 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 551 123 692 147
+1
+T 
+1
+LANG:1 22 Display config details
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE2 86
+"Text3"
+""
+1 489 60 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 491 61 530 78
+0 2 2 "0s" 0 0 0 192 0 0  491 61 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 > AND
+2 89
+"Text5"
+""
+1 489 87 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 491 88 530 105
+0 2 2 "0s" 0 0 0 192 0 0  491 88 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 > AND
+2 90
+"Text6"
+""
+1 489 113 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 491 114 530 131
+0 2 2 "0s" 0 0 0 192 0 0  491 114 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 > AND
+25 149
+"elementsTbl"
+""
+1 132 178 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 130 176 782 287
+"main()
+{
+      this.tableMode(TABLE_SELECT_MULTIPLE);
+      this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+"main(int row, string column, string value)
+{
+    enableIndividualElementsControls(true); 
+    clearDpeList();
+}" 0
+ 1 0 1 3 0 "elements" 23 1 0 "s" 1
+LANG:1 22 Datapoint Element Name
+E
+1
+LANG:1 0 
+
+265 "properties" 22 1 0 "s" 1
+LANG:1 20 Property Description
+E
+1
+LANG:1 0 
+
+260 "types" 8 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+100 
+16 16 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+30 187
+"FRAME1"
+""
+1 244 689 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+121 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.77570093457944 0 2.53254437869823 -423.271028037384 -1022.92307692308 0 E 244 520 780 690
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 23 Device and element list
+13 126
+"Button8"
+""
+1 553 94 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 551 93 655 123
+
+T 
+1
+LANG:1 6 Search
+"main()
+{
+	int result, i, count = 1;
+	string deviceType, deviceDpType, deviceModel, deviceName, deviceDpNamePattern, deviceModelResult = \"\";
+	dyn_bool matches;
+	dyn_int numbers;
+	dyn_string	dps, aliases, dpsNameAndType, dpsNameAndDescription, deviceAliases, 
+			deviceTypes, deviceComments, deviceNames, deviceModels, exceptionInfo, include;
+	
+	deviceDpNamePattern = deviceNameText.text;
+	
+	// check that the dp name scope of the search has not changed
+	if(deviceDpNameRestricted != \"\")
+	{
+		if(strpos(deviceDpNamePattern, deviceDpNameRestricted) != 0)
+		{
+			fwException_raise(exceptionInfo, 
+									\"ERROR\",
+									\"You cannot change the scope of the search. The dp name has to start with: \" + deviceDpNameRestricted,
+									\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			deviceNameText.text	= deviceDpNameRestricted + \"*\";
+			return;
+		}
+	}
+	
+	// check that the dp alias scope of the search has not changed
+	if(deviceDpAliasRestricted != \"\")
+	{
+		if(strpos(deviceAliasText.text, deviceDpAliasRestricted) != 0)
+		{
+			fwException_raise(exceptionInfo, 
+									\"ERROR\",
+									\"You cannot change the scope of the search. The dp name has to start with: \" + deviceDpAliasRestricted,
+									\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			deviceAliasText.text = deviceDpAliasRestricted + \"*\";
+			return;
+		}
+	}
+
+	fwOpenProgressBar(\"Mass Configuration\", \"Searching for devices...\", 1, 20);
+	
+	// delay to let the progress bar open
+	delay(0, 100);
+	
+	// adapt name pattern to dpgetalldescriptions
+	if(deviceDpNamePattern != \"*\" && deviceDpNamePattern != \"\")
+	{
+		deviceDpNamePattern = deviceDpNamePattern + \".\";
+	}
+	
+	// filter with dp name and description 
+	result = dpGetAllDescriptions(dpsNameAndDescription, deviceComments, deviceCommentText.text, deviceDpNamePattern);
+	
+	// if type was specified, apply type filter
+	if(deviceDpTypes.text != \"*\")
+	{
+		dpsNameAndType = dpNames(deviceNameText.text, deviceDpTypes.text);
+		for(i = 1; i <= dynlen(dpsNameAndType); i++)
+		{
+			dpsNameAndType[i] = dpsNameAndType[i] + \".\";
+		}
+		dps = dynIntersect(dpsNameAndType, dpsNameAndDescription);
+	}
+	else
+	{
+		dps = dpsNameAndDescription;
+	}
+
+//	DebugN(\"dpsNameAndDescription\", dpsNameAndDescription);
+//	DebugN(\"dps\", dps);
+
+	// apply dp alias filter	
+	deviceComments = makeDynString();
+	aliases = dpGetAlias(dps);
+	matches = patternMatch(deviceAliasText.text, aliases);
+	
+	searchResultTable.deleteAllLines();
+	for(i = 1; i <= dynlen(dps); i++)
+	{
+		if(matches[i] == TRUE)
+		{
+			deviceDpType = dpTypeName(dps[i]);
+			
+			// consider only Framework devices (dps that have a device definition)
+			if(dynContains(deviceDpTypes.items, deviceDpType) > 0)
+			{
+				fwDevice_getType(deviceDpType, deviceType, exceptionInfo);
+				if(deviceType == \"\")
+				{
+					deviceType = deviceDpType;
+				}
+			
+				deviceName = strrtrim(dps[i], \".\");
+				dynAppend(deviceNames, deviceName);
+				
+				dynAppend(deviceAliases, aliases[i]);
+				
+				dynAppend(deviceTypes, deviceType);
+				dynAppend(deviceComments, dpGetComment(dps[i]));			
+				
+				fwDevice_getModel(makeDynString(deviceName), deviceModel, exceptionInfo);
+				dynAppend(deviceModels, deviceModel);
+				
+				dynAppend(include, \"Y\");
+				dynAppend(numbers, count++);
+			}
+		}
+	}
+
+//	DebugN(deviceModels);
+        
+        // get rid of device type column if other than Any is searched for
+        if(deviceTypesCombo.selectedText!=\"Any\")
+        {
+             searchResultTable.namedColumnVisibility(\"deviceType\",false);
+             searchResultTable.namedColumnWidth(\"deviceName\",130+80);
+        }
+        else        
+        {
+             searchResultTable.namedColumnVisibility(\"deviceType\",true);
+             searchResultTable.namedColumnWidth(\"deviceName\",130);
+        }
+        
+        dyn_string hwConfAll, alarmConfAll, archiveConfAll, dpFuncConfAll;     
+        bool sumSet;
+        getValue(\"sumSettings\",\"state\",0,sumSet); 
+        if(sumSet) // get data for summary columns
+        {               
+                // get all hardware connection configurations
+                getConfAll(deviceNames, hwConfAll, 1);
+        
+                // get all alarm configurations
+                getConfAll(deviceNames, alarmConfAll, 2);    
+        
+                // get all archive configurations
+                getConfAll(deviceNames, archiveConfAll, 3);              
+
+                // get all dp function configurations
+                getConfAll(deviceNames, dpFuncConfAll, 4); 
+                
+                // display columns
+                for(int j=6; j<=9; j++)
+                  searchResultTable.columnVisibility(j, true);
+                
+                // resize columns?
+                
+        }    
+        else // hide summary columns
+        {
+                // display columns
+                for(int j=6; j<=9; j++)
+                  searchResultTable.columnVisibility(j, false);      
+                
+                // resize columns?          
+        }     
+                
+        searchResultTable.rowHeight(22);
+	searchResultTable.appendLines(	dynlen(deviceNames),
+					\"num\", numbers,
+					\"deviceName\", deviceNames,
+					\"deviceType\", deviceTypes,
+					\"deviceModel\", deviceModels,
+					\"deviceComment\", deviceComments,
+					\"deviceAlias\", deviceAliases,
+                                        \"hardwareConConf\", hwConfAll,
+                                        \"alarmConf\", alarmConfAll,
+                                        \"archiveConf\", archiveConfAll,  
+                                        \"dpFunctionConf\", dpFuncConfAll,                                                                      
+					\"include\", include);
+        
+        numberOfElements.text(dynlen(deviceNames));
+        
+        /* Disable all controls for setting config for dpes */ 
+        viewSettings.visible(false);
+        viewSettings.deleteAllLines();
+        dpeListBtn.enabled(false);
+        deviceListBtn.enabled(false);
+        setSettings.enabled(false);
+        searchResultTable.visible(true);
+        	
+	// set background color for editable fields
+	for(i = 0; i <= searchResultTable.lineCount; i++)
+	{
+		searchResultTable.cellBackColRC(i, \"include\", \"_Window\");
+	}
+	
+	// check if all devices are of the same type
+	dynUnique(deviceTypes);
+	
+	// check if all devices are of the same model
+	dynUnique(deviceModels);
+	if(dynlen(deviceModels) == 1)
+		deviceModelResult = deviceModels[1];
+	
+        elementsTbl.deleteAllLines();
+        selAll.visible(true);
+        deSelAll.visible(true);        
+        
+	// if they are of same type, enable controls on individual dpes
+	// depending on device definition
+	if(dynlen(deviceTypes) == 1)
+	{
+                string deviceType = deviceDpTypes.selectedText();
+                dyn_dyn_string dpElements;
+                getDpeAddresses(deviceType, dpElements);
+                
+		dyn_dyn_string elements;
+		fwDevice_getDpType(deviceTypes[1], dpType, exceptionInfo);
+                //DebugN(dpType, deviceModelResult);
+		fwDevice_getConfigElements(dpType, fwDevice_ALL, elements, exceptionInfo, deviceModelResult);
+		
+                for(i = 1; i <= dynlen(dpElements); i++)
+                {
+                     fwConfigs_getDataTypeText(dpElements[i][2], dpElements[i][2], exceptionInfo);
+                     allDpElements[i][1] = dpElements[i][1];
+                     allDpElements[i][2] = \"\";
+                     allDpElements[i][3] = dpElements[i][2];
+                     
+                     for(int j=1; j<=dynlen(elements[1]); j++)
+                       if(dpElements[i][1]==elements[1][j])
+                       {
+                           //allDpElements[i][1] = elements[1][j];
+                           allDpElements[i][2] = elements[2][j];
+                       }
+                     
+                }		
+
+                updateDpElementTable();
+
+		enableIndividualElementsControls(true);
+	}
+	else
+	{
+		enableIndividualElementsControls(false);
+	}
+	
+	fwCloseProgressBar(\"Finished searching for devices\");
+}
+
+/*
+      Function to get all addresses and types to elements under a datapoint type. It is recursive 
+      because of cases with embed DP type elements.
+      
+      dptName   - input  - Name of the datapoint type which you want to get the address for all dpes
+      elements  - output - list with all addresses and dpe types in the structure 
+                           elements[row][1] - address
+                           elements[row][2] - type
+      startPath - only for recursive calls in the function
+*/
+void getDpeAddresses(string dptName, dyn_dyn_string &elements, dyn_string startPath=makeDynString())
+{
+        dyn_dyn_string dpElements;
+        dyn_dyn_int elementsType;        
+        dyn_string elementPath; // used to build the path to the element
+        dyn_int folders = makeDynInt(DPEL_TYPEREF, DPEL_STRUCT); // have to add more structs
+        
+        // get the dpt structure
+        dpTypeGet(dptName, dpElements, elementsType);     
+        
+        for(int i=1; i<=dynlen(dpElements); i++)  // rows
+        {                      
+             for(int j=1; j<=dynlen(dpElements[i]); j++)  // columns
+             {          
+                   // delete elements from path
+                   if(dynlen(elementPath)>dynlen(dpElements[i]))
+                     for(int x=dynlen(elementPath); x>=dynlen(dpElements[i]); x--)
+                       dynRemove(elementPath,x); 
+                   // add blank elements to element path
+                   else if(dynlen(elementPath)<j)
+                     dynAppend(elementPath,\"\");
+                           
+                   // change / create path             
+                   if(strlen(dpElements[i][j])!=0 && elementPath[j]!=dpElements[i][j])                                      
+                      elementPath[j]=dpElements[i][j];   
+                
+                    // recursive call if DP element is of embed type
+                   if(dynlen(elementsType[i])>=j)
+                      if(elementsType[i][j]==DPEL_TYPEREF)
+                           getDpeAddresses(dpElements[i][dynlen(dpElements[i])],elements,elementPath);                                           
+                                
+                   // if last element is reached and not if it's not a folder 
+                   // then add together all elements to a string  
+                   if(dynlen(dpElements[i])==j && dynContains(folders,elementsType[i][j])==0)
+                   {  
+                       string element;
+                       int elementType;
+                       for(int x=2; x<=dynlen(startPath); x++) // skip 1: DPT name
+                         element = element+\".\"+startPath[x];
+                                          
+                       for(int x=2; x<=dynlen(elementPath); x++) // skip 1: DPT name
+                         element = element +\".\"+ elementPath[x];
+                                                                            
+                       for(int x=1; x<=dynlen(elementsType[i]); x++) // get element type
+                         if(elementsType[i][x]!=0)
+                            elementType = elementsType[i][x]; 
+                       
+                       dynAppend(elements,makeDynAnytype(element,elementType));  
+                   }
+
+                   // if an embed type is found the next element is the DPT name
+                   // which we don't want
+                   if(dynlen(elementsType[i])>=j)
+                      if(elementsType[i][j]==DPEL_TYPEREF)
+                           break;
+          
+             }     
+        }   
+}
+
+/*
+     Function to get the summary for hardware, alarms, addresses and dpfunc configurations
+*/
+void getConfAll(dyn_string deviceDpNames, dyn_string &getConfAll, int qType)
+{
+        for(int i=1;i<=dynlen(deviceDpNames);i++)
+               dynAppend(getConfAll, getConfOne(deviceDpNames[i], qType)); 
+}
+
+string getConfOne(string deviceDpName, int qType)
+{
+	int configType, configN, configY, index;
+	string definitionDp, config, model;
+	dyn_bool canHave;
+	dyn_string elements, exceptionInfo;
+        dyn_dyn_string elementsAndProperties;
+
+        if(qType==1) // hardware address configuration
+        {
+            config = \"address\";
+	    fwDevice_getDefinitionDp(makeDynString(deviceDpName), definitionDp, exceptionInfo);		
+	    dpGet(definitionDp + \".properties.dpes\", elements,	
+	          definitionDp + \".configuration.address.canHave\", canHave);            
+        }
+        else if(qType==2) // alarm configuration
+        {
+            config = \"alert_hdl\";
+	    index = fwDevice_ALERT_INDEX;
+	    fwDevice_getModel(makeDynString(deviceDpName), model, exceptionInfo);
+	    fwDevice_getConfigElements(dpTypeName(deviceDpName), index, elementsAndProperties, exceptionInfo, model);  
+            elements = elementsAndProperties[1];          
+        }
+        else if(qType==3) // archive configuration
+        {        
+            config = \"archive\";
+	    index = fwDevice_ARCHIVE_INDEX;
+	    fwDevice_getModel(makeDynString(deviceDpName), model, exceptionInfo);
+	    fwDevice_getConfigElements(dpTypeName(deviceDpName), index, elementsAndProperties, exceptionInfo, model);  
+            elements = elementsAndProperties[1];             
+        }
+        else if(qType==4) // dpt functions configured
+        {
+            config = \"dp_fct\";
+            index = fwDevice_DPFUNCTION_INDEX;
+            fwDevice_getModel(makeDynString(deviceDpName), model, exceptionInfo);
+	    fwDevice_getConfigElements(dpTypeName(deviceDpName), index, elementsAndProperties, exceptionInfo, model); 
+            elements = elementsAndProperties[1]; 
+        }
+            
+	for (int i = 1; i <= dynlen(elements); i++)
+	{
+		if(qType==1)
+                  if(!canHave[i])
+		     continue;
+                
+		dpGet(deviceDpName + elements[i] + \":_\"+config+\".._type\", configType);
+
+		if(configType == DPCONFIG_NONE)
+		    configN++;
+		else
+		    configY++;
+	}
+        
+        if(configN==0 && configY>0)
+          return \"   Y\";
+        else if(configY==0 && configN>0)
+          return \"   N\";
+        else if(configY==0 && configN==0)
+          return \"   -\";        
+        else
+          return configY+\"/\"+(configY+configN);
+}
+
+" 0
+ E E E
+2 190
+"PRIMITIVE_TEXT4"
+""
+1 47 211 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+124 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 47 211 137 241
+0 2 2 "0s" 0 0 0 64 0 0  47 211 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Use device
+1
+LANG:1 84 -*-Arial-*-r-normal-*-12-*-100-100-*-*-iso8859-1|-12,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 definition
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 680 30 T 46 1 0 1 250 -28
+1
+"$sPanelRelativePath""fwDevice/fwDeviceMassConfiguration"
+0

@@ -1,0 +1,483 @@
+V 11
+1
+LANG:1 17 Endcap_RPC_Trends
+PANEL,-1 -1 1094 999 N "_3DFace" 5
+"$2"
+"$sAllChannels"
+"$sHvOrLv"
+"$sParameter"
+"$secring"
+"main()
+{
+
+  
+DebugN(\"$sAllChannels\",$sAllChannels);
+  
+
+
+//DebugN(\"$secring=\", $secring);
+getChannels($sAllChannels);
+
+
+if($secring==\"t\")
+{
+  recallTrends(19,1);//19,1
+}
+else if($secring==\"t3\")
+{
+  recallTrends(37,1);//37,1
+}
+
+else if($secring==\"t4\")
+{
+  recallTrends(55,1);//55,1
+}
+else 
+{
+recallTrends(1,1);  //1,1
+}
+}" 0
+ E E E E 1 0 0 0  10 640
+""0  1
+E "dyn_string channelDps;
+string oldparent=\"\";
+//string HARDWARE_COMPONENT = \"dist_1:\";
+string getChamName(string dpe)
+{
+  //DebugN(\"in scope  start...  dpe------------>\",dpe);
+  string logical = fwDU_getLogicalName(dpe);
+  //DebugN(\"logical\",logical);
+  dyn_string split=strsplit(logical,\"_\");//need to see it for names
+ //DebugN(\"split  = \",split);
+ //DebugN(\"split[6]   = \",split[6]);
+ dyn_string a =strsplit($2,\"_\");
+ //DebugN(\"a = \",a,\"$2 =\",$2);
+ if($sHvOrLv==\"Lbb\")
+ {
+    return split[6]+\" to \"+split[7];
+
+ }
+ 
+ if(a[2]==\"EP1\" | $sHvOrLv==\"Lbb\")
+  {
+   if($sHvOrLv==\"Lbb\")
+     {
+      return split[6]+\" to \"+split[7];
+     }
+   else
+       return split[4]+\" & \"+split[5];
+   }
+ if(a[2]==\"EN1\" | $sHvOrLv==\"Lbb\")
+  {
+   if($sHvOrLv==\"Lbb\")
+     {
+      return split[6]+\" to \"+split[7];
+     }
+   else
+       return split[4]+\" & \"+split[5];
+   }
+ else
+     return split[5];
+  }
+
+
+
+void recallTrends(int index,int index1)
+{
+int x,y;
+float xSize,ySize;
+//DebugN(\"index = \",index,\"index1 = \",index1);
+dyn_string exceptionInfo,parameters,values,parent=makeDynString(\"\",\"\");
+string dpTrendName,channelLogName;
+       parameters=makeDynString(\"channel1\", \"channel2\",\"channel3\",\"value1\",\"value2\",\"value3\",\"param1\",\"param2\",\"param3\");
+        values=makeDynString(channelDps[index],channelDps[index+1],channelDps[index+2],
+                             \"actual.\"+$sParameter,\"actual.\"+$sParameter,\"actual.\"+$sParameter,
+                             getChamName(channelDps[index]),getChamName(channelDps[index+1]),getChamName(channelDps[index+2]));
+//         DebugN(\"values = \",values);//needs to be commented again... index starts from 19 instead of 1  LBB.
+//   	
+//         DebugN(\"getChamName(channelDps[index])    \",getChamName(channelDps[index]));
+//         DebugN(\"channelDps[index]    \",channelDps[index]);
+//         DebugN(\"getChamName(channelDps[index])    \",getChamName(channelDps[index]));
+        dpTrendName = \"three\";    
+        index+=3;    
+        getValue(\"Border\"+index1,\"position\",x,y);
+	getValue(\"Border\"+index1,\"size\",xSize,ySize);
+//	DebugN(values,parameters);
+	//Texto.append($sys+dpTrendName);
+        fwTrending_addFaceplate(myModuleName(), myPanelName(), \"Trend\"+index, dpTrendName, parameters, values,	x,y-ySize, exceptionInfo);
+       if(dynlen(exceptionInfo) > 0)
+		{
+                //Texto.append(\"ERRORR\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+		}
+
+
+	if((index)<=18 && $secring==\"f\")
+       		{
+		index1++;
+		recallTrends(index, index1);	
+		}
+//        else if((index)<=dynlen(channelDps) && $secring==\"t\")
+        else if((index)<=36 && $secring==\"t\")
+        {
+          index1++;
+          recallTrends(index, index1);	
+        }
+        else if((index)<=54 && $secring==\"t3\")
+        {
+          index1++;
+          recallTrends(index, index1);	
+        }
+         else if((index)<=72 && $secring==\"t4\")
+        {
+          index1++;
+          recallTrends(index, index1);	
+        }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void recallTrends1(int index,int index1)
+{
+int x,y;
+float xSize,ySize;
+dyn_string exceptionInfo,parameters,values,parent=makeDynString(\"\",\"\");
+string dpTrendName,channelLogName;
+//Texto.append(index + channelDps[index]);
+  
+  //setValue(\"Text\"+index,\"text\",chamberPos(channelDps[index]));
+  //DebugN(channelDps[index+1],\"Values: \");
+if(((dynlen(channelDps)!=7)&&(dynlen(channelDps)!=10))||(index<7))
+  	{
+  	//setValue(\"Text\"+(index+1),\"text\",chamberPos(channelDps[index+1]));
+  	parameters=makeDynString(\"channel1\", \"channel2\",\"value1\",\"value2\",\"param1\",\"param2\");
+        values=makeDynString(channelDps[index],channelDps[index+1],\"actual.\"+$sParameter,\"actual.\"+$sParameter,getChamName(channelDps[index]),getChamName(channelDps[index+1]));
+  	dpTrendName = \"two\";
+        index+=2;
+        }
+  else if(dynlen(channelDps)==7)
+ 	{
+ 	//setValue(\"Text\"+(index),\"text\",chamberPos(channelDps[index]));
+  	values=makeDynString(channelDps[index],\"actual.\"+$sParameter,getChamName(channelDps[index]));
+        parameters=makeDynString(\"channel1\", \"value1\",\"param1\");
+  	//DebugN(channelDps[index+1],\"Values: \",values);
+  	dpTrendName = \"uno\";
+        index+=1;
+        }
+  else if(dynlen(channelDps)==10)
+  	{
+        parameters=makeDynString(\"channel1\", \"channel2\",\"channel3\", \"channel4\",\"value1\",\"value2\",\"value3\",\"value4\",\"param1\",\"param2\",\"param3\",\"param4\");
+        values=makeDynString(channelDps[index],channelDps[index+1],channelDps[index+2],channelDps[index+3],
+                             \"actual.\"+$sParameter,\"actual.\"+$sParameter,\"actual.\"+$sParameter,\"actual.\"+$sParameter,
+                             getChamName(channelDps[index]),getChamName(channelDps[index+1]),getChamName(channelDps[index+2]),getChamName(channelDps[index+3]));
+  	dpTrendName = \"four\";    
+//         DebugN(\"dsaa\");
+        index+=4;
+        }		
+ 	//dpTrendName=\"HViMon\";
+ 	/*parameters=makeDynString(\"channel1\", \"channel2\",\"channel3\",\"channel4\",\"parameter\");
+ 	values=makeDynString(channelDps[index],channelDps[index+1],channelDps[index+2],channelDps[index+3],\"actual.\"+$sParameter);
+	index+=4;
+*/
+	
+//  	DebugN(\"porza troia: \",index,dynlen(channelDps));
+  
+  
+//         if($sParameter[0]==\"i\")
+// {
+//   dp
+//   
+//   }
+// else
+// {}
+					
+	getValue(\"Border\"+index1,\"position\",x,y);
+	getValue(\"Border\"+index1,\"size\",xSize,ySize);
+	//DebugN(values,parameters);
+	//Texto.append($sys+dpTrendName);
+        fwTrending_addFaceplate(myModuleName(), myPanelName(), \"Trend\"+index, dpTrendName, parameters, values,	x,y-ySize, exceptionInfo);
+        
+
+
+        
+//    dyn_dyn_string currentParameters;
+//    
+//    fwTrending_getPlot(  dpTrendName,   
+//   currentParameters,  
+//   exceptionInfo 
+//  );  
+ 
+// 
+//      fwTrending_modifyAllTemplateParameters  (  \"Trend\"+index,  
+//    fwTrending_PLOT_OBJECT_RANGES_MAX,  
+//   fwTrending_PLOT ,  
+//   currentParameters,  
+//     exceptionInfo);  
+ //    DebugN(currentParameters);
+// 
+//        
+	//Texto.append($sys+dpTrendName + \" \"+ exceptionInfo );
+        if(dynlen(exceptionInfo) > 0)
+		{
+                //Texto.append(\"ERRORR\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+		}
+
+	if((index)<=dynlen(channelDps))
+		{
+		index1++;
+		recallTrends(index, index1);	
+		}
+}
+
+
+
+
+int getChannels(string allChannels)
+{
+ DebugN(\"allCahnnels   - >\",allChannels);
+channelDps=strsplit(allChannels,\" | \");
+dynUnique(channelDps);
+dynRemove(channelDps,dynContains(channelDps,\"\"));
+
+//DebugN(\"channel dps in get channels----------------------\",channelDps);
+}
+string chamberPos(string dpe)
+{
+string logName=fwDU_getLogicalName(dpe);
+//DebugN(dpe,\"saa\",logName);
+	int pos1= strpos(logName,\"RE\");
+	string chambName=substr(logName,pos1+1);
+	int pos2 = strpos(chambName,\"_\");
+	//DebugN(\"chambName\",chambName,\"pos2\",pos2);
+	return substr(chambName,2,pos2-2);
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+6 79
+"Border1"
+""
+1 30 310 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+//this.visible=FALSE;
+this.visible=TRUE;
+  }" 0
+ E 0 1 1 0 1 E 1 0 0.863636363636364 0 -7.72727272727272 0 E 30 90 510 310
+6 80
+"Border2"
+""
+1 570 310 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+this.visible=TRUE;
+}" 0
+ E 0 1 1 0 1 E 0.941176470588235 0 0.863636363636364 33.5294117647059 -7.72727272727272 0 E 570 90 1080 310
+6 81
+"Border3"
+""
+1 30 600 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+this.visible=TRUE;
+}" 0
+ E 0 1 1 0 1 E 1 0 0.863636363636364 0 21.8181818181818 0 E 30 380 510 600
+6 82
+"Border4"
+""
+1 570 600 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+this.visible=TRUE;
+}" 0
+ E 0 1 1 0 1 E 0.941176470588235 0 0.863636363636364 33.5294117647061 21.8181818181817 0 E 570 380 1080 600
+2 99
+"Texto"
+""
+1 488 18 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+//this.text=\"Sector \"+$Sec+\" \"+$sParameter+ \" History Plot\"; 
+this.text= $2+\" History Plot\"; 
+  
+}" 0
+ E 0 1 1 0 1 E U  0 E 490 20 816 56
+0 2 0 "0s" 0 0 0 64 0 0  490 20 1
+1
+LANG:1 26 Arial,-1,19,5,69,0,0,0,0,0
+0 1
+LANG:1 11 RPC ENDCAP 
+13 91
+"Button1"
+""
+1 500 950 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0  498 948 582 985
+
+T 
+1
+LANG:1 5 Close
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+6 101
+"Border5"
+""
+1 30 600 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+this.visible=TRUE;
+}" 0
+ E 0 1 1 0 1 E 1 0 0.863636363636364 0 301.818181818181 0 E 30 380 510 600
+6 102
+"Border6"
+""
+1 570 600 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+this.visible=TRUE;
+}" 0
+ E 0 1 1 0 1 E 0.92156862745098 0 0.863636363636364 44.7058823529414 301.818181818182 0 E 570 380 1080 600
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

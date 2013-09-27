@@ -1,0 +1,1971 @@
+V 11
+1
+LANG:1 18 States and Actions
+PANEL,-1 -1 490 528 N "_3DFace" 2
+"$1"
+"$2"
+E E E E E 1 -1 -1 0  32 244
+""0  1
+E "change_state()
+{
+	string state, color, action;
+	dyn_string states, actions, all_actions, whens;
+	int visi, act_time, i, index;
+
+	getValue(\"State_list\",\"selectedText\",state);
+	setValue(\"State\",\"text\",state);
+	fwFsm_setLocalState(state);
+	fwFsm_getLocalColor(color);
+	setValue(\"Color\",\"backCol\",color);
+
+	setValue(\"Action_list\",\"visible\",1);
+	setValue(\"Action_label\",\"visible\",1);
+	setValue(\"Action_add\",\"visible\",1);
+	setValue(\"Action_remove\",\"visible\",1);
+	setValue(\"Action_params\",\"visible\",1);
+	setValue(\"Action_list_label\",\"visible\",1);
+	setValue(\"Action_up\",\"visible\",1);
+	setValue(\"Action_down\",\"visible\",1);
+	setValue(\"Action_sep\",\"visible\",1);
+	setValue(\"Action\",\"visible\",1);
+//	setValue(\"Action_pars\",\"visible\",1);
+	setValue(\"NV_label\",\"visible\",1);
+	setValue(\"NV\",\"visible\",1);
+
+	fwFsm_getLocalAllActions(all_actions);
+	dynUnique(all_actions);
+	fwFsm_getLocalActions(actions);
+	setValue(\"Action_list\",\"items\",actions);
+	if(dynlen(actions))
+	{
+    action = actions[1];
+    setValue(\"Action_list\",\"selectedText\",action);
+    change_action();
+    if(index = dynContains(all_actions,action))
+      dynRemove(all_actions, index);
+	}
+	else
+	{
+		setValue(\"Action\",\"text\",\"\");
+		set_visi(1);
+		setValue(\"ActionTime\",\"text\",\"\");
+	}
+	setValue(\"Action\",\"items\",all_actions);
+	if(!fwFsm_isProxyType($1))
+	{
+  	setValue(\"State_up\",\"visible\",1);
+  	setValue(\"State_down\",\"visible\",1);
+  	setValue(\"State_ini\",\"visible\",1);
+
+		setValue(\"When_list\",\"visible\",1);
+		setValue(\"When_label\",\"visible\",1);
+		setValue(\"When_add\",\"visible\",1);
+		setValue(\"When_remove\",\"visible\",1);
+		setValue(\"When_up\",\"visible\",1);
+		setValue(\"When_down\",\"visible\",1);
+
+		fwFsm_getLocalWhens(whens);
+		for(i = 1; i <= dynlen(whens); i++)
+		{
+			strreplace(whens[i],\"\\n\",\"\");
+			strreplace(whens[i],\"      \",\" \");
+		}
+		setValue(\"When_list\",\"items\",whens);
+	}
+	else
+	{
+  	setValue(\"State_up\",\"visible\",1);
+  	setValue(\"State_down\",\"visible\",1);
+		setValue(\"When_list\",\"visible\",0);
+		setValue(\"When_label\",\"visible\",0);
+		setValue(\"When_add\",\"visible\",0);
+		setValue(\"When_remove\",\"visible\",0);
+//		setValue(\"ActionTime_label\",\"visible\",1);
+//		setValue(\"ActionTime\",\"visible\",1);
+		fwFsm_getLocalWhens(whens);
+		if(dynlen(whens))
+			setValue(\"Time\",\"text\",whens[1]);
+		else
+			setValue(\"Time\",\"text\",\"\");
+	}
+}
+
+set_visi(int visi)
+{
+	string txt;
+	
+	switch(visi)
+	{
+		case 0:
+			txt = \"N\";
+			break;
+		case 1:
+			txt = \"Y\";
+			break;
+		case 2:
+			txt = \"Ex\";
+			break;
+	}
+	setValue(\"NV\",\"text\",txt);
+}
+
+int get_visi()
+{
+	string txt;
+	int visi = 1;
+	
+	getValue(\"NV\",\"text\",txt);
+	if(txt == \"Y\")
+		visi = 1;
+	else if(txt == \"N\")
+		visi = 0;
+	else if (txt == \"Ex\")
+		visi = 2;
+	return visi;
+}
+
+exchange_actions(int src, int dst)
+{
+  string name;
+  int visi;
+  int act_time;
+  string text, pars;
+  
+  name = ObjActionNames[ObjStateCurrentIndex][dst];
+  visi = ObjActionVisible[ObjStateCurrentIndex][dst];
+  act_time = ObjActionTime[ObjStateCurrentIndex][dst];
+  text = ObjActionText[ObjStateCurrentIndex][dst];
+  pars = ObjActionPars[ObjStateCurrentIndex][dst];
+  
+  ObjActionNames[ObjStateCurrentIndex][dst] = ObjActionNames[ObjStateCurrentIndex][src];
+  ObjActionVisible[ObjStateCurrentIndex][dst] = ObjActionVisible[ObjStateCurrentIndex][src];
+  ObjActionTime[ObjStateCurrentIndex][dst] = ObjActionTime[ObjStateCurrentIndex][src];
+  ObjActionText[ObjStateCurrentIndex][dst] = ObjActionText[ObjStateCurrentIndex][src];
+  ObjActionPars[ObjStateCurrentIndex][dst] = ObjActionPars[ObjStateCurrentIndex][src];
+
+  ObjActionNames[ObjStateCurrentIndex][src] = name;
+  ObjActionVisible[ObjStateCurrentIndex][src] = visi;
+  ObjActionTime[ObjStateCurrentIndex][src] = act_time;
+  ObjActionText[ObjStateCurrentIndex][src] = text;
+  ObjActionPars[ObjStateCurrentIndex][src] = pars;
+  change_action();
+}
+
+change_action()
+{
+	string action;
+//	int nv, act_time;
+	int visi, act_time;
+
+	getValue(\"Action_list\",\"selectedText\",action);
+	setValue(\"Action\",\"text\",action);
+	fwFsm_setLocalAction(action);
+//	fwFsm_getLocalNV(nv);
+//	setValue(\"NV\",\"state\",0, nv);
+	fwFsm_getLocalVisi(visi);
+	set_visi(visi);
+	fwFsm_getLocalActionTime(act_time);
+	setValue(\"ActionTime\",\"text\",act_time);
+}
+
+move_up()
+{
+	dyn_string listStrings = Action_list.items;
+	string selectedString = Action_list.selectedText;
+	int selectedPosition = Action_list.selectedPos;
+	
+	if(selectedPosition != 1)
+	{
+		dynRemove(listStrings, selectedPosition);
+		dynInsertAt(listStrings, selectedString, selectedPosition - 1);
+	}	
+
+	Action_list.items = listStrings;
+//	Action_list.selectedText = selectedString;
+	Action_list.selectedPos = selectedPosition - 1;
+  exchange_actions(selectedPosition, selectedPosition - 1);
+}
+
+move_down()
+{
+	dyn_string listStrings = Action_list.items;
+	string selectedString = Action_list.selectedText;
+	int selectedPosition = Action_list.selectedPos;
+	
+	if(selectedPosition != dynlen(listStrings))
+	{
+		dynRemove(listStrings, selectedPosition);
+		dynInsertAt(listStrings, selectedString, selectedPosition + 1);
+	}	
+
+	Action_list.items = listStrings;
+//	Action_list.selectedText = selectedString;
+	Action_list.selectedPos = selectedPosition + 1;
+  exchange_actions(selectedPosition, selectedPosition + 1);
+}" 0
+ 2
+"CBRef" "0"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 67
+"Text1"
+""
+1 32 244 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 32 244 63 260
+0 2 2 "0s" 0 0 0 192 0 0  32 244 1
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0 1
+LANG:1 6 State:
+2 69
+"title"
+""
+1 29 12 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 12 275 29
+0 2 2 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 26 arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 58 Object Type:                                              
+2 70
+"Text3"
+""
+1 202 242 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 202 242 235 258
+0 2 2 "0s" 0 0 0 192 0 0  202 242 1
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Color:
+2 71
+"copy_title"
+""
+1 210 52 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+//	if(!fwFsm_isProxyType($1))
+//	{
+//		setValue(\"\",\"visible\",1);
+//	}
+}" 0
+ E 0 1 1 0 1 E U  1 E 212 52 299 68
+0 2 2 "0s" 0 0 0 192 0 0  212 52 1
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Copy from Type:
+2 72
+"panel_label"
+""
+1 340 131 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 302 17 337 33
+0 2 2 "0s" 0 0 0 192 0 0  302 17 1
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Panel:
+2 85
+"Action_label"
+""
+1 262 242 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 262 242 298 258
+0 2 2 "0s" 0 0 0 192 0 0  262 242 1
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Action:
+2 86
+"Action_list_label"
+""
+1 262 122 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 262 122 321 138
+0 2 2 "0s" 0 0 0 192 0 0  262 122 1
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Action List:
+2 89
+"NV_label"
+""
+1 430 242 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 432 242 462 258
+0 2 2 "0s" 0 0 0 192 0 0  432 242 1
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Visib:
+2 98
+"When_label"
+""
+1 52 352 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 52 352 110 368
+0 2 2 "0s" 0 0 0 192 0 0  52 352 1
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0 1
+LANG:1 10 When List:
+2 107
+"Time_label"
+""
+1 160 242 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 162 242 193 259
+0 2 2 "0s" 0 0 0 192 0 0  162 242 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Time:
+2 108
+"ActionTime_label"
+""
+1 400 242 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 402 242 433 259
+0 2 2 "0s" 0 0 0 192 0 0  402 242 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Time:
+2 126
+"State_ini"
+""
+1 10 142 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 142 28 158
+0 2 2 "0s" 0 0 0 192 0 0  12 142 1
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0 1
+LANG:1 4 Ini:
+2 68
+"Text2"
+""
+1 32 122 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 32 122 86 138
+0 2 2 "0s" 0 0 0 192 0 0  32 122 1
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0 1
+LANG:1 11 State List:
+17 99
+"When_list"
+""
+1 48 370 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E "main()
+{
+	dyn_string instr, whens;
+	dyn_float res;
+	string when;
+	int pos, n;
+
+
+	getValue(\"When_list\",\"items\",whens);
+//	getValue(\"\",\"selectedText\",when);
+	getValue(\"\",\"selectedPos\",pos);
+  fwFsm_getLocalWhenAtPos(pos, when);
+  ChildPanelOnReturn(\"fwFSM/fsm/instr_when.pnl\",\"instr_when\",
+		makeDynString($1,when), 120, 0, res, instr);
+	if(!dynlen(res))
+		return;
+	if(res[1] == 1)
+	{
+//		if(n = dynContains(whens, when))
+//		{
+		when = instr[1];
+		strreplace(when,\"\\n\",\"\");
+		strreplace(when,\"      \",\" \");
+		setValue(\"When_list\",\"replacePos\",pos, when);		
+//		  fwFsm_replaceLocalWhen(when, instr[1]);
+		fwFsm_replaceLocalWhenAtPos(pos, instr[1]);
+//		}
+	}
+}
+" 0
+
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  48 368 452 442
+0
+
+E
+E
+E
+
+0 0
+17 73
+"State_list"
+""
+1 28 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  28 138 232 232
+0
+
+"main()
+{
+	string panel;
+	dyn_string states;
+	
+        
+	if(fwFsm_isProxyType($1))
+	{
+		setValue(\"title\",\"text\",\"Device Type: \"+$2);
+//		setValue(\"Time_label\",\"visible\",1);
+//		setValue(\"Time\",\"visible\",1);
+	}
+	else
+	{
+		setValue(\"title\",\"text\",\"Object Type: \"+$2);
+	}
+//	setValue(\"title_obj\",\"text\",$2);
+	fwUi_getTypePanel($2,panel);
+	if(panel == \"\")
+		panel = $2+\".pnl\";
+	setValue(\"panel\",\"text\",panel);
+	fwFsm_createLocalObject($2);
+	fwFsm_getLocalStates(states);
+	setValue(\"\",\"items\",states);
+	if(dynlen(states))
+  {
+    setValue(\"State_list\",\"selectedText\",states[1]);
+    change_state();
+  }
+}
+" 0
+
+"main()
+{
+	change_state();
+/*
+	string state, color, action;
+	dyn_string actions, whens;
+	int nv, act_time;
+
+	getValue(\"\",\"selectedText\",state);
+	setValue(\"State\",\"text\",state);
+	fwFsm_setLocalState(state);
+	fwFsm_getLocalColor(color);
+	setValue(\"Color\",\"backCol\",color);
+
+	setValue(\"Action_list\",\"visible\",1);
+	setValue(\"Action_label\",\"visible\",1);
+	setValue(\"Action_add\",\"visible\",1);
+	setValue(\"Action_remove\",\"visible\",1);
+	setValue(\"Action_params\",\"visible\",1);
+	setValue(\"Action_list_label\",\"visible\",1);
+	setValue(\"Action\",\"visible\",1);
+//	setValue(\"Action_pars\",\"visible\",1);
+	setValue(\"NV_label\",\"visible\",1);
+	setValue(\"NV\",\"visible\",1);
+
+	fwFsm_getLocalActions(actions);
+	setValue(\"Action_list\",\"items\",actions);
+	if(dynlen(actions))
+	{
+		action = actions[1];
+		setValue(\"Action\",\"text\",action);
+		fwFsm_setLocalAction(action);
+		fwFsm_getLocalNV(nv);
+		setValue(\"NV\",\"state\",0, nv);
+		fwFsm_getLocalActionTime(act_time);
+		setValue(\"ActionTime\",\"text\",act_time);
+	}
+	else
+	{
+		setValue(\"Action\",\"text\",\"\");
+		setValue(\"NV\",\"state\",0,0);
+		setValue(\"ActionTime\",\"text\",\"\");
+	}
+	if(!fwFsm_isProxyType($1))
+	{
+		setValue(\"When_list\",\"visible\",1);
+		setValue(\"When_label\",\"visible\",1);
+		setValue(\"When_add\",\"visible\",1);
+		setValue(\"When_remove\",\"visible\",1);
+
+		fwFsm_getLocalWhens(whens);
+		setValue(\"When_list\",\"items\",whens);
+	}
+	else
+	{
+		setValue(\"When_list\",\"visible\",0);
+		setValue(\"When_label\",\"visible\",0);
+		setValue(\"When_add\",\"visible\",0);
+		setValue(\"When_remove\",\"visible\",0);
+//		setValue(\"ActionTime_label\",\"visible\",1);
+//		setValue(\"ActionTime\",\"visible\",1);
+		fwFsm_getLocalWhens(whens);
+		if(dynlen(whens))
+			setValue(\"Time\",\"text\",whens[1]);
+		else
+			setValue(\"Time\",\"text\",\"\");
+	}
+*/
+}
+" 0
+
+E
+
+0 0
+14 74
+"State"
+""
+1 28 259 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  28 258 202 285
+3 "0s" 0 0 0 0 0 -1  E E E
+13 75
+"Button1"
+""
+1 28 288 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  28 288 122 313
+
+T 
+1
+LANG:1 3 Add
+"main()
+{
+	dyn_string states, items;
+	string state, color, text;
+	int index, i;
+		
+	getValue(\"State\",\"text\",state);
+	if(state == \"\")
+		return;
+	getValue(\"Color\",\"backCol\",color);
+	getValue(\"State_list\",\"items\",states);
+	if(!dynContains(states, state))
+	{
+		setValue(\"State_list\",\"appendItem\",state);
+	}
+	fwFsm_addLocalState(state, color);
+	fwFsm_setLocalState(state);
+/*
+	getValue(\"Time\",\"text\",text);
+	fwFsm_getLocalWhens(items);
+	for(i = 1; i <= dynlen(items); i++)
+		fwFsm_removeLocalWhen(items[i]);
+	if(text != \"\")
+		fwFsm_addLocalWhen(text);
+*/
+}
+	
+	" 0
+ E E E
+13 76
+"Button2"
+""
+1 138 288 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  138 288 232 313
+
+T 
+1
+LANG:1 6 Remove
+"main()
+{
+	int n;
+	string state;
+	
+	getValue(\"State_list\",\"selectedPos\",n);
+	setValue(\"State_list\",\"deletePos\",n);
+	getValue(\"State\",\"text\",state);
+	fwFsm_removeLocalState(state);
+  n--;
+  if(n == 0)
+    n = 1;
+	setValue(\"Action_list\",\"selectedPos\",n);
+  change_action();
+}" 0
+ E E E
+13 77
+"Button3"
+""
+1 308 488 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  308 488 392 519
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_string states;
+	string panel, type;
+	
+	getValue(\"State_list\",\"items\",states);
+	getValue(\"panel\",\"text\",panel);
+	type = $2;
+	fwUi_setTypePanel(type,panel);
+	fwFsm_writeLocalObject(type, states);
+	fwFsm_deleteLocalObject();
+	PanelOff();
+}" 0
+ E E E
+13 78
+"Button4"
+""
+1 398 488 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  398 488 482 519
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	fwFsm_deleteLocalObject();
+	PanelOff();
+}" 0
+ E E E
+13 79
+"Color"
+""
+1 202 258 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  200 258 232 285
+
+T 
+1
+LANG:1 0 
+"main()
+{
+  dyn_string res, states, colors;
+  string state;
+  int index;
+  
+  ChildPanelOnReturn(\"fwFSM/fsm/myColorSel\",\"ColorSelection\",makeDynString(\"\"),0,0,
+	res, colors);
+	if(res[1] == 1)
+	{
+		setValue(\"\",\"backCol\",colors[1]);
+		getValue(\"State_list\",\"items\",states);
+		getValue(\"State\",\"text\",state);
+		if(index = dynContains(states, state))
+		{
+//			fwFsm_getLocalState(state);
+  		fwFsm_addLocalState(state, colors[1]);
+		}
+	}
+}
+" 0
+ E E E
+22 81
+"copy"
+""
+1 309 49 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  308 48 462 75
+0
+
+"main()
+{
+	dyn_string types, more;
+	if(fwFsm_isProxyType($1))
+	{
+//		setValue(\"\",\"visible\",1);
+		types = fwFsm_getDeviceTypes();
+		dynAppend(types,\"-----------------------------\");
+		more = fwFsm_getObjectTypes();
+		dynAppend(types, more);
+	}
+	else
+	{
+		types = fwFsm_getObjectTypes();
+		dynAppend(types,\"-----------------------------\");
+		more = fwFsm_getDeviceTypes();
+		dynAppend(types, more);
+	}
+	setValue(\"\",\"items\",types);
+	setValue(\"\",\"text\",\"\");
+}" 0
+
+"main()
+{
+	string obj;
+	int answer, answer1;
+	dyn_string states;
+	
+	getValue(\"\",\"text\",obj);
+	fwUi_askUser(\"Are you sure you want to overwrite \"+$2+\"?\",100,0,0,answer);
+/*
+	if(fwFsm_isProxyType($1))
+	{
+		setValue(\"title\",\"text\",\"Device Type: \"+$1);
+	}
+	else
+	{
+		setValue(\"title\",\"text\",\"Object Type: \"+$1);
+	}
+	fwUi_getTypePanel($1,panel);
+	if(panel == \"\")
+		panel = $1+\".pnl\";
+	setValue(\"panel\",\"text\",panel);
+*/
+	if(answer)
+	{
+		if(!fwFsm_isProxyType($1))
+		{
+			if(!fwFsm_isProxyType(obj))
+				fwFsm_copyObjectType(obj, $2);
+			else
+			{		
+				fwUi_askUser(\"Type mismatch will copy only States & Actions, Ok?\",
+					100, 0, 0, answer1);
+				if(answer1)
+					fwFsm_copyObjectTypeHeader(obj, $2);
+			}
+		}
+		else
+		{
+			if(fwFsm_isProxyType(obj))
+				fwFsm_copyDeviceType(obj, $2);
+			else
+			{
+				fwUi_askUser(\"Type mismatch will copy only States & Actions, Ok?\",
+					100, 0, 0, answer1);
+				if(answer1)
+					fwFsm_copyObjectTypeHeader(obj, $2);
+			}
+		}
+
+		fwFsm_deleteLocalObject();
+		fwFsm_createLocalObject($2);
+		fwFsm_getLocalStates(states);
+		setValue(\"State_list\",\"items\",states);
+                setValue(\"State_list\",\"selectedText\",states[1]);
+	  change_state();
+/*	
+		setValue(\"Action_list\",\"visible\",0);
+		setValue(\"Action_label\",\"visible\",0);
+		setValue(\"Action_add\",\"visible\",0);
+		setValue(\"Action_remove\",\"visible\",0);
+		setValue(\"Action_list_label\",\"visible\",0);
+		setValue(\"Action\",\"visible\",0);
+//		setValue(\"Action_pars\",\"visible\",0);
+		setValue(\"NV_label\",\"visible\",0);
+		setValue(\"NV\",\"visible\",0);
+
+		setValue(\"When_list\",\"visible\",0);
+		setValue(\"When_label\",\"visible\",0);
+		setValue(\"When_add\",\"visible\",0);
+		setValue(\"When_remove\",\"visible\",0);
+*/
+	}
+}" 0
+
+E
+ 0 0
+14 82
+"panel"
+""
+1 460 110 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  338 8 482 35
+3 "0s" 0 0 0 0 0 -1  E E E
+13 83
+"Button7"
+""
+1 30 50 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0  28 48 182 75
+
+T 
+1
+LANG:1 13 Simple Config
+"main()
+{
+	string panel;
+	dyn_string ret, states;
+	dyn_int res;
+	
+	if(fwFsm_isProxyType($1))
+	{
+    	ChildPanelOnReturn(\"fwFSM/ui/fwTreeConfigDevice.pnl\",\"TreeConf\",
+    		makeDynString($1, $2),150,0, res, ret);
+	}
+	else
+	{
+   		ChildPanelOnReturn(\"fwFSM/ui/fwTreeConfig.pnl\",\"TreeConf\",
+    		makeDynString($1),150,0, res, ret);
+	}
+/*
+	fwUi_getTypePanel($1,panel);
+	if(panel == \"\")
+		panel = $1+\".pnl\";
+	setValue(\"panel\",\"text\",panel);
+	if(!dpExists($1))
+	{
+		return;
+	}
+*/
+	if(res[1])
+	{
+		fwFsm_deleteLocalObject();
+		fwFsm_createLocalObject($2);
+		fwFsm_getLocalStates(states);
+		if(dynlen(states))
+		{
+			setValue(\"State_list\",\"items\",states);
+                        setValue(\"State_list\",\"selectedPos\",1);
+			change_state();
+		}
+/*	
+		setValue(\"Action_list\",\"visible\",0);
+		setValue(\"Action_label\",\"visible\",0);
+		setValue(\"Action_add\",\"visible\",0);
+		setValue(\"Action_remove\",\"visible\",0);
+		setValue(\"Action_list_label\",\"visible\",0);
+		setValue(\"Action\",\"visible\",0);
+		setValue(\"Action_params\",\"visible\",0);
+		setValue(\"NV_label\",\"visible\",0);
+		setValue(\"NV\",\"visible\",0);
+
+		setValue(\"When_list\",\"visible\",0);
+		setValue(\"When_label\",\"visible\",0);
+		setValue(\"When_add\",\"visible\",0);
+		setValue(\"When_remove\",\"visible\",0);
+*/
+	}
+}" 0
+ E E E
+17 90
+"Action_list"
+""
+1 258 140 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E "main()
+{
+	string state, action;
+	int i;
+
+	if(!fwFsm_isProxyType($1))
+	{
+		ChildPanelOn(\"fwFSM/fsm/action_editor.pnl\",
+			\"action_editor\",makeDynString($1),120,0);
+	}
+}
+" 0
+
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  258 138 462 232
+0
+
+E
+"main()
+{
+  change_action();
+}" 0
+
+E
+
+0 0
+14 91
+"Action_old"
+""
+1 260 259 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  258 258 432 285
+3 "0s" 0 0 0 0 0 -1  E E E
+13 94
+"Action_add"
+""
+1 260 288 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  258 288 352 313
+
+T 
+1
+LANG:1 3 Add
+"main()
+{
+	string action;
+//	bool nv;
+	int visi;
+	int index, n, act_time;
+	dyn_string actions;
+
+	getValue(\"Action\",\"text\",action);
+	if(action == \"\")
+		return;
+	visi = get_visi();
+//	getValue(\"NV\",\"state\",0,nv);
+	getValue(\"Action_list\",\"items\",actions);
+	getValue(\"ActionTime\",\"text\",act_time);
+	if(n = dynContains(actions, action))
+	{
+		setValue(\"Action_list\",\"deletePos\",n);		
+	}
+	setValue(\"Action_list\",\"appendItem\",action);
+	fwFsm_addLocalAction(action, visi, act_time);
+//	fwFsm_addLocalAction(action, nv, act_time);
+	copy_action(action);
+}
+	
+copy_action(string new_action)
+{
+	dyn_string states, actions, pars;
+	string state, action, text;
+	int i, j, found;
+
+	text = \"\";
+	fwFsm_getLocalState(state);
+	fwFsm_getLocalAction(action);
+	fwFsm_getLocalStates(states);
+	found = 0;
+	for(i = 1; i <=dynlen(states); i++)
+	{
+		if(states[i] == state)
+			continue;
+		fwFsm_setLocalState(states[i]);
+		fwFsm_getLocalActions(actions);
+		for(j = 1; j <=dynlen(actions); j++)
+		{
+			if(actions[j] == new_action)
+			{
+				fwFsm_setLocalAction(actions[j]);
+				fwFsm_getLocalActionPars(pars);
+				fwFsm_getLocalActionText(text);
+				if(text != \"\")
+				{
+					found = 1;
+					break;
+				}		
+			}
+		}
+		if(found)
+			break;
+	}
+	fwFsm_setLocalState(state);
+	fwFsm_setLocalAction(new_action);
+	fwFsm_setLocalActionPars(pars);
+	if(text != \"\")
+			fwFsm_setLocalActionText(text);
+}" 0
+ E E E
+13 95
+"Action_remove"
+""
+1 370 288 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  368 288 462 313
+
+T 
+1
+LANG:1 6 Remove
+"main()
+{
+	int n;
+	string action;
+  int sep = 0;
+  
+	getValue(\"Action\",\"text\",action);
+	getValue(\"Action_list\",\"selectedPos\",n);
+	setValue(\"Action_list\",\"deletePos\",n);
+  if(action == fwFsm_actionSeparator)
+   sep = n; 
+	fwFsm_removeLocalAction(action, sep);
+  n--;
+  if(n == 0)
+    n = 1;
+	setValue(\"Action_list\",\"selectedPos\",n);
+  change_action();
+}" 0
+ E E E
+13 100
+"When_add"
+""
+1 48 448 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  48 448 132 473
+
+T 
+1
+LANG:1 3 Add
+"main()
+{
+	dyn_string res, instr;
+	string when;
+
+  ChildPanelOnReturn(\"fwFSM/fsm/instr_when.pnl\",\"instr_when\",makeDynString($1,\"\"),0,0,
+	res, instr);
+	if(res[1] == 1)
+	{
+		when = instr[1];
+		strreplace(when,\"\\n\",\"\");
+		strreplace(when,\"      \",\" \");
+		setValue(\"When_list\",\"appendItem\",when);
+		fwFsm_addLocalWhen(instr[1]);
+	}
+}
+	
+	" 0
+ E E E
+13 101
+"When_remove"
+""
+1 148 448 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  148 448 232 473
+
+T 
+1
+LANG:1 6 Remove
+"main()
+{
+	int n;
+	string when;
+	
+	getValue(\"When_list\",\"selectedPos\",n);
+//  getValue(\"When_list\",\"selectedText\",when);
+	setValue(\"When_list\",\"deletePos\",n);
+//	fwFsm_removeLocalWhen(when);
+	fwFsm_removeLocalWhenAtPos(n);
+}" 0
+ E E E
+26 105
+"CascadeButton1"
+""
+1 170 380 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0  168 378 312 407
+ 0 1
+LANG:1 16 Configure Device
+"" 0 0 0 0 0
+ 3 1 1
+LANG:1 31 Configure Device Initialization
+"1" 0 0 0 0 0
+ 1 1
+LANG:1 23 Configure Device States
+"2" 0 0 0 0 0
+ 1 1
+LANG:1 24 Configure Device Actions
+"3" 0 0 0 0 0
+ "main()
+{
+	if(fwFsm_isProxyType($1))
+	{
+		setValue(\"\",\"visible\",1);
+	}
+}
+" 0
+ "main(int id)
+{
+if(id == 1)
+{
+//  ChildPanelOn(\"fwFSM/fsm/device_init_editor.pnl\",\"device_init_editor\",makeDynString($1),100,0);
+string devScript;
+		fwFsm_getLocalInitScript(devScript);
+		scriptEditor(devScript);
+		fwFsm_setLocalInitScript(devScript);
+}
+else if(id == 2)
+{
+  ChildPanelOn(\"fwFSM/fsm/config_device_states.pnl\",\"config_device_states\",makeDynString($1,$2),100,0);
+}
+else
+  ChildPanelOn(\"fwFSM/fsm/config_device_actions.pnl\",\"config_device_actions\",makeDynString($1,$2),100,0);
+}" 0
+0 
+14 106
+"Time"
+""
+1 160 260 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  158 258 202 285
+3 "0s" 0 0 0 0 0 -1  E E E
+14 109
+"ActionTime"
+""
+1 400 260 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  398 258 432 285
+3 "0s" 0 0 0 0 0 -1  E E E
+13 110
+"Button5"
+""
+1 180 90 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  178 88 312 114
+
+T 
+1
+LANG:1 17 Object Parameters
+"main()
+{
+    ChildPanelOn(\"fwFSM/fsm/parameters.pnl\",
+    	\"smi_parameters\",makeDynString($2,\"\",\"\"),150,0);
+}" 0
+ E E E
+13 112
+"Action_params"
+""
+1 300 320 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  298 318 422 344
+
+T 
+1
+LANG:1 17 Action Parameters
+"main()
+{
+	string state, action;
+	getValue(\"State\",\"text\",state);
+	getValue(\"Action\",\"text\",action);
+	if((state != \"\") && (action != \"\"))
+     ChildPanelOn(\"fwFSM/fsm/parameters.pnl\",
+    	\"smi_parameters\",makeDynString($2,state,action),150,0);
+}
+" 0
+ E E E
+13 122
+"When_up"
+""
+1 30 380 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  28 378 48 402
+
+P 
+13434828
+"pictures/arrow_up.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_string listStrings;
+	string selectedString;
+	int selectedPosition;
+	
+	getValue(\"When_list\",\"items\",listStrings);
+	getValue(\"When_list\",\"selectedText\",selectedString);
+	getValue(\"When_list\",\"selectedPos\",selectedPosition);
+	if(selectedPosition != 1)
+	{
+//  	aboveString = listStrings[selectedPosition - 1];
+		dynRemove(listStrings, selectedPosition);
+		dynInsertAt(listStrings, selectedString, selectedPosition - 1);
+	  setValue(\"When_list\",\"items\",listStrings);
+	  setValue(\"When_list\",\"selectedText\",selectedString);
+	  fwFsm_exchangeLocalWhenAtPos(selectedPosition-1, selectedPosition);
+	}	
+}" 0
+ E E E
+13 123
+"When_down"
+""
+1 30 410 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  28 408 48 432
+
+P 
+13434828
+"pictures/arrow_down.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_string listStrings;
+	string selectedString, belowString;
+	int selectedPosition;
+	
+	getValue(\"When_list\",\"items\",listStrings);
+	getValue(\"When_list\",\"selectedText\",selectedString);
+	getValue(\"When_list\",\"selectedPos\",selectedPosition);
+	if(selectedPosition != dynlen(listStrings))
+	{
+//		belowString = listStrings[selectedPosition + 1];
+		dynRemove(listStrings, selectedPosition);
+		dynInsertAt(listStrings, selectedString, selectedPosition + 1);
+	  setValue(\"When_list\",\"items\",listStrings);
+	  setValue(\"When_list\",\"selectedText\",selectedString);
+//	  fwFsm_exchangeLocalWhen(selectedString, belowString);
+	  fwFsm_exchangeLocalWhenAtPos(selectedPosition, selectedPosition+1);
+	}
+}" 0
+ E E E
+13 124
+"State_up"
+""
+1 10 160 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  8 158 28 182
+
+P 
+13434828
+"pictures/arrow_up.bmp"
+1
+LANG:1 0 
+"main()
+{
+	dyn_string listStrings = State_list.items;
+	string selectedString = State_list.selectedText;
+	int selectedPosition = State_list.selectedPos;
+	
+	if(selectedPosition != 1)
+	{
+		dynRemove(listStrings, selectedPosition);
+		dynInsertAt(listStrings, selectedString, selectedPosition - 1);
+	}	
+
+	State_list.items = listStrings;
+	State_list.selectedText = selectedString;
+
+}" 0
+ E E E
+13 127
+"Button6"
+""
+1 10 488 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  8 488 112 519
+
+T 
+1
+LANG:1 13 Type Overview
+"main()
+{
+//	dyn_string res, instr;
+
+  ChildPanelOn(\"fwFSM/fsm/fwViewType.pnl\",\"view_type\",
+		makeDynString($1, $2),120,0);
+//	res, instr);
+//	if(res[1] == 1)
+//	{
+//	}
+}
+" 0
+ E E E
+22 128
+"Action"
+""
+1 260 260 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,12,5,50,0,0,0,0,0
+0  258 258 432 285
+0
+
+E
+E
+E
+ 1 0
+13 129
+"Button8"
+""
+1 218 488 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  218 488 302 519
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	dyn_string states;
+	string panel, type, selectedState;
+	
+	getValue(\"State_list\",\"items\",states);
+  getValue(\"State_list\",\"selectedText\",selectedState);
+	getValue(\"panel\",\"text\",panel);
+	type = $2;
+	fwUi_setTypePanel(type,panel);
+	fwFsm_writeLocalObject(type, states);
+	fwFsm_deleteLocalObject();
+	fwFsm_createLocalObject($2);
+	fwFsm_getLocalStates(states);
+	if(dynlen(states))
+	{
+		setValue(\"State_list\",\"items\",states);
+   setValue(\"State_list\",\"selectedText\",selectedState);
+		change_state();
+	}
+//	fwFsm_deleteLocalObject();
+//	PanelOff();
+}" 0
+ E E E
+13 130
+"State_down"
+""
+1 10 190 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  8 188 28 212
+
+P 
+13434828
+"pictures/arrow_down.bmp"
+1
+LANG:1 0 
+"
+main()
+{
+	dyn_string listStrings = State_list.items;
+	string selectedString = State_list.selectedText;
+	int selectedPosition = State_list.selectedPos;
+	
+	if(selectedPosition != dynlen(listStrings))
+	{
+		dynRemove(listStrings, selectedPosition);
+		dynInsertAt(listStrings, selectedString, selectedPosition + 1);
+	}	
+
+	State_list.items = listStrings;
+	State_list.selectedText = selectedString;
+
+}" 0
+ E E E
+26 131
+"NV"
+""
+1 430 260 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  428 258 462 284
+ 0 1
+LANG:1 1 Y
+"" 0 0 0 0 0
+ 3 1 1
+LANG:1 7 Visible
+"1" 0 0 0 0 0
+ 1 1
+LANG:1 11 Not Visible
+"0" 0 0 0 0 0
+ 1 1
+LANG:1 12 Experts Only
+"2" 0 0 0 0 0
+ E "main(int id)
+{
+	string txt;
+	switch(id)
+	{
+		case 0:
+			txt = \"N\";
+			break;
+		case 1:
+			txt = \"Y\";
+			break;
+		case 2:
+			txt = \"Ex\";
+			break;
+	}
+	setValue(\"\",\"text\",txt);
+	setIt();
+}
+
+setIt()
+{
+	string action;
+	int visi;
+	int index, n, act_time;
+	dyn_string actions;
+
+	getValue(\"Action\",\"text\",action);
+	if(action == \"\")
+		return;
+	visi = get_visi();
+	getValue(\"Action_list\",\"items\",actions);
+	getValue(\"ActionTime\",\"text\",act_time);
+	if(dynContains(actions, action))
+	{
+		fwFsm_addLocalAction(action, visi, act_time);
+	}
+}
+	" 0
+0 
+13 132
+"Button9"
+""
+1 120 488 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,12,5,50,0,0,0,0,0
+0  118 488 202 519
+
+T 
+1
+LANG:1 12 Type Diff...
+"main()
+{
+	dyn_float res;
+	dyn_string ret;
+	string type, f1, f2, prefix, prefix2, exec;
+
+  ChildPanelOnReturn(\"fwFSM/fsm/fwDiffType.pnl\",\"choose_type\",
+		makeDynString($2),120,400, res, ret);
+		
+	prefix = fwFsm_getProjPath();
+	prefix2 = prefix;
+	if(res[1])
+	{
+		type = ret[1];
+		if(dynlen(ret) == 2)
+		{
+			prefix2 = ret[2];
+		}
+		if (os==\"Linux\")
+		{
+			exec = getPath(BIN_REL_PATH, \"xwindiff\");
+			f1 = prefix+\"/smi/\"+$2+\".fsm\";
+			f2 = prefix2+\"/smi/\"+type+\".fsm\";
+DebugN(\"exec\", exec, f1, f2);
+			system(exec+\" \"+f1+\" \"+f2+\" &\");
+		}
+		else
+		{
+			exec = getPath(BIN_REL_PATH, \"windiff.exe\");
+			f1 = prefix+\"/smi/\"+$2+\".fsm\";
+			f2 = prefix2+\"/smi/\"+type+\".fsm\";
+DebugN(\"exec\", exec, f1, f2);
+			system(\"start /B \"+exec+\" \"+f1+\" \"+f2);
+		}
+	}
+}
+" 0
+ E E E
+13 133
+"Action_up"
+""
+1 240 160 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  238 158 258 182
+
+P 
+13434828
+"pictures/arrow_up.bmp"
+1
+LANG:1 0 
+"main()
+{
+  move_up();
+}" 0
+ E E E
+13 134
+"Action_down"
+""
+1 240 190 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  238 188 258 212
+
+P 
+13434828
+"pictures/arrow_down.bmp"
+1
+LANG:1 0 
+"main()
+{
+  move_down();
+}" 0
+ E E E
+13 135
+"Action_sep"
+""
+1 240 141 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+72 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  238 139 258 159
+
+P 
+13434828
+"pictures/separator_icon.png"
+1
+LANG:1 0 
+"main()
+{
+	string action;
+//	bool nv;
+	int visi;
+	int index, n, act_time;
+	dyn_string actions;
+
+  action = fwFsm_actionSeparator;
+ 	visi = get_visi();
+//	getValue(\"NV\",\"state\",0,nv);
+	getValue(\"Action_list\",\"items\",actions);
+	getValue(\"ActionTime\",\"text\",act_time);
+//	if(n = dynContains(actions, action))
+//	{
+//		setValue(\"Action_list\",\"deletePos\",n);		
+//	}
+	setValue(\"Action_list\",\"appendItem\",action);
+	fwFsm_addLocalAction(action, visi, act_time, 1);
+//	fwFsm_addLocalAction(action, nv, act_time);
+//	copy_action(action);
+  moveUpToSelected();
+}
+
+moveUpToSelected()
+{
+	dyn_string listStrings = Action_list.items;
+	string selectedString = Action_list.selectedText;
+	int selectedPosition = Action_list.selectedPos;
+ int lastPosition = dynlen(listStrings);
+ int n, i;
+ 
+ Action_list.selectedPos = lastPosition;
+ n = lastPosition - selectedPosition -1;
+//DebugTN(\"MovingUp\", n);
+ for(i = 1; i <= n; i++)
+ {
+   move_up();
+ }
+	Action_list.selectedText = selectedString;
+  change_action();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

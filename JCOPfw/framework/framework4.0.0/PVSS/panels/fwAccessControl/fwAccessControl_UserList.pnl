@@ -1,0 +1,552 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 670 480 N "_3DFace" 0
+"main()
+{
+	InitializePanel();
+}
+" 0
+ E E E E 1 -1 -1 0  20 80
+""0  1
+E "void InitializePanel()
+{
+	setValue(\"Frame\",\"text\",\"Users\");
+
+	dyn_string exceptionInfo;
+
+	fwAccessControl_setupPanel(\"AccessControl\",exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		AccessControl(\"\",\"\"); // global \"reject\"
+		fwAccessControl_displayException(exceptionInfo);
+	};
+
+
+string q=\"SELECT '_original.._value' FROM '\"+g_fwAccessControl_UsersDP+\".*'\";
+int rc=dpQueryConnectAll(\"UsersChanged\",FALSE,\"UsersChanged\",q,1000);
+
+
+}
+
+void RefreshList()
+{
+	dyn_string names,fullNames;
+	dyn_string exceptionInfo;
+	string filter=Filter.text;
+
+	setValue(\"List\",\"deleteAllLines\");
+	fwAccessControl_getAllUsers(names,fullNames,exceptionInfo);
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	}
+
+	if (filter!=\"\") {
+		dyn_string filteredNames, filteredFullNames;
+		string uFilter=strtoupper(filter);
+		for (int i=1;i<=dynlen(names);i++) {
+			if (patternMatch(uFilter,strtoupper(names[i])) || patternMatch(uFilter,strtoupper(fullNames[i]))){
+				dynAppend(filteredNames,names[i]);
+				dynAppend(filteredFullNames,fullNames[i]);
+			}
+		};
+		names=filteredNames;
+		fullNames=filteredFullNames;
+	}
+
+
+	setValue(\"List\",\"appendLines\",dynlen(names),
+		\"Name\",names,
+		\"FullName\",fullNames);
+
+}
+
+void View(string name)
+{
+	ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_EditUser.pnl\",
+		\"View user \"+name,
+		makeDynString(\"$userName:\"+name,
+			      \"$mode:RO\"));
+}
+
+
+bool Edit(string name)
+{
+	dyn_float df;
+	dyn_string ds;
+  	string filter=Filter.text;
+  	Filter.text=\"\";
+
+
+	ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_EditUser.pnl\",
+		\"Edit user \"+name,
+		makeDynString(\"$userName:\"+name),
+		df,ds);
+if (dynlen(df)<1) return false;
+	if (df[1]>0) {
+		//RefreshList();
+		return true;
+	}
+	Filter.text=filter;
+	return false;
+}
+
+bool Create()
+{
+
+  dyn_float df;
+  dyn_string ds;	
+  string filter=Filter.text;
+  Filter.text=\"\";
+
+	ChildPanelOnCentralReturn(\"fwAccessControl/fwAccessControl_EditUser.pnl\",
+		\"Create new user\",
+		makeDynString(\"$userName:\"), // empty - means new domain
+		df,ds);
+if (dynlen(df)<1) return false;
+        if (df[1]>0) {
+		//RefreshList();
+		return true;
+	}
+	Filter.text=filter;
+	return false;
+}
+
+bool Delete(string name)
+{
+	dyn_string ds, exceptionInfo;
+	dyn_float df;
+
+string fwOkCancel=getPath(PANELS_REL_PATH,\"fwGeneral/fwOkCancel.pnl\");
+
+if (fwOkCancel!=\"\") {
+	ChildPanelOnCentralReturn(\"fwGeneral/fwOkCancel.pnl\",
+		\"Delete user?\",
+		makeDynString(\"$text: Do you want to delete user \"+name+\" ?\"),
+		df,ds);
+} else {
+	ChildPanelOnCentralReturn(\"vision/MessageWarning2\",
+		\"Delete user?\",
+		makeDynString(\"Do you want to delete user \"+name+\" ?\",\"OK\",\"Cancel\"),
+		df,ds);
+
+}
+if (dynlen(df)<1) return false;
+	if (df[1]==1) {
+		// yes, delete
+		Filter.text=\"\";
+		fwAccessControl_deleteUser(name,exceptionInfo);
+	} else {
+		// no, cancel
+		return false;
+	}
+
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return false;
+	}
+
+	//RefreshList();
+	return true;
+
+}
+
+
+AccessControl(string dp, string username_from_ui)
+{
+	dyn_string exceptionInfo;
+	bool granted;
+
+	if (dp==\"\") {
+		// means reject mode:
+
+		granted=false;
+	} else {
+		granted=fwAccessControl_HasUserAdminPrivilege(exceptionInfo,\"\",FALSE);
+	}
+
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		granted=false;
+	}
+
+
+	if (granted) {
+		setValue(\"AddButton\",\"visible\",TRUE);
+		setValue(\"DeleteButton\",\"visible\",TRUE);
+		setValue(\"EditButton\",\"text\",\"Edit\");
+	} else {
+		setValue(\"AddButton\",\"visible\",FALSE);
+		setValue(\"DeleteButton\",\"visible\",FALSE);
+		setValue(\"EditButton\",\"text\",\"View\");
+	}
+
+}
+
+void UsersChanged(string s1, anytype a2)
+{
+	RefreshList();
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+25 0
+"List"
+""
+1 16.6120218579235 67.578125 E E E 1 E 1 E N "_3DText" E N "White" E E
+ E "main()
+{
+
+	string name,mode;
+	dyn_string selected_line;
+	dyn_int selected;
+
+	// get current user:
+	string currentUser;
+	fwAccessControl_getUserName(currentUser);
+
+	getValue(\"List\",\"getSelectedLines\",selected);
+
+	if (dynlen(selected)<1) return;
+
+	getValue(\"List\",\"getLineN\",selected[1],selected_line);
+
+	name=selected_line[1];
+
+	if (strlen(name)<1) return;
+
+	// determine mode of operation: Edit or View...
+	getValue(\"EditButton\",\"text\",mode);
+	if (mode==\"Edit\" || (currentUser==name)) {
+		Edit(name);
+	} else {
+		View(name);
+	};
+}" 0
+
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 68 641.9999999999999 382
+"main()
+{
+	setValue(\"\",\"tableMode\",TABLE_SELECT_BROWSE);
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	RefreshList();
+}" 0
+"main(int row, string column, string value)
+{
+	setValue(\"DeleteButton\",\"enabled\",TRUE);
+	setValue(\"EditButton\",\"enabled\",TRUE);
+}
+" 0
+ 1 0 1 2 1 "Name" 26 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 9 User Name
+
+300 "FullName" 26 1 0 "s" 1
+LANG:1 9 Full Name
+E
+1
+LANG:1 14 Full User Name
+
+300 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+30 6
+"Frame"
+""
+1 10 50 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.616541353383459 0 0.9307875894988067 -6.165413533834587 3.460620525059669 0 E 10 50 410 470
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+6 9
+"RECTANGLE2"
+""
+1 330 370 E E E 1 E 1 E N "lightgrey" E N "lightgrey" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -29.99999999999999 35 2  0 1  "pictures/AC-Enter.gif" 13421772 E 330 370 354 393
+30 10
+"Frame1"
+""
+1 60 350 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.122448979591837 -30 -12.85714285714283 0 E 60 350 360 400
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Filter:
+2 12
+"PRIMITIVE_TEXT1"
+""
+1 -318 -110 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 14 248 33
+0 2 2 "0s" 0 0 0 192 0 0  20 14 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 JCOP Framework Access Control
+14 8
+"Filter"
+""
+1 38 398 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 68 Filter on names and full names (case insensitive), use * as wildcard
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 398 298 427
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+RefreshList();
+}" 0
+
+13 2
+"AddButton"
+""
+1 343 398 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 343 398 423 429
+
+T 
+1
+LANG:1 3 Add
+"main()
+{
+
+	dyn_string ds;
+	dyn_float df;
+
+	Create();
+}" 0
+ E E E
+13 3
+"DeleteButton"
+""
+1 433 398 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 433 398 513 428
+
+T 
+1
+LANG:1 6 Delete
+"main()
+{
+
+	string name;
+	dyn_string ds,selected_line,exceptionInfo;
+	dyn_float df;
+	dyn_int selected;
+
+	getValue(\"List\",\"getSelectedLines\",selected);
+
+	if (dynlen(selected)<1) return;
+
+	getValue(\"List\",\"getLineN\",selected[1],selected_line);
+
+	name=selected_line[1];
+
+	if (strlen(name)<1) return;
+
+	Delete(name);
+}" 0
+ E E E
+13 4
+"EditButton"
+""
+1 523 398 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 523 398 603 428
+
+T 
+1
+LANG:1 4 Edit
+"main()
+{
+
+	string name,mode;
+	dyn_string ds,selected_line,exceptionInfo;
+	dyn_float df;
+
+	dyn_int selected;
+	// get current user:
+	string currentUser;
+	fwAccessControl_getUserName(currentUser);
+
+
+	getValue(\"List\",\"getSelectedLines\",selected);
+
+	if (dynlen(selected)<1) return;
+
+	getValue(\"List\",\"getLineN\",selected[1],selected_line);
+
+	name=selected_line[1];
+
+	if (strlen(name)<1) return;
+
+	// determine mode of operation: Edit or View...
+	getValue(\"EditButton\",\"text\",mode);
+	if (mode==\"Edit\" || currentUser==name) {
+		Edit(name);
+	} else {
+		View(name);
+	};
+}" 0
+ E E E
+13 1
+"CloseButton"
+""
+1 578 443 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 578 443 658 473
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+PanelOff();
+}" 0
+ E E E
+1 13 2 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 2 "Group3"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 382 12 T 32 1 0 1 246 6
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_UserList"
+0

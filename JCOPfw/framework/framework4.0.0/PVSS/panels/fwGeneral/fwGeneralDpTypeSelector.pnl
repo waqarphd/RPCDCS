@@ -1,0 +1,529 @@
+V 10
+1
+LANG:1 0 
+PANEL,506 206 552 547 N "_3DFace" 4
+"$disabledItems"
+"$selectMultiple"
+"$selectedItems"
+"$text"
+"main()
+{
+	PopulatePanel();	
+}" 0
+EE E E 1 -1 -1 0  60 239
+"" 0 1
+E"global bool selectMultiple;
+global dyn_string DPTs,fwDevs,items,disabledItems,selectedItems;
+
+// DPTs and fwDevs are \"static\" table containing the lists of device/DPT names
+// \"items\" is being re-built each time filtering is applied, and corresponds
+//     to tha actual items in the table
+
+void PopulatePanel()
+{
+	dyn_string exceptionInfo;
+	if (isDollarDefined(\"$text\")) setValue(\"Text\",\"text\",$text);
+
+	selectMultiple=FALSE;
+	if (isDollarDefined(\"$selectMultiple\")) {
+		if ($selectMultiple==\"TRUE\" || $selectMultiple==1 || $selectMultiple==\"true\")
+			selectMultiple=TRUE;
+	}
+	if (selectMultiple){
+		setValue(\"Table\",\"tableMode\",TABLE_SELECT_MULTIPLE);
+	} else {
+		setValue(\"Table\",\"tableMode\",TABLE_SELECT_BROWSE);
+		setValue(\"SelectAll\",\"visible\",FALSE);
+		setValue(\"UnselectAll\",\"visible\",FALSE);
+		setValue(\"InvertSelection\",\"visible\",FALSE);
+	}
+
+	setValue(\"Table\",\"selectByClick\",TABLE_SELECT_LINE);
+	
+	PopulateDeviceTypesLists();
+	int i;
+
+	if (isDollarDefined(\"$disabledItems\")) {
+	disabledItems=strsplit($disabledItems,\"|\");
+		for (i=1;i<=dynlen(disabledItems);i++) {
+			disabledItems[i]=strrtrim(strltrim(disabledItems[i]));
+		}
+	}
+
+	if (isDollarDefined(\"$selectedItems\")) {
+		selectedItems=strsplit($selectedItems,\"|\");
+		for (i=1;i<=dynlen(selectedItems);i++) {
+			selectedItems[i]=strrtrim(strltrim(selectedItems[i]));
+		}
+	}
+
+
+ShowNonFw.state(0)=1;
+ShowInternalDPT.state(0)=0;
+RedisplayTable(FALSE);
+
+}
+
+
+void PopulateDeviceTypesLists()
+{
+	dyn_string exceptionInfo;
+
+	// make the list of dpNames and Framework DP Names;
+
+	DPTs=dpTypes();
+	int i;
+	for (int i=1;i<=dynlen(DPTs);i++) {
+		fwDevs[i]=\"\";
+	}
+
+	dyn_dyn_string fwDevices;
+	fwDevice_getAllTypes(fwDevices,exceptionInfo);
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}	
+	for (int i=1;i<=dynlen(fwDevices[1]);i++) {
+		int idx=dynContains(DPTs, fwDevices[2][i]);
+		if (idx>0) fwDevs[idx]=fwDevices[1][i];
+	}
+
+}
+
+void SelectAll()
+{
+	dyn_int selectedlines;
+	for (int i=1;i<=dynlen(items);i++){
+		if (!dynContains(disabledItems,items[i])) 
+			dynAppend(selectedlines,i-1);
+	}
+	SelectNone();
+
+	setValue(\"Table\",\"addSelectLines\",selectedlines);
+}
+
+void SelectNone()
+{
+	setValue(\"Table\",\"deleteSelection\");
+}
+
+void InvertSelection()
+{
+	dyn_int selectedlines,newSelectedLines;
+	getValue(\"Table\",\"getSelectedLines\",selectedlines);
+	for (int i=1;i<=dynlen(items);i++) {
+
+		if (dynContains(selectedlines,i-1)) continue;
+
+		if (dynContains(disabledItems,items[i])) continue;
+		dynAppend(newSelectedLines,i-1);
+	}
+
+	SelectNone();
+	setValue(\"Table\",\"addSelectLines\",newSelectedLines);
+}
+
+void ResetSelection()
+{
+
+	dyn_int selectedLines;
+
+	for (int i=1;i<=dynlen(selectedItems);i++) {
+		if (dynContains(disabledItems,selectedItems[i])) continue;
+		int idx=dynContains(items,selectedItems[i]);
+		if (idx>0) dynAppend(selectedLines,idx-1);
+	}
+
+	SelectNone();
+
+	if (dynlen(selectedLines)) {
+
+	   if (selectMultiple) {
+		setValue(\"Table\",\"addSelectLines\",selectedLines);
+	   } else {
+		setValue(\"Table\",\"selectLineN\",selectedLines[1]);
+	   }
+	}
+
+	setValue(\"Table\",\"lineVisible\",1);
+
+
+}
+
+
+
+void RedisplayTable(bool preserve=TRUE)
+{
+
+
+bool nonFw=(ShowNonFw.state(0)==1);
+bool internal=(ShowInternalDPT.state(0)==1);
+
+if (nonFw) {
+	ShowInternalDPT.enabled=TRUE;
+} else {
+	ShowInternalDPT.enabled=FALSE;
+	internal=FALSE;
+}
+
+// at first: preserve current selection:
+if (preserve) {
+	dynClear(selectedItems);
+
+	dyn_int lines;
+	dyn_string line;
+	getValue(\"Table\",\"getSelectedLines\",lines);
+	for (int i=1;i<=dynlen(lines);i++) {
+		getValue(\"Table\",\"getLineN\",lines[i],line);
+		dynAppend(selectedItems,line[1]);
+	}
+}
+
+
+Table.stop(TRUE);
+Table.deleteAllLines;
+dynClear(items);
+	for (int i=1;i<=dynlen(DPTs);i++) {
+
+		if (!nonFw) { if (fwDevs[i]==\"\") continue;}
+		if (!internal) { if (substr(DPTs[i],0,1)==\"_\") continue;}
+
+		Table.appendLine(\"Name\",DPTs[i],
+				 \"FwName\",fwDevs[i]);
+		dynAppend(items,DPTs[i]);
+		if (dynContains(disabledItems,DPTs[i])) {
+			setValue(\"Table\",\"cellBackColRC\",i-1,\"Name\",\"lightgrey\");
+		}
+	}
+
+ResetSelection();
+Table.stop(FALSE);
+
+}
+
+
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 3
+"Text"
+""
+1 11 12 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 12 214 34
+0 2 2 "s" 0 0 0 192 0 0  12 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 23 Select Datapoint Types:
+30 10
+"FRAME1"
+""
+1 20 400 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+52 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 20 400 300 480
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 14 Display Filter
+13 0
+"OKButton"
+""
+1 373 510 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+0 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+373 510 453 540
+T 
+1
+LANG:1 2 Ok
+"main()
+{
+	dyn_string selectedItems;
+
+
+	dyn_int lines;
+	dyn_string line;
+	getValue(\"Table\",\"getSelectedLines\",lines);
+	for (int i=1;i<=dynlen(lines);i++) {
+		getValue(\"Table\",\"getLineN\",lines[i],line);
+		dynAppend(selectedItems,line[1]);
+	};
+
+	PanelOffReturn(makeDynFloat(dynlen(selectedItems)),selectedItems);
+}" 0
+ E E E
+13 1
+"CancelButton"
+""
+1 460 510 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+460 510 540 540
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+25 2
+"Table"
+""
+1 10 60 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+49 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+10 60 540 360
+E "main(int row, string column, string value)
+{
+
+// lines that are greyed-out should not be selectable...
+	string color;
+	getValue(\"Table\",\"cellBackColRC\",row,\"Name\",color);
+	if (color==\"lightgrey\") {
+		setValue(\"Table\",\"removeSelectLines\",makeDynInt(row));
+	}
+
+}" 0
+ 1 0 1 2 1 "Name" 0 1 0 "s" 1
+LANG:1 7 DP Type
+E1
+LANG:1 0 
+ 250 "FwName" 0 1 0 "s" 1
+LANG:1 9 Fw Device
+E1
+LANG:1 0 
+ 250 17 17 "" 1 1
+LANG:1 0 
+8 84 1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+0 1 1 3 0
+1 0
+13 4
+"SelectAll"
+""
+1 420 360 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+EE E
+0
+1
+LANG:1 16 Select all items
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+420 360 460 391
+T 
+1
+LANG:1 1 +
+"main()
+{
+SelectAll();
+}" 0
+ E E E
+13 5
+"UnselectAll"
+""
+1 460 360 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+EE E
+0
+1
+LANG:1 18 Unselect all items
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+460 360 500 391
+T 
+1
+LANG:1 1 -
+"main()
+{
+SelectNone();
+}" 0
+ E E E
+13 6
+"InvertSelection"
+""
+1 500 360 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+EE E
+0
+1
+LANG:1 16 Invert selection
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+500 360 540 391
+T 
+1
+LANG:1 1 *
+"main()
+{
+InvertSelection();
+}" 0
+ E E E
+13 7
+"ResetButton"
+""
+1 10 510 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+32 0 0 0 0 0
+EE E
+0
+1
+LANG:1 27 Reset to original selection
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+10 510 90 540
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+PopulateDeviceTypesLists();
+ResetSelection();
+}" 0
+ E E E
+20 8
+"ShowNonFw"
+""
+1 40 420 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+48 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+40 420 273 448
+1
+T 
+1
+LANG:1 27 Show Non-Framework DP Types
+ 0
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+1
+E E 
+E"main(int button, int state)
+{
+RedisplayTable();
+}" 0
+20 9
+"ShowInternalDPT"
+""
+1 40 450 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+49 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+40 450 220 478
+1
+T 
+1
+LANG:1 22 Show internal DP Types
+ 0
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+1
+E E 
+E"main(int button, int state)
+{
+RedisplayTable();
+}" 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

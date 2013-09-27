@@ -1,0 +1,363 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 577 349 N "_3DFace" 0
+"main()
+{
+    //Access Control:
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyPathMappingAcCB\", ex);
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+  
+  update();
+}
+" 0
+ E E E E 1 -1 -1 0  30 50
+""0  1
+E "#uses \"fwInstallationDB.ctl\"
+#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+
+void applyPathMappingAcCB(string s1, string s2)
+{
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string domain;
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  { 
+    fwSysOverview_getACDomain(domain);
+  
+    // at first, disable whatever was enabled to this moment
+    disableAllInPathMappingPanel();
+
+    if(domain == \"\") //AC not yet configured. Enable access 
+    {
+      hasExpertPrivilege = true;
+    }
+    else
+    {
+      string expertPrivilege = fwSysOverview_getExpertPrivilege();
+      // check the current  privilege level 
+      if (expertPrivilege == \"\")
+      {
+        DebugN(\"No expert privilege defined!\");
+        return;
+      }
+      fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+    
+  
+      // check and handle exceptions that might have been thrown by the function above
+      if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+    }
+  }
+  else
+    hasExpertPrivilege = true;
+  // enable UI elements, depending on the access rights:
+  if (hasExpertPrivilege)
+  {
+    btnAdd.enabled = true;
+    btnRemove.enabled = true;
+  }
+}
+
+void disableAllInPathMappingPanel()
+{
+  btnAdd.enabled = false;
+  btnRemove.enabled = false;
+}        
+    
+update()
+{
+  dyn_mixed pathMapping;
+  
+//  disablePanel();
+  
+  //Try DB connection
+  if(fwInstallationDB_connect() < 0)
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"DB Connection Error\", \"Could not establish connection with the\\nFw System Configuration DB\");
+    enablePanel();
+    return;
+  }
+
+  if(fwInstallationDB_getAllMappedPaths(\"\", pathMapping) < 0)
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Error\", \"Could not retrieve mapped paths from\\nFw System Configuration DB\");
+    enablePanel();
+    return;
+  }
+  tblMapping.deleteAllLines();
+  for(int i = 1; i <= dynlen(pathMapping); i++)
+  {
+    tblMapping.appendLine(\"win\", pathMapping[i][FW_INSTALLATION_DB_WINDOWS_PATH], \"lin\", pathMapping[i][FW_INSTALLATION_DB_LINUX_PATH]);    
+  }
+  
+//  enablePanel();
+  
+  
+}//end of update function
+
+/*
+disablePanel()
+{
+  btnClose.enabled = false;
+  btnAdd.enabled = false;
+  btnRemove.enabled = false;
+}
+
+enablePanel()
+{
+  btnClose.enabled = true;
+  btnAdd.enabled = true;
+  btnRemove.enabled = true;
+}
+*/
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 1
+"tblMapping"
+""
+1 22 62 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  string win, lin;
+  
+  win = this.cellValueRC(row, \"win\");
+  lin = this.cellValueRC(row, \"lin\");
+  
+  ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_addPathMapping.pnl\", \"New Path Mapping\",
+                                makeDynString(\"$win:\" + win, \"$lin:\" +lin), df, ds);
+}" 0
+
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  20 60 564 254
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  
+}" 0
+E 1 0 1 2 0 "win" 31 1 0 "s" 1
+LANG:1 7 Windows
+E
+1
+LANG:1 0 
+
+260 "lin" 31 1 0 "s" 1
+LANG:1 5 Linux
+E
+1
+LANG:1 0 
+
+260 
+14 14 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+13 2
+"btnAdd"
+""
+1 350 262 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  348 260 452 294
+
+T 
+1
+LANG:1 3 Add
+E E "main()
+{
+   dyn_float df;
+   dyn_string ds;
+   
+   ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_addPathMapping.pnl\", \"New Path Mapping\",
+                                  makeDynString(\"$win:\", \"$lin:\"), df, ds);
+   
+   if(dynlen(df) && df[1] >= 1.)
+   {
+     string description = myPanelName() + \": Registering path mapping: \" + ds[2] + \" \" + ds[3];
+     if(fwInstallationDB_registerPathMapping(ds[2], ds[3]) != 0)
+     {
+       ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR Registering new path mapping\", makeDynString(\"$1:Failed to register new path mapping in DB\"));
+       return;
+     }
+     fwConfigurationDBSystemInformation_logAction(description);
+     update();
+   }
+}" 0
+ E
+13 3
+"btnRemove"
+""
+1 452 262 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  450 260 554 294
+
+T 
+1
+LANG:1 6 Remove
+E E "main()
+{
+  dyn_int lines = tblMapping.getSelectedLines();
+  dyn_float df;
+  dyn_string ds;
+  string win, lin;
+  int err = 0;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", \"Confirmation required\", makeDynString(\"Are you sure you want to delete these entries?\", \"Yes\", \"No\"), df, ds);
+  
+  if(dynlen(df) && df[1] >=1.0)
+  {
+    string description = myPanelName() + \": Unregistering paths mapping.\";
+    for(int i = dynlen(lines); i >= 1; i--)
+    {
+      getValue(\"tblMapping\", \"cellValueRC\", lines[i], \"win\", win);
+      getValue(\"tblMapping\", \"cellValueRC\", lines[i], \"lin\", lin);
+      description += \" Win: \" + win + \" Lin:\" + lin;
+      if(fwInstallationDB_unregisterPathMapping(win, lin))
+      {
+        ++err;
+        DebugN(\"ERROR: Failed to unregister path mapping, Windows path: \" + win + \" - Linux path: \" + lin);
+      }
+      
+      tblMapping.deleteLineN(lines[i]);
+    }
+    fwConfigurationDBSystemInformation_logAction(description);
+    
+  }
+  if(err)
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"There were errors unregistering path mapping in DB.\\nCheck log viewer for more info.\"));
+}
+" 0
+ E
+13 4
+"btnClose"
+""
+1 450 310 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  448 308 552 342
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+2 5
+"PRIMITIVE_TEXT2"
+""
+1 22 12 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverbclr" "N \"_Transparent\""
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 12 392 52
+0 2 2 "0s" 0 0 0 64 0 0  22 12 1
+1
+LANG:1 26 Arial,10,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 28 Windows - Linux Path Mapping
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 22 42 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"hoverbclr" "N \"_Transparent\""
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 42 392 82
+0 2 2 "0s" 0 0 0 64 0 0  22 42 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 23 Existing paths mapping:
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

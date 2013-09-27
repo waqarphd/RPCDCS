@@ -1,0 +1,952 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,416 108 804 481 N "_3DFace" 0
+"main()
+{
+	initializePlotList();
+	initTable();
+	initFields();
+	if (dynlen(listPlots) != 0)
+	{
+		getDataPlot();
+		//fillTypes();
+	}
+}" 0
+"main()
+{
+;
+}" 0
+E E E 1 0 0 0  30 30
+"" 0 1
+E"
+dyn_string listPlots, deviceDpTypes;
+dyn_dyn_string elementsAndProperties;
+
+int maxPlots = 6; //maximum number of plots in a page
+int maxCurves = 8; //naximum number of curves in a plot
+
+initializePlotList()
+{
+	plotList.deleteAllItems;
+	
+	fwCaV_listPlots(listPlots);
+	plotList.items = listPlots;
+	if (dynlen(listPlots) != 0)
+	{	
+		plotList.selectedPos(1);
+		//deviceTypes.enabled = true;
+		tableCurves.enabled = true;
+	}
+	else
+	{
+		deviceTypes.enabled = false;
+		tableCurves.enabled = false;
+	}
+}
+
+initTable()
+{
+	int i;
+	
+	tableCurves.deleteAllLines;
+	
+	for(i = 1; i <= maxCurves; i++)
+		tableCurves.appendLine(\"curve\",i);
+	tableCurves.lineVisible(0);
+}
+
+initFields()
+{
+	deviceTypes.items = makeDynString(\"No types to show\");
+	deviceTypes.selectedPos(1);
+	deviceTypes.enabled = FALSE;
+
+	deviceInstances.items = makeDynString(\"No type selected\");
+	deviceInstances.selectedPos(1);
+	deviceInstances.enabled = FALSE;
+	
+	deviceModels.items = makeDynString(\"No type selected\");
+	deviceModels.selectedPos(1);
+	deviceModels.enabled = FALSE;
+	
+	parameterNumber.text = \"\";
+	parameterName.deleteAllItems();
+	parameterName.enabled = false; 
+	parameterDescription.text = \"\";
+	applyEntry.enabled = false;
+	deleteEntry.enabled = false;
+}
+
+fillTypes()
+{
+	dyn_string deviceItems, items, exceptionInfo;
+	dyn_dyn_string types;
+	int i;
+	
+	deviceTypes.enabled = true;
+	fwDevice_getAllTypes(types, exceptionInfo);
+	dynAppend(items,\"Choose a type...\");
+	for(i = 1; i <= dynlen(types[1]); i++)
+		if (strpos(types[1][i],\"CaV\") >= 0)
+		{
+			dynAppend(deviceItems, types[1][i]);
+			dynAppend(deviceDpTypes, types[2][i]);
+		}
+
+	dynAppend(items, deviceItems);
+	deviceTypes.items = items;
+	deviceTypes.selectedPos(1);
+}
+
+fillModels()
+{
+	int currentDeviceDpType;
+	dyn_string items, models, exceptionInfo;
+	
+	currentDeviceDpType = (deviceTypes.selectedPos())-1;	
+	fwDevice_getTypeModels(deviceDpTypes[currentDeviceDpType], \"\", models, exceptionInfo);
+	deviceModels.deleteAllItems();
+
+	if(dynlen(models) == 0)
+	{
+		// No models, disable model selection, populate device instances
+		deviceModels.items = makeDynString(\"No models available for the selected type.\");
+		deviceModels.enabled = FALSE;
+	}
+	else
+	{
+		// Models do exists, populate model selection
+		dynAppend(items, \"Choose a device model...\");
+		dynAppend(items, models);
+		deviceModels.items = items;
+		deviceModels.selectedPos = 1;
+		deviceModels.enabled = TRUE;
+	}
+	
+		deviceInstances.items = makeDynString(\"No model selected\");
+		deviceInstances.selectedPos=1;
+		deviceInstances.enabled	= FALSE;
+		
+		//parameterNumber.text = \"\";
+		parameterName.deleteAllItems();
+		parameterName.enabled = false; 
+		parameterDescription.text = \"\";
+		applyEntry.enabled = false;
+		deleteEntry.enabled = false;
+}
+
+getDeviceInstances()
+{
+	string model = \"\";
+	int currentDeviceDpType;
+	dyn_string exceptionInfo;
+	
+	if(deviceModels.enabled&&deviceModels.selectedPos!=1)
+			model = deviceModels.selectedText;
+	currentDeviceDpType = deviceTypes.selectedPos()-1;
+	fwDevice_getConfigElements(deviceDpTypes[currentDeviceDpType], fwDevice_ALL, 
+															elementsAndProperties, exceptionInfo, model);
+}
+
+fillDeviceInstances()
+{	
+	dyn_string items,dps, tmp, exceptionInfo;
+	dyn_anytype models;
+
+	dynAppend(items,\"Select the device DP...\");
+	
+	// Get the DPs of that particular device type
+	fwDevice_dpNames(\"*\", deviceDpTypes[deviceTypes.selectedPos()-1], dps, exceptionInfo);
+
+	// And filter by the model..
+	if(dynlen(dps)!=0&&deviceModels.itemCount>1)
+	{
+		for(int i=1; i<=dynlen(dps); i++)
+			dynAppend(tmp,dps[i]+\".model\");
+		
+		dpGet(tmp, models);
+		for(int i=1; i<=dynlen(dps); i++)
+		{
+			if(models[i]==deviceModels.selectedText)
+				dynAppend(items,dps[i]);
+		}
+	}
+	else
+	{
+		dynAppend(items, dps);
+	}
+
+	// Append to the combo box - if there were any results
+	if(dynlen(items)<=1)
+	{
+		deviceInstances.items = makeDynString(\"No instances of given type/model combination\");
+		deviceInstances.selectedPos=1;
+		deviceInstances.enabled = 0;
+	}
+	else
+	{
+		deviceInstances.items = items;
+		deviceInstances.enabled = 1;
+	}
+	deviceInstances.selectedPos = 1;
+	
+	//parameterNumber.text = \"\";
+	parameterName.deleteAllItems();
+	parameterName.enabled = false; 
+	parameterDescription.text = \"\";
+	applyEntry.enabled = false;
+	deleteEntry.enabled = false;
+}
+
+getDataPlot()
+{
+	int i;
+	bool visible;
+	string dp, dpe;
+	dyn_string curves, exceptionInfo;
+	
+	if (plotList.itemCount == 0)
+	{
+		initTable();
+		initFields();
+		return;
+	}
+	
+	fwCaV_getPlotInstanceDetails(plotList.selectedText(), curves, visible, exceptionInfo);
+
+	visiblePlot.state(0) = visible;
+	
+	for (i = 1; i <= dynlen(curves); i++)
+	{
+		dp = dpSubStr(curves[i],DPSUB_SYS_DP);
+		dpe = curves[i];
+		strreplace(dpe,dp,\"\");
+		tableCurves.cellValueRC(i-1, \"curve\", i);
+		tableCurves.cellValueRC(i-1, \"instance\", dp);
+		tableCurves.cellValueRC(i-1, \"dpElement\", dpe);
+	}
+}
+
+
+" 0
+ 2
+"CBRef""1"
+"EClose""main()
+{
+;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text1"
+""
+1 18 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 12 145 34
+0 2 0 "s" 0 0 0 192 0 0  20 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 13 Trending Page
+30 9
+"Frame1"
+""
+1 18 425 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+"main()
+{
+
+}" 0
+ E 0 1 1 0 1 E U  0 E 18 54 228 425
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 6 Plots:
+30 14
+"Frame2"
+""
+1 238 421 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+EE E
+1
+1
+LANG:1 0 
+0
+E E 0 1 1 0 1 E U  0 E 238 54 788 425
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 7 Curves:
+2 18
+"Text2"
+""
+1 247 283 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  3 0 8 0E 249 285 281 301
+0 2 0 "s" 0 0 0 192 0 0  249 285
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 5 Type:
+2 20
+"Text9"
+""
+1 246 317 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 248 319 305 352
+0 2 0 "s" 0 0 0 64 0 0  248 319
+ 2
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 6 Device
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 9 instance:
+2 25
+"Text8"
+""
+1 544 283 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  3 0 8 0E 546 285 585 301
+0 2 0 "s" 0 0 0 192 0 0  546 285
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 6 Model:
+17 2
+"plotList"
+""
+1 28 150 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+26 148 220 417
+0
+E
+"main()
+{
+	getDataPlot();
+	initFields();
+}" 0
+
+E
+
+3 1
+25 3
+"tableCurves"
+""
+1 248 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+246 78 780 272
+E "main(int row, string column, string value)
+{
+	string text, dp, dpe, device, model;
+	dyn_string items, exceptionInfo;
+	
+	text = this.cellValueRC(row,\"curve\");
+	dp = this.cellValueRC(row,\"instance\");
+	dpe = this.cellValueRC(row,\"dpElement\");
+	initFields();
+	deviceTypes.enabled = true;
+	fillTypes();
+	parameterNumber.text = text;
+	if (dp != \"\")
+	{
+		// Select the Device, Model, DP	
+		int pos;
+		if(dpExists(dp))
+		{
+			fwDevice_getType(dpTypeName(dp),device,exceptionInfo);
+			fwDevice_getModel(makeDynString(dp), model, exceptionInfo);
+		}
+		else
+		{
+			device=\"\"; model=\"\";
+		}
+
+		pos = dynContains(deviceTypes.items, device);
+		if(pos<=0)
+		{
+			pos = 1;
+			deviceTypes.selectedPos = pos;
+			fillModels();
+		}
+		else
+		{
+			deviceTypes.selectedPos = pos;
+			fillModels();
+			if(deviceModels.itemCount>1)
+			{
+				pos = dynContains(deviceModels.items, model);
+				if(pos<=0)
+				{
+					pos = 1;
+				}
+				else
+				{
+					deviceModels.selectedPos = pos;
+					getDeviceInstances();
+					fillDeviceInstances();
+				}
+			}
+		}
+		if(pos!=1)
+			deviceInstances.selectedPos = dynContains(deviceInstances.items, dp);
+		dynAppend(items, \"Select the dp element...\");
+		dynAppend(items, elementsAndProperties[2]);
+		parameterName.items = items;
+		parameterName.enabled = true;
+		pos = dynContains(elementsAndProperties[1],dpe);
+		if(pos<=0)
+		{
+			pos = 1;
+		}
+		else
+		{
+			pos++;
+			parameterName.selectedPos = pos;
+			pos--; //to avoid the firs line in the list
+			parameterDescription.text = elementsAndProperties[4][pos];
+		}
+		deleteEntry.enabled = true;
+	}
+}" 0
+ 1 0 1 3 1 "curve" 0 1 0 "s" 1
+LANG:1 5 Curve
+E1
+LANG:1 0 
+ 50 "instance" 0 -1 0 "s" 1
+LANG:1 2 Dp
+E1
+LANG:1 0 
+ 240 "dpElement" 0 1 0 "s" 1
+LANG:1 10 Dp Element
+E1
+LANG:1 0 
+ 220 26 26 "" 1 1
+LANG:1 2 #1
+8 30 1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 3 0
+1 0
+13 6
+"applyEntry"
+""
+1 664 365 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+EE E
+0
+2
+LANG:1 0 
+LANG:0 0 
+0
+2
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+664 365 704 393
+P 
+12632256
+"pictures/ok_en.gif"
+1
+LANG:1 0 
+"main()
+{
+	int line = parameterNumber.text, pos;
+	dyn_string exceptionInfo;
+	
+	if (deviceInstances.selectedPos == 1)
+		fwException_raise(exceptionInfo, \"ERROR\", \"No device instance selected\", \"\");
+	else if (parameterName.selectedPos == 1)
+		fwException_raise(exceptionInfo, \"ERROR\", \"No dp element selected\", \"\");
+	
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+	{
+		pos = parameterName.selectedPos()-1;
+		tableCurves.cellValueRC(line-1, \"instance\", deviceInstances.selectedText);
+		//tableCurves.cellValueRC(line-1, \"dpElement\", parameterName.selectedText);
+		tableCurves.cellValueRC(line-1, \"dpElement\", elementsAndProperties[1][pos]);
+		DebugN(\"One more line has been added to the plot.\");
+	}
+}" 0
+ E E E
+14 7
+"parameterNumber"
+""
+1 260 367 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+258 365 313 392
+2 "s" 0 0 0 0 0 0 
+E
+E
+E
+22 8
+"parameterName"
+""
+1 311 367 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+309 365 660 392
+0
+E
+"main()
+{
+	int pos;
+	
+	pos = parameterName.selectedPos();
+
+	if (pos == 1)
+	{
+		applyEntry.enabled = false;
+		deleteEntry.enabled = false;
+		parameterDescription.text = \"\";
+	}
+	else
+	{
+		pos--; //to avoid the firs line in the list
+		parameterDescription.text = elementsAndProperties[4][pos];
+		applyEntry.enabled = true;
+		deleteEntry.enabled = false;
+	}
+}" 0
+
+E
+ 0 0
+13 10
+"newPlot"
+""
+1 28 74 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+26 72 120 106
+T 
+1
+LANG:1 3 New
+"main()
+{
+	dyn_string ds, exceptionInfo;
+	dyn_float df;
+
+	if (plotList.itemCount() == maxPlots)
+	{
+		ChildPanelOnRelativModal(\"fwGeneral/fwMessageInfo1.pnl\",
+					\"Number of plots\",
+					makeDynString(\"$1: No more plots: the maximum is \"+maxPlots),
+					0,0);
+		return;
+	}
+	ChildPanelOnRelativModalReturn(fwCaV_InputDialogPATH,
+		\"New plot name\",
+		makeDynString(\"$sText:Name for plot:\"),
+		0,0,
+		df,ds);
+	if((ds[1]==\"cancel\") || (ds[2] == \"\"))
+		return;
+	if((ds[1]==\"ok\") && (dpExists(ds[2])))
+	{
+		ChildPanelOnRelativModal(\"fwGeneral/fwMessageInfo1.pnl\",
+					\"Name of plot\",
+					makeDynString(\"$1: The plot \"+ds[2]+\" already exists\"),
+					0,0);
+		return;
+	}
+	DebugN(\"The plot \"+ds[2]+\" has been created.\");
+	fwCaV_registerPlot(ds[2], exceptionInfo);
+	initializePlotList();
+	getDataPlot();
+}" 0
+ E E E
+13 12
+"deletePlot"
+""
+1 128 74 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+126 72 220 106
+T 
+1
+LANG:1 6 Delete
+"main()
+{
+	dyn_string ds, exceptionInfo;
+	dyn_float df;
+
+	ChildPanelOnRelativModalReturn(\"fwGeneral/fwOkCancel.pnl\",
+		\"Confirm the deletion\",
+		makeDynString(\"$text: Do you want to delete the plot \"+plotList.selectedText+\"?\"),
+		0,0,
+		df,ds);
+		
+	if((ds[1]==\"cancel\"))
+		return;
+		
+	fwCaV_deletePlot(plotList.selectedText, exceptionInfo);
+	initializePlotList();
+	getDataPlot();
+}" 0
+ E E E
+20 13
+"visiblePlot"
+""
+1 28 120 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+26 118 100 142
+1
+T 
+1
+LANG:1 7 Visible
+ 1
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+1
+E E 
+EE13 16
+"close"
+""
+1 708 434 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+706 432 790 466
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOffReturn(makeDynFloat(0), makeDynString(\"close\"));
+}" 0
+ E E E
+13 17
+"savePlot"
+""
+1 588 434 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+586 432 695 466
+T 
+1
+LANG:1 9 Save Plot
+"main()
+{
+	int i;
+	string line;
+	dyn_string valuesLine, exceptionInfo, lines;
+	
+	for(i = 0; i < tableCurves.lineCount(); i++)
+	{
+		valuesLine = tableCurves.getLineN(i);
+		line = valuesLine[2]+valuesLine[3];
+		dynAppend(lines, line);
+	}
+
+	fwCaV_setPlotInstanceDetails(plotList.selectedText(), lines, visiblePlot.state(0), exceptionInfo);
+	DebugN(\"The plot \"+plotList.selectedText()+\" has been saved.\");
+}" 0
+ E E E
+22 22
+"deviceTypes"
+""
+1 304 283 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+302 281 540 308
+0
+E
+"main()
+{
+	fillModels();
+}" 0
+
+E
+ 0 0
+22 24
+"deviceInstances"
+""
+1 303 323 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+301 321 780 348
+0
+E
+"main()
+{
+	dyn_string items;
+	
+	parameterName.enabled = true;
+	
+	if ((dynlen(elementsAndProperties) == 0) || (dynlen(elementsAndProperties[2]) == 0))
+	{
+		parameterName.appendItem = \"No dp elements for the selection...\";
+		parameterName.selectedPos = 1;
+	}
+	else
+	{
+		dynAppend(items, \"Select the dp element...\");
+		dynAppend(items, elementsAndProperties[2]);
+		parameterName.items = items;
+		parameterName.selectedPos = 1;
+	}
+}" 0
+
+E
+ 0 0
+22 26
+"deviceModels"
+""
+1 584 283 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+582 281 781 308
+0
+E
+"main()
+{
+	getDeviceInstances();
+	fillDeviceInstances();
+}" 0
+
+E
+ 0 0
+14 27
+"parameterDescription"
+""
+1 311 396 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+309 394 660 421
+2 "s" 0 0 0 0 0 0 
+E
+E
+E
+13 31
+"deleteEntry"
+""
+1 706 365 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+EE E
+0
+2
+LANG:1 0 
+LANG:0 0 
+0
+2
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+706 365 746 393
+P 
+12303291
+"pictures/del2_en.gif"
+1
+LANG:1 0 
+"main()
+{
+	int pos, line = parameterNumber.text;
+	
+	pos = parameterName.selectedPos()-1;
+	tableCurves.cellValueRC(line-1, \"instance\", \"\");
+	//tableCurves.cellValueRC(line-1, \"dpElement\", parameterName.selectedText);
+	tableCurves.cellValueRC(line-1, \"dpElement\", \"\");
+	DebugN(\"One line has been deleted.\");
+}" 0
+ E E E
+1 32 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 710 10 T 30 1 0 1  51 0  
+1
+"$sPanelRelativePath""fwCaV/fwCaVTrendingPage"
+0

@@ -1,0 +1,330 @@
+V 12
+2
+LANG:10001 8 (NoName)
+LANG:1 8 (NoName)
+PANEL,-1 -1 481 95 N "FwTrendingViewBackground" 1
+"$sRefName"
+"main()
+{
+
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "int REFRESH_DELAY = 100;" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:10001 6 Layer1
+13 22
+"StopButton"
+""
+1 0 0 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,11,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  -2 -2 52 23
+
+T 
+2
+LANG:10001 6 Freeze
+LANG:1 6 Freeze
+"main() {
+	string buttonState = this.text;
+	string ref = $sRefName;
+	
+/*	if($sRefName != \"\")
+	{
+		//refName = strrtrim(refName, \".\");
+		ref = ref + \"trend.\";
+	}
+	else
+		ref = \"trend.\";
+*/
+	if(buttonState == \"Run\") { // in stop->run
+		fwTrending_trendRun(ref, TRUE, ref + \".\");
+	} else { // in Run -> stop
+		fwTrending_trendRun(ref, FALSE, ref + \".\");
+	}
+}
+" 0
+ E E E
+13 25
+"saveSettings"
+""
+1 50 0 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 1 0 0 82 0
+E E E
+0
+2
+LANG:10001 37 Save configuration to plot data point
+LANG:1 37 Save configuration to plot data point
+
+0
+2
+LANG:10001 26 Arial,-1,11,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  48 -2 102 23
+
+T 
+2
+LANG:10001 4 Save
+LANG:1 4 Save
+"main()
+{
+	string ref = $sRefName;
+
+	setValue(ref+\"trend.refreshTrend\", \"text\", \"FALSE\");
+	this.enabled = FALSE;
+
+	fwTrending_pageSavePlotSettings(ref);
+
+	delay(0,REFRESH_DELAY);
+	setValue(ref+\"trend.refreshTrend\", \"text\", \"TRUE\");
+	this.enabled = TRUE;
+}" 0
+ E E E
+26 26
+"OtherCascadeButton"
+""
+1 -180.72972972973 10.5 E E E 0 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,11,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  98 -2 149 23
+ 0 2
+LANG:10001 5 Other
+LANG:1 5 Other
+"" 0 0 0 0 0
+ 9 1 2
+LANG:10001 13 Zoomed Window
+LANG:1 13 Zoomed Window
+"zoom" 0 0 0 0 0
+ 1 2
+LANG:10001 21 Export plot to CSV...
+LANG:1 21 Export plot to CSV...
+"export" 0 0 0 0 0
+ 1 2
+LANG:10001 10 Print plot
+LANG:1 10 Print plot
+"print" 0 0 0 0 0
+ 1 1
+LANG:10001 3 ___
+"1" 0 0 0 0 0
+ 1 2
+LANG:10001 6 Legend
+LANG:1 6 Legend
+"legend" 0 0 0 0 0
+ 1 2
+LANG:10001 4 Grid
+LANG:1 4 Grid
+"grid" 0 0 0 0 0
+ 1 1
+LANG:10001 3 ___
+"2" 0 0 0 0 0
+ 1 2
+LANG:10001 18 Plot configuration
+LANG:1 18 Plot configuration
+"plotConf" 0 0 0 0 0
+ 1 2
+LANG:10001 24 Save plot settings as...
+LANG:1 24 Save plot settings as...
+"saveas" 0 0 0 0 0
+ E "main(string id)
+{
+	bool enabledState;
+	int i;
+	string sDpName, currentParameterValues, proposedName, trendRunning, tempString, ref = $sRefName;
+	dyn_string ds, dsParameters, plotShapes, plotData, modifiedPlotData, panelsList, exceptionInfo;
+	dyn_dyn_string extendedPlotData;
+	dyn_float df;
+	shape histogram;
+	
+	this.enabled = FALSE;
+
+	fwTrending_getRuntimePlotDataWithStrings(ref, trendRunning, plotShapes, plotData, exceptionInfo, FALSE);
+	histogram = getShape(plotShapes[fwTrending_ACTIVE_TREND_NAME]);
+	
+	switch(id)
+	{
+		case \"zoom\":
+			dynAppend(dsParameters, \"$dsCurveDPE:\"+plotData[fwTrending_PLOT_OBJECT_DPES]);
+			dynAppend(dsParameters, \"$dsCurveLegend:\"+plotData[fwTrending_PLOT_OBJECT_LEGENDS]);
+			dynAppend(dsParameters, \"$dsCurveToolTipText:\"+plotData[fwTrending_PLOT_OBJECT_EXT_TOOLTIPS]);
+			dynAppend(dsParameters, \"$dsCurveRange:\"+plotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE]);
+			dynAppend(dsParameters, \"$dsCurveRangeX:\"+plotData[fwTrending_PLOT_OBJECT_EXT_MIN_MAX_RANGE_X]);
+			dynAppend(dsParameters, \"$dsCurveColor:\"+plotData[fwTrending_PLOT_OBJECT_COLORS]);
+			dynAppend(dsParameters, \"$sForeColor:\"+plotData[fwTrending_PLOT_OBJECT_FORE_COLOR]);
+			dynAppend(dsParameters, \"$sBackColor:\"+plotData[fwTrending_PLOT_OBJECT_BACK_COLOR]);
+			dynAppend(dsParameters, \"$bShowGrid:\"+plotData[fwTrending_PLOT_OBJECT_GRID]);
+			dynAppend(dsParameters, \"$bShowLegend:\"+plotData[fwTrending_PLOT_OBJECT_LEGEND_ON]);
+			dynAppend(dsParameters, \"$sRefName:\");
+
+// $sDpName is set to \"\", no possibility to configure or save the trend settings
+			getValue(ref+\"trend.dpNameText\", \"text\", sDpName);
+			dynAppend(dsParameters, \"$sDpName:\");// + sDpName);
+			
+// get the zoom window title
+			strreplace(plotData[fwTrending_PLOT_OBJECT_TITLE], \"\\\\_\", \" \");
+			if(plotData[fwTrending_PLOT_OBJECT_TITLE]==\"\")
+			{ 
+				plotData[fwTrending_PLOT_OBJECT_TITLE] = \"Histogram Zoom\";
+			}
+			dynAppend(dsParameters, \"$ZoomWindowTitle:\"+plotData[fwTrending_PLOT_OBJECT_TITLE]);
+
+			getValue(ref+\"trend.parameterValues\", \"text\", currentParameterValues);
+			dynAppend(dsParameters, \"$templateParameters:\"+currentParameterValues);
+
+// open the zoomed window
+			ChildPanelOnCentral(\"fwTrending/fwTrendingHistogramZoomedWindow.pnl\", \"Zoomed Window: \" + plotData[fwTrending_PLOT_OBJECT_TITLE], 
+				dsParameters
+			);
+			break;
+		case \"export\":
+			break;
+		case \"print\":
+			printPanel(myModuleName(), myPanelName());
+			break;
+		case \"legend\":
+			tempString = plotData[fwTrending_PLOT_OBJECT_LEGEND_ON];
+			if((tempString == \"TRUE\") || (tempString == TRUE))
+			{
+				fwTrending_legendOnOff(ref, FALSE, ref + \".\", exceptionInfo);
+			}
+			else
+			{
+				fwTrending_legendOnOff(ref, TRUE, ref + \".\", exceptionInfo);
+			}
+			histogram.flush();
+			break;
+		case \"grid\":
+			tempString = plotData[fwTrending_PLOT_OBJECT_GRID];
+			if((tempString == \"TRUE\") || (tempString == TRUE))
+			{
+				fwTrending_gridOnOff(ref, FALSE, ref + \".\", exceptionInfo);
+			}
+			else
+			{
+				fwTrending_gridOnOff(ref, TRUE, ref + \".\", exceptionInfo);
+			}
+			histogram.flush();
+			break;
+		case \"plotConf\":
+			getValue(ref+\"trend.dpNameText\", \"text\", sDpName);
+			fwDevice_getDefaultConfigurationPanels(fwTrending_PLOT, panelsList, exceptionInfo);
+//DebugN(\"SORT IT OUT: Panel in CTRL, use dev defs\");
+panelsList[1] = \"fwTrending/fwTrendingHistogramConfig\";
+			ChildPanelOnModalReturn(panelsList[1] + \".pnl\",\"Plot Configuration\",
+				makeDynString(\"$Command:onlineedit\", \"$sDpName:\" + sDpName,
+											\"$dsPlotData:\" + plotData, \"$dsShowButtons:\" + makeDynString(\"ok\", \"cancel\")),0,0, df, ds);
+
+			if(ds[1] != \"Cancel\")
+			{
+				strreplace(ds[3], \" | \", \"|\");
+				modifiedPlotData = strsplit(ds[3], \"|\");
+				for(i=1; i<=fwTrending_SIZE_PLOT_OBJECT; i++)
+				{
+					modifiedPlotData[i] = strltrim(modifiedPlotData[i], \" \");
+					modifiedPlotData[i] = strrtrim(modifiedPlotData[i], \" \");
+				}
+
+				setValue(ref+\"trend.trendInfo\", \"items\", modifiedPlotData);
+
+				fwTrending_getRuntimePlotDataWithExtendedObject(ref, trendRunning, plotShapes, extendedPlotData, exceptionInfo, FALSE);
+				histogram = getShape(plotShapes[fwTrending_ACTIVE_TREND_NAME]);
+														
+				getValue(ref+\"trend.parameterValues\", \"text\", currentParameterValues);
+				fwTrending_checkAndGetAllTemplateParameters(ref, extendedPlotData, fwTrending_PLOT, currentParameterValues, exceptionInfo, TRUE);
+				setValue(ref+\"trend.parameterValues\", \"text\", currentParameterValues);
+
+				_fwTrending_evaluateTemplate(currentParameterValues, extendedPlotData[fwTrending_PLOT_OBJECT_DPES], exceptionInfo);    
+				_fwTrending_evaluateTemplate(currentParameterValues, extendedPlotData[fwTrending_PLOT_OBJECT_LEGENDS], exceptionInfo);    
+				_fwTrending_evaluateTemplate(currentParameterValues, extendedPlotData[fwTrending_PLOT_OBJECT_EXT_TOOLTIPS], exceptionInfo);    
+	
+				fwTrending_convertUnicosDpeListToPvssDpeList(extendedPlotData[fwTrending_PLOT_OBJECT_DPES], extendedPlotData[fwTrending_PLOT_OBJECT_DPES], exceptionInfo);
+
+				getValue(\"saveSettings\", \"enabled\", enabledState);
+				fwTrending_initHistogramWithObject(ref, plotShapes[fwTrending_ACTIVE_TREND_NAME], extendedPlotData, trendRunning, exceptionInfo);
+				fwTrending_initControlHistogramButtons(ref, sDpName, extendedPlotData, trendRunning, exceptionInfo, false);
+				setValue(\"saveSettings\", \"enabled\", enabledState);
+			}				
+			break;
+		case \"saveas\":
+			setValue(ref+\"trend.refreshTrend\", \"text\", \"FALSE\");
+			getValue(ref+\"trend.dpNameText\", \"text\", sDpName);
+			proposedName = dpGetAlias(sDpName + \".\");
+			if(proposedName == \"\")
+				proposedName = dpSubStr(sDpName, DPSUB_DP);
+			if(proposedName == \"\")
+				proposedName = plotData[fwTrending_PLOT_OBJECT_TITLE];
+
+			ChildPanelOnCentralReturn(\"fwTrending/fwTrendingSaveAsSelector.pnl\", \"Save plot settings as...\",
+																	makeDynString(\"$sDpType:\" + fwTrending_PLOT, \"$sProposedName:\" + proposedName), df, ds);
+			if(ds[1] == \"ok\")
+				fwTrending_saveCurrentSettings(ref, ds[2], fwTrending_PLOT, TRUE, TRUE, exceptionInfo, TRUE);		
+
+			delay(0,REFRESH_DELAY);
+			setValue(ref+\"trend.refreshTrend\", \"text\", \"TRUE\");
+			break;
+			break;
+	}
+	
+	if(dynlen(exceptionInfo)>0)
+		fwExceptionHandling_display(exceptionInfo);		
+	this.enabled= TRUE;
+}
+
+" 0
+0 
+0
+LAYER, 1 
+1
+LANG:10001 6 Layer2
+0
+LAYER, 2 
+1
+LANG:10001 6 Layer3
+0
+LAYER, 3 
+1
+LANG:10001 6 Layer4
+0
+LAYER, 4 
+1
+LANG:10001 6 Layer5
+0
+LAYER, 5 
+1
+LANG:10001 6 Layer6
+0
+LAYER, 6 
+1
+LANG:10001 6 Layer7
+0
+LAYER, 7 
+1
+LANG:10001 6 Layer8
+0
+0

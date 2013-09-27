@@ -1,0 +1,198 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 300 371 N "_3DFace" 1
+"$id"
+E E E E E 1 -1 -1 0  42 48
+""0  1
+E "#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+    
+updatePanel(string computerName)
+{
+
+  dyn_string projectNames;
+  bool onlyActive = true;
+    
+  if(fwInstallationDB_getPvssProjects(projectNames, computerName, onlyActive) != 0)
+    DebugN(\"Cannot access the DB. Please check the connection...\");
+  else{
+    tblProjects.deleteAllLines();
+    for(int i = 1; i <= dynlen(projectNames); i++){
+      setValue(\"tblProjects\", \"appendLine\", \"project\", projectNames[i]); 
+    }
+  }
+
+
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 1
+"PUSH_BUTTON1"
+""
+1 82 334 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 80 332 180 362
+
+T 
+1
+LANG:1 7 Add new
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  
+  string tagId = $id;
+  string hostname = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  string item = treeEditor.currentItem();
+  
+  ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_projectProperties.pnl\", \"Add a new project\", makeDynString(\"$hostname:\" + hostname), df, ds);
+  
+  if(dynlen(df) >0 && df[1] == 1.){
+    updatePanel(hostname);
+    fwConfigurationDBSystemInformation_refreshSetupTree();
+    treeEditor.ensureItemVisible(item);
+  }
+}" 0
+ E E E
+13 2
+"PUSH_BUTTON2"
+""
+1 184 334 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 182 332 282 362
+
+T 
+1
+LANG:1 10 Unregister
+E E "main()
+{
+  dyn_int lines;
+  string project;
+  string host;
+  string tagId = $id;
+  string computerName = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  string item = treeEditor.currentItem();
+  
+  getValue(\"tblProjects\",\"getSelectedLines\", lines);
+  for(int i = 1; i <= dynlen(lines); i++){
+    getValue(\"tblProjects\", \"cellValueRC\", lines[i], \"project\", project);
+    //DebugN(\"Unregistering project: \", project, computerName);
+    if(fwInstallationDB_unregisterProject(project, computerName) != 0){
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", \"$1:Could not unregister project: \" + project + \"in computer: \"+ computerName +\" from DB\");  
+    }
+  }
+  updatePanel(computerName);
+  
+  fwConfigurationDBSystemInformation_refreshSetupTree();
+  treeEditor.ensureItemVisible(item);
+  
+}" 0
+ E
+25 0
+"tblProjects"
+""
+1 8 26 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  anytype line;
+  dyn_float df;
+  dyn_string ds;
+  string tagId = $id;
+  string hostname = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  
+  getValue(\"\", \"getLineN\", row, line);
+  if(line[1] != \"\"){
+    ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_projectProperties.pnl\", \"Computer Info\", makeDynString(\"$project:\" + line[1], \"$hostname:\" + hostname), df, ds);
+  }    
+}" 0
+
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 6 24 282 328
+"main()
+{
+  string tagId = $id;
+  string computerName = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  
+  updatePanel(computerName);
+}" 0
+E 1 0 1 1 0 "project" 27 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 20 Double-click to edit
+
+256 
+14 14 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

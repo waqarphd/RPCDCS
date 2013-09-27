@@ -1,0 +1,365 @@
+#ifndef _SCHEMA_VERSION_
+#define  _SCHEMA_VERSION_ 3.01
+#endif
+
+--#--include "fwConfigurationDB_SCHEMACHECK.SQL"
+
+
+create table config_items_new (   tag_id,
+						   citem_id,
+						   item_id,
+						   dpt_id,
+						   valid_from,
+						   valid_to
+						   ) as
+(
+select ct.conf_id, ci.citem_id, ci.item_id, ci.dpt_id,ct.valid_from, ct.valid_to
+from config_items ci, config_tags ct
+  where ci.citem_id=ct.citem_id);
+
+  
+create unique index config_itemsnew_idx1 on config_items_new (tag_id,valid_to,item_id);
+create unique index config_itemsnew_pk on config_items_new (citem_id);
+ALTER TABLE config_items_new ADD CONSTRAINT config_itemsnew_pk PRIMARY KEY(citem_id);
+
+CREATE OR REPLACE VIEW v_config_items
+(
+    item_id
+  , citem_id
+  , dpt_id
+  , name
+  , dpname
+  , dptype
+  , tag
+  , hver
+  , description
+  , "TYPE"
+  , model
+  , parent_id
+  , dpid
+)
+AS
+select 
+	i.id, 
+	c.citem_id, 
+	t.dpt_id,
+	i.name,
+	i.dpname,
+	t.dptype,
+	d.conf_tag,
+	i.hver,
+	i.description,
+	i.type,
+	i.detail,
+	i.parent,
+	i.dpid
+    from   items i, config_items_new c, device_types t, config_desc d
+    where  	i.id=c.item_id 
+	and 	t.dpt_id=c.dpt_id 
+	and 	d.conf_id=c.tag_id
+	and 	c.valid_to is null
+ ;
+
+
+alter table config_dpfunctions add ( FUNCTYPE NUMBER, STATFUNCTYPES VARCHAR2(128), STATOPTS VARCHAR2(64));
+update config_dpfunctions set functype=60;
+
+create table config_itemprops as (select iprop_id, citem_id, develem_id, cast (NULL as VARCHAR2(256)) dpealias   from config_item_properties cip);
+
+create table config_values as (select iprop_id,   (cast (to_char(cip.value) as varchar2(32))) "PVALUE"  from config_item_properties cip 
+	where length(cip.value)<=32);
+
+create table config_values_big as (select iprop_id,cip.value "CVALUE" from config_item_properties cip where length(cip.value)>32);
+create unique index config_itemprops_iprop on config_itemprops(iprop_id);
+create index config_itemprops_citem on config_itemprops(citem_id);
+create unique index config_values_iprop on config_values(iprop_id);
+create unique index config_valuesbig_iprop on config_values_big(iprop_id);
+
+ALTER TABLE config_itemprops ADD CONSTRAINT config_itemprops_iprop PRIMARY KEY (iprop_id) enable;
+ALTER TABLE config_itemprops ADD CONSTRAINT config_itemprops_fk_citemid FOREIGN KEY(citem_id) REFERENCES config_items_new(citem_id) ON DELETE CASCADE enable;
+ALTER TABLE config_values_big ADD CONSTRAINT config_valuesbig_fk_ipropid FOREIGN KEY(iprop_id) REFERENCES config_itemprops(iprop_id) ON DELETE CASCADE enable;
+ALTER TABLE config_values ADD CONSTRAINT config_values_fk_ipropid FOREIGN KEY(iprop_id) REFERENCES config_itemprops(iprop_id) ON DELETE CASCADE enable;
+
+alter table CONFIG_DPEALERTS ADD (INCLUSIVE VARCHAR2(40), NEGATED VARCHAR2(40));
+alter table CONFIG_ALERTS ADD ( DISCRETE NUMBER, IMPULSE NUMBER);
+alter table config_sumalerts ADD (THRESHOLD NUMBER);
+alter table config_alerts_misc add(statebits varchar2(64), limitsstatebits varchar2(1024),TEXTSWENT VARCHAR2(1024));
+
+
+
+ALTER TABLE CONFIG_ALERTS DROP CONSTRAINT CONFIG_ALERTS_FK_IPROP_ID;
+ALTER TABLE CONFIG_ALERTS ADD   CONSTRAINT CONFIG_ALERTS_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+ALTER TABLE CONFIG_SUMALERTS DROP CONSTRAINT CONFIG_SUMALERTS_FK_IPROP_ID;
+ALTER TABLE CONFIG_SUMALERTS ADD   CONSTRAINT CONFIG_SUMALERTS_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+ALTER TABLE CONFIG_DPEALERTS DROP CONSTRAINT CONFIG_DPEALERTS_FK_IPROP_ID;
+ALTER TABLE CONFIG_DPEALERTS ADD   CONSTRAINT CONFIG_DPEALERTS_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+ALTER TABLE CONFIG_ALERTS_MISC DROP CONSTRAINT CONFIG_ALERTS_MISC_FK_IPROP_ID;
+ALTER TABLE CONFIG_ALERTS_MISC ADD   CONSTRAINT CONFIG_ALERTS_MISC_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+		
+ALTER TABLE CONFIG_ADDRESSES DROP CONSTRAINT CONFIG_ADDRESSES_FK_IPROP_ID;
+ALTER TABLE CONFIG_ADDRESSES ADD   CONSTRAINT CONFIG_ADDRESSES_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+ALTER TABLE CONFIG_ARCHIVING DROP CONSTRAINT CONFIG_ARCHIVING_FK_IPROP_ID;
+ALTER TABLE CONFIG_ARCHIVING ADD   CONSTRAINT CONFIG_ARCHIVING_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+ALTER TABLE CONFIG_CONVERSIONS DROP CONSTRAINT CONFIG_CONVERSIONS_FK_IPROP_ID;
+ALTER TABLE CONFIG_CONVERSIONS ADD   CONSTRAINT CONFIG_CONVERSIONS_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+ALTER TABLE CONFIG_DPFUNCTIONS DROP CONSTRAINT CONFIG_DPFUNCTIONS_FK_IPROP_ID;
+ALTER TABLE CONFIG_DPFUNCTIONS ADD   CONSTRAINT CONFIG_DPFUNCTIONS_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+ALTER TABLE CONFIG_GENERAL DROP CONSTRAINT CONFIG_GENERAL_FK_IPROP_ID;
+ALTER TABLE CONFIG_GENERAL ADD   CONSTRAINT CONFIG_GENERAL_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+ALTER TABLE CONFIG_PVRANGES DROP CONSTRAINT CONFIG_PVRANGES_FK_IPROP_ID;
+ALTER TABLE CONFIG_PVRANGES ADD   CONSTRAINT CONFIG_PVRANGES_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+ALTER TABLE CONFIG_SMOOTHING DROP CONSTRAINT CONFIG_SMOOTHING_FK_IPROP_ID;
+ALTER TABLE CONFIG_SMOOTHING ADD   CONSTRAINT CONFIG_SMOOTHING_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+ALTER TABLE CONFIG_UF DROP CONSTRAINT CONFIG_UF_FK_IPROP_ID;
+ALTER TABLE CONFIG_UF ADD   CONSTRAINT CONFIG_UF_FK_IPROP_ID 
+		FOREIGN KEY (IPROP_ID) REFERENCES CONFIG_ITEMPROPS(IPROP_ID)
+		ON DELETE CASCADE;
+
+
+CREATE OR REPLACE VIEW v_config_alerts
+(
+    iprop_id
+  , "TYPE"
+  , active
+  , discrete
+  , impulse
+  , texts
+  , textswent
+  , classes
+  , limits
+  , inclusive
+  , negated
+  , sumdpelist
+  , threshold
+  , statebits
+  , limitsstatebits
+  , panel
+  , panelparams
+  , help
+)
+AS
+select
+	al.iprop_id,
+	al.type,
+	al.active,
+	al.discrete,
+	al.impulse,
+	CASE al.type WHEN 59 THEN s.texts ELSE a.texts END,
+	m.textswent,
+	CASE al.type WHEN 59 THEN s.class ELSE a.classes END,
+	a.limits,
+	a.inclusive,
+	a.negated,
+	s.sumdpelist,
+	s.threshold,
+	m.statebits,
+	m.limitsstatebits,
+	m.panel,
+	m.panelParams,
+	m.help
+    from config_alerts al, config_dpealerts a, config_sumalerts s, config_alerts_misc m
+    where 	a.iprop_id(+)=al.iprop_id
+	and	s.iprop_id(+)=al.iprop_id
+	and  m.iprop_id(+)=al.iprop_id;
+
+
+CREATE OR REPLACE VIEW v_references
+(
+    item_id
+  , ref_id
+  , config_id
+  , dpname
+  , refdpname
+  , config_tag
+)
+AS
+select 
+	r.id, 
+	r.ref_id, 
+	r.refver,
+	i.dpname, 
+	j.dpname, 
+	c.conf_tag
+    from items i, items j, references r, config_desc c
+    where 	r.id=i.id 
+	and 	r.ref_id=j.id 
+	and	r.refver=c.conf_id 
+	and 	r.valid_to is null
+ ;
+
+CREATE OR REPLACE VIEW v_recipesall
+(
+    propid
+  , proptype
+  , item_id
+  , develem_id
+  , recipe_ver
+  , valid_from
+  , valid_to
+  , tag
+  , recipe_type
+  , recipe_comment
+  , "HIERARCHY"
+  , dpname
+  , property
+  , dptype
+  , detail
+  , elementtype
+  , has_value
+  , has_alert
+  , propvalue
+  , alert_type
+  , alert_active
+  , alert_classes
+  , alert_texts
+  , alert_limits
+)
+AS
+SELECT
+	rt.propid,
+	de.elementtype,
+	i.id,
+	rd.develem_id,
+	rd.rver,
+	rt.valid_from,
+	rt.valid_to,
+	r.name,
+	r.recipe_type,
+	r.description,
+	h.htype,
+	i.dpname,
+	de.elementname,
+	i.type,
+	i.detail,
+	de.elementtype,
+	rd.has_value,
+	rd.has_alert,
+	rd.propvalue,
+	rd.alert_type,
+	rd.alert_active,
+	rd.alert_classes,
+	rd.alert_texts,
+	rd.alert_limits
+    FROM recipe_tags rt, recipes r, recipe_data rd ,items i,hierarchies h, device_elements de
+    WHERE 	rt.propid=rd.propid
+	AND 	r.tagid=rt.tagid
+	AND 	h.hver=i.hver
+	AND 	i.id=rd.id
+	AND 	de.develem_id=rd.develem_id(+)
+ ;
+
+
+CREATE OR REPLACE VIEW v_item_properties
+(
+    citem_id
+  , iprop_id
+  , develem_id
+  , item_dpname
+  , dpttype
+  , prop_name
+  , dpe_name
+  , dpe_type
+  , value
+  , tag
+)
+AS
+select 
+	c.citem_id, 
+	c.iprop_id, 
+	c.develem_id,
+	i.dpname, 
+	i.dptype, 
+	p.elementname,
+	i.dpname||p.elementname,
+	p.elementtype,
+	V.VALUE VAL,
+	i.tag
+    from config_itemprops c, v_config_items i, v_device_configs_all p,
+    (
+	SELECT IPROP_ID IPROP_ID, PVALUE VALUE FROM CONFIG_VALUES
+	UNION ALL
+	SELECT IPROP_ID IPROP_ID, CAST( cvalue AS VARCHAR2(4000)) VALUE FROM CONFIG_VALUES_BIG
+ ) V
+    where 	p.develem_id=c.develem_id 
+	and 	i.citem_id=c.citem_id
+	and c.iprop_id=v.iprop_id(+);
+ 
+ALTER TABLE RECIPE_TAGS ADD(
+    RVER NUMBER,
+    CONSTRAINT "RECIPE_TAGS_RK_RVER" FOREIGN KEY ("RVER")
+        REFERENCES "RECIPE_VERSIONS"("RVER") ON DELETE CASCADE ENABLE
+);
+UPDATE RECIPE_TAGS rt
+  SET rt.RVER = (SELECT RVER FROM RECIPE_DATA rd WHERE rd.propid=rt.propid);
+
+DROP INDEX  items_dpname_idx ;
+CREATE UNIQUE INDEX items_dpname_idx ON items(dpname);
+  
+
+drop view v_items;
+drop view v_item_names;
+
+alter table config_item_properties rename to OLD_CONFIG_ITEM_PROPERTIES;
+alter table config_items rename to OLD_CONFIG_ITEMS;
+alter table config_tags rename to OLD_CONFIG_TAGS;
+
+truncate table tmp_item_props;
+drop table tmp_item_props;
+CREATE GLOBAL TEMPORARY TABLE "TMP_ITEM_PROPS"
+   (    "IPROP_ID" NUMBER,
+        "DPENAME" VARCHAR2(512)
+   ) ON COMMIT PRESERVE ROWS;
+create unique index tip_dpe_idx    on TMP_ITEM_PROPS(DPEName);
+CREATE UNIQUE INDEX tip_ipropd_idx ON tmp_item_props(iprop_id);
+
+
+
+#include "fwConfigurationDB_PLSQLAPI.SQL"
+
+#include "fwConfigurationDB_GRANTS_AND_ROLES.SQL"
+
+-- revoke all from public
+DECLARE
+ rc number;
+begin
+ rc:=fwConfigurationDB_grant('PUBLIC','ALL',1);
+end;
+/
+
+#include "fwConfigurationDB_SCHEMAVERSION.SQL"
+
+
+
+commit;

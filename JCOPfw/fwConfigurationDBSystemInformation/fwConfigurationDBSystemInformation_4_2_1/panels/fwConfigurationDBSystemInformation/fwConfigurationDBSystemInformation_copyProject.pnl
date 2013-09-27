@@ -1,0 +1,1059 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 627 696 N "_3DFace" 2
+"$hostname"
+"$project"
+"main()
+{
+  tfProject.text = $project;
+  tfHost.text = $hostname;
+  dyn_mixed projectInfo;
+  int id = -1;
+
+  //Access Control:
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyProjectCopyAcCB\", ex);
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+  
+  
+  if(fwInstallationDB_getProjectProperties($project, $hostname, projectInfo, id))
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not retrieve the project info from the\\nSystem Configuration DB\"));
+    return;
+  }
+  
+  tfSystem.text = projectInfo[FW_INSTALLATION_DB_PROJECT_SYSTEM_NAME];
+  tfSystemNr.text = projectInfo[FW_INSTALLATION_DB_PROJECT_SYSTEM_NUMBER];
+  tfEventHost.text = projectInfo[FW_INSTALLATION_DB_PROJECT_SYSTEM_COMPUTER]; 
+  
+  tfHostPattern.text = \"PCITCO\";
+  tfHostSuffix.text = \"a\";
+  sbHostStart.text = 1;
+  sbHostDigits.text = 2;
+
+  tfSystemPattern.text = \"system_\";
+  tfSystemSuffix.text = \"p\";
+  sbSystemStart.text = 1;
+  sbSystemDigits.text = 2;
+  sbSystemNrStart.text = 1;
+
+}
+
+
+
+" 0
+ E E E E 1 -1 -1 0  40 20
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+void applyProjectCopyAcCB(string s1, string s2)
+{
+  btCopy.enabled = false;
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  { 
+    string domain;
+    fwSysOverview_getACDomain(domain);
+  
+    // at first, disable whatever was enabled to this moment
+    disableAllInProjectCopyPanel();
+
+    if(domain == \"\") //AC not yet configured. Enable access 
+    {
+      hasExpertPrivilege = true;
+    }
+    else
+    {
+      string expertPrivilege = fwSysOverview_getExpertPrivilege(1);
+      // check the current  privilege level 
+      if (expertPrivilege == \"\")
+      {
+        DebugN(\"No expert privilege defined!\");
+        return;
+      }
+      fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+    
+  
+      // check and handle exceptions that might have been thrown by the function above
+      if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+    }
+  }
+  else
+  {
+    hasExpertPrivilege = true;
+  }
+  // enable UI elements, depending on the access rights:
+  if (hasExpertPrivilege)
+  {
+    btCopy.enabled = true;
+  }
+}
+
+void disableAllInProjectCopyPanel()
+{
+  btCopy.enabled = false;
+}    
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"txTitle"
+""
+1 20 20 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 20 20 101 37
+0 2 2 "0s" 0 0 0 192 0 0  20 20 1
+1
+LANG:1 26 Arial,10,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 12 Copy Project
+13 1
+"PUSH_BUTTON1"
+""
+1 472 652 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  470 650 584 684
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  fwInstallation_closePanel(true);
+}
+" 0
+ E E E
+14 2
+"tfProject"
+""
+1 102 72 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  100 70 264 93
+2 "0s" 0 0 0 0 0 -1  E E E
+14 3
+"tfHost"
+""
+1 100 104 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  98 102 262 125
+2 "0s" 0 0 0 0 0 -1  E E E
+30 4
+"FRAME1"
+""
+1 30 43 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+4 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.260869565217391 0 1.459770114942529 -25.82608695652174 -17.77011494252874 0 E 30 43 491 131
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Source Project
+2 5
+"PRIMITIVE_TEXT2"
+""
+1 44 74 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 44 74 80 89
+0 2 2 "0s" 0 0 0 192 0 0  44 74 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Project:
+2 6
+"PRIMITIVE_TEXT3"
+""
+1 54 104 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 54 104 79 119
+0 2 2 "0s" 0 0 0 192 0 0  54 104 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Host:
+14 7
+"tfSystem"
+""
+1 392 62 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  390 60 554 83
+2 "0s" 0 0 0 0 0 -1  E E E
+2 8
+"PRIMITIVE_TEXT4"
+""
+1 334 74 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 334 74 373 89
+0 2 2 "0s" 0 0 0 192 0 0  334 74 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 System:
+14 9
+"tfSystemNr"
+""
+1 392 92 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  390 90 554 113
+2 "0s" 0 0 0 0 0 -1  E E E
+2 10
+"PRIMITIVE_TEXT5"
+""
+1 294 104 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 294 104 373 119
+0 2 2 "0s" 0 0 0 192 0 0  294 104 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 System Number:
+14 11
+"tfEventHost"
+""
+1 392 122 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  390 120 554 143
+2 "0s" 0 0 0 0 0 -1  E E E
+2 12
+"PRIMITIVE_TEXT6"
+""
+1 316 134 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 316 134 371 149
+0 2 2 "0s" 0 0 0 192 0 0  316 134 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Event Host:
+14 13
+"tfHostPattern"
+""
+1 132 213 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  130 211 196 234
+3 "0s" 0 0 0 0 0 -1  E E E
+2 14
+"PRIMITIVE_TEXT7"
+""
+1 24 216 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 24 216 113 231
+0 2 2 "0s" 0 0 0 192 0 0  24 216 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Host fixed pattern:
+14 15
+"tfHostSuffix"
+""
+1 492 213 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  490 211 556 234
+3 "0s" 0 0 0 0 0 -1  E E E
+2 16
+"PRIMITIVE_TEXT8"
+""
+1 444 216 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 444 216 476 231
+0 2 2 "0s" 0 0 0 192 0 0  444 216 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Suffix:
+2 23
+"PRIMITIVE_TEXT11"
+""
+1 212 216 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 212 216 262 231
+0 2 2 "0s" 0 0 0 192 0 0  212 216 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Start with:
+2 25
+"PRIMITIVE_TEXT12"
+""
+1 312 395 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 312 395 400 410
+0 2 2 "0s" 0 0 0 192 0 0  312 395 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Number of copies:
+21 26
+"sbHostStart"
+""
+1 272 213 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  270 211 332 235
+0
+
+E
+E
+E
+
+N 0 10000 1 0 1 1
+21 27
+"sbCount"
+""
+1 416 392 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  414 390 458 414
+0
+
+E
+E
+E
+
+N 1 100 1 1 1 1
+30 28
+"FRAME2"
+""
+1 30 193 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+28 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 -18 -11 0 E 30 193 611 261
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Target Hosts Info
+14 29
+"tfSystemPattern"
+""
+1 132 290 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  130 288 196 311
+3 "0s" 0 0 0 0 0 -1  E E E
+2 30
+"PRIMITIVE_TEXT13"
+""
+1 24 293 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 24 293 127 308
+0 2 2 "0s" 0 0 0 192 0 0  24 293 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 21 System fixed pattern:
+14 31
+"tfSystemSuffix"
+""
+1 492 290 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  490 288 556 311
+3 "0s" 0 0 0 0 0 -1  E E E
+2 32
+"PRIMITIVE_TEXT14"
+""
+1 444 293 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 444 293 476 308
+0 2 2 "0s" 0 0 0 192 0 0  444 293 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Suffix:
+2 33
+"PRIMITIVE_TEXT15"
+""
+1 212 293 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 212 293 262 308
+0 2 2 "0s" 0 0 0 192 0 0  212 293 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Start with:
+21 35
+"sbSystemStart"
+""
+1 272 290 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  270 288 332 312
+0
+
+E
+E
+E
+
+N 0 10000 1 0 1 1
+30 37
+"FRAME3"
+""
+1 30 193 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+37 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.507462686567164 -18 -31.94029850746268 0 E 30 193 611 261
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Target Systems Info
+13 38
+"btCopy"
+""
+1 352 652 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  350 650 464 684
+
+T 
+1
+LANG:1 4 Copy
+"main()
+{
+  bool copyPaths = cbPaths.state(0), copyDistPeers = cbDistPeers.state(0);
+  int err = 0;
+  for(int i = 1; i <= tblPreview.lineCount(); i++)
+  {
+    string copy, host, systemName;
+    int systemNr;
+    
+    getMultiValue(\"tblPreview\", \"cellValueRC\", i-1, \"hosts\", host,
+                  \"tblPreview\", \"cellValueRC\", i-1, \"systems\", systemName,
+                  \"tblPreview\", \"cellValueRC\", i-1, \"systemNrs\", systemNr,
+                  \"tblPreview\", \"cellValueRC\", i-1, \"copy\", copy);
+    if(copy == \"YES\")
+    {
+      string description = myPanelName() + \": Copying project. Host:\" + $hostname + \" Project:\" + $project + \" New host:\" + host;
+      fwConfigurationDBSystemInformation_logAction(description);
+      if(fwConfigurationDBSystemInformation_copyProject($hostname, $project, host, systemName, systemNr))
+      {
+        ++err;
+        fwInstallation_throw(\"Failed to copy: \" + $hostname +\" \"+ $project +\" to: \"+host + \" \" + $project + \" \" + systemName + \" \" + systemNr);
+      }
+    }
+  }
+  
+  if(err)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors copying the projects.\\nFind details in the log-viewer\"));    
+    return;
+  }
+  ChildPanelOnCentral(\"vision/MessageInfo1\", \"Project successfully copied\", makeDynString(\"$1:Project successfully copied\"));    
+}
+
+
+
+
+
+
+" 0
+ E E E
+2 43
+"PRIMITIVE_TEXT19"
+""
+1 352 216 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 352 216 381 231
+0 2 2 "0s" 0 0 0 192 0 0  352 216 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Digits:
+21 44
+"sbHostDigits"
+""
+1 390 213 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  388 211 432 235
+0
+
+E
+E
+E
+
+N 0 100 1 0 1 1
+2 45
+"PRIMITIVE_TEXT20"
+""
+1 352 293 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 352 293 381 308
+0 2 2 "0s" 0 0 0 192 0 0  352 293 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Digits:
+21 46
+"sbSystemDigits"
+""
+1 390 290 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  388 288 432 312
+0
+
+E
+E
+E
+
+N 0 100 1 0 1 1
+2 48
+"PRIMITIVE_TEXT21"
+""
+1 22 332 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 332 144 347
+0 2 2 "0s" 0 0 0 192 0 0  22 332 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 24 System Number starts at:
+21 49
+"sbSystemNrStart"
+""
+1 152 329 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  150 327 212 351
+0
+
+E
+E
+E
+
+N 1 10000 1 1 1 1
+25 50
+"tblPreview"
+""
+1 12 457 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  10 455 594 632
+E"main(int row, string column, string value)
+{
+  if(column != \"copy\")
+    return;
+  else if (value == \"YES\")
+    this.cellValueRC(row, column, \"NO\");
+  else if (value == \"NO\")
+    this.cellValueRC(rown, column, \"YES\");
+}
+
+" 0
+ 1 0 1 4 0 "hosts" 24 1 0 "s" 1
+LANG:1 5 Hosts
+E
+1
+LANG:1 0 
+
+200 "systems" 20 1 0 "s" 1
+LANG:1 7 Systems
+E
+1
+LANG:1 0 
+
+170 "systemNrs" 10 1 0 "s" 1
+LANG:1 14 System Numbers
+E
+1
+LANG:1 0 
+
+90 "copy" 10 1 0 "s" 1
+LANG:1 5 Copy?
+E
+1
+LANG:1 0 
+
+90 
+14 14 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+13 51
+"PUSH_BUTTON4"
+""
+1 462 387 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  460 385 574 419
+
+T 
+1
+LANG:1 7 Preview
+"main()
+{
+  tblPreview.deleteAllLines();
+  string hFormat = \"%0\" + sbHostDigits.text + \"d\";
+  string hStr = \"\";
+  int hStart = sbHostStart.text;
+  
+  string sFormat = \"%0\" + sbSystemDigits.text + \"d\";
+  string sStr = \"\";
+  int sStart = sbSystemStart.text;
+  int systemNrStart = sbSystemNrStart.text;
+                      
+  for(int i = 0; i < sbCount.text; i++)
+  {
+    sprintf(hStr, hFormat, i + hStart); 
+    sprintf(sStr, sFormat, i + sStart); 
+    string sys = tfSystemPattern.text + sStr + tfSystemSuffix.text;
+    if(!patternMatch(\"*:\", sys))
+      sys += \":\";
+    
+    tblPreview.appendLine(\"hosts\", strtoupper(tfHostPattern.text + hStr + tfHostSuffix.text),
+                          \"systems\", sys,
+                          \"systemNrs\", i + systemNrStart,
+                          \"copy\", \"YES\");
+  }
+}
+
+
+
+
+
+
+
+
+" 0
+ E E E
+2 52
+"PRIMITIVE_TEXT22"
+""
+1 12 437 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 12 437 212 457
+0 2 2 "0s" 0 0 0 64 0 0  12 437 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Information Preview
+30 53
+"FRAME4"
+""
+1 30 383 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+53 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.035714285714286 0 1 -19.07142857142858 -13 0 E 30 383 591 441
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Copy Options
+20 54
+"cbPaths"
+""
+1 32 387 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  30 385 154 419
+1
+T 
+1
+LANG:1 18 Copy Project Paths
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+EE20 55
+"cbDistPeers"
+""
+1 160 387 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  158 385 302 419
+1
+T 
+1
+LANG:1 22 Copy Distributed Peers
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+EE0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

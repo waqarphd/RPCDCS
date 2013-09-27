@@ -1,0 +1,447 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 846 779 N "_3DFace" 0
+"main()
+{
+  refresh();
+}" 0
+ E E E E 1 -1 -1 0  40 60
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+
+void refresh()
+{
+  dyn_dyn_mixed projectInfo;
+  dyn_string hostsToBeDeleted, exceptionInfo;
+  dyn_dyn_string projectsToBeDeleted; // [1] dbHost from pvss DB, [2]dbProject from pvss DB
+  bool consistent = true;
+  dyn_string hostDps, projectDps;
+  string dbHost;
+  
+//  dynClear(hostsToBeDeleted);
+//  dynClear(projectsToBeDeleted);
+  
+  deleteHostProj.deleteAllLines();
+  deleteHost.deleteAllLines();
+    
+  fwSysOverview_getDBInfo(projectInfo, exceptionInfo);
+  if(dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo); return ;}
+  
+  fwSysOverview_checkDbConsistency(projectInfo, consistent, hostsToBeDeleted, projectsToBeDeleted, exceptionInfo);
+  if(dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo); return ;}
+  
+  
+  for(int i=1; i<= dynlen(projectsToBeDeleted); i++)
+  {
+    setValue(\"deleteHostProj\", \"appendLine\", \"host\",projectsToBeDeleted[i][1], \"project\",projectsToBeDeleted[i][2]);
+  }
+  
+  
+  for(int i=1; i<= dynlen(hostsToBeDeleted); i++)
+  {
+    setValue(\"deleteHost\", \"appendLine\", \"host\",hostsToBeDeleted[i], \"notes\", \"Does not exist in DB\");
+  }
+  
+    
+  hostDps = dpNames(getSystemName() + fwSysOverview_SYSTEM_DP +\"*\", \"FwSystemOverviewPC\");
+  for(int i=1; dynlen(hostDps); i++)
+  {
+    fwSysOverview_getPcProjects(hostDps[i], projectDps);
+    
+    if(dynlen(projectDps) == 0)
+    {
+      fwSysOverview_getHostDb(hostDps[i], dbHost, exceptionInfo);
+      if(dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo); return ;}
+      
+      if(!dynContains(hostsToBeDeleted, dbHost))
+        setValue(\"deleteHost\", \"appendLine\", \"host\",dbHost, \"notes\",\"*No Projects*\");
+    }
+    
+    return;
+  }
+    
+    
+      
+  deleteHostProj.removeSelectLines(0);
+  deleteHost.removeSelectLines(0);
+}
+/*
+int refresh()
+{
+  dyn_dyn_mixed hostsInfo;  
+  dyn_string exceptionInfo;
+  dyn_string pvssHosts, dbHosts;
+//  string pvssHost, hostName;
+  dyn_string hostsToBeDeleted;
+  dyn_string projectsToBeDeleted;
+  bool noPvssProj;
+  
+  dynClear(hostsToBeDeleted);
+  dynClear(projectsToBeDeleted);
+  
+  deleteHostProj.deleteAllLines();
+  deleteHost.deleteAllLines();
+    
+  fwInstallationDB_connect();
+// 1. CONDITION FOR DB CONNECTION !  
+  
+  if (fwInstallationDB_connect()!=0)
+  {
+    DebugTN(\"Could not connect to the Data Base\");
+  }
+  
+  fwInstallationDB_getHostsInfo(hostsInfo);
+  for(int i=1; i<=dynlen(hostsInfo); i++)
+  {
+    dynAppend(dbHosts, hostsInfo[i][1]);
+  }    
+  
+  fwSysOverview_getHosts(pvssHosts);
+
+  for (int i=1; i<=dynlen(pvssHosts); i++)
+  {
+    dynClear(hostsToBeDeleted);
+    dynClear(projectsToBeDeleted);
+    fwSysOverview_getHostsToBeDeleted(pvssHosts[i], dbHosts, hostsToBeDeleted, exceptionInfo);     
+  
+    fwSysOverview_projectsToBeDeleted(pvssHosts[i], projectsToBeDeleted, noPvssProj, exceptionInfo);
+
+    for(int j=1; j<=dynlen(projectsToBeDeleted); j++)
+    {
+      setValue(\"deleteHostProj\", \"appendLine\", \"host\",pvssHosts[i], \"project\",projectsToBeDeleted[j]);
+    }
+    
+    for (int j=1; j<=dynlen(hostsToBeDeleted); j++)
+    {
+      setValue(\"deleteHost\", \"appendLine\", \"host\",pvssHosts[i], \"notes\", \"Does not exist in DB\");
+    } 
+       
+    if(noPvssProj == true && !dynContains(hostsToBeDeleted,pvssHosts[i]))
+    {
+      setValue(\"deleteHost\", \"appendLine\", \"host\",pvssHosts[i], \"notes\",\"*No Projects*\");
+    }
+    
+  }
+  deleteHostProj.removeSelectLines(0);
+  deleteHost.removeSelectLines(0);
+}
+*/
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 1
+"deleteHostProj"
+""
+1 10 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  8 68 392 662
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  this.removeSelectLines(0);
+}" 0
+E 1 0 1 2 0 "host" 18 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 0 
+
+177 "project" 21 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 0 
+
+200 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+25 7
+"deleteHost"
+""
+1 450 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  448 68 832 662
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  this.removeSelectLines(0);
+}" 0
+E 1 0 1 2 0 "host" 18 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 0 
+
+177 "notes" 21 1 0 "s" 1
+LANG:1 7 Comment
+E
+1
+LANG:1 0 
+
+200 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 9
+"PRIMITIVE_TEXT2"
+""
+1 450 50 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 450 50 832 64
+0 2 2 "0s" 0 0 0 192 0 0  450 50 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 66 Hosts which do not exist in DB or do not have any project in PVSS.
+2 11
+"PRIMITIVE_TEXT4"
+""
+1 100 50 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 100 50 292 64
+0 2 2 "0s" 0 0 0 192 0 0  100 50 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 34 Projects which do not exist in DB.
+13 15
+"btClose"
+""
+1 730 740 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  728 738 832 772
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+   PanelOff();
+}" 0
+ E E E
+13 25
+"PUSH_BUTTON11"
+""
+1 290 670 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  288 668 392 702
+
+T 
+1
+LANG:1 17 Delete Project(s)
+"main()
+{
+  dyn_int rows; 
+  dyn_string results;
+  dyn_string hosts; 
+  dyn_string proj;
+  dyn_string exceptionInfo;   
+  dyn_float resultFloat;
+  dyn_string resultText;
+  
+  dynClear(rows);  
+  getValue (\"deleteHostProj\", \"getSelectedLines\", rows);
+  
+  if(dynlen(rows) == 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"WARNING:No project\", makeDynString(\"$1: No project was selected.\"));
+    return;
+  }  
+  
+  dynClear(results);
+  dynClear(proj);
+  dynClear(hosts); 
+
+  
+  for (int i=1; i<=dynlen(rows); i++)
+  {
+    
+    getValue(\"deleteHostProj\", \"getLineN\", rows[i], results);
+
+    dynAppend(hosts,results[1]);
+    dynAppend(proj, results[2]);
+  }
+  
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation\", 
+                          makeDynString(\"$1:Are you sure you want to delete following project(s)? :\\n\" + proj, \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+                           
+  bool ok=FALSE;
+  if(dynlen(resultFloat) > 0 ) ok = resultFloat[1];
+
+  
+  if(ok)
+  {       
+    for(int i =1; i<=dynlen(rows); i++)
+    {
+//      fwSysOverview_deleteHostProjects(hosts[i], makeDynString(proj[i]), exceptionInfo);
+      fwSysOverview_deleteProject(hosts[i], proj[i], exceptionInfo);
+      if(dynlen(exceptionInfo)) {continue ;}
+    }   
+  }    
+
+  refresh();  
+}" 0
+ E E E
+13 26
+"PUSH_BUTTON12"
+""
+1 730 670 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  728 668 832 702
+
+T 
+1
+LANG:1 14 Delete Host(s)
+"main()
+{
+  dyn_int rows;
+  dyn_string results;
+  dyn_string hosts;
+  dyn_float resultFloat;
+  dyn_string resultText; 
+  dyn_string exceptionInfo;
+  
+  dynClear(rows);    
+  getValue(\"deleteHost\", \"getSelectedLines\", rows);
+
+  if(dynlen(rows) == 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"WARNING:No host\", makeDynString(\"$1: No host was selected.\"));
+    return;
+  }
+  
+  dynClear(results);
+  dynClear(hosts);
+
+  for (int i=1; i<=dynlen(rows); i++)
+  {    
+    getValue(\"deleteHost\", \"getLineN\", rows[i], results);
+    dynAppend(hosts, results[1]);
+  }
+
+  ChildPanelOnCentralReturn(\"vision/MessageWarning2\", \"WARNING: Confirmation\", 
+                          makeDynString(\"$1:Are you sure you want to delete following host(s): \\n\" + hosts + \"\\n\" +  \"and related projects?\", \"$2:YES\", \"$3:NO\"), 
+                          resultFloat, resultText);
+                           
+  bool ok=FALSE;
+  if(dynlen(resultFloat) > 0 ) ok = resultFloat[1];
+
+  
+  if(ok)
+  {
+    for (int i= 1; i<=dynlen(rows); i++)
+    {
+      fwSysOverview_deleteHost(hosts[i], exceptionInfo);
+      if(dynlen(exceptionInfo)) {continue ;}
+    }
+  }
+  
+  refresh();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

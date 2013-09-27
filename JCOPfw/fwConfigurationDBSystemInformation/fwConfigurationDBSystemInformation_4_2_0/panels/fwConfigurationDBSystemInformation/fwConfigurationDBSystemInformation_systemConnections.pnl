@@ -1,0 +1,490 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 530 260 N "_3DFace" 1
+"$peer1"
+"main()
+{
+  string systemName = $peer1;
+  dyn_dyn_mixed connectedSystemsInfo;
+  dyn_dyn_mixed allSystemsInfo;
+  
+  tblConnects.tableMode(TABLE_SELECT_MULTIPLE);
+  tblConnects.selectByClick(TABLE_SELECT_LINE);
+  
+  tblAvailable.tableMode(TABLE_SELECT_MULTIPLE);
+  tblAvailable.selectByClick(TABLE_SELECT_LINE);
+  
+  txTitle.text = systemName + \" distributed connections\";
+  
+  if(fwInstallationDB_connect() != 0) 
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Connection Error\", makeDynString(\"$1: DB connection error.\"));
+    return;
+  }
+  //All systems
+  fwInstallationDB_getPvssSystems(allSystemsInfo);
+  
+  //system connectivity:
+  if(fwInstallationDB_getSystemConnectivity(systemName, connectedSystemsInfo) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Error\", makeDynString(\"$1:Could not retrieve the list of connected systems from DB\"));
+    return -1;   
+  }
+
+  //DebugN(allSystemsInfo, dynlen(allSystemsInfo));
+
+  
+  for(int i = 1; i <= dynlen(connectedSystemsInfo); i++)
+  {
+    setMultiValue(\"tblConnects\", \"appendLine\", \"name\", connectedSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME],
+                                               \"number\", connectedSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NUMBER]);
+  
+  //Remove connected system from list of available systems.
+    for(int j = 1; j <= dynlen(allSystemsInfo); j++)
+    {
+      if(allSystemsInfo[j][FW_INSTALLATION_DB_SYSTEM_NAME] == connectedSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME] ||
+        allSystemsInfo[j][FW_INSTALLATION_DB_SYSTEM_NAME] == systemName)
+      {
+        allSystemsInfo[j][FW_INSTALLATION_DB_SYSTEM_NAME] = \"\";
+      }
+    }
+  }
+  
+  for(int i = 1; i <= dynlen(allSystemsInfo); i++)
+  {
+    if(allSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME] != \"\" && allSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME] != systemName)
+      setMultiValue(\"tblAvailable\", \"appendLine\", \"name\", allSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME],
+                                                  \"number\", allSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NUMBER]);
+  }
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwInstallationDB.ctl\"
+#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+    
+applyChanges()
+{
+  string systemName = $peer1;
+  dyn_dyn_mixed connectedSystemsInfo;
+  string name, number;
+  bool matched = false;
+  dyn_string connectedNames;
+  
+  //system connectivity:
+  if(fwInstallationDB_getSystemConnectivity(systemName, connectedSystemsInfo) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Error\", makeDynString(\"$1:Could not retrieve the list of connected systems from DB\"));
+    return -1;   
+  }
+
+  for(int i = 1; i <= tblConnects.lineCount(); i++){
+    matched = false;
+    
+    getMultiValue(\"tblConnects\", \"cellValueRC\", i-1, \"name\", name, 
+                  \"tblConnects\", \"cellValueRC\", i-1, \"number\", number);
+    
+    for(int j = 1; j <= dynlen(connectedSystemsInfo); j++)
+    {
+      if(connectedSystemsInfo[j][FW_INSTALLATION_DB_SYSTEM_NAME] == name)
+      {
+        matched = true;
+        dynAppend(connectedNames, name);
+        break;
+      }
+    }
+    
+    if(!matched)
+    {
+      //DebugN(\"INFO: Adding connection to system \" + name);      
+      fwInstallationDB_addSystemConnection(systemName, name);
+      
+    }
+  }
+  
+  for(int i = 1; i <= dynlen(connectedSystemsInfo); i++)
+  {
+    if(dynContains(connectedNames, connectedSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME]) <= 0)
+    {  
+      //DebugN(\"INFO: Removing connection to system \" + connectedSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME]);
+      fwInstallationDB_removeSystemConnection(systemName, connectedSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME]);
+    }      
+  }
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tblConnects"
+""
+1 310 100 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 308 98 520 210
+EE 1 0 1 2 0 "name" 13 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+128 "number" 5 1 0 "s" 1
+LANG:1 6 Number
+E
+1
+LANG:1 0 
+
+60 
+14 14 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+2 1
+"PRIMITIVE_TEXT6"
+""
+1 28 114 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 312 82 412 96
+0 2 2 "0s" 0 0 0 192 0 0  312 82 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 20 Connects to systems:
+2 2
+"txTitle"
+""
+1 26 58 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 22 178 36
+0 2 2 "0s" 0 0 0 192 0 0  22 22 1
+1
+LANG:1 101 -*-MS Shell Dlg-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,758,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 26 xxxxxxxxxxxxxxxxxxxxxxxxxx
+25 3
+"tblAvailable"
+""
+1 20 100 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 18 98 230 210
+EE 1 0 1 2 0 "name" 13 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+128 "number" 5 1 0 "s" 1
+LANG:1 6 Number
+E
+1
+LANG:1 0 
+
+60 
+14 14 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+2 4
+"PRIMITIVE_TEXT7"
+""
+1 28 114 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 82 108 96
+0 2 2 "0s" 0 0 0 192 0 0  22 82 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 18 Available systems:
+13 5
+"PUSH_BUTTON1"
+""
+1 240 120 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 238 118 292 142
+
+T 
+1
+LANG:1 1 >
+"main()
+{
+  string name, number;
+  
+  dyn_int lines = tblAvailable.getSelectedLines();
+  
+  for(int i = dynlen(lines); i >= 1 ; i--)
+  {
+    getMultiValue(\"tblAvailable\", \"cellValueRC\", lines[i], \"name\", name,
+                  \"tblAvailable\", \"cellValueRC\", lines[i], \"number\", number);
+    
+    tblConnects.appendLine(\"name\", name, \"number\", number);
+    tblAvailable.deleteLineN(lines[i]);
+  }
+  
+}" 0
+ E E E
+13 7
+"PUSH_BUTTON3"
+""
+1 240 160 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 238 158 292 182
+
+T 
+1
+LANG:1 1 <
+"main()
+{
+  string name, number;
+  
+  dyn_int lines = tblConnects.getSelectedLines();
+  
+  for(int i = dynlen(lines); i >= 1 ; i--)
+  {
+    getMultiValue(\"tblConnects\", \"cellValueRC\", lines[i], \"name\", name,
+                  \"tblConnects\", \"cellValueRC\", lines[i], \"number\", number);
+    
+    tblAvailable.appendLine(\"name\", name, \"number\", number);
+    tblConnects.deleteLineN(lines[i]);
+  }
+  
+}" 0
+ E E E
+13 8
+"PUSH_BUTTON4"
+""
+1 260 220 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 258 218 342 252
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  applyChanges();
+  PanelOffReturn(makeDynFloat(1.), makeDynString(\"OK\"));
+}" 0
+ E E E
+13 9
+"PUSH_BUTTON5"
+""
+1 350 220 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 348 218 432 252
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  applyChanges();
+
+}" 0
+ E E E
+13 10
+"PUSH_BUTTON6"
+""
+1 440 220 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 438 218 522 252
+
+T 
+1
+LANG:1 6 Cancel
+E E "main()
+{
+  PanelOffReturn(makeDynFloat(0.), makeDynString(\"Cancel\")); 
+}" 0
+ E
+13 11
+"PUSH_BUTTON7"
+""
+1 20 220 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 18 218 102 252
+
+T 
+1
+LANG:1 6 Export
+"main()
+{
+  dyn_dyn_mixed connectedSystemsInfo;
+  string systemName = $peer1;
+  string configFile;
+  dyn_dyn_mixed peer1Info;
+  dyn_dyn_mixed peer2Info;
+  
+  
+  //system connectivity:
+  if(fwInstallationDB_getSystemConnectivity(systemName, connectedSystemsInfo) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Error\", makeDynString(\"$1:Could not retrieve the list of connected systems from DB\"));
+    return -1;   
+  }
+  
+  if(dynlen(connectedSystemsInfo) <= 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Warning\", makeDynString(\"$1:No distributed connections. Nothing to export\"));
+    return;
+  }
+  //Get host for local peer:
+  fwInstallationDB_getSystemProjectHost(systemName, peer1Info);
+  //DebugN(\"peer1Info: \", peer1Info);
+  
+  for(int i = 1; i <= dynlen(connectedSystemsInfo); i++)
+  {
+    fwInstallationDB_getSystemProjectHost(connectedSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME], peer2Info);
+    //DebugN(\"peer2Info: \", peer2Info);
+    
+    configFile += \"(\" + peer1Info[1][FW_INSTALLATION_DB_PROJ_SYS_HOST_HOST] + \") distPeer = \" 
+                  + peer2Info[1][FW_INSTALLATION_DB_PROJ_SYS_HOST_HOST] + \":\" + peer2Info[1][FW_INSTALLATION_DB_PROJ_SYS_HOST_DISTPORT]+ \" \" + peer2Info[1][FW_INSTALLATION_DB_PROJ_SYS_HOST_SYS_NUMBER] +\"\\n\";
+  }//end of loop
+  
+  DebugN(configFile);
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

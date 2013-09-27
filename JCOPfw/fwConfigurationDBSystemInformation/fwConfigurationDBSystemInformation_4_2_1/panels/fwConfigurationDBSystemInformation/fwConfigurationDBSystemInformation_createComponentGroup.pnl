@@ -1,0 +1,268 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 382 117 N "_3DFace" 0
+E E E E E 1 -1 -1 0  66 110
+""0  1
+E "#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+void registerGroup(){
+  
+  if(tfGroup.text == \"\"){
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Warning\", makeDynString(\"$1:You must enter a valid group name\")); 
+    return;
+  }
+  string description = myPanelName() + \": Creating new group of FW components. Name: \" + tfGroup.text;
+  fwConfigurationDBSystemInformation_logAction(description);
+  if(fwInstallationDB_registerGroup(tfGroup.text, cbAccessControlDomain.selectedText) != 0){
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"Warning\", makeDynString(\"$1:Cannot connect to DB. Please check connection parameters\")); 
+    return;
+  }
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 66 110 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 14 150 28
+0 2 2 "0s" 0 0 0 192 0 0  10 14 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 25 New component group name:
+14 1
+"tfGroup"
+""
+1 180 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  178 8 372 29
+3 "0s" 0 0 0 0 0 -1  E E E
+13 2
+"PUSH_BUTTON3"
+""
+1 284 80 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  282 78 372 104
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOffReturn(makeDynFloat(0.), makeDynString(\"Cancel\"));
+}" 0
+ E E E
+13 3
+"btnApply"
+""
+1 188 80 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  186 78 276 104
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  registerGroup();
+}" 0
+ E E E
+13 4
+"btnOK"
+""
+1 90 80 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  88 78 178 104
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  registerGroup();
+  PanelOffReturn(makeDynFloat(1.), makeDynString(\"OK\"));
+}" 0
+ E E E
+2 5
+"PRIMITIVE_TEXT2"
+""
+1 10 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 10 50 123 65
+0 2 2 "0s" 0 0 0 192 0 0  10 50 1
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Access Control Domain
+22 6
+"cbAccessControlDomain"
+""
+1 180 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  178 48 372 71
+0
+
+"main()
+{
+  dyn_string domains, domainsFullName, ex;
+  fwAccessControl_getAllDomains(domains, domainsFullName, ex);
+  if(dynlen(ex))
+  {
+    fwExceptionHandling_display(ex);
+  }
+  else
+  {
+    dynInsertAt(domains, \"\", 1);
+    cbAccessControlDomain.items = domains;
+  }
+  if (dynlen(domains) == 0)
+  {
+    btnOK.enabled = true;
+    btnApply.enabled = true;
+  }
+  
+}" 0
+
+"main()
+{
+  bool acDomainDefined = cbAccessControlDomain.selectedPos > 1;
+  bool granted = false;
+  if (acDomainDefined)
+  {
+    string domain;
+    if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+    {   
+      if (fwSysOverview_getUseApplicationBasedAccessControl())
+      {
+        domain = cbAccessControlDomain.selectedText;
+      }
+      else
+      {
+        fwSysOverview_getACDomain(domain);
+      }
+      string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+    
+      dyn_string ex;
+      fwAccessControl_isGranted(domain + \":\" + expertPrivilege, granted, ex);
+      if (dynlen(ex) >0)
+      {
+        fwExceptionHandling_display(ex);
+        return;
+      }
+    }
+    else
+    {
+      granted = true;
+    }
+    
+   
+  }
+  
+  btnOK.enabled = granted;
+  btnApply.enabled = granted;
+}
+
+
+" 0
+
+E
+ 0 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

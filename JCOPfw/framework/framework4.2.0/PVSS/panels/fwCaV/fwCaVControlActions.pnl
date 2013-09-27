@@ -1,0 +1,951 @@
+V 10
+1
+LANG:1 7 Actions
+PANEL,-1 -1 256 561 N "_3DFace" 2
+"$sDpName"
+"$sMyReferenceName"
+"main()
+{
+	int offsetX, offsetY; /* Offset issues - for addSymbol*/
+	string deviceDpType, deviceModel;
+	dyn_dyn_string elements;
+	dyn_string exceptionInfo;
+	string dpType;
+                        
+	if(isDollarDefined(\"$sMyReferenceName\"))
+		getValue($sMyReferenceName, \"position\", offsetX, offsetY);
+
+	/* Determine whether to display checkboxes for loop level or plant level */
+	dpType = dpTypeName($sDpName);
+	if(dpType==fwCaV_PlantDPT)
+	{
+		level = \"Plant\"; // useful prefix
+		PlantBitsSettings.visible = 1; // Show the checkboxes
+		Title.text = \"Plant Control Word Editor\";
+	}
+	else if (dpType==fwCaV_LoopDPT)
+	{
+		level = \"Loop\";
+		LoopBitsSettings.visible = 1;
+		Title.text = \"Loop Control Word Editor\";
+	}
+	else
+	{
+		dyn_string exceptionInfo;
+		fwException_raise(exceptionInfo, \"ERROR\", \"Unable to determine whether DP corresponds to loop or plant\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	// Add the boxes for displaying the readback status
+	addSymbol(myModuleName(),myPanelName(), \"objects/fwCaV/fwCavBitBoxes.pnl\",
+					 level+\"ReadBack\", makeDynString(\"$sDpe:\"+$sDpName+\".ReadBackSettings.control\"),
+					 offsetX+42, offsetY+92, 0, 1, 1);
+	// Add the boxes for displaying the actual status
+	addSymbol(myModuleName(),myPanelName(), \"objects/fwCaV/fwCavBitBoxes.pnl\",
+					 level+\"Actual\", makeDynString(\"$sDpe:\"+$sDpName+\".Actual.status\"),
+					 offsetX+18, offsetY+92, 0, 1, 1);
+
+	// Load current settings (not readback settings)
+	loadSettingsFromHardware(\".Settings\");
+	
+	// Obtain the data from the Model - which bits are allowed
+
+	deviceDpType = dpTypeName($sDpName);
+	fwDevice_getModel(makeDynString($sDpName), deviceModel, exceptionInfo);
+	fwDevice_getConfigElements(deviceDpType, fwDevice_ALL, elements, exceptionInfo, deviceModel, $sDpName);
+	fwGeneral_stringToDynString(elements[fwDevice_USER_DATA_INDEX][1],aControl,\";\");
+        
+        for(int i=0; i<16; i++)
+	{
+		if(aControl[i+1]==0)
+		{
+			setValue(level+\"BitsSettings\" , \"text\", i, i+\" -\"/*i +\" - N/A\"*/);
+		}
+	}
+}" 0
+ "main()
+{
+;
+}" 0
+ E E E 1 0 0 0  0 0
+""0  1
+E "string level;
+dyn_string aControl; // from Model - possible control bits
+
+loadSettingsFromHardware(string interfix=\".ReadBackSettings\")
+{
+	bit32 field;
+	dpGet($sDpName+interfix+\".control\", field);
+	
+	for(int i=0; i<16; i++)
+	{
+		if(level==\"Plant\")
+		{
+			PlantBitsSettings.state(i) = getBit(field,i);
+		}
+		else if (level==\"Loop\")
+			LoopBitsSettings.state(i) = getBit(field,i);
+	}
+}
+saveSettings()
+{
+	bit32 field;	
+	for(int i=0; i<16; i++)
+	{
+		if(level==\"Plant\")
+		{
+			setBit(field,i,PlantBitsSettings.state(i));
+		}
+		else if (level==\"Loop\")
+			setBit(field,i,LoopBitsSettings.state(i));
+	}
+	dpSetWait($sDpName+\".Settings.control\", field);
+}" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+;
+}" 0
+
+""
+NC
+1
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Title"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 258 38
+0 2 0 "0s" 0 0 0 64 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 Control Word Editor
+2 87
+"Text2"
+""
+1 35 60 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 39 72 145 88
+0 2 0 "0s" 0 0 0 64 0 0  39 72 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Readback
+2 88
+"Text3"
+""
+1 15 40 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+72 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 17 42 123 58
+0 2 0 "0s" 0 0 0 64 0 0  17 42 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Actual
+10 95
+"Polyline3"
+""
+1 35 60 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.45818181818182 0 -18.4909090909091 0 E 6 35 60
+35 335
+58 335
+58 80
+99 80
+99 60
+ 1
+10 97
+"Polyline5"
+""
+1 12 28 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+81 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.45762711864407 0 -18.3050847457627 0 E 6 12 40
+12 335
+35 335
+35 60
+76 60
+76 40
+ 1
+20 1
+"PlantBitsSettings"
+""
+1 60 100 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 58 98 232 482
+16
+T 
+1
+LANG:1 14 0 - System OFF
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 1 - Stand-by-mode
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 2 - Run mode
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 14 3 - Recovering
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 26 4 - Leak flow rate control
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 15 5 - Leak search
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 6 - Safety Heater
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 3 7 -
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 23 8 - Maintenance allowed
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 23 9 - TCR control allowed
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 10 -
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 11 -
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 12 -
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 13 13 - Reserved
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 13 14 - Reserved
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 15 - Reset
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+16
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E"main(int button, bool state)
+{
+	dyn_string exceptionInfo;
+	
+	if(aControl[button+1]==0 && state==1)
+	{
+		fwException_raise(exceptionInfo, \"INFORMATION\", \"This control bit is not available in this system\", \"\");
+		this.state(button) = 0;/*!this.state(button);*/
+	}
+	else
+	{
+		if(button==0 && state==1 && (get(4)==1 || get(5)==1))
+		{
+			this.state(button) = !this.state(button);
+			fwException_raise(exceptionInfo, \"INFORMATION\", \"Cannot go to off with bit 4 and 5 on\", \"\");
+		}
+		else if((get(0)+get(1)+get(2)+get(3))==0)
+		{
+			this.state(button) = !this.state(button);
+			fwException_raise(exceptionInfo, \"INFORMATION\", \"Plant must be set to exactly one state\", \"\");
+		}
+		else if((get(0)+get(1)+get(2)+get(3))>1)
+		{
+			clear(0);clear(1);clear(2);clear(3);
+			set(button);
+		}
+		else if( (get(8)+get(9))>1)
+		{
+			this.state(button) = !this.state(button);
+			fwException_raise(exceptionInfo, \"INFORMATION\", \"Cannot set, these states are mutually exclusive\", \"\");
+		}
+		else if(button==4 || button==5)
+		{
+			if(state && get(0)==1)
+			{
+				this.state(button) = !this.state(button);
+				fwException_raise(exceptionInfo, \"INFORMATION\", \"Plant must not be in OFF state for this mode\", \"\");
+			}
+		}
+		else if(button==13 || button==14) // Forbidden reserved bits
+			this.state(button) = 0;/*!this.state(button);*/
+	}
+
+	
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+	}
+}
+
+int get(int button)
+{
+	return this.state(button);
+}
+
+void clear(int button)
+{
+	this.state(button)=0;
+}
+
+void set(int button)
+{
+	this.state(button)=1;
+}" 0
+13 2
+"loadReadback"
+""
+1 57 480 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 55 478 229 512
+
+T 
+1
+LANG:1 27 Load settings from hardware
+"main()
+{
+	loadSettingsFromHardware();
+}" 0
+ E E E
+13 3
+"Apply"
+""
+1 10 520 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 518 82 552
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	saveSettings();
+}" 0
+ E E E
+13 4
+"Close"
+""
+1 170 520 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 518 242 552
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+	PanelOff();
+}
+" 0
+ E E E
+13 98
+"okButton"
+""
+1 90 520 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+82 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 88 518 162 552
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	saveSettings();
+	PanelOff();
+}" 0
+ E E E
+1 99 0 "" 0
+1 "message" 1 1 "main()
+{
+	time rootPanelPathTime, childPanelPathTime;
+	unsigned managerNumber = myManNum();
+	string rootPanelPath, childPanelPath, rootPanelName, childPanelName, panelName;
+	
+	
+	if(isDollarDefined(\"$sPanelRelativePath\"))
+	{
+		panelPath = $sPanelRelativePath;
+	}
+	
+	if(panelPath == \"\")
+	{
+		dpGet(	\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName\", rootPanelPath,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName:_original.._stime\", rootPanelPathTime,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.PanelName\", rootPanelName,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName\", childPanelPath,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName:_original.._stime\", childPanelPathTime,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.PanelName\", childPanelName);
+	
+
+		//	DebugN(rootPanelPath, rootPanelPathTime, childPanelPath, childPanelPathTime);
+	
+		if(rootPanelPathTime > childPanelPathTime)
+		{
+			panelPath = rootPanelPath;
+			panelName = rootPanelName;
+		}
+		else
+		{
+			panelPath = childPanelPath;
+			panelName = childPanelName;
+		}
+	
+		if(myPanelName() == panelName)
+		{
+			goodPanelName = TRUE;
+//			DebugN(\"Correct panel name\");
+		}
+		else
+		{
+			goodPanelName = FALSE;
+//			DebugN(\"Wrong panel name\");
+		}	
+	}
+//	DebugN(\"The good path is \" + panelPath);
+}" 0
+ 
+1 "leftClick" 1 1 "main()
+{
+	int replaced;
+	string 	componentName, path, tempPanelPath, helpFile, browserCommand;
+	dyn_string aux, exceptionInfo;
+	
+//	DebugN(\"The good path is \" + panelPath);
+	
+	if(!goodPanelName)
+	{
+		fwException_raise(	exceptionInfo,
+							\"ERROR\",
+							\"Open panel name doesn't match with PVSS database. Try opening the panel again.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Get component name. We assume panels are inside a directory
+	// named after the component name
+	strreplace(panelPath, \"\\\\\", \"/\");
+	aux = strsplit(panelPath, \"/\");
+	componentName = aux[1];
+//	DebugN(panelPath, componentName);
+	
+	// Remove extension if given
+	if(strpos(panelPath, \".pnl\") >= 0)
+	{
+		tempPanelPath = substr(panelPath, 0, strpos(panelPath, \".pnl\"));
+	}
+	else
+	{
+		tempPanelPath = panelPath;
+	}
+	
+	// try to find the help file associated with the panel
+	helpFile = tempPanelPath + \".html\";
+//	DebugN(\"helpFile \" + helpFile + \" tempPanelPath \" + tempPanelPath + \" componentName \" + componentName);
+	path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+	if(path == \"\")
+	{		
+		helpFile = tempPanelPath + \".htm\";
+//		DebugN(\"helpFile \" + helpFile);
+		path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+//	DebugN(componentName + \"/panels/\" + helpFile);
+		if(path == \"\")
+		{
+			fwException_raise(	exceptionInfo,
+								\"ERROR\",
+								\"Could not find the help file associated with the current panel\",
+								\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	
+//	DebugN(\"Final help path \" + path);
+	
+	fwOpenProgressBar(\"Help\", \"Opening help file...\", 1);
+	// If there were no exceptions, then display the help
+	if(_WIN32)
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandWindows\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+//		system(\"start iexplore \" + path + \" &\");
+		system(browserCommand);
+	}
+	else
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandLinux\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+		system(browserCommand);
+//		system(\"start iexplore \" + path + \" &\");
+	}
+	fwCloseProgressBar();
+}	" 0
+ 
+0
+20 5
+"LoopBitsSettings"
+""
+1 60 100 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 58 98 232 472
+16
+T 
+1
+LANG:1 12 0 - Loop OFF
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 1 - Stand-by-mode
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 2 - Run mode
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 3 - Locked
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 4 - 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 5 - 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 6 - 
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 3 7 -
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 23 8 - Maintenance allowed
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 12 9 - Reserved
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 13 10 - Reserved
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 13 11 - Reserved
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 13 12 - Reserved
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 13 13 - Reserved
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 13 14 - Reserved
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 15 - Reset
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+16
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E E
+E"main(int button, bool state)
+{
+	dyn_string exceptionInfo;
+	
+	if(aControl[button+1]==0 && state==1)
+	{
+		fwException_raise(exceptionInfo, \"INFORMATION\", \"This control bit is not available in this system\", \"\");
+		this.state(button) = 0;/*!this.state(button);*/
+	}
+	else
+	{
+		if((get(0)+get(1)+get(2)+get(3))==0)
+		{
+			this.state(button) = !this.state(button);
+			fwException_raise(exceptionInfo, \"INFORMATION\", \"Loop must be set to exactly one state\", \"\");
+		}
+		else if((get(0)+get(1)+get(2)+get(3))>1)
+		{
+			clear(0);clear(1);clear(2);clear(3);
+			set(button);
+		}
+		else if(button==9 || button==10 || button==11 || button==12 || button==13 || button==14) // Forbidden reserved bits
+			this.state(button) = 0;/*!this.state(button);*/
+	}
+	
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+	}
+}
+
+int get(int button)
+{
+	return this.state(button);
+}
+
+void clear(int button)
+{
+	this.state(button)=0;
+}
+
+void set(int button)
+{
+	this.state(button)=1;
+}" 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 530 10 T 82 1 0 1 -320 0
+1
+"$sPanelRelativePath""fwCaV/fwCaVControlActions"
+0

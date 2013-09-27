@@ -1,0 +1,339 @@
+V 10
+1
+LANG:1 0 
+PANEL,353 299 488 203 N "_3DFace" 0
+"main()
+{
+OKButton.visible=FALSE;
+	dyn_string exceptionInfo;
+	fwAccessControl_setupPanel(\"AccessControl\",exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		AccessControl(\"\",\"\"); // global \"reject\"
+		fwAccessControl_displayException(exceptionInfo);
+	};
+
+
+
+// force re-init
+g_fwAccessControl_initialised=FALSE;
+_fwAccessControl_checkInit();
+if (!g_fwAccessControl_ModeUNICOS) {
+	fwAccessControl_raiseException(exceptionInfo,\"ERROR\",\"UNICOS authorization mode not active\",\"\");
+}
+
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo); return;}
+DebugN(\"OK: UNICOS Mode active\");
+
+OKButton.visible=TRUE;
+
+}
+
+void AccessControl(string dum1, string dum2)
+{
+	OKButton.enabled=FALSE;
+	dyn_string exceptionInfo;
+	bool granted = fwAccessControl_HasSystemAdminPrivilege (exceptionInfo, \"\",TRUE);
+ 	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	}
+
+	OKButton.enabled=granted;
+}" 0
+EE E E 1 -1 -1 0  20 14
+"" 0 1
+E"void Convert()
+{
+OKButton.visible=FALSE;
+dyn_string exceptionInfo;
+
+DebugN(\"Converting access control data\",\"ASCII export of the current settings\");
+DoASCIIExport(exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+DebugN(\"Converting access control data\",\"Performing conversion\");
+ConvertData(exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+DebugN(\"Converting access control data\",\"Deactivating UNICOS mode\");
+DeactivateUNICOS(exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+setValue(\"CancelButton\",\"text\",\"Close\");
+setValue(\"OKButton\",\"visible\",false);
+
+}
+
+void DoASCIIExport(dyn_string &exceptionInfo)
+{
+
+  string asciifile=\"UNICOSAccessCtrl.dpl\";
+  string optascii = PVSS_BIN_PATH + \"PVSS00ascii\"; 
+  string infoFile = getPath(LOG_REL_PATH) + \"PVSS00ascii_info.log\"; 
+  string logFile =  getPath(LOG_REL_PATH) + \"PVSS00ascii_log.log\"; 
+  asciifile = getPath(DPLIST_REL_PATH) +  asciifile;
+
+  optascii+=\" -log +stderr -log -file > \"+infoFile+\" 2> \"+logFile; 
+
+  optascii=optascii+\" -filterDpType _FwAccessControl\";
+  optascii=optascii+\" -filterDpType _Users\";
+  optascii=optascii+\" -filterDpType _System\";
+  optascii=optascii+\" -out \"+asciifile;
+  DebugN(\"exporting the ASCII file.\");
+  DebugN(optascii);
+
+  if (_WIN32) {
+	system(\"cmd /c \"+optascii); 
+  } else {
+	system(optascii);
+  }
+
+ 
+  // now open the error-log file:
+  string slog;
+  dyn_string log;
+  if (! (fileToString(logFile,slog)) ) {
+	fwAccessControl_raiseException(exceptionInfo,\"ERROR\", \"Cannot open ASCII Manager log file \\n\"+logfile,\"\");
+	return;
+ }
+
+ if (strlen(slog)) {
+	fwAccessControl_raiseException(exceptionInfo,\"ERROR\", \"Error encountered in ASCII export. See the details in the console\",\"\");
+	log=strsplit(slog,\"\\n\");
+	for (int i=1;i<=dynlen(log);i++) {
+		DebugN(\"ASCII Export LOG\",log[i]);
+	}
+	return;
+ }
+  
+}
+
+void ConvertData(dyn_string &exceptionInfo)
+{
+  // at first, get UNICOS domains...
+  dyn_string domainList,priviledgeList,groupList,fullGroupNames;
+
+DebugN(\"Converting access control data\",\"Converting domains\");
+
+    dyn_string fullDomainNames;
+    fwAccessControl_getAllDomains ( domainList, fullDomainNames, exceptionInfo);
+    dyn_int privilegeIds;
+    fwAccessControl_getPrivilegeNames (\"\", priviledgeList, privilegeIds, exceptionInfo);
+ 
+  if (dynlen(exceptionInfo)) return;
+
+  for (int i=dynlen(priviledgeList)+1;i<=8;i++) dynAppend(priviledgeList,\"Priv\"+i);
+
+  // switch to non-UNICOS mode:
+  g_fwAccessControl_ModeUNICOS=FALSE;
+  for (int i=1;i<=dynlen(domainList);i++) {
+     fwAccessControl_checkAddDomain   ( domainList[i], 
+ 					 priviledgeList, exceptionInfo);
+     if (dynlen(exceptionInfo)) return;
+  }
+
+
+  // convert group privileges:
+DebugN(\"Converting access control data\",\"Converting group privileges\");
+  // switch back to UNICOS mode:
+  g_fwAccessControl_ModeUNICOS=TRUE;
+  fwAccessControl_getAllGroups   ( groupList, fullGroupNames, exceptionInfo);
+  if (dynlen(exceptionInfo)) return;
+
+  for (int i=1;i<=dynlen(groupList);i++) {
+    // get Privs in UNICOS mode...
+    g_fwAccessControl_ModeUNICOS=TRUE;
+    string groupName=groupList[i];
+    dyn_string privileges,fwPrivileges,sysPrivileges;
+
+    fwAccessControl_getGroupPrivileges   ( groupName, makeDynString(), privileges, exceptionInfo);
+
+    if (dynlen(exceptionInfo)) return;
+
+    // set Privs in Fw mode ...
+    g_fwAccessControl_ModeUNICOS=FALSE;
+    // get the ones already in Fw, including system domain
+    fwAccessControl_getGroupPrivileges ( groupName, makeDynString(), fwPrivileges, exceptionInfo);
+    fwAccessControl_getGroupPrivileges ( groupName, makeDynString( g_fwAccessControl_systemDomainName), sysPrivileges, exceptionInfo);
+    // join them
+    dynAppend(privileges,fwPrivileges);
+    dynAppend(privileges,sysPrivileges);
+
+    fwAccessControl_updateGroupPrivileges(groupName, privileges ,exceptionInfo);
+    if (dynlen(exceptionInfo)) return;
+
+  };
+
+
+
+}
+
+
+void DeactivateUNICOS(dyn_string &exceptionInfo)
+{
+
+  dpDelete(g_fwAccessControl_UnicosDP);
+  g_fwAccessControl_initialised=FALSE;
+  _fwAccessControl_checkInit();
+
+}" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+13 2
+"OKButton"
+""
+1 392 162 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+392 162 472 192
+T 
+1
+LANG:1 7 Proceed
+"main()
+{
+Convert();
+}" 0
+ E E E
+13 1
+"CancelButton"
+""
+1 292 162 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+292 162 372 192
+T 
+1
+LANG:1 5 Close
+"main()
+{
+PanelOff();
+}" 0
+ E E E
+1 4 2 "" 2
+0
+1 3 1 "" 0
+0
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 42 52 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 42 52 400 140
+0 2 2 "s" 0 0 0 192 0 0  42 52
+ 5
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 60 This panel will convert the access control information from 
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 36 UNICOS scheme into Framework scheme.
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 65 The backup information, in form of the ASCII export file, will be
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 58 stored in dplist/UNICOSAccessCtrl.dpl file of this project
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-100-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 45 Click "Proceed" to go on with the conversion.
+2 7
+"Text1"
+""
+1 4 -92 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 12 258 30
+0 2 2 "s" 0 0 0 192 0 0  22 12
+ 1
+1
+LANG:1 99 -adobe-helvetica-medium-r-normal-*-*-120-100-100-*-*-iso8859-1|-16,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 29 JCOP Framework Access Control
+1 5 2 "" 0
+0
+1 6 2 "" 1
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 2 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl" 20 110 T 3 1 0 1  -8 52  
+0
+3 1 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 4 1 0 1  120 0  
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_ConvertFromUNICOS"
+0

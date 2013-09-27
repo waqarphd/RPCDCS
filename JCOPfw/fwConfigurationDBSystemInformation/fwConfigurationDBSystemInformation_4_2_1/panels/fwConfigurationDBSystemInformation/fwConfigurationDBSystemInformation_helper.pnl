@@ -1,0 +1,625 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 500 431 N "_3DFace" 0
+"main()
+{
+  openProgressBar(\"DB Connection\", \"copy.gif\", \"Initializing DB connection\", \"This may take a few seconds\", \"Please wait...\", 1);
+
+  string user, db, version;
+  
+  dpGet(\"fwInstallation_agentParametrization.db.connection.username\", user,
+        \"fwInstallation_agentParametrization.db.connection.server\", db);
+  
+  txUser.text = user;
+  txDatabase.text = db;
+  enablePanel(false);
+  if(fwInstallationDB_connect())
+  {
+    shConnection.backCol = \"red\";
+    closeProgressBar();
+    return;
+  }  
+  
+  if(fwInstallationDB_getSchemaVersion(version))
+  {
+    shConnection.backCol = \"STD_trend_pen6\";
+    txStatus.text = \"Connection OK - Schema does not exist\";
+    txSchema.text = \"N/A\";
+    btnCreate.enabled = true;
+    closeProgressBar();
+    return;
+  }
+  
+  txSchema.text = version;
+  txStatus.text = \"Connection OK - Schema OK\";
+  enablePanel();
+  shConnection.backCol = \"green\";
+  closeProgressBar();
+}
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  40 70
+""0  1
+E "
+void enablePanel(bool enable = true)
+{
+  btnClear.enabled = enable;
+  btnDrop.enabled = enable;
+  btnCreate.enabled = enable;
+  
+  return;
+}
+
+int clear()
+{
+  string filename = \"fwSysStat_clearTables.sql\";
+  if(fwInstallationDB_executeSqlFromFile(filename))
+    return -1;
+  
+  return 0;
+}
+
+int drop()
+{
+  string filename = \"fwSysStat_dropSchema.sql\";
+  if(fwInstallationDB_executeSqlFromFile(filename))
+    return -1;
+  
+  return 0;
+}
+
+int create()
+{
+  int err = 0;
+  dyn_string filenames;
+  filenames[1] = \"fwSysStat_createSchema.sql\";
+  dynAppend(filenames, getFileNames(PROJ_PATH + CONFIG_REL_PATH, \"fwSysStat_upgradeSchema_*.sql\"));
+  
+  for(int i = 1; i <= dynlen(filenames); i++)
+  {
+    if(fwInstallationDB_executeSqlFromFile(filenames[i]))
+    {
+      fwInstallation_throw(\"Failed to execute PL/SQL in file: \" + filenames[i]);
+      ++err;
+    }
+  }
+
+  if(err)  
+   return -1;
+  
+  return 0;
+}
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"btnClear"
+""
+1 50 177 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  48 175 212 219
+
+T 
+1
+LANG:1 8 Clear DB
+"main()
+{
+  if(clear())
+  {
+    txClear.text = \"Action failed\";
+    shClear.backCol = \"red\";
+    return;
+  }
+  
+  txClear.text = \"Action successful\";
+  shClear.backCol = \"green\";
+}
+
+" 0
+ E E E
+13 1
+"btnDrop"
+""
+1 50 227 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  48 225 212 269
+
+T 
+1
+LANG:1 14 Drop DB Schema
+"main()
+{
+  if(drop())
+  {
+    txDrop.text = \"Action failed\";
+    shDrop.backCol = \"red\";
+    return;
+  }
+  
+  txDrop.text = \"Action successful\";
+  txStatus.text = \"DB Connection OK - Schema does not exist\";
+  shDrop.backCol = \"green\";
+  txSchema.text = \"N/A\";
+  btnClear.enabled = false;
+  btnDrop.enabled = false;
+  btnCreate.enabled = true;
+  btnDrop.enabled = true;
+  shConnection.backCol = \"yellow\";
+  txStatus.text = \"DB Connection OK - Schema does not exist\";
+}
+
+
+
+
+" 0
+ E "main()
+{
+}
+
+
+" 0
+ E
+13 2
+"btnCreate"
+""
+1 50 277 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  48 275 212 319
+
+T 
+1
+LANG:1 16 Create DB Schema
+"main()
+{
+  if(create())
+  {
+    txCreate.text = \"Action failed\";
+    shCreate.backCol = \"red\";
+    return;
+  }
+  
+  string version;
+  if(fwInstallationDB_getSchemaVersion(version))
+  {
+    shConnection.backCol = \"STD_trend_pen6\";
+    txStatus.text = \"Connection OK - Schema does not exist\";
+    txSchema.text = \"N/A\";
+    btnCreate.enabled = true;
+    return;
+  }
+  
+  txSchema.text = version;
+  txStatus.text = \"Connection OK - Schema OK\";
+
+  txCreate.text = \"Action successful\";
+  shCreate.backCol = \"green\";
+  shConnection.backCol = \"green\";
+  btnCreate.enabled = false;
+  btnClear.enabled = true;
+  btnDrop.enabled = true;
+}
+
+
+
+
+
+" 0
+ E E E
+30 3
+"FRAME1"
+""
+1 20 153 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+3 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 0 -13 0 E 20 153 481 381
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Actions
+30 4
+"FRAME2"
+""
+1 20 3 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+4 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 0 7 0 E 20 3 481 121
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Connection
+13 6
+"PUSH_BUTTON5"
+""
+1 320 380 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  318 378 482 422
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}
+" 0
+ E E E
+2 7
+"PRIMITIVE_TEXT1"
+""
+1 40 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 40 40 66 54
+0 2 2 "0s" 0 0 0 192 0 0  40 40 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 5 User:
+2 8
+"PRIMITIVE_TEXT2"
+""
+1 42 72 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42 72 92 86
+0 2 2 "0s" 0 0 0 192 0 0  42 72 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Database:
+2 9
+"PRIMITIVE_TEXT3"
+""
+1 42 102 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42 102 117 116
+0 2 2 "0s" 0 0 0 192 0 0  42 102 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Schema version
+2 10
+"PRIMITIVE_TEXT4"
+""
+1 222 42 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 222 42 314 56
+0 2 2 "0s" 0 0 0 192 0 0  222 42 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Connection Status:
+2 11
+"txUser"
+""
+1 132 42 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 132 42 150 56
+0 2 2 "0s" 0 0 0 192 0 0  132 42 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 N/A
+2 14
+"txDatabase"
+""
+1 132 72 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 132 72 150 86
+0 2 2 "0s" 0 0 0 192 0 0  132 72 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 N/A
+2 15
+"txSchema"
+""
+1 132 102 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 132 102 150 116
+0 2 2 "0s" 0 0 0 192 0 0  132 102 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 N/A
+7 16
+"shConnection"
+""
+1 420 40 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 -80 10 1 E 420 40 10 10
+7 17
+"shClear"
+""
+1 420 40 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 0 160 1 E 420 40 10 10
+7 18
+"shDrop"
+""
+1 420 40 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 0 210 1 E 420 40 10 10
+7 19
+"shCreate"
+""
+1 420 40 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 1 0 1 0 260 1 E 420 40 10 10
+2 20
+"txClear"
+""
+1 312 192 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 312 192 397 206
+0 2 2 "0s" 0 0 0 192 0 0  312 192 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Test not yet done
+2 21
+"txDrop"
+""
+1 312 242 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 312 242 397 256
+0 2 2 "0s" 0 0 0 192 0 0  312 242 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Test not yet done
+2 22
+"txCreate"
+""
+1 312 292 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 312 292 397 306
+0 2 2 "0s" 0 0 0 192 0 0  312 292 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Test not yet done
+2 23
+"PRIMITIVE_TEXT13"
+""
+1 224 74 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 224 74 248 88
+0 2 2 "0s" 0 0 0 192 0 0  224 74 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Info:
+2 24
+"txStatus"
+""
+1 254 74 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 254 74 257 88
+0 2 2 "0s" 0 0 0 192 0 0  254 74 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 1  
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

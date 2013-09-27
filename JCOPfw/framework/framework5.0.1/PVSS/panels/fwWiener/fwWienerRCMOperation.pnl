@@ -1,0 +1,252 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 749 500 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+	string model;
+	dyn_string exceptionInfo;
+
+	fwDevice_getModel(makeDynString($sDpName), model, exceptionInfo);
+
+	if(strpos(model, \"(CAN)\") > 0)
+	{
+		string deviceName;
+		int devicePosition;
+	
+		fwDevice_getPosition($sDpName, deviceName, devicePosition, exceptionInfo);
+		psIdField.text = devicePosition;
+		Tab1.namedRegisterVisible(\"groups\") = FALSE;
+		psId.text = \"CAN Bus ID:\";
+		outputInhibits.visible = TRUE;
+		g_Model = \"CAN\";
+//DebugN(\"IS CAN\");
+	}
+	else
+	{
+		psId.text = \"IP Number:\";
+	  EP_textFieldIn();
+		g_Model = \"TCP/IP\";
+//DebugN(\"IS TCP/IP\");
+	}
+        
+        if(strpos(model, \"RCM\") >= 0)
+        {
+          inhibitText.visible = FALSE;
+          hideInhibitLed.visible = TRUE;
+        }
+	
+	dpConnect(\"_fwOperatingTimeCB\", TRUE, $sDpName + \".UpTime:_online.._value\");
+	dpConnect(\"_fwOperatingTimeCB\", TRUE, $sDpName + \".OperatingTime:_online.._value\");
+}" 0
+ E E E E 1 -1 -1 0  15 70
+""0  1
+E "string g_Model;
+
+_fwOperatingTimeCB(string dpe, string value)
+{
+	float operatingTime;
+	int d, h, m, s;
+	
+	operatingTime = value;
+
+	if(g_Model == \"CAN\")
+		operatingTime /= (24*60);
+		
+	d = floor(operatingTime);
+	operatingTime = (operatingTime - d)*24;
+
+	h = floor(operatingTime);
+	operatingTime = (operatingTime - h)*60;
+
+	m = floor(operatingTime);
+	operatingTime = (operatingTime - m)*60;
+
+	s = floor(operatingTime);
+	
+	sprintf(value, \"%d days %02d:%02d:%02d\", d, h, m, s);
+        
+        if(strpos(dpe, \"OperatingTime\") >= 0)
+         	operatingTimeField.text(value);
+        else
+         	upTimeField.text(value);
+}
+
+fwWriteValue(string sDpe, int value)
+{
+	this.text = value;
+}
+
+InvalidColour(string dp, bool invalid)
+{
+	string elementColour;
+
+	if(invalid)
+		this.backCol = \"FwDead\";
+	else
+		this.backCol = \"_3DFace\";
+}
+
+EP_textFieldIn()
+{
+dyn_errClass err;
+
+  if( !dpExists( $sDpName + \".ipNumber:_online.._value\"))
+  {
+    setValue(\"psIdField\", \"color\", \"_dpdoesnotexist\");
+    return;
+  }
+
+  dpConnect(\"EP_textFieldInCB\",
+            $sDpName + \".ipNumber:_online.._value\");
+  err = getLastError();
+  if (dynlen(err) > 0)
+    setValue(\"psIdField\", \"color\", \"_dpdoesnotexist\");
+
+}
+
+
+EP_textFieldInCB(string dp, string sNewValue)
+{
+  setValue(\"psIdField\", \"text\", dpValToString(dp, sNewValue, FALSE) );
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+1
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+1 282 18 "" 0
+20 "primitiveText" 0 0 1
+1
+LANG:1 26 RCM Power Supply Operation
+
+0
+1 283 18 "13" 19
+0
+1 284 18 "13" 18
+0
+1 285 18 "" 170
+0
+1 286 18 "" 171
+0
+1 287 18 "" 172
+0
+1 288 18 "" 177
+0
+1 289 18 "" 181
+0
+1 290 18 "" 188
+0
+1 291 18 "" 191
+0
+1 292 18 "" 192
+0
+1 293 18 "" 201
+0
+1 294 18 "" 218
+0
+1 295 18 "" 210
+0
+1 296 18 "" 13
+0
+1 297 18 "14" 0
+0
+1 298 18 "15" 0
+0
+1 299 18 "15" 1
+0
+1 300 18 "" 173
+0
+1 301 18 "" 174
+0
+1 302 18 "" 175
+0
+1 303 18 "" 178
+0
+1 304 18 "" 179
+0
+1 305 18 "" 186
+0
+1 306 18 "" 193
+0
+1 307 18 "" 202
+0
+1 308 18 "" 219
+0
+1 309 18 "" 226
+0
+1 310 18 "" 238
+0
+1 311 18 "" 249
+0
+1 312 18 "" 259
+0
+1 313 18 "" 261
+0
+1 314 18 "" 262
+0
+1 315 18 "" 267
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+1 316 18 "17" 4
+0
+1 317 18 "17" 0
+0
+1 318 18 "17" 3
+0
+1 319 18 "17" 1
+0
+1 320 18 "16" 4
+0
+1 321 18 "16" 0
+0
+1 322 18 "16" 3
+0
+1 323 18 "16" 1
+0
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+1 324 18 "" 268
+0
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 18 "PANEL_REF19"
+"fwWiener/fwWienerPL512Operation.pnl" 15 70 T 124 U 
+1
+"$sDpName""$sDpName"
+0

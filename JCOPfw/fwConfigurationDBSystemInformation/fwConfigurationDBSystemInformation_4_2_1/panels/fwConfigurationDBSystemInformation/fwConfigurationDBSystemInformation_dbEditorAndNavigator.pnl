@@ -1,0 +1,712 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 1296 814 N "_3DFace" 0
+"main()
+{
+  if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+  {
+    dyn_string exception;
+    fwAccessControl_setupPanel(\"applyAcCB\", exception);
+    if(dynlen(exception))
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:\"+exception));
+  }
+  fwConfigurationDBSystemInformation_init();
+}
+
+void applyAcCB(string s1, string s2)
+{
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string domain;
+  
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  { 
+    fwSysOverview_getACDomain(domain);
+  
+    if(domain == \"\") //AC not yet configured. Enable access 
+    {
+      hasExpertPrivilege = true;
+    }
+    else
+    {
+      string expertPrivilege = fwSysOverview_getExpertPrivilege(1);
+      // check the current  privilege level 
+      if (expertPrivilege == \"\")
+      {
+        DebugN(\"No expert privilege defined!\");
+      }
+      else
+        fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+  
+      // check and handle exceptions that might have been thrown by the function above
+      if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+    }
+  }
+  else 
+  {
+    hasExpertPrivilege = true;
+  }
+  
+  btnOptions.enabled = hasExpertPrivilege;
+
+}
+
+
+" 0
+ E E E E 1 -1 -1 0  44 46
+""0  1
+E "#uses \"fwInstallationDB.ctl\"
+#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+#uses \"fwSystemOverview/fwSystemOverviewAC.ctl\"
+    
+void popupHierarchyMenu()
+{
+  dyn_float df;
+  dyn_string ds;
+  int ret;
+  string grandParent;
+  string grandParentNr;
+  string grandParentId;
+  string grandGrandParentId;
+  dyn_string menu = makeDynString(\"PUSH_BUTTON, Add, 1, 1\", 
+                                  \"SEPARATOR\",
+                                  \"PUSH_BUTTON, Remove, 2, 1\"); 
+  
+  string parent = treeEditor.getText(treeEditor.currentItem(), 0);
+  
+  
+  if(parent == 0) //Value returned by the getText method of the tree widget if no system is selected.
+    parent = \"\";
+  
+  popupMenu(menu, ret);
+  
+  if(ret == 1)
+  {
+    ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_addChildSystems.pnl\", \"Add child systems\", makeDynString(\"$parent:\"+parent), df, ds);
+    if(dynlen(df) > 0 && df[1] == 1.){
+      //DebugN(\"Panel: refreshing hierarchy tree\");
+     fwConfigurationDBSystemInformation_refreshHierarchyTree(); 
+     if(parent == \"\"){
+       ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Root system added\", makeDynString(\"Adding root system. Hierarchy info will be saved\\nto DB only when child systems will be added.\"));
+       //DebugN(\"Appending to tree: \", ds[1]);
+       treeEditor.appendItem(\"\",ds[1], ds[1]);            
+       treeEditor.setText(ds[1], 1, ds[2]);            
+     }
+    }
+  }else if(ret == 2)
+  {
+    ChildPanelOnCentralReturn(\"fwInstallation/fwInstallation_messageInfo.pnl\", \"Remove child systems\", makeDynString(\"$1:Are you sure you want to remove system: \"+ parent + \"\\nand all its children from the hierarchy?\", \"$2:Yes\", \"$3:No\"), df, ds);
+    if(dynlen(df) > 0 && df[1] == 1.){
+      //DebugN(\"Removing: \", parent);
+      //Check if grandParent is root system:
+      grandParentId = treeEditor.parent(treeEditor.currentItem());
+      grandParent = treeEditor.getText(grandParentId, 0);
+      grandParentNr = treeEditor.getText(grandParentId, 1);
+      
+      grandGrandParentId = treeEditor.parent(grandParentId);
+      //DebugN(grandGrandParentId, grandParent, grandParentNr);
+      //DebugN(\"Removing system: \", parent);
+      fwConfigurationDBSystemInformation_removeSystemHierarchy(parent);
+      fwConfigurationDBSystemInformation_refreshHierarchyTree(); 
+      
+      //Check if root system has to be added to the tree -> If grandGrandParentId == \"\" and no items in the tree:
+      if(grandGrandParentId == \"\" && !treeEditor.itemExists(grandParentId)){
+        //DebugN(\"Appeding item to treeEditor: \", grandParent);
+        treeEditor.appendItem(\"\", grandParentId, grandParent);
+        treeEditor.setText(grandParentId, 1, grandParentNr);
+      }
+    }
+  }  
+  fwConfigurationDBSystemInformation_refreshHierarchyTree();
+  return;
+}    
+
+
+void popupSetupMenu(string id)
+{
+  int ret;
+  string  type = treeEditor.getText(id, FW_INST_TYPE_COL); 
+  string item = treeEditor.getText(id, FW_INST_TAG_COL);
+  string computer;
+  string project;
+  string parent;
+  dyn_string ds;
+  dyn_float df;
+  
+  switch(type)
+  {
+    case FW_INST_COMPONENT_TYPE: //nothing to be done:
+      return;
+      break;
+    case FW_INST_GROUP_TYPE: //yet nothing to be done:
+      return;
+      break;
+    case FW_INST_PROJECT_TYPE:
+      parent = treeEditor.parent(id);
+      computer = treeEditor.getText(parent, FW_INST_TAG_COL);
+      project = item;
+      item = computer + FW_SYS_STAT_SEPARATOR + item;
+      break;
+    case FW_INST_COMPUTER_TYPE:
+      parent = treeEditor.parent(id);
+      //computer = treeEditor.getText(id, FW_INST_TAG_COL);
+      computer = item;
+      break;
+  }//end switch
+  
+    
+  dyn_string menu = makeDynString(\"PUSH_BUTTON, Assign/Remove Groups of FW Components, 1, 1\",
+                                  \"PUSH_BUTTON, Force re-installation of single components, 5, 1\",
+                                  \"SEPARATOR\",
+//                                  \"PUSH_BUTTON, Multiple project management, 6, 1\",
+//                                  \"SEPARATOR\",
+                                  \"PUSH_BUTTON, Add/Edit Groups of FW Components, 2, 1\",
+                                  \"SEPARATOR\",
+                                  \"PUSH_BUTTON, Add/Edit project paths, 4, 1\",
+                                  \"PUSH_BUTTON, Add/Edit path mapping, 3, 1\"
+                                  ); 
+   
+  popupMenu(menu, ret);
+  
+  if(ret == 1)
+  {
+    //DebugN(\"Opening panel for: \", item, type);
+    ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_addFwComponents.pnl\", \"Add FW Components\", makeDynString(\"$item:\" + item, \"$type:\" + type), df, ds);
+    if(dynlen(df) > 0 && df[1.] == 1.)
+    {
+      fwConfigurationDBSystemInformation_refreshSetupTree();
+      treeEditor.ensureItemVisible(id);
+    }
+  }
+  else if(ret == 2)
+  {
+    ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_editComponentGroup.pnl\", \"Add Groups of FWComponents\", makeDynString(\"$project:\" + project, \"$computer:\" + computer), df, ds);
+  }
+  else if(ret == 3)
+  {
+    ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_pathMapping.pnl\", \"Path mapping\", makeDynString(\"\"), df, ds);
+  }
+  else if(ret == 4)
+  {
+    ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_addProjectPaths.pnl\", \"Project Paths\", makeDynString(\"$item:\" + item, \"$type:\" + type), df, ds);
+  }
+  else if(ret == 5)
+  {
+    ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_reinstallComponentsIntoProjects.pnl\", \"Reinstall FW Components\", makeDynString(\"$item:\" + item, \"$type:\" + type), df, ds);
+  }
+  
+  fwConfigurationDBSystemInformation_refreshSetupTree();  
+} 
+    
+
+void removeAllSymbols()
+{
+  
+  if(shapeExists(FW_INST_SYSTEM_NAME_PNL + \".\" + \"tblProjects\"))
+    removeSymbol(myModuleName(), myPanelName(), FW_INST_SYSTEM_NAME_PNL);
+
+  if(shapeExists(FW_INST_COMPUTER_NAME_PNL + \".\" + \"tblProjects\"))
+    removeSymbol(myModuleName(), myPanelName(), FW_INST_COMPUTER_NAME_PNL);
+  
+  if(shapeExists(FW_INST_PROJECT_NAME_PNL + \".\" + \"tblProjectGroups\"))
+    removeSymbol(myModuleName(), myPanelName(), FW_INST_PROJECT_NAME_PNL);
+  
+  if(shapeExists(FW_INST_GROUP_NAME_PNL + \".\" + \"tblComponents\"))
+    removeSymbol(myModuleName(), myPanelName(), FW_INST_GROUP_NAME_PNL);  
+  
+  if(shapeExists(FW_INST_COMPONENT_NAME_PNL + \".\" + \"tfComponent\"))
+    removeSymbol(myModuleName(), myPanelName(), FW_INST_COMPONENT_NAME_PNL);
+  
+  if(shapeExists(FW_INST_PVSS_SYSTEM_NAME_PNL + \".\" + \"tblProjects\"))
+    removeSymbol(myModuleName(), myPanelName(), FW_INST_PVSS_SYSTEM_NAME_PNL);
+}
+
+int id2HostAndProject(string id, string& host, string& project)
+{
+  dyn_string split;
+  split = strsplit(id, \"|\");
+  if(dynlen(split) != 2)
+    return -1;
+  host = split[1];
+  project = split[2];
+  return 0;
+}
+
+void updateTree(string host, string project, bool onlyActive = true)
+{
+  dyn_string groups;
+  dyn_int groupIds;
+  dyn_dyn_mixed componentsInfo;
+      
+  fwInstallationDB_getProjectGroups(groups, groupIds, onlyActive, project, host);
+  for(int k = 1; k <= dynlen(groups); k++)
+  {
+    if(!treeEditor.itemExists(host+\"|\"+project+\"|\"+groups[k]))
+    {
+      //DebugN(\"Appeding item to treeEditor: \", host+\"|\"+project+\"|\"+groups[k]);
+      treeEditor.appendItem(host+\"|\"+project, host+\"|\"+project+\"|\"+groups[k], groups[k]); 
+      treeEditor.setText(host+\"|\"+project+\"|\"+groups[k], FW_INST_TYPE_COL, FW_INST_GROUP_TYPE);
+      fwInstallationDB_getGroupComponents(groups[k], componentsInfo);
+      for(int z = 1; z <= dynlen(componentsInfo); z++)
+      {
+        treeEditor.appendItem(host+\"|\"+project+\"|\"+groups[k], host+\"|\"+project+\"|\"+groups[k]+ \"|\" + (string) componentsInfo[z][FW_INSTALLATION_DB_COMPONENT_NAME_IDX], (string) componentsInfo[z][FW_INSTALLATION_DB_COMPONENT_NAME_IDX]);
+        treeEditor.setText(host+\"|\"+project+\"|\"+groups[k]+ \"|\" + (string)  componentsInfo[z][FW_INSTALLATION_DB_COMPONENT_NAME_IDX], FW_INST_VERSION_COL, (string) componentsInfo[z][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX]); 
+        treeEditor.setText(host+\"|\"+project+\"|\"+groups[k]+ \"|\" + (string) componentsInfo[z][FW_INSTALLATION_DB_COMPONENT_NAME_IDX], FW_INST_TYPE_COL, FW_INST_COMPONENT_TYPE);    
+      }
+    }
+  }
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 14
+"PRIMITIVE_TEXT6"
+""
+1 246 676.000000000003 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 240 742.000000000003 327 756
+0 2 2 "0s" 0 0 0 192 0 0  240 742.000000000003 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Connection Status
+2 11
+"txDB"
+""
+1 28 676.000000000003 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 742.000000000003 57 756
+0 2 2 "0s" 0 0 0 192 0 0  22 742.000000000003 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 xxxxxxx
+29 0
+"treeEditor"
+""
+1 10 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  10 30 448 672
+10 TreeWidget
+2
+0 "clicked" "(string id, int column)"
+"  string currentMode = tfCurrentMode.text;
+  string type;
+  string panelName;
+  string fileName;
+  string systemName;  
+  string computer;
+  string project;
+  
+  //DebugN(type, FW_INST_SYSTEM_TYPE);
+  switch(currentMode){
+    case \"Projects Setup\":
+      type = treeEditor.getText(id, FW_INST_TYPE_COL);
+      switch(type){
+        case FW_INST_SYSTEM_TYPE:
+          computer = \"\"; 
+          project = \"\";
+          panelName = FW_INST_SYSTEM_NAME_PNL;
+          fileName = FW_INST_SYSTEM_PNL;
+          break;
+        case FW_INST_COMPUTER_TYPE: 
+          panelName = FW_INST_COMPUTER_NAME_PNL;
+          fileName = FW_INST_COMPUTER_PNL;
+          computer  = id;
+          project = \"\";
+          break;
+        case FW_INST_PROJECT_TYPE: 
+          panelName = FW_INST_PROJECT_NAME_PNL;
+          fileName = FW_INST_PROJECT_PNL;
+          
+          //DebugN(\"ID: \", id);
+          if(id2HostAndProject(id, computer, project) == 0)
+            updateTree(computer, project);
+          
+          break;
+        case FW_INST_GROUP_TYPE: 
+          panelName = FW_INST_GROUP_NAME_PNL;
+          fileName = FW_INST_GROUP_PNL;
+          computer = \"\";
+          project = \"\";
+          break;
+        case FW_INST_COMPONENT_TYPE: 
+          panelName = FW_INST_COMPONENT_NAME_PNL;
+          fileName = FW_INST_COMPONENT_PNL;
+          computer = \"\";
+          project = \"\";
+          break;
+      
+        default: return;    
+      }
+      break;
+    case \"System Hierarchy\":          
+      systemName = treeEditor.getText(id, 0);
+      
+      if(systemName == \"\" || systemName == \"0\")
+        return;
+      panelName = FW_INST_PVSS_SYSTEM_NAME_PNL;
+      fileName = FW_INST_PVSS_SYSTEM_PNL;
+      break;
+      
+    default : return;
+
+    }   
+  removeAllSymbols();
+  
+  addSymbol(myModuleName(), myPanelName(), fileName, panelName, makeDynString(\"$id:\" + id, \"$computer:\" + computer, \"$project:\" + project), 490, 50, 0, 1, 1);"
+0 "rightClicked" "(string id, int column)"
+"  string currentMode = tfCurrentMode.text;
+  
+  if(currentMode == \"Projects Setup\")
+   popupSetupMenu(id);
+  else if(currentMode == \"System Hierarchy\")
+   popupHierarchyMenu();
+  
+"
+E14 3
+"tfCurrentMode"
+""
+1 324 690 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  322 688 448 709
+2 "0s" 0 0 0 0 0 -1  E E E
+2 4
+"PRIMITIVE_TEXT1"
+""
+1 84 554 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 242 692 316 706
+0 2 2 "0s" 0 0 0 192 0 0  242 692 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Selected mode:
+2 5
+"PRIMITIVE_TEXT2"
+""
+1 84 554 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 692 98 706
+0 2 2 "0s" 0 0 0 192 0 0  22 692 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Swtich to mode:
+22 6
+"cbModes"
+""
+1 100 690 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  98 688 222 710
+0
+
+E
+"main()
+{
+  removeAllSymbols();
+  fwConfigurationDBSystemInformation_setCurrentNavigationMode(this.text);
+}" 0
+
+E
+ 0 0
+2 7
+"txVersion"
+""
+1 28 724.000000000003 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 790.000000000003 57 804
+0 2 2 "0s" 0 0 0 192 0 0  22 790.000000000003 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 xxxxxxx
+13 8
+"PUSH_BUTTON1"
+""
+1 1200 770 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  1198 768 1292 802
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+30 9
+"FRAME1"
+""
+1 20 723 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+9 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.977777777777778 0 1.85106382978723 -9.555555555555561 -618.319148936167 0 E 20 723 471 771
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 13 DB Connection
+2 10
+"txUser"
+""
+1 28 702.000000000003 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 22 768.000000000003 57 782
+0 2 2 "0s" 0 0 0 192 0 0  22 768.000000000003 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 xxxxxxx
+2 12
+"txStatus"
+""
+1 372.9999999999997 676.000000000003 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 366.9999999999997 742.000000000003 402 756
+0 2 2 "0s" 0 0 0 192 0 0  366.9999999999997 742.000000000003 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 xxxxxxx
+7 13
+"shConnectionStatus"
+""
+1 360 750 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.680272108843537 0 0.714285714285714 102.1020408163267 213.285714285717 1 E 360 750 10 10
+2 15
+"txToolVersion"
+""
+1 246 724 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 240 790 275 804
+0 2 2 "0s" 0 0 0 192 0 0  240 790 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 xxxxxxx
+13 16
+"PUSH_BUTTON2"
+""
+1 1230 10 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 45 Search for projects meeting certain critieria
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  1228 8 1262 42
+
+P 
+4294967295
+"pictures/find.png"
+1
+LANG:1 12 PUSH_BUTTON2
+"main()
+{
+  ChildPanelOnCentral(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_search.pnl\", \"Find\", makeDynString());
+}" 0
+ E E E
+2 17
+"txInstToolVersion"
+""
+1 246 699 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 240 765 275 779
+0 2 2 "0s" 0 0 0 192 0 0  240 765 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 xxxxxxx
+13 18
+"btnOptions"
+""
+1 1090 770 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  1088 768 1182 802
+
+T 
+1
+LANG:1 7 Options
+"main()
+{
+ ChildPanelOnCentral(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_options.pnl\", \"fwConfDBSystemInfo_options\", makeDynString());
+  
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

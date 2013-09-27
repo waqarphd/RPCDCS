@@ -1,0 +1,1394 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 659 650 N "_3DFace" 0
+"main()
+{
+	EnableAll(FALSE);
+
+	dyn_string exceptionInfo; 
+ 
+	fwAccessControl_setupPanel(\"AccessControl\",exceptionInfo); 
+	if (dynlen(exceptionInfo)) { 
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	}; 
+
+	//PopulatePanel(); // this will be triggered asynchronously 
+				//by AccessControl()
+}
+ 
+" 0
+ E E E E 1 -1 -1 0  240 334
+""0  1
+E "string fwACS_ConfigDP = \"_fwAccessControlServer\";  
+void PopulatePanel()
+{
+  dyn_string exceptionInfo;
+
+  dyn_mixed acConfiguration;
+  fwAccessControl_getConfiguration(acConfiguration,exceptionInfo);  
+  if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+  
+  dyn_string allDomains, fullDomainNames;
+  fwAccessControl_getAllDomains   ( allDomains, fullDomainNames, exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+  DomainDomain.items= allDomains;
+  GroupDomain.items= allDomains;
+  UserDomain.items= allDomains;
+
+  int acEnabled=_fwAccessControl_isAccessControlEnabled(exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+  setValue(\"EnableAC\",\"state\",0,acEnabled);
+  setValue(\"AutoLogin\",\"state\",0,acConfiguration[fwAccessControl_CONFIG_Authentication_OsAutoLogin]);
+  setValue(\"ForceLogin\",\"state\",0,acConfiguration[fwAccessControl_CONFIG_Authentication_ForceLogin]);
+  setValue(\"StrictRoleChecking\",\"state\",0,acConfiguration[fwAccessControl_CONFIG_Authorization_StrictRoleChecking]);
+
+  dyn_string Priv;
+  Priv=strsplit(acConfiguration[fwAccessControl_CONFIG_AccessRight_DomainAdmin],\":\");
+  DomainSelected(\"Domain\",Priv[1],Priv[2]);
+  Priv=strsplit(acConfiguration[fwAccessControl_CONFIG_AccessRight_GroupAdmin],\":\");
+  DomainSelected(\"Group\",Priv[1],Priv[2]);
+  Priv=strsplit(acConfiguration[fwAccessControl_CONFIG_AccessRight_UserAdmin],\":\");
+  DomainSelected(\"User\",Priv[1],Priv[2]);
+  Priv=strsplit(acConfiguration[fwAccessControl_CONFIG_AccessRight_DPType],\":\");
+  DomainSelected(\"DPT\",Priv[1],Priv[2]);
+  Priv=strsplit(acConfiguration[fwAccessControl_CONFIG_AccessRight_DP],\":\");
+  DomainSelected(\"DP\",Priv[1],Priv[2]);
+  Priv=strsplit(acConfiguration[fwAccessControl_CONFIG_AccessRight_DPAlias],\":\");
+  DomainSelected(\"DPAlias\",Priv[1],Priv[2]);
+  Priv=strsplit(acConfiguration[fwAccessControl_CONFIG_AccessRight_DPAuth],\":\");
+  DomainSelected(\"DPAuth\",Priv[1],Priv[2]);
+
+  
+  // process the authentication configuration to get Auth Function/Auth Method
+  dyn_string authConfiguration=acConfiguration[fwAccessControl_CONFIG_Authentication_Configuration];
+  string authFunction=\"\";
+  if (dynlen(authConfiguration)) authFunction=authConfiguration[1];
+  if (!isFunctionDefined(authFunction)) authFunction=\"\";
+
+  int authMethod=3; // default: custom
+  if (authFunction==\"_fwAccessControl_ACServerAuthRoutine\")
+    authMethod=1;
+  else if (authFunction==\"_fwAccessControl_LDAPAuthRoutine\")
+    authMethod=2;
+  else if (authFunction==\"_fwAccessControl_PVSSAuth\" || authFunction==\"\")
+    authMethod=0;
+
+  if (_fwAccessControl_integratedMode()) {
+    AuthMethod.itemEnabled(1,TRUE);
+  } else {
+    AuthMethod.itemEnabled(1,FALSE);
+  }
+
+  if (authMethod==3) {
+    AuthFunction.text=authFunction;
+  } else if (authMethod==2) {
+    // LDAP part
+    // layout is
+    // [1] function name -> \"_fwAccessControl_LDAPAuthRoutine\"
+    // [2] LDAP Auth Method: \"PLAIN\" or \"DIGEST-MD5\"
+    // [3] LDAP Server
+    // [4] bind DN (i.e. a `username') for the simple bind
+    // [5] credentials caching
+    if (dynlen(authConfiguration)!=5) {
+      DebugN(\"LDAP Authentication Settings incorrect. Resetting to local auth\");
+      authMethod=0;
+      authFunction==\"\";    
+    } else { 
+        LDAPAuthMethod.text=authConfiguration[2];
+        LDAPServer.text=authConfiguration[3];
+        LDAPBindDN.text=authConfiguration[4];
+        bool cacheCred=(bool)(authConfiguration[5]);
+        LDAPCacheCredentials.state(0,(bool)(authConfiguration[5]));
+    }
+  }
+
+  bool acsrootpwdlocal;
+  string acsrv;
+
+  dpGet(fwACS_ConfigDP+\".rootPasswordLocal\",acsrootpwdlocal,
+        \"_fwAccessControlSetup.Integrated.ACServer\",acsrv);
+  
+  if (acsrv==getSystemName()) {
+    ACServerRootPwdLocal.state(0,acsrootpwdlocal);
+    ACServerRootPwdLocal.visible=TRUE;
+  } else {
+    ACServerRootPwdLocal.visible=FALSE;
+  }
+  
+  AuthMethod.number=authMethod;
+  AuthMethodChanged(authMethod);
+  
+}
+
+void EnableAll(bool enable=TRUE)
+{
+
+ApplyButton.enabled=enable;
+
+dyn_string what=makeDynString(\"Domain\",\"Group\",\"User\",\"DP\",\"DPT\",\"DPAlias\",\"DPAuth\");
+for (int i=1;i<=dynlen(what);i++) {
+	shape s1=getShape(what[i]+\"Domain\");
+	s1.enabled=enable;
+	shape s2=getShape(what[i]+\"Privilege\");
+	s2.enabled=enable;
+
+}
+EnableAC.enabled=enable;
+ExportButton.enabled=enable;
+AuthFunction.enabled=enable;
+AutoLogin.enabled=enable;
+ForceLogin.enabled=enable;
+StrictRoleChecking.enabled=enable;
+LDAPServer.enabled=enable;
+LDAPCacheCredentials.enabled=enable;
+LDAPAuthMethod.enabled=enable;
+LDAPBindDN.enabled=enable;
+AuthMethod.enabled=enable;
+ACServerRootPwdLocal.enabled=enable;
+
+}
+
+
+dyn_string getDomainPrivs(string domainName)
+{
+string domainFullName, domainComment;
+int domainId;
+dyn_string privilegeNames,exceptionInfo;
+dyn_int privilegeIds;
+fwAccessControl_getDomain (domainName, domainFullName, domainComment, domainId, privilegeNames, privilegeIds, exceptionInfo);
+if (dynlen(exceptionInfo)) {
+	fwAccessControl_displayException(exceptionInfo);
+	return makeDynString();
+}
+return privilegeNames;
+}
+
+void DomainSelected(string where, string domain, string priv=\"\")
+{
+
+shape sPrivilege=getShape(where+\"Privilege\");
+shape sDomain=getShape(where+\"Domain\");
+
+dyn_string privNames=getDomainPrivs(domain);
+sPrivilege.items= privNames;
+sPrivilege.text=priv;
+sDomain.text=domain;
+}
+
+
+void AccessControl(string dp, string username_from_ui) 
+{ 
+	EnableAll(FALSE);
+	dyn_string exceptionInfo;
+	bool granted = fwAccessControl_HasSystemAdminPrivilege (exceptionInfo, \"\",TRUE);
+//	if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+	PopulatePanel();
+	EnableAll(granted);
+} 
+
+void Apply()
+{
+  dyn_string exceptionInfo;
+
+  dyn_mixed acConfiguration;
+  fwAccessControl_getConfiguration(acConfiguration,exceptionInfo);  
+  if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}
+
+  
+  
+  //string domainAdmPriv,  groupAdmPriv, userAdmPriv, dptPriv, dpPriv,  dpAliasPriv, dpAuthPriv;
+  
+  //bool osAutoLogin,forceLogin;
+  
+
+  acConfiguration[fwAccessControl_CONFIG_AccessRight_DomainAdmin]=DomainDomain.text+\":\"+DomainPrivilege.text;
+  acConfiguration[fwAccessControl_CONFIG_AccessRight_GroupAdmin]=GroupDomain.text+\":\"+GroupPrivilege.text;
+  acConfiguration[fwAccessControl_CONFIG_AccessRight_UserAdmin]=UserDomain.text+\":\"+UserPrivilege.text;
+  acConfiguration[fwAccessControl_CONFIG_AccessRight_DPType]=DPTDomain.text+\":\"+DPTPrivilege.text;
+  acConfiguration[fwAccessControl_CONFIG_AccessRight_DP]=DPDomain.text+\":\"+DPPrivilege.text;
+  acConfiguration[fwAccessControl_CONFIG_AccessRight_DPAlias]=DPAliasDomain.text+\":\"+DPAliasPrivilege.text;
+  acConfiguration[fwAccessControl_CONFIG_AccessRight_DPAuth]=DPAuthDomain.text+\":\"+DPAuthPrivilege.text;
+  acConfiguration[fwAccessControl_CONFIG_Authentication_OsAutoLogin]=AutoLogin.state(0);
+  acConfiguration[fwAccessControl_CONFIG_Authentication_ForceLogin]=ForceLogin.state(0);
+  acConfiguration[fwAccessControl_CONFIG_Authorization_StrictRoleChecking]=StrictRoleChecking.state(0);
+  
+  
+  //domainAdmPriv=DomainDomain.text+\":\"+DomainPrivilege.text;
+  //groupAdmPriv=GroupDomain.text+\":\"+GroupPrivilege.text;
+  //userAdmPriv=UserDomain.text+\":\"+UserPrivilege.text;
+  //dptPriv=DPTDomain.text+\":\"+DPTPrivilege.text;
+  //dpPriv=DPDomain.text+\":\"+DPPrivilege.text;
+  //dpAliasPriv=DPAliasDomain.text+\":\"+DPAliasPrivilege.text;
+  //dpAuthPriv=DPAuthDomain.text+\":\"+DPAuthPrivilege.text;
+  //osAutoLogin=AutoLogin.state(0);
+  //forceLogin=ForceLogin.state(0);
+  
+  dyn_string authFuncParam;
+  int authMethod=AuthMethod.number;
+  if (authMethod==0) {
+    // local
+    authFuncParam=makeDynString(\"\");
+  } else if (authMethod==1) {
+    // AC Server
+    authFuncParam=makeDynString(\"_fwAccessControl_ACServerAuthRoutine\");
+  } else if (authMethod==2) {
+    // LDAP      
+    authFuncParam=makeDynString(\"_fwAccessControl_LDAPAuthRoutine\",
+                                LDAPAuthMethod.text,
+                                LDAPServer.text,
+                                LDAPBindDN.text,
+                                LDAPCacheCredentials.state(0));
+  } else {
+    // custom...
+    string funcName=AuthFunction.text;
+    if (!isFunctionDefined(funcName)) funcName=\"\";
+    authFuncParam = makeDynString(funcName);
+  }
+  
+  acConfiguration[fwAccessControl_CONFIG_Authentication_Configuration]=authFuncParam;
+  
+  fwAccessControl_setConfiguration(acConfiguration,exceptionInfo);    
+        
+//  _fwAccessControl_setAccessControlConfiguration( domainAdmPriv,  groupAdmPriv,  userAdmPriv,
+//                   dptPriv, dpPriv, dpAliasPriv, dpAuthPriv, osAutoLogin, forceLogin, authFuncParam,
+//                   exceptionInfo);
+  if (dynlen(exceptionInfo)) {
+  	fwAccessControl_displayException(exceptionInfo);
+  };
+
+  if (ACServerRootPwdLocal.visible) {
+    bool acsrootpwdlocal;
+    getValue(\"ACServerRootPwdLocal\",\"state\",0,acsrootpwdlocal);
+    dpSetWait(fwACS_ConfigDP+\".rootPasswordLocal\",acsrootpwdlocal);
+  }
+  
+  PopulatePanel();
+}
+
+void EnableAccessControl(int state)
+{
+dyn_string exceptionInfo;
+ _fwAccessControl_enableAccesControl(state,exceptionInfo);
+if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+}
+
+void Export()
+{
+string fileName;
+string path=getPath(CONFIG_REL_PATH);
+int rc=fileSelector ( fileName, path, FALSE,\"*\",FALSE );
+
+if (rc) {
+	dyn_string exceptionInfo;
+	fwAccessControl_raiseException(exceptionInfo,\"ERROR\",\"Wrong filename specified\",\"\");
+	fwAccessControl_displayException(exceptionInfo);
+	return;
+}
+bool ok=_fwAccessControl_exportToPostInstall(fileName);
+}
+
+void AuthMethodChanged(int state)
+{
+  AuthFunction.visible=FALSE; 
+  AUTHFUN1.visible=FALSE;
+  LDAP1.visible=FALSE;
+  LDAP2.visible=FALSE;
+  LDAP3.visible=FALSE;
+  LDAP4.visible=FALSE;
+  LDAPServer.visible=FALSE;
+  LDAPAuthMethod.visible=FALSE;
+  LDAPBindDN.visible=FALSE;
+  LDAPCacheCredentials.visible=FALSE;  
+  if (state==0) {
+    
+  } else if (state==1) {
+     
+  } else if (state==2) {
+    LDAP1.visible=TRUE;
+    LDAP2.visible=TRUE;
+    LDAP3.visible=TRUE;
+    LDAP4.visible=TRUE;
+    LDAPServer.visible=TRUE;
+    LDAPAuthMethod.visible=TRUE;
+    LDAPBindDN.visible=TRUE;
+    LDAPCacheCredentials.visible=TRUE;
+    if (!isFunctionDefined(\"ldapCheckAuth\")) {
+      fwAccessControl_displayMessage(\"WARNING! LDAP Auth selected but CtrlLDAP\\n not loaded! Enable it in the config file\");
+      AuthMethod.number(0);
+      AuthMethod.itemEnabled(2,FALSE);
+      AuthMethodChanged(0);
+    }
+  } else if (state==3) {
+         AuthFunction.visible=TRUE; 
+         AUTHFUN1.visible=TRUE;
+  }
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+14 23
+"DPTDomain"
+""
+1 187.704081632653 182.023809523809 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  188 183 417 212
+2 "0s" 0 0 0 0 0 -1  E E E
+22 19
+"DPTPrivilege"
+""
+1 417.84693877551 183 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  418 183 633 212
+0
+
+E
+E
+E
+ 0 0
+1 187 1 "" 0
+0
+1 188 1 "" 1
+0
+1 189 1 "" 2
+0
+1 185 1 "" 4
+0
+1 186 1 "" 3
+0
+1 190 1 "" 5
+0
+2 7
+"Text1"
+""
+1 40 128 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 35 130 160 146
+0 2 2 "0s" 0 0 0 192 0 0  35 130 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 20 Group administration
+2 6
+"PRIMITIVE_TEXT1"
+""
+1 40 128 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 35 100 170 116
+0 2 2 "0s" 0 0 0 192 0 0  35 100 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Domain administration
+1 192 3 "" 2
+0
+1 193 3 "" 1
+0
+1 194 3 "" 4
+0
+2 8
+"Text2"
+""
+1 40 128 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 35 160 151 176
+0 2 2 "0s" 0 0 0 192 0 0  35 160 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 19 User administration
+2 15
+"Text3"
+""
+1 40 128 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 35 190 193 206
+0 2 2 "0s" 0 0 0 192 0 0  35 190 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 24 DPT create/update/delete
+2 16
+"Text4"
+""
+1 40 128 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 35 220 139 236
+0 2 2 "0s" 0 0 0 192 0 0  35 220 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 16 DP create/delete
+2 17
+"Text5"
+""
+1 40 128 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 35 250 116 266
+0 2 2 "0s" 0 0 0 192 0 0  35 250 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 13 DP alias edit
+2 18
+"Text6"
+""
+1 40 128 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 35 280 112 296
+0 2 2 "0s" 0 0 0 192 0 0  35 280 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 12 DP auth edit
+2 35
+"Text7"
+""
+1 270 94 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 260 67 312 83
+1 2 2 "0s" 0 0 0 192 0 0  260 67 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Domain:
+2 36
+"Text8"
+""
+1 400 88 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 465 67 523 83
+1 2 2 "0s" 0 0 0 192 0 0  465 67 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Privilege:
+2 46
+"Text9"
+""
+1 -318 -104 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 20 10 259 30
+0 2 2 "0s" 0 0 0 192 0 0  20 10 1
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 29 JCOP Framework Access Control
+30 5
+"FRAME1"
+""
+1 20 74 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+31 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 0.766961651917404 0 -6.75516224188791 0 E 20 74 640 414
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 27 Access rights required for:
+22 9
+"DomainDomain"
+""
+1 187.704081632653 93 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  188 93 417 122
+0
+
+E
+"main()
+{
+	DomainSelected(\"Domain\",this.text);
+}" 0
+
+E
+ 0 0
+22 10
+"DomainPrivilege"
+""
+1 417.84693877551 93 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  418 93 633 122
+0
+
+E
+E
+E
+ 0 0
+22 11
+"GroupDomain"
+""
+1 187.704081632653 122 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  188 122 417 151
+0
+
+E
+"main()
+{
+DomainSelected(\"Group\",this.text);
+}" 0
+
+E
+ 0 0
+22 13
+"GroupPrivilege"
+""
+1 417.84693877551 123 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  418 123 633 152
+0
+
+E
+E
+E
+ 0 0
+22 12
+"UserDomain"
+""
+1 187.704081632653 152 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  188 152 417 181
+0
+
+E
+"main()
+{
+DomainSelected(\"User\",this.text);
+}" 0
+
+E
+ 0 0
+22 14
+"UserPrivilege"
+""
+1 417.84693877551 153 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  418 153 633 182
+0
+
+E
+E
+E
+ 0 0
+13 0
+"CloseButton"
+""
+1 558 607.692307692308 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  558 608 638 642
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+PanelOff();
+}" 0
+ E E E
+14 24
+"DPDomain"
+""
+1 187.704081632653 212.023809523809 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  188 213 417 242
+2 "0s" 0 0 0 0 0 -1  E E E
+22 20
+"DPPrivilege"
+""
+1 417.84693877551 213 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  418 213 633 242
+0
+
+E
+E
+E
+ 0 0
+14 25
+"DPAliasDomain"
+""
+1 187.704081632653 242.023809523809 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  188 243 417 272
+2 "0s" 0 0 0 0 0 -1  E E E
+22 21
+"DPAliasPrivilege"
+""
+1 417.84693877551 243 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  418 243 633 272
+0
+
+E
+E
+E
+ 0 0
+14 26
+"DPAuthDomain"
+""
+1 187.704081632653 272.02380952381 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  188 273 417 302
+2 "0s" 0 0 0 0 0 -1  E E E
+22 22
+"DPAuthPrivilege"
+""
+1 417.84693877551 273 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  418 273 633 302
+0
+
+E
+E
+E
+ 0 0
+13 33
+"ApplyButton"
+""
+1 473 607.692307692308 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  473 608 553 642
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	Apply();
+}" 0
+ E E E
+20 27
+"EnableAC"
+""
+1 18 613 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  18 613 188 641
+1
+T 
+1
+LANG:1 21 Enable Access Control
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+EnableAccessControl(state);
+}" 0
+1 191 2 "" 0
+0
+13 56
+"ExportButton"
+""
+1 198 607.692307692308 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 36 Export Access Control data to a file
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  198 608 278 642
+
+T 
+1
+LANG:1 9 Export...
+"main()
+{
+	Export();
+}" 0
+ E E E
+30 73
+"FRAME2"
+""
+1 20 473 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+34 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 3.947368421052633 0 -1492.105263157897 0 E 20 473 641 531
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Authentication:
+2 76
+"PRIMITIVE_TEXT3"
+""
+1 40 128 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 30 394.999999999999 70 411
+0 2 2 "0s" 0 0 0 192 0 0  30 394.999999999999 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Mode:
+20 77
+"AutoLogin"
+""
+1 30 530 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 76 Log in a user who is authenticated to the operating system when UI is opened
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  28 528 202 557
+1
+T 
+1
+LANG:1 19 Enable OS Autologin
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE19 88
+"AuthMethod"
+""
+1 75 395 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  73 393 197 502
+4
+T 
+1
+LANG:1 5 Local
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 9 AC Server
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 4 LDAP
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 5 Other
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+  AuthMethodChanged(button);
+}" 0
+
+14 89
+"AuthFunction"
+""
+1 355 540 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 35 Name of the authentication function
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  353 538 627 567
+3 "0s" 0 0 0 0 0 -1  E E E
+14 90
+"LDAPServer"
+""
+1 335 410 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  333 408 517 437
+3 "0s" 0 0 0 0 0 -1  E E E
+14 91
+"LDAPBindDN"
+""
+1 280 485 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  278 483 627 508
+3 "0s" 0 0 0 0 0 -1  E E E
+22 94
+"LDAPAuthMethod"
+""
+1 335 445 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  333 443 462 472
+2
+1
+LANG:1 6 SIMPLE
+
+0
+1
+LANG:1 10 DIGEST-MD5
+
+0
+
+E
+E
+E
+ 0 1
+2 97
+"LDAP2"
+""
+1 40 128 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 220 415 304 431
+0 2 2 "0s" 0 0 0 192 0 0  220 415 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 12 LDAP Server:
+30 99
+"LDAP4"
+""
+1 20 473 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+55 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.67741935483871 0 2.19298245614036 196.451612903226 -647.28070175439 0 E 20 473 641 531
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 19 LDAP Configuration:
+2 100
+"AUTHFUN1"
+""
+1 35 143 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 210 545 352 561
+0 2 2 "0s" 0 0 0 192 0 0  210 545 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Authentication Function:
+20 122
+"ForceLogin"
+""
+1 30 510 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 54 Login dialog is opened when the new manager is started
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  28 508 197 537
+1
+T 
+1
+LANG:1 22 Force Login On Startup
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE2 137
+"LDAP1"
+""
+1 325 600 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 220 450 335 466
+0 2 2 "0s" 0 0 0 192 0 0  220 450 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 16 LDAP AuthMethod:
+20 149
+"StrictRoleChecking"
+""
+1 30 550 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 76 Log in a user who is authenticated to the operating system when UI is opened
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  28 548 202 577
+1
+T 
+1
+LANG:1 20 Strict Role Checking
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE2 160
+"LDAP3"
+""
+1 240 505 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 220 485 270 501
+0 2 2 "0s" 0 0 0 193 0 0  245 485 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 7 BindDN:
+20 172
+"LDAPCacheCredentials"
+""
+1 490 445 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  488 443 622 472
+1
+T 
+1
+LANG:1 17 Cache credentials
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE20 184
+"ACServerRootPwdLocal"
+""
+1 30 570 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 63 AC Server preserves root password of clients being synchronized
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  28 568 242 597
+1
+T 
+1
+LANG:1 30 AC Server: root password local
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 1 "PANEL_REF0" -1
+"objects/fwAccessControl/fwAccessControl_ACServerStatus.pnl" 30 540 T 15 1 0 1 -30 -245
+0
+3 2 "PANEL_REF0" -1
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 19 1 0 1 268 -11
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_Setup"
+3 3 "PANEL_REF0" -1
+"objects/fwAccessControl/fwAccessControl_CurrentUser.pnl" 12 1.85938 T 20 1 0 1 357 -7
+0
+0

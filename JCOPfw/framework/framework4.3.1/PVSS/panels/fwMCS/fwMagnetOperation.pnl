@@ -1,0 +1,401 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 702 423 N "_3DFace" 1
+"$sDpName"
+"main()
+{	
+	subscriptionDetails();
+}" 0
+ E E E E 1 0 0 0  338 60
+""0  1
+E "
+//string addressDIP = \"dip/test/Magnet\";
+			
+subscriptionDetails()
+{
+	int i, length;
+	string dp;
+	dyn_string items, split, exceptionInfo;
+	dyn_dyn_string currentData;
+	dyn_string dataTypes;
+	string val, dipItem;
+	
+	dipDetailsTable.deleteAllLines;
+
+	items = dpNames(\"*:*\",\"_FwDipConfig\");
+
+	for (int i = 1; i<=dynlen(items); i++)
+	{
+		dp = items[i];
+
+		if(!dpExists(dp))
+			return;
+		
+		fwDIP_getAllSubscriptions(dp, currentData, exceptionInfo);
+		
+		if(dynlen(currentData)==0)
+			return;
+	
+		length = dynlen(currentData[fwDIP_OBJECT_ITEM]);
+		if(length > 0)
+		{		
+			for(int j=1; j<=length; j++)
+			{
+				// we have to select only the dpes and tags related to specific DIP item
+				split = strsplit(currentData[fwDIP_OBJECT_DPES][j],\".\");
+				dipItem = split[1];
+	
+				if(dipItem == $sDpName)
+				{
+					if(!dpExists(currentData[fwDIP_OBJECT_DPES][j]))
+						val = \"\";
+					else
+                                                val = currentData[fwDIP_OBJECT_DPES][j];	
+                                        
+					fwConfigs_getDpeTypeText(currentData[fwDIP_OBJECT_DPES][j], dataTypes, exceptionInfo);
+					dipDetailsTable.appendLine(\"dpe\", currentData[fwDIP_OBJECT_DPES][j],
+									\"dipTag\", currentData[fwDIP_OBJECT_TAGS][j],
+									\"dataType\", dataTypes,
+									\"value\", val);				
+					if(!dpExists(currentData[fwDIP_OBJECT_DPES][j]))
+						dipDetailsTable.cellBackColRC(dipDetailsTable.lineCount-1,\"dpe\",\"DpDoesNotExist\");
+				}			
+			}
+                        // have to draw the table before we can update the values with dpConnect
+			for(int j=1; j<=length; j++)
+			{
+				// we have to select only the dpes and tags related to specific DIP item
+				split = strsplit(currentData[fwDIP_OBJECT_DPES][j],\".\");
+				dipItem = split[1];
+	
+				if((dipItem == $sDpName) && dpExists(currentData[fwDIP_OBJECT_DPES][j]))
+				     dpConnect(\"updateDIPValue\",currentData[fwDIP_OBJECT_DPES][j]);			
+			}                        
+		}
+	}
+}
+/*
+  This function updates the value in the DIP viewer
+   - Added by Erik Morset
+*/
+updateDIPValue(string dpName, float dpVal)
+{
+    string cellVal;
+    for(int i=0;i<=dipDetailsTable.lineCount;i++)
+    {
+       getValue(\"dipDetailsTable\", \"cellValueRC\", i, \"dpe\",cellVal);
+       if(dpName==(cellVal+\":_online.._value\"))
+          setValue(\"dipDetailsTable\",\"cellValueRC\",i,\"value\",dpVal);
+    }
+}    
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 6
+"Text4"
+""
+1 275 -50 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 277 -48 383 -29
+0 2 0 "0s" 0 0 0 64 0 0  277 -48 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 DIP Item:
+2 8
+"Text2"
+""
+1 275 -50 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 277 -48 383 -29
+0 2 0 "0s" 0 0 0 64 0 0  277 -48 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 DIP Item:
+2 14
+"Text5"
+""
+1 23 13 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 25 15 175 38
+0 2 0 "0s" 0 0 0 192 0 0  25 15 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Magnet Operation
+13 11
+"close"
+""
+1 610 380 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 608 378 692 412
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+25 15
+"dipDetailsTable"
+""
+1 -1278 -1525 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 58 692 372
+EE 1 0 1 4 1 "dpe" 25 1 0 "s" 1
+LANG:1 18 Data Point Element
+E
+1
+LANG:1 0 
+
+290 "dipTag" 11 1 0 "s" 1
+LANG:1 7 DIP Tag
+E
+1
+LANG:1 0 
+
+130 "dataType" 7 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+90 "value" 12 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+140 
+26 26 "" 1 1
+LANG:1 2 #1
+8 64
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+1 16 0 "" 0
+1 "leftClick" 1 1 "main()
+{
+	int replaced;
+	string 	componentName, path, tempPanelPath, helpFile, browserCommand;
+	dyn_string aux, exceptionInfo;
+	
+//	DebugN(\"The good path is \" + panelPath);
+	
+	if(!goodPanelName)
+	{
+		fwException_raise(	exceptionInfo,
+							\"ERROR\",
+							\"Open panel name doesn't match with PVSS database. Try opening the panel again.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Get component name. We assume panels are inside a directory
+	// named after the component name
+	strreplace(panelPath, \"\\\\\", \"/\");
+	aux = strsplit(panelPath, \"/\");
+	componentName = aux[1];
+//	DebugN(panelPath, componentName);
+	
+	// Remove extension if given
+	if(strpos(panelPath, \".pnl\") >= 0)
+	{
+		tempPanelPath = substr(panelPath, 0, strpos(panelPath, \".pnl\"));
+	}
+	else
+	{
+		tempPanelPath = panelPath;
+	}
+	
+	// try to find the help file associated with the panel
+	helpFile = tempPanelPath + \".html\";
+//	DebugN(\"helpFile \" + helpFile + \" tempPanelPath \" + tempPanelPath + \" componentName \" + componentName);
+	path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+	if(path == \"\")
+	{		
+		helpFile = tempPanelPath + \".htm\";
+//		DebugN(\"helpFile \" + helpFile);
+		path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+//	DebugN(componentName + \"/panels/\" + helpFile);
+		if(path == \"\")
+		{
+			fwException_raise(	exceptionInfo,
+								\"ERROR\",
+								\"Could not find the help file associated with the current panel\",
+								\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	
+//	DebugN(\"Final help path \" + path);
+	
+	fwOpenProgressBar(\"Help\", \"Opening help file...\", 1);
+	// If there were no exceptions, then display the help
+	if(_WIN32)
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandWindows\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+//		system(\"start iexplore \" + path + \" &\");
+		system(browserCommand);
+	}
+	else
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandLinux\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+		system(browserCommand);
+//		system(\"start iexplore \" + path + \" &\");
+	}
+	fwCloseProgressBar();
+}	" 0
+ 
+1 "message" 1 1 "main()
+{
+	time rootPanelPathTime, childPanelPathTime;
+	unsigned managerNumber = myManNum();
+	string rootPanelPath, childPanelPath, rootPanelName, childPanelName, panelName;
+	
+	
+	if(isDollarDefined(\"$sPanelRelativePath\"))
+	{
+		panelPath = $sPanelRelativePath;
+	}
+	
+	if(panelPath == \"\")
+	{
+		dpGet(	\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName\", rootPanelPath,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName:_original.._stime\", rootPanelPathTime,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.PanelName\", rootPanelName,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName\", childPanelPath,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName:_original.._stime\", childPanelPathTime,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.PanelName\", childPanelName);
+	
+
+		//	DebugN(rootPanelPath, rootPanelPathTime, childPanelPath, childPanelPathTime);
+	
+		if(rootPanelPathTime > childPanelPathTime)
+		{
+			panelPath = rootPanelPath;
+			panelName = rootPanelName;
+		}
+		else
+		{
+			panelPath = childPanelPath;
+			panelName = childPanelName;
+		}
+	
+		if(myPanelName() == panelName)
+		{
+			goodPanelName = TRUE;
+//			DebugN(\"Correct panel name\");
+		}
+		else
+		{
+			goodPanelName = FALSE;
+//			DebugN(\"Wrong panel name\");
+		}	
+	}
+//	DebugN(\"The good path is \" + panelPath);
+}" 0
+ 
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 584 7 T 16 1 0 1 76 3
+1
+"$sPanelRelativePath""fwMCS/fwMagnetOperation"
+0

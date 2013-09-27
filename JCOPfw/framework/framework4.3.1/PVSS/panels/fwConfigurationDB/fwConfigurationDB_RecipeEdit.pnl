@@ -1,0 +1,1084 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 674 667 N "_3DFace" 3
+"$description"
+"$readOnlyMode"
+"$recipeObjectVarName"
+"main()
+{
+
+	dyn_string exceptionInfo;
+
+	if (!isDollarDefined(\"$recipeObjectVarName\")) {
+		fwException_raise(exceptionInfo,\"ERROR\",
+			\"Dollar parameter $recipeObjectVar not defined\",\"\");	
+		fwExceptionHandling_display(exceptionInfo); 
+		return;
+	}
+
+
+	if(getGlobalType($recipeObjectVarName) != DYN_DYN_MIXED_VAR) {
+		fwException_raise(exceptionInfo,\"ERROR\",
+			\"Global variable \"+$recipeObjectVarName+\" passed in $recipeObjectVar\"+
+			\" is not defined or has a wrong type:\"+getGlobalType($recipeObjectVarName),\"\");	
+		fwExceptionHandling_display(exceptionInfo); 
+		return;
+
+	}
+	
+
+	PopulatePanel();
+
+}" 0
+ E E E E 1 -1 -1 0  20 510
+""0  1
+E "global dyn_dyn_mixed recipeObject;
+global string gSelectedDevice=\"\";
+global bool readOnlyMode=FALSE;
+
+void PopulatePanel()
+{
+ElementDescription.text=\"\";
+  
+dyn_string exceptionInfo;
+setValue(\"PropertiesTable\",\"columnVisibility\",0,FALSE);
+Datapoint.text=\"\";
+
+fwGeneral_getGlobalValue($recipeObjectVarName, recipeObject, exceptionInfo); 
+if (dynlen(exceptionInfo)){
+	fwExceptionHandling_display(exceptionInfo); 
+	return;
+}
+
+if (dynlen(recipeObject)==0) _fwConfigurationDB_ClearRecipeObject(recipeObject);
+
+string originalName,recipeType,recipeComment;
+
+if (_fwConfigurationDB_getRecipeOriginalRecipeType(recipeObject, recipeType, exceptionInfo) ) {
+	recipeType=\"\";	
+}else{ recipeType=\"Recipe Type: \"+recipeType;}
+
+if (_fwConfigurationDB_getRecipeOriginalName(recipeObject, originalName, exceptionInfo) ) {
+	originalName=\"\";
+}else{ originalName=\"OriginalName: \"+originalName;}
+
+if (_fwConfigurationDB_getRecipeComment(recipeObject, recipeComment, exceptionInfo) ) {
+	recipeComment=\"\";	
+}else{ recipeComment=\"Recipe Comment: \"+recipeComment;}
+
+RecipeName.text=recipeObject[fwConfigurationDB_RO_META_ORIGNAME];
+RecipeComment.text=recipeObject[fwConfigurationDB_RO_META_COMMENT];
+RecipeType.text=recipeObject[fwConfigurationDB_RO_META_RECIPETYPE];
+RecipeClass.text=recipeObject[fwConfigurationDB_RO_META_CLASSNAME];
+CreatedTime.text=recipeObject[fwConfigurationDB_RO_META_CREATIONTIME];
+CreatedUser.text=recipeObject[fwConfigurationDB_RO_META_AUTHOR];
+LastModifiedTime.text=recipeObject[fwConfigurationDB_RO_META_LASTMODIFICATIONTIME];
+LastModifiedUser.text=recipeObject[fwConfigurationDB_RO_META_LASTMODIFICATIONUSER];
+LastAppliedUser.text=recipeObject[fwConfigurationDB_RO_META_LASTACTIVATIONUSER];
+LastAppliedTime.text=recipeObject[fwConfigurationDB_RO_META_LASTACTIVATIONTIME];
+
+dyn_string devices=recipeObject[fwConfigurationDB_RO_DP_NAME];
+dynUnique(devices);
+
+setValue(\"DeviceList\",\"items\",devices);
+
+
+if (isDollarDefined(\"$readOnlyMode\")) {
+	readOnlyMode=$readOnlyMode;
+}
+
+if (readOnlyMode) {
+	OKButton.visible=FALSE;
+	CancelButton.text=\"Close\";
+	Label.text=\"View recipe data\";
+	PropertiesTable.backCol=\"lightgrey\";
+} else {
+	Label.text=\"Edit recipe data\";
+}
+
+if (isDollarDefined (\"$description\")) {
+	Label.text=$description;
+}
+
+}
+
+
+void SelectedDevice(string device)
+{
+	string datapoint=\"\";
+	Datapoint.text=datapoint;
+	gSelectedDevice=device;
+	setValue(\"PropertiesTable\",\"deleteAllLines\");
+ElementDescription.text=\"\";
+
+	// find all entries concerning this device:
+	dyn_int devIdx;
+
+	for (int i=1;i<=dynlen(recipeObject[fwConfigurationDB_RO_DP_NAME]);i++) {
+		if (  recipeObject[fwConfigurationDB_RO_DP_NAME][i]==device ) {
+		   
+		   // we resolve the datapoint...
+		   if (datapoint==\"\") {
+			dyn_string sDpeName=strsplit(recipeObject[fwConfigurationDB_RO_DPE_NAME][i],\".\");
+			if (dynlen(sDpeName)>=1) {
+				datapoint=sDpeName[1];
+			} else {
+				datapoint=\"(unresolved)\";
+			}
+		   }
+
+		   //if (recipeObject[fwConfigurationDB_RO_ELEMENT_TYPE][i]==0) continue;
+		   dynAppend(devIdx,i);
+		}
+	}
+
+	setValue(\"Frame\",\"text\", \"Properties of \"+device);
+
+	for (int i=1;i<=dynlen(devIdx);i++) {
+		string value=\" value N/A\";
+		string alert=\" alert N/A\";
+
+		if (recipeObject[fwConfigurationDB_RO_HAS_VALUE][devIdx[i]]) value=recipeObject[fwConfigurationDB_RO_VALUE][devIdx[i]];
+		if (recipeObject[fwConfigurationDB_RO_HAS_ALERT][devIdx[i]]) alert=recipeObject[fwConfigurationDB_RO_ALERT_ACTIVE][devIdx[i]];
+		setValue(\"PropertiesTable\",\"appendLine\",
+				\"DeviceProperty\",\"\",
+				\"DataPointElement\",recipeObject[fwConfigurationDB_RO_ELEMENT_NAME][devIdx[i]],
+				\"PropertyValue\",value,
+				\"PropertyAlert\",alert,
+				\"Id\",devIdx[i]);
+	};
+	
+	// print also the datapoint information
+	// taken from the DPE
+	Datapoint.text=datapoint;
+}
+
+
+void UpdateRow(int row, int dpeIdx)
+{
+	string value=\" value N/A\";
+	string alert=\" alert N/A\";
+	if (recipeObject[fwConfigurationDB_RO_HAS_VALUE][dpeIdx]) value=recipeObject[fwConfigurationDB_RO_VALUE][dpeIdx];
+	if (recipeObject[fwConfigurationDB_RO_HAS_ALERT][dpeIdx]) alert=recipeObject[fwConfigurationDB_RO_ALERT_ACTIVE][dpeIdx];
+
+	setValue(\"PropertiesTable\",\"cellValueRC\",row,
+			\"PropertyValue\",value);
+	setValue(\"PropertiesTable\",\"cellValueRC\",row,
+			\"PropertyAlert\",alert);
+}
+
+bool Apply()
+{
+dyn_string exceptionInfo;
+
+
+
+fwGeneral_setGlobalValue($recipeObjectVarName, recipeObject, exceptionInfo); 
+if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+	return FALSE;
+}
+
+return TRUE;
+
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"CancelButton"
+""
+1 570 630 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  570 630 650 660
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+13 2
+"OKButton"
+""
+1 480 630 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  480 630 560 660
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+if (Apply()) PanelOffReturn(makeDynFloat(1.0),makeDynString());
+}" 0
+ E E E
+13 3
+"RevertButton"
+""
+1 20 630 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 27 Revert to original settings
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  20 630 100 660
+
+T 
+1
+LANG:1 6 Revert
+"main()
+{
+	PopulatePanel();
+}" 0
+ E E E
+25 4
+"PropertiesTable"
+""
+1 18 368 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E "main(int row, string column)
+{
+  
+	if (gSelectedDevice==\"\") return;
+
+	dyn_string exceptionInfo;
+	dyn_string line;
+
+  if (row<0) return;
+
+	getValue(\"\",\"getLineN\",row,line);
+	int idx=line[5];
+	if (idx<1) return;
+	string dpe=recipeObject[fwConfigurationDB_RO_DPE_NAME][idx];
+	dyn_string ds;
+	dyn_float df;
+	string propName=gSelectedDevice+line[2];
+
+	if (column==\"PropertyAlert\") {
+          
+                dyn_dyn_anytype origAlertObject;
+		addGlobal(\"gAlertObject\",DYN_DYN_ANYTYPE_VAR);
+
+
+		_fwConfigurationDB_recipeObjectToAlertObject(recipeObject,
+                                             dpe,
+                                             origAlertObject,
+                                             exceptionInfo);
+		if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);removeGlobal(\"gAlertObject\");return;}
+      gAlertObject=origAlertObject;
+                
+		ChildPanelOnCentralReturn(
+				\"fwConfigs/fwAlertConfig.pnl\",
+				\"Alert settings in recipe\",
+				makeDynString(
+					\"$bHierarchyBrowser:FALSE\",
+					\"$sDpeConfigObjectVarName:gAlertObject\"
+				),df,ds);
+                if (gAlertObject!=origAlertObject) {
+		  _fwConfigurationDB_alertObjectToRecipeObject(gAlertObject,
+                                             recipeObject,
+                                             exceptionInfo);
+  	          recipeObject[fwConfigurationDB_RO_RECDATA_PROPID][idx]=\"\";
+                }
+		removeGlobal(\"gAlertObject\");
+		if (dynlen(exceptionInfo)) {
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+
+
+	} else if (column==\"PropertyValue\") {
+		string value;
+	
+		dyn_string params;
+		dynAppend(params,\"$whatText:\"+propName);
+		int dataType=recipeObject[fwConfigurationDB_RO_ELEMENT_TYPE][idx];
+		dynAppend(params,\"$dataType:\"+dataType);
+		bool hasValue=recipeObject[fwConfigurationDB_RO_HAS_VALUE][idx];
+
+		if (hasValue) {
+			dynAppend(params,\"$data:\"+recipeObject[fwConfigurationDB_RO_VALUE][idx]);
+		}
+		
+		ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_RecipeEditValue.pnl\",
+				\"Edit value for \"+propName,
+				params,
+				df,ds);
+
+		if (df[1]==2.0){ // value not defined
+			recipeObject[fwConfigurationDB_RO_HAS_VALUE][idx]=FALSE;
+			recipeObject[fwConfigurationDB_RO_VALUE][idx]=\"\";
+		}
+
+		if (df[1]==1.0) { // value defined
+
+			//!!! No conversion needed here!!!
+			//anytype newValue;
+			//_fwConfigurationDB_stringToData(ds[1], dataType, \"|\",
+                        //              newValue, exceptionInfo);
+			//if (dynlen(exceptionInfo)) {
+			//	fwExceptionHandling_display(exceptionInfo);
+			//	return;
+			//}
+			string newValue=ds[1];
+			recipeObject[fwConfigurationDB_RO_HAS_VALUE][idx]=TRUE;
+			recipeObject[fwConfigurationDB_RO_VALUE][idx]=newValue;
+                        recipeObject[fwConfigurationDB_RO_RECDATA_PROPID][idx]=\"\";
+		}
+		
+	};
+
+        UpdateRow(row, idx);
+}" 0
+
+85 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  18 368 638 588
+"main()
+{
+	setValue(\"\",\"tableMode\",TABLE_SELECT_BROWSE);
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+
+}" 0
+"main(int row, string column, string value)
+{
+  ElementDescription.text=\"\";
+  dyn_string line;
+  if (row<0) return;
+  getValue(\"\",\"getLineN\",row,line);
+  int idx=line[5];
+  if (idx<1) return;
+
+  int ipropid=recipeObject[fwConfigurationDB_RO_RECDATA_PROPID][idx];
+  int version=recipeObject[fwConfigurationDB_RO_REC_VERSIONID][idx];
+  time date=recipeObject[fwConfigurationDB_RO_DATECREATED][idx];
+  time t0=0;
+  
+  string description;
+  if (ipropid>0) {
+    description+=\"IPROPID=\"+ipropid+\"   \";
+  }
+  if (version>0) {
+    description+=\"VERSION=\"+version+\"   \";
+  }
+  if (date > t0) {
+    description+=\"SINCE:\"+formatTime(\"%Y-%m-%d %H:%M:%S\",date);
+  }
+ElementDescription.text=description;
+}" 0
+ 1 0 1 5 1 "DeviceProperty" 17 1 0 "s" 1
+LANG:1 15 Device Property
+E
+1
+LANG:1 0 
+
+200 "DataPointElement" 22 1 0 "s" 1
+LANG:1 17 Datapoint Element
+E
+1
+LANG:1 0 
+
+250 "PropertyValue" 22 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+250 "PropertyAlert" 8 1 0 "s" 1
+LANG:1 5 Alert
+E
+1
+LANG:1 0 
+
+100 "Id" 3 0 0 "s" 1
+LANG:1 1 #
+E
+1
+LANG:1 0 
+
+50 
+17 17 "?" 0 10 84
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+17 6
+"DeviceList"
+""
+1 18 158 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  18 158 638 318
+0
+
+E
+"main()
+{
+	string device;
+	getValue(\"\",\"selectedText\",device);
+	SelectedDevice(device);
+}" 0
+
+E
+
+0 0
+30 9
+"Frame"
+""
+1 10 210 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+32 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.9696969696969697 0 1.023166023166023 0.3030303030303024 135.1351351351353 0 E 10 210 670 470
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Properties
+13 10
+"DeletePropertyButton"
+""
+1 148 618 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 22 Delete device property
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  148 618 268 649
+
+T 
+1
+LANG:1 15 Delete Property
+E E E E
+13 12
+"AddDeviceButton"
+""
+1 490 320 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 12 Add a device
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  490 320 560 350
+
+T 
+1
+LANG:1 3 Add
+E E E E
+13 13
+"AddDevicePropertyButton"
+""
+1 278 613 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 19 Add device property
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  278 613 398 644
+
+T 
+1
+LANG:1 12 Add property
+E E E E
+13 14
+"RemoveDeviceButton"
+""
+1 570 320 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 15 Remove a device
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  570 320 640 350
+
+T 
+1
+LANG:1 6 Remove
+E E E E
+30 16
+"Frame"
+""
+1 10 210 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+67 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.9696969696969697 0 0.7883695252116302 0.3030303030303024 -25.55760029444232 0 E 10 210 670 470
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Devices
+2 17
+"DatapointLabel"
+""
+1 20 264 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 20 320 81 336
+0 2 2 "0s" 0 0 0 192 0 0  20 320 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Datapoint:
+2 18
+"Datapoint"
+""
+1 52 284 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 44 Corresponing datapoint in HARDWARE hierarchy
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 92 320 197 336
+0 2 2 "0s" 0 0 0 192 0 0  92 320 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 16 System:Datapoint
+1 58 0 "" 0
+0
+2 21
+"LABEL2"
+""
+1 5 229 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 25 55 88 73
+0 2 2 "0s" 0 0 0 192 0 0  25 55 1
+1
+LANG:1 31 Sans Serif,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Comment:
+2 22
+"LABEL1"
+""
+1 -5 234 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+91 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 15 30 106 48
+0 2 2 "0s" 0 0 0 192 0 0  15 30 1
+1
+LANG:1 31 Sans Serif,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Original name:
+2 23
+"LABEL3"
+""
+1 60 319 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 420 115 484 130
+0 2 2 "0s" 0 0 0 192 0 0  420 115 1
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Recipe type:
+2 25
+"Label"
+""
+1 10 -15 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+96 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 5 104 25
+0 2 0 "0s" 0 0 0 192 0 0  10 5 1
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Recipe Editor
+2 28
+"ElementDescription"
+""
+1 25 595 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+98 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 25 595 154 611
+0 2 2 "0s" 0 1 0 192 0 0  25 595 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 20 <ElementDescription>
+14 39
+"RecipeName"
+""
+1 34 42 E E E 1 E 1 E N "_WindowText" E N "_InputFieldBackground" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 31 Sans Serif,10,-1,5,50,0,0,0,0,0
+0  108 28 344 51
+2 "0s" 0 0 0 0 0 -1  E E E
+14 40
+"RecipeComment"
+""
+1 33.75939849624061 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+108 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 31 Sans Serif,10,-1,5,50,0,0,0,0,0
+0  108 53 632 76
+3 "0s" 0 0 0 0 0 -1  E E E
+14 41
+"RecipeType"
+""
+1 23 38 E E E 1 E 1 E N "_WindowText" E N "_InputFieldBackground" E E
+ E E
+109 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0  493 108 633 131
+2 "0s" 0 0 0 0 0 -1  E E E
+14 42
+"RecipeClass"
+""
+1 23 41 E E E 1 E 1 E N "_WindowText" E N "_InputFieldBackground" E E
+ E E
+110 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0  493 83 633 106
+2 "0s" 0 0 0 0 0 -1  E E E
+2 43
+"PRIMITIVE_TEXT1"
+""
+1 60 294 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+111 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 420 90 490 105
+0 2 2 "0s" 0 0 0 192 0 0  420 90 1
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Recipe class:
+2 44
+"PRIMITIVE_TEXT2"
+""
+1 60 85 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+112 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 60 85 104 100
+0 2 2 "0s" 0 0 0 192 0 0  60 85 1
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Created:
+14 45
+"CreatedTime"
+""
+1 35.85365853658537 40 E E E 1 E 1 E N "_WindowText" E N "_InputFieldBackground" E E
+ E E
+113 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0  108 78 272 101
+2 "0s" 0 0 0 0 0 -1  E E E
+14 46
+"CreatedUser"
+""
+1 31 36 E E E 1 E 1 E N "_WindowText" E N "_InputFieldBackground" E E
+ E E
+114 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0  293 78 405 101
+2 "0s" 0 0 0 0 0 -1  E E E
+2 47
+"PRIMITIVE_TEXT3"
+""
+1 275 85 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+115 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 275 85 290 100
+0 2 2 "0s" 0 0 0 192 0 0  275 85 1
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 by:
+2 48
+"PRIMITIVE_TEXT4"
+""
+1 35 105 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+116 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 35 105 109 120
+0 2 2 "0s" 0 0 0 192 0 0  35 105 1
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Last Modified:
+2 49
+"PRIMITIVE_TEXT5"
+""
+1 40 125 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+117 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 40 125 108 140
+0 2 2 "0s" 0 0 0 192 0 0  40 125 1
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Last Applied:
+14 50
+"LastModifiedTime"
+""
+1 35.85365853658537 40 E E E 1 E 1 E N "_WindowText" E N "_InputFieldBackground" E E
+ E E
+118 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0  108 98 272 121
+2 "0s" 0 0 0 0 0 -1  E E E
+14 51
+"LastAppliedTime"
+""
+1 35.85365853658537 40 E E E 1 E 1 E N "_WindowText" E N "_InputFieldBackground" E E
+ E E
+119 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0  108 118 272 141
+2 "0s" 0 0 0 0 0 -1  E E E
+14 52
+"LastModifiedUser"
+""
+1 296 100 E E E 1 E 1 E N "_WindowText" E N "_InputFieldBackground" E E
+ E E
+120 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0  294 98 406 121
+2 "0s" 0 0 0 0 0 -1  E E E
+14 53
+"LastAppliedUser"
+""
+1 296 120 E E E 1 E 1 E N "_WindowText" E N "_InputFieldBackground" E E
+ E E
+121 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0  294 118 406 141
+2 "0s" 0 0 0 0 0 -1  E E E
+2 54
+"PRIMITIVE_TEXT6"
+""
+1 470 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+122 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 470 30 512 45
+0 2 2 "0s" 0 0 0 192 0 0  470 30 1
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Version:
+14 55
+"RecipeVersion"
+""
+1 66.12903225806454 41 E E E 1 E 1 E N "_WindowText" E N "_InputFieldBackground" E E
+ E E
+123 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0  513 23 632 46
+2 "0s" 0 0 0 0 0 -1  E E E
+2 56
+"PRIMITIVE_TEXT7"
+""
+1 275 105 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+124 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 275 105 290 120
+0 2 2 "0s" 0 0 0 192 0 0  275 105 1
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 by:
+2 57
+"PRIMITIVE_TEXT8"
+""
+1 275 125 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+125 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 275 125 290 140
+0 2 2 "0s" 0 0 0 192 0 0  275 125 1
+1
+LANG:1 30 Sans Serif,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 by:
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "" -1
+"objects/fwGeneral/fwHelpButton.pnl" 270 20 T 82 1 0 1 374 -16
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_RecipeEdit"
+0

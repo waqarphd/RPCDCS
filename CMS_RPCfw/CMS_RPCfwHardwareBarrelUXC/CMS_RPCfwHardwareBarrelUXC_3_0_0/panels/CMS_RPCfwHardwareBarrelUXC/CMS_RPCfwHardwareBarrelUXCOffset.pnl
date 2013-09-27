@@ -1,0 +1,661 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 532 388 N "_3DFace" 1
+"$2"
+E E E E E 1 -1 -1 0  20 16
+""0  1
+E "//const string d2 = \"cms_rpc_dcs_01:CAEN/SystemOne/branchController00/easyCrate2/easyBoard00\";
+const string sysName = dpSubStr($2,DPSUB_SYS);
+string num;
+bool stop = false;
+dyn_string channels;
+FillTable(string num)
+{
+  table.deleteAllLines();
+  dyn_float offsets;
+  string off,imon;
+  float values;
+  dpGet(sysName+\"Board\"+num+\".offset\",offsets); 
+  channels = dpNames($2+\"*\",\"FwCaenChannel\");
+  //DebugN(channels);
+  dyn_string dynvalues = makeDynString(\".actual.iMon\",\".actual.vMon\",\".settings.v0\",\".settings.i0\");
+  for (int i =1; i<= dynlen(channels);i++)
+  {
+    if(dynlen(offsets)<i)
+      off = \"nd\";
+    else
+      off = offsets[i];
+    int v0,i0,vMon;
+    
+    dpGet(channels[i]+\".actual.iMon\",values);
+    sprintf(imon, \"%6.2f\", values);
+    dpGet(channels[i]+\".actual.vMon\",vMon);
+    dpGet(channels[i]+\".settings.v0\",v0);
+    dpGet(channels[i]+\".settings.i0\",i0);
+    
+    table.appendLine(\"cname\",\"Channel0\"+i,\"offset\",off,\"iMon\",imon,\"vMon\",vMon,\"vSet\",v0,\"iSet\",i0);
+    
+    }
+   for(int k = 1;k<=dynlen(dynvalues);k++)
+     for (int i =1; i<= dynlen(channels);i++)
+       dpConnect(\"refresh\",channels[i]+dynvalues[k]);
+   
+   dpConnect(\"refreshOff\",sysName+\"Board\"+num+\".offset\");
+  
+   if(dynlen(channels)>0)
+    recalc.enabled= true;
+}
+refreshOff(string dpe,dyn_float value)
+{
+  for(int i = 0; i<dynlen(value);i++)
+    table.cellValueRC(i,\"offset\",value[i+1]);
+  
+  }
+refresh(string dpe,float value)
+{
+  
+	string col,channel = dpSubStr(dpe, DPSUB_SYS_DP);
+	int x = dynContains(channels,channel);
+        //DebugN(x,value,dpe);
+        string imon;
+        if(strpos(dpe,\"iMon\")>1)
+        {
+          col = \"iMon\";
+        sprintf(imon, \"%6.2f\", value);
+        value = imon;
+        }
+        else if(strpos(dpe,\"vMon\")>1)
+          col = \"vMon\";
+        else if(strpos(dpe,\"i0\")>1)
+          col = \"iSet\";
+        else if(strpos(dpe,\"v0\")>1)
+          col = \"vSet\";
+        
+        if(col !=\"\")
+          table.cellValueRC(x-1,col,value);
+        
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 2
+"PRIMITIVE_TEXT2"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  DebugN($2);
+}" 0
+ E 0 1 1 2 1 E U  1 E 10 10 382 64
+0 2 2 "0s" 0 0 0 64 0 0  10 10 1
+1
+LANG:1 101 -*-MS Shell Dlg-bold-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,758,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 23 Current Channels Offset
+25 4
+"table"
+""
+1 12 104 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 10 102 512 220
+"main()
+{
+  //string num;
+  dpGet($2+\".Information.SerNum\",num);
+  int p = strpos(num,\".\");
+  num = substr(num,0,p);
+  alias.text = dpGetAlias($2);
+  ser.text = num;
+  if(!dpExists(sysName+\"Board\"+num))
+  {
+    CreateDP(num);    
+  setArch(sysName+\"Board\"+num);
+    }
+  FillTable(num);    
+  
+}
+void setArch(string value){
+  
+string archiveClassName=\"RDB-99) EVENT\"; //\"ValueArchive_0000\";//Archive's name
+int archiveType=DPATTR_ARCH_PROC_SIMPLESM,count=1,value,l;
+int smoothProcedure=DPATTR_COMPARE_OLD_NEW,pos;//set old/new comparition 
+float deadband=0.2;
+float timeInterval=3600; 
+bool isActive; 
+dyn_string exceptionInfo,channels,boards;
+
+fwArchive_setMultiple(value , archiveClassName,archiveType,smoothProcedure,
+					0.3, timeInterval,exceptionInfo);
+  
+  }
+CreateDP(string num)
+{
+  dyn_dyn_string names;
+  dyn_dyn_int types;
+  //DebugN(dpSubStr($2,DPSUB_SYS)+\"Board\"+num);
+  if(dpTypeGet(\"RpcBoardOffset\", names, types)<0)
+    CreateType();
+  DebugN(names,types);
+  dpCreate(\"Board\"+num,\"RpcBoardOffset\");
+  dpSet(sysName+\"Board\"+num+\".serial\",num);
+  //dyn_float values = makeDynFloat(-1,-1,-1,-1,-1,-1);
+}
+CreateType()
+{
+  int n;
+
+dyn_dyn_string xxdepes;
+
+dyn_dyn_int xxdepei;
+
+ 
+
+// Create the data type
+
+xxdepes[1] = makeDynString (\"RpcBoardOffset\",\"\");
+
+xxdepes[2] = makeDynString (\"\",\"serial\");
+xxdepes[3] = makeDynString (\"\",\"offset\");
+
+
+xxdepei[1] = makeDynInt (1);
+
+xxdepei[2] = makeDynInt (0,25);
+
+xxdepei[3] = makeDynInt (0,6);
+
+ 
+
+// Create the datapoint type
+
+n = dpTypeCreate(xxdepes,xxdepei);
+
+DebugN (\"Datapoint Type created \");
+
+
+  
+  
+  }
+" 0
+E 1 0 1 6 0 "cname" 15 1 0 "s" 1
+LANG:1 8 Channels
+E
+1
+LANG:1 0 
+
+150 "vSet" 4 1 0 "s" 1
+LANG:1 4 vSet
+E
+1
+LANG:1 0 
+
+50 "iSet" 4 1 0 "s" 1
+LANG:1 4 iSet
+E
+1
+LANG:1 0 
+
+50 "vMon" 8 1 0 "s" 1
+LANG:1 5 vMon 
+E
+1
+LANG:1 0 
+
+80 "iMon" 8 1 0 "s" 1
+LANG:1 5 iMon 
+E
+1
+LANG:1 0 
+
+80 "offset" 8 1 0 "s" 1
+LANG:1 11 iMon offset
+E
+1
+LANG:1 0 
+
+80 
+14 14 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 1 1 1 7
+1 0
+13 5
+"Close"
+""
+1 236 348 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 234 346 322 380
+
+T 
+1
+LANG:1 6 Close
+
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+14 6
+"ser"
+""
+1 122 68 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 120 66 216 89
+3 "0s" 0 0 0 0 0 -1  E E E
+2 7
+"PRIMITIVE_TEXT3"
+""
+1 12 70 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 12 70 112 88
+0 2 2 "0s" 0 0 0 64 0 0  12 70 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 13 Serial Number
+13 8
+"recalc"
+""
+1 394 64 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 392 62 510 94
+
+T 
+1
+LANG:1 18 Recalculate Offset
+"main()
+{
+debug.append(\"Starting the offset calculation, this operation may be longer<br>\");
+
+dyn_dyn_float xy;
+stopbut.visible = true;
+stepChan(1000);
+debug.append(\"All Channels setted to 1000  <br>\");
+
+
+while(!(iStable(1000)))
+{
+   delay(25,0);
+ } 
+
+xy[1][1] = 1000;
+getAvarage(xy[1]);
+
+
+stepChan(1500);
+debug.append(\"All Channels setted to 1500  <br>\");
+
+
+while(!(iStable(1500)))
+{
+   delay(25,0);
+ } 
+
+xy[2][1] = 1500;
+getAvarage(xy[2]);
+
+stepChan(2000);
+debug.append(\"All Channels setted to 2000  <br>\");
+while(!(iStable(2000)))
+{
+   delay(25,0);
+ }
+xy[3][1] = 2000;
+getAvarage(xy[3]);
+
+
+stepChan(3000);
+debug.append(\"All Channels setted to 3000  <br>\");
+while(!(iStable(3000)))
+  {
+   delay(25,0);
+ }
+
+xy[4][1] = 3000;
+getAvarage(xy[4]);
+
+stepChan(3500);
+debug.append(\"All Channels setted to 3500  <br>\");
+while(!(iStable(3500)))
+  {
+   delay(25,0);
+ }
+
+xy[5][1] = 3500;
+getAvarage(xy[5]);
+if(!stop)
+{
+dyn_string offvector = CalcOff(xy);
+DebugN(\"chest\",offvector);
+dpSet(sysName+\"Board\"+num+\".offset\",offvector);
+}
+debug.append(\"Done\");
+stopbut.visible = false;
+}
+dyn_string CalcOff(dyn_dyn_float xy)
+{
+  DebugN(xy);
+  dyn_dyn_float temp;
+  dyn_float tvect;
+  dyn_string offsets;
+  float div;
+  for(int i = 2;i<=dynlen(xy);i++)
+  {
+    for(int j= 2;j<=dynlen(xy[i]);j++)
+    {
+      div = (xy[i][1]-xy[1][1]);
+      if(div<=0)
+      {
+        DebugN(\"Error\");
+        div = 1;
+        }
+        dynAppend(tvect,(xy[i][j]-xy[1][j])/div);
+      }
+     dynAppend(temp,tvect);
+     dynClear(tvect);  
+    }
+  
+  int len = (dynlen(xy)-1);
+  for(int i = len;i>=2;i--)
+  {
+    for(int j= 2;j<=dynlen(xy[i]);j++)
+    {
+      div = (xy[len+1][1]-xy[i][1]);
+      if(div<=0)
+      {
+        DebugN(\"Error\");
+        div = 1;
+        }
+        dynAppend(tvect,(xy[len+1][j]-xy[i][j])/div);
+      }
+     dynAppend(temp,tvect);
+     dynClear(tvect);  
+    }
+  tvect = makeDynFloat(0,0,0,0,0,0);
+  for(int i = 1; i<=dynlen(temp);i++)
+  {
+    for(int j = 1;j<=dynlen(temp[i]);j++)
+    {
+      tvect[j]= tvect[j]+temp[i][j];
+      }
+   }
+  len = dynlen(temp);
+  dyn_dyn_float values;
+  //q = y - mx
+  for(int k=1;k<=dynlen(xy);k++)
+    for(int i = 1; i<=dynlen(tvect);i++)
+     values[k][i] = xy[k][i+1]-(tvect[i]/len)*xy[k][1];
+  dyn_float offs;
+//       sprintf(offsets[i],\"%6.2f\",(xy[k][i+1]-(tvect[i]/len)*xy[k][1]));
+     
+  for(int i = 1; i<=dynlen(values);i++)
+   for(int k = 1; k<=dynlen(values[i]);k++)
+        offs[k] = offs[k] + values[i][k];
+  //DebugN(\"M: \",temp);   
+  //DebugN(\"Offser\",offs,\"vari q:\",values);   
+  for(int i = 1; i<=dynlen(offs);i++)
+    sprintf(offsets[i],\"%6.1f\",offs[i]/dynlen(values));
+  
+  //DebugN(temp);
+  return offsets;
+  
+  }
+
+getAvarage(dyn_float & values)
+{
+float sum = 0;
+float val;
+delay(10,0);
+for(int i =1; i<=dynlen(channels);i++)
+{  
+  dpGet(channels[i]+\".actual.iMon\",val);
+  dynAppend(values,val);
+  
+  }
+}
+    
+stepChan(int val)
+{
+  bool onoff=false;
+  int rb;
+if(!stop)
+  {
+for(int i =1; i<=dynlen(channels);i++)
+{
+  dpSet(channels[i]+\".settings.i0\",1000);
+  dpSet(channels[i]+\".settings.v0\",val);
+  dpGet(channels[i]+\".actual.isOn\",onoff);
+  if(!onoff)
+    dpSet(channels[i]+\".settings.onOff\",true);
+}
+dpGet(channels[dynlen(channels)]+\".readBackSettings.v0\",rb);  
+while(rb!=val)
+{
+  delay(2,0);
+  dpGet(channels[dynlen(channels)]+\".readBackSettings.v0\",rb);  
+  
+  }
+}
+}
+
+bool iStable(int val)
+{
+    
+int status;
+float vMon;
+bool ready = true;
+if(!stop)
+{
+for(int i =1; i<=dynlen(channels);i++)
+  {
+  dpGet(channels[i]+\".actual.status\",status);
+  dpGet(channels[i]+\".actual.vMon\",vMon);
+  Debug(status, \"  \");
+  if((((val-vMon)>20)||((vMon-val)>20))||(status>1))
+    ready = false;       
+  }
+DebugN(\"\");
+}
+return ready;
+}" 0
+ E E "main()
+{
+  this.enabled = false;
+}" 0
+
+2 9
+"alias"
+""
+1 12 40 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 12 40 368 68
+0 2 2 "0s" 0 0 0 64 0 0  12 40 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 0 
+29 11
+"debug"
+""
+1 16 234 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+ 16 234 509 325
+15 PVSS.TextEdit.1
+5
+0 "TextChanged" "()"
+""
+0 "ReturnPressed" "()"
+""
+0 "ModificationChanged" "(bool mod)"
+""
+0 "Clicked" "(int para, int pos)"
+""
+0 "CursorPositionChanged" "(int para, int pos)"
+""
+"main()
+{
+ 
+}" 0
+13 13
+"stopbut"
+""
+1 262 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 260 58 342 96
+
+T 
+1
+LANG:1 4 STOP
+"main()
+{
+if(this.text==\"STOP\")
+  {
+stop = true;
+for(int i =1;i<=dynlen(channels);i++)
+  dpSet(channels[i]+\".settings.onOff\",false);
+this.text=\"enable\";
+}
+else
+  stop = false;
+  this.text = \"STOP\";
+  }" 0
+ E E "main()
+{
+  this.visible= false;
+}" 0
+
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

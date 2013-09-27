@@ -1,0 +1,728 @@
+V 10
+1
+LANG:1 5 Infos
+PANEL,-1 -1 760 620 N "_3DFace" 1
+"$sDpe"
+"
+
+main()
+{
+string dpe = $sDpe;
+
+  pvssDpe.text = dpe;
+
+  bool isActive;
+  bool configExists;
+  string addressError;
+  dyn_anytype configData;
+  dyn_string exceptionInfo;
+  fwPeriphAddress_get(dpe,configExists,configData,isActive,exceptionInfo);
+  if(!configExists)
+  {
+    addressError = \"No DIP subscription configured (no _address config).\";
+    dipItem.text = addressError;
+    dipTag.text = addressError;
+  }
+  else if(configData[fwPeriphAddress_TYPE] != fwPeriphAddress_TYPE_DIP)
+  {
+    addressError = \"No DIP subscription configured (current address config is not of type DIP).\";
+    dipItem.text = addressError;
+    dipTag.text = addressError;
+  }
+  else
+  {
+    dyn_string dipAddress = strsplit(configData[fwPeriphAddress_REFERENCE], fwDIP_SEPERATOR);
+    
+    if(dynlen(dipAddress) < 2)
+    {
+      addressError = \"DIP subscription has no tag defined.  Please check configuration.\";
+      dipItem.text = dipAddress[1];
+      dipTag.text = addressError;
+    }
+    else
+    {
+      dipItem.text = dipAddress[1];
+      dipTag.text = dipAddress[2];
+    }
+  }
+  
+  mixed value;
+  string tmp_value;
+  int gotit = dpGet(dpe,value);
+  if ( gotit != 0 )
+     { tmp_value = \"<unable-to-retrieve>\"; }
+  else
+     { tmp_value = dpValToString(dpe,value); }
+  strreplace(tmp_value,\"\\r\",\"<CR>\");
+  strreplace(tmp_value,\"\\n\",\"<LF>\");
+  pvssValue.text = tmp_value;
+
+  string unit = dpGetUnit(dpe);
+  pvssUnit.text = unit;
+
+  int tmp_type;
+  string dpe_type;
+  tmp_type = dpElementType(dpe);
+  switch ( tmp_type )
+  {
+    case DPEL_INT:          dpe_type = \"Integer\";       break;
+    case DPEL_FLOAT:        dpe_type = \"Float\";         break;
+    case DPEL_BOOL:         dpe_type = \"Boolean\";       break;
+    case DPEL_STRING:       dpe_type = \"String\";        break;
+    case DPEL_DYN_INT:      dpe_type = \"DynInteger\";    break;
+    case DPEL_DYN_FLOAT:    dpe_type = \"DynFloat\";      break;
+    case DPEL_DYN_BOOL:     dpe_type = \"DynBoolean\";    break;
+    case DPEL_DYN_STRING:   dpe_type = \"DynString\";     break;
+    default:                dpe_type = \"Unrecognised!\";
+             DebugN(\"Unrecognised DPE-Type = '\"+tmp_type+\"' for '\"+dpe+\"'\");
+             break;
+  }
+  pvssType.text = dpe_type;
+  
+  bool tmp_invalid,tmp_userbit1,tmp_userbit2;
+  string tmp_quality;
+  time tmp_oldness;
+  dpGet(dpe+\":_original.._invalid\",tmp_invalid,
+        dpe+\":_original.._userbit1\",tmp_userbit1,
+        dpe+\":_original.._userbit2\",tmp_userbit2,
+        dpe+\":_original.._stime\",tmp_oldness);
+  if ( tmp_invalid )
+     { tmp_quality = \"INVALID\"; }
+  else
+  {
+         if (  tmp_userbit1 &&  tmp_userbit2 ) { tmp_quality = \"GOOD\";      }
+    else if ( !tmp_userbit1 &&  tmp_userbit2 ) { tmp_quality = \"UNCERTAIN\"; }
+    else if ( !tmp_userbit1 && !tmp_userbit2 ) { tmp_quality = \"BAD\";       }
+    else if (  tmp_userbit1 && !tmp_userbit2 ) { tmp_quality = \"UNDEFINED\"; }
+  }
+  pvssQuality.text = tmp_quality;
+  
+  pvssOldness.text = tmp_oldness;
+}
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "
+void scanDipDns()
+{
+int cnt = 0;
+string dpetyp;
+int dipTimeout;
+string dipConfig;
+dyn_string exceptionInfo;
+dyn_int childTypes, fieldTypes;
+dyn_string childNames, fieldNames;
+
+  Infos.text = \"\";
+  tagTable.deleteAllLines();
+  dipConfig = DipConfig.selectedText();
+  dpGet ( dipConfig+\".queryTimeout\" , dipTimeout );
+  
+  int rtn = fwDIP_DipQuery ( dipConfig , dipItem.text ,
+                             childNames , childTypes,
+                             fieldNames , fieldTypes,
+                             exceptionInfo , dipTimeout );   
+  
+  for ( int idx = 1 ; idx <= dynlen(fieldNames) ; ++idx )
+  {
+    ++cnt;
+        
+    switch ( fieldTypes[idx] )
+    {
+      case DPEL_INT:          dpetyp = \"Integer\";       break;
+      case DPEL_FLOAT:        dpetyp = \"Float\";         break;
+      case DPEL_BOOL:         dpetyp = \"Boolean\";       break;
+      case DPEL_STRING:       dpetyp = \"String\";        break;
+      case DPEL_DYN_INT:      dpetyp = \"DynInteger\";    break;
+      case DPEL_DYN_FLOAT:    dpetyp = \"DynFloat\";      break;
+      case DPEL_DYN_BOOL:     dpetyp = \"DynBoolean\";    break;
+      case DPEL_DYN_STRING:   dpetyp = \"DynString\";     break;
+      case -1:                dpetyp = \"Undefined!\";    break;
+      default:                dpetyp = \"Unrecognised!\";
+      DebugN(\"Unrecognised DPE-Type = '\"+fieldTypes[idx]+\"'\");
+      break;
+    }
+    
+    int boldness = ( fieldNames[idx] == dipTag.text ? 1 : 0 );
+    tagTable.appendLine(\"tagIndex\",cnt,\"itemName\",dipItem.text,
+                        \"tagName\",fieldNames[idx],\"tagType\",dpetyp,
+                        0,boldness);
+  }
+  
+  if ( dynlen(exceptionInfo ) != 0 )
+  {
+    if ( strpos(exceptionInfo[2],\"Timeout occured when trying to query for DIP address\") >= 0 )
+       Infos.text = \"Error: DIP-Manager Must be running to get Publications!\";
+    else 
+       Infos.text = \"Error: There are No Publications Available for this Item!\";
+  }
+  else
+  {
+    if ( cnt == 0 )
+       Infos.text = \"Error: There are no Tags available for this Item\";
+  }
+}
+    
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+14 1
+"dipItem"
+""
+1 498.617647058823 182 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 138 88 752 115
+2 "0s" 0 0 0 0 0 -1  E E E
+14 6
+"dipTag"
+""
+1 500.617647058823 262 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 138 128 752 155
+2 "0s" 0 0 0 0 0 -1  E E E
+14 8
+"pvssDpe"
+""
+1 500.617647058823 182 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 138 48 752 75
+2 "0s" 0 0 0 0 0 -1  E E E
+13 9
+"Button8"
+""
+1 630 255 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 628 253 752 287
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+2 11
+"PRIMITIVE_TEXT5"
+""
+1 140 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 140 10 760 40
+0 2 2 "0s" 0 0 0 64 0 0  140 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 59 PVSS DP-Element to DIP-DNS Item and Tag name Correspondence
+2 15
+"PRIMITIVE_TEXT9"
+""
+1 10 95 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 95 130 115
+0 2 2 "0s" 0 0 0 64 0 0  10 95 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 DIP-DNS Item name
+2 16
+"PRIMITIVE_TEXT10"
+""
+1 10 138 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 135 130 155
+0 2 2 "0s" 0 0 0 64 0 0  10 135 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 DIP-DNS Tag name
+2 17
+"PRIMITIVE_TEXT11"
+""
+1 10 58 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 55 130 75
+0 2 2 "0s" 0 0 0 64 0 0  10 55 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 PVSS DPE name
+14 18
+"pvssUnit"
+""
+1 490 170 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 168 612 194
+3 "0s" 0 0 0 0 0 -1  E E E
+14 19
+"pvssType"
+""
+1 630 170 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 628 168 752 194
+3 "0s" 0 0 0 0 0 -1  E E E
+14 20
+"pvssValue"
+""
+1 140 170 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 138 168 472 194
+3 "0s" 0 0 0 0 0 -1  E E E
+2 23
+"PRIMITIVE_TEXT14"
+""
+1 10 178 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 175 130 195
+0 2 2 "0s" 0 0 0 64 0 0  10 175 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 20 Value / Units / Type
+14 24
+"pvssQuality"
+""
+1 630 210 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 628 208 752 234
+3 "0s" 0 0 0 0 0 -1  E E E
+2 26
+"PRIMITIVE_TEXT16"
+""
+1 10 218 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 215 130 235
+0 2 2 "0s" 0 0 0 64 0 0  10 215 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Data Last Updated
+14 27
+"pvssOldness"
+""
+1 140 210 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 138 208 472 234
+3 "0s" 0 0 0 0 0 -1  E E E
+2 30
+"PRIMITIVE_TEXT19"
+""
+1 540 215 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 540 215 620 235
+0 2 2 "0s" 0 0 0 64 0 0  540 215 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Data Quality
+2 31
+"PRIMITIVE_TEXT20"
+""
+1 140 250 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 140 250 610 290
+0 2 2 "0s" 0 0 0 64 0 0  140 250 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 59 Note that the information in the above table is a snapshot.
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 67 The value, last update and quality fields are not refreshed online!
+13 32
+"Button1"
+""
+1 400 340 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 398 338 752 372
+
+T 
+1
+LANG:1 52 Interrogate the DIP-DNS directly and return its Tags
+"main()
+{
+  setValue(\"\",\"enabled\",false);
+  
+  scanDipDns();
+  
+  setValue(\"\",\"enabled\",true);
+}" 0
+ E E E
+4 33
+"LINE1"
+""
+1 10 310 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E  10 310 750 310
+13 34
+"Button9"
+""
+1 630 570 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 628 568 752 602
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+22 37
+"DipConfig"
+""
+1 140 340 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 138 338 382 372
+0
+
+"main()
+{
+int position = 1;
+dyn_string configs = dpNames(\"*:*\",\"_FwDipConfig\");
+  
+  for ( int idx = 1 ; idx <= dynlen(configs) ; ++idx )
+  {
+    if ( strpos(configs[idx],\"ExternalApps\") >= 0 ) { position = idx; break; }
+  }
+  
+  DipConfig.items = configs;
+  DipConfig.selectedPos = position;
+}" 0
+
+E
+E
+ 1 0
+25 42
+"tagTable"
+""
+1 10 390 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 388 752 552
+EE 1 0 1 4 0 "tagIndex" 2 1 0 "s" 1
+LANG:1 3 Idx
+E
+1
+LANG:1 0 
+
+40 "itemName" 33 1 0 "s" 1
+LANG:1 21 The DIP-DNS Item-Name
+E
+1
+LANG:1 0 
+
+380 "tagName" 15 1 0 "s" 1
+LANG:1 20 The DIP-DNS tag-Name
+E
+1
+LANG:1 0 
+
+180 "tagType" 9 1 0 "s" 1
+LANG:1 8 Tag-Type
+E
+1
+LANG:1 0 
+
+110 
+21 21 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+2 47
+"PRIMITIVE_TEXT30"
+""
+1 10 340 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 340 140 380
+0 2 2 "0s" 0 0 0 64 0 0  10 340 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Select the DIP-DNS
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Configuration Name
+2 48
+"Infos"
+""
+1 10 570 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 570 610 600
+0 2 2 "0s" 0 0 0 64 0 0  10 570 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

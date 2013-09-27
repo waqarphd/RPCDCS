@@ -1,0 +1,348 @@
+ALTER TABLE CONFIG_DPFUNCTIONS MODIFY (
+ PARAMS     VARCHAR2(4000),
+ GLOBALS    VARCHAR2(1024),
+ DEFINITION VARCHAR2(1024)
+);
+
+ALTER TABLE DEVICE_TYPES MODIFY (
+ DPTYPE VARCHAR2(64) -- NOT NULL ENABLE
+);
+
+ALTER TABLE ITEMS MODIFY (
+ NAME VARCHAR2(512) ,--NOT NULL ENABLE,
+ TYPE VARCHAR2(64)  ,--NOT NULL ENABLE,
+ DETAIL VARCHAR2(64)
+);
+
+
+
+ALTER TABLE CONFIG_DPEALERTS MODIFY (
+ LIMITS VARCHAR2(128)
+);
+
+ALTER TABLE CONFIG_ALERTS_MISC MODIFY (
+ PANEL 		VARCHAR2(128),
+ PANELPARAMS 	VARCHAR2(128),
+ HELP 		VARCHAR2(128)
+);
+
+ALTER TABLE TMP_ITEM_PROPS MODIFY (
+ DPENAME VARCHAR2(512)
+);
+
+CREATE TABLE "CONFIG_GENERAL" (
+    "IPROP_ID" NUMBER,
+    "NUM" NUMBER(1),
+    "WHAT" VARCHAR2(20),
+    "DATA" VARCHAR2(4000),
+    CONSTRAINT "CONFIG_GENERAL_FK_IPROP_ID" FOREIGN KEY ("IPROP_ID")
+        REFERENCES "CONFIG_ITEM_PROPERTIES" ("IPROP_ID") ON DELETE CASCADE ENABLE,
+    CONSTRAINT "CONFIG_GENERAL_NN_IPROP_ID" CHECK ("IPROP_ID" IS NOT NULL) ENABLE,
+    CONSTRAINT "CONFIG_GENERAL_NN_NUM" CHECK ("NUM" IS NOT NULL) ENABLE,
+    CONSTRAINT "CONFIG_GENERAL_NN_WHAT" CHECK ("WHAT" IS NOT NULL) ENABLE
+);
+CREATE UNIQUE INDEX "CONFIG_GENERAL_IPROP_ID_IDX" ON "CONFIG_GENERAL" ("IPROP_ID");
+
+
+  CREATE INDEX "RECIPE_TAGS_PROPID_IDX" ON "RECIPE_TAGS"  ("PROPID");
+  CREATE INDEX "RECIPE_TAGS_VALIDTO_IDX" ON "RECIPE_TAGS"  ("VALID_TO");
+  CREATE INDEX "RECIPE_DATA_DEV_IDX" ON "RECIPE_DATA" ("ID","DEVELEM_ID");
+
+
+
+ALTER TABLE RECIPES MODIFY (
+ NAME VARCHAR2(128) --NOT NULL ENABLE
+);
+
+-- fix #45332
+CREATE OR REPLACE FORCE VIEW "V_DEVICE_CONFIGS_ALL"
+    (   "DPT_ID",
+        "DEVELEM_ID",
+        "DPTYPE",
+        "ELEMENTNAME",
+        "ELEMENTTYPE"
+    ) AS select
+        d.dpt_id,
+        e.develem_id,
+        d.dpType,
+        e.elementName,
+        e.elementType
+    from device_types d, device_elements e
+    where       d.dpt_id=e.dpt_id(+)
+ ;
+
+
+
+--- Recipe data now stored in CLOB!
+alter table recipe_data rename column propvalue to propvalue_;
+alter table recipe_data add (propvalue clob);
+update recipe_data set propvalue=propvalue_;
+alter table recipe_data drop column propvalue_;
+alter table recipe_data drop column bvalue;
+
+alter table CDB_API_PARAMS add (c1 clob);
+alter table CDB_API_PARAMS drop column b1;
+
+--- Values for static configurations stored now in CLOB
+alter table config_item_properties drop column bvalue;
+alter table config_item_properties add ( cvalue clob);
+update config_item_properties set cvalue=value;
+alter table config_item_properties drop column value;
+alter table config_item_properties rename column cvalue to value;
+
+
+-- We need to re-create the views...
+CREATE OR REPLACE VIEW v_recipesall
+(
+    propid
+  , proptype
+  , item_id
+  , develem_id
+  , recipe_ver
+  , valid_from
+  , valid_to
+  , tag
+  , recipe_type
+  , recipe_comment
+  , hierarchy
+  , dpname
+  , property
+  , dptype
+  , detail
+  , elementtype
+  , has_value
+  , has_alert
+  , propvalue
+  , alert_type
+  , alert_active
+  , alert_classes
+  , alert_texts
+  , alert_limits
+)
+AS
+SELECT
+	rt.propid,
+	de.elementtype,
+	i.item_id,
+	rd.develem_id,
+	rd.rver,
+	rt.valid_from,
+	rt.valid_to,
+	r.name,
+	r.recipe_type,
+	r.description,
+	h.htype,
+	i.dpname,
+	de.elementname,
+	i.dptype,
+	i.detail,
+	de.elementtype,
+	rd.has_value,
+	rd.has_alert,
+	rd.propvalue,
+	rd.alert_type,
+	rd.alert_active,
+	rd.alert_classes,
+	rd.alert_texts,
+	rd.alert_limits
+    FROM recipe_tags rt, recipes r, recipe_data rd ,v_items i,hierarchies h, device_elements de
+    WHERE 	rt.propid=rd.propid
+	AND 	r.tagid=rt.tagid
+	AND 	h.hver=i.hver
+	AND 	i.item_id=rd.id
+	AND 	de.develem_id=rd.develem_id(+)
+ ;
+
+CREATE OR REPLACE FORCE VIEW "V_ITEM_PROPERTIES"
+    (   "CITEM_ID",
+        "IPROP_ID",
+        "DEVELEM_ID",
+        "ITEM_DPNAME",
+        "DPTTYPE",
+        "PROP_NAME",
+        "DPE_NAME",
+        "DPE_TYPE",
+        "VALUE",
+        "TAG"
+    ) AS select
+        c.citem_id,
+        c.iprop_id,
+        c.develem_id,
+        i.dpname,
+        i.dptype,
+        p.elementname,
+        i.dpname||p.elementname,
+        p.elementtype,
+        c.value,
+        i.tag
+    from config_item_properties c, v_config_items i, v_device_configs_all p
+    where       p.develem_id=c.develem_id
+        and     i.citem_id=c.citem_id
+ ;
+
+
+GRANT EXECUTE ON fwConfigurationDB TO PUBLIC;
+GRANT SELECT  ON HIERARCHIES TO PUBLIC;
+GRANT SELECT  ON DEVICE_TYPES TO PUBLIC;
+GRANT SELECT  ON ITEMS TO PUBLIC;
+GRANT SELECT  ON RECIPES TO PUBLIC;
+GRANT SELECT  ON RECIPE_VERSIONS TO PUBLIC;
+GRANT SELECT  ON RECIPE_DATA TO PUBLIC;
+GRANT SELECT  ON RECIPE_TAGS TO PUBLIC;
+GRANT SELECT  ON DEVICE_ELEMENTS TO PUBLIC;
+GRANT SELECT  ON CONFIG_ITEMS TO PUBLIC;
+GRANT SELECT  ON CONFIG_ITEM_PROPERTIES TO PUBLIC;
+GRANT SELECT  ON CONFIG_DESC TO PUBLIC;
+GRANT SELECT  ON CONFIG_TAGS TO PUBLIC;
+GRANT SELECT  ON REFERENCES TO PUBLIC;
+GRANT SELECT  ON CONFIG_ADDRESSES TO PUBLIC;
+GRANT SELECT  ON CONFIG_ALERTS TO PUBLIC;
+GRANT SELECT  ON CONFIG_DPEALERTS TO PUBLIC;
+GRANT SELECT  ON CONFIG_SUMALERTS TO PUBLIC;
+GRANT SELECT  ON CONFIG_ALERTS_MISC TO PUBLIC;
+GRANT SELECT  ON CONFIG_ARCHIVING TO PUBLIC;
+GRANT SELECT  ON CONFIG_DPFUNCTIONS TO PUBLIC;
+GRANT SELECT  ON CONFIG_CONVERSIONS TO PUBLIC;
+GRANT SELECT  ON CONFIG_PVRANGES TO PUBLIC;
+GRANT SELECT  ON CONFIG_SMOOTHING TO PUBLIC;
+GRANT SELECT  ON CONFIG_UF TO PUBLIC;
+GRANT SELECT  ON CONFIG_GENERAL TO PUBLIC;
+GRANT SELECT  ON V_ITEM_NAMES TO PUBLIC;
+GRANT SELECT  ON V_ITEMS TO PUBLIC;
+GRANT SELECT  ON V_RECIPESALL TO PUBLIC;
+GRANT SELECT  ON V_REFERENCES TO PUBLIC;
+GRANT SELECT  ON V_CONFIG_ITEMS TO PUBLIC;
+GRANT SELECT  ON V_DEVICE_CONFIGS TO PUBLIC;
+GRANT SELECT  ON V_DEVICE_CONFIGS_ALL TO PUBLIC;
+GRANT SELECT  ON V_ITEM_PROPERTIES TO PUBLIC;
+GRANT SELECT  ON V_CONFIG_ALERTS TO PUBLIC;
+GRANT ALL  ON CDB_API_PARAMS TO PUBLIC;
+GRANT ALL  ON TMP_ITEM_PROPS TO PUBLIC;
+
+-- rename the NOT NULL constraints from SYS_XXXXX to something meaningful
+declare
+ cc varchar2(32767);
+ stmt varchar2(32767);
+ newconstrname varchar2(32767);
+ colname varchar2(128);
+begin
+
+dbms_output.enable(1000000);
+dbms_output.put_line(chr(10)||chr(10));
+
+for cur in (select owner ow,constraint_name cn, constraint_type ct, table_name tn,search_condition sc
+			from user_constraints
+			--where constraint_name like 'SYS%'
+			order by table_name) LOOP
+  cc:=cur.sc;
+  if (cur.ct='C' AND substr(cc,-11)='IS NOT NULL' ) then
+	-- extract column name
+	colname:=substr(cc,2,instr(cc,'IS NOT NULL')-4);
+	newconstrname:=
+		case cur.tn||'.'||colname
+		 when 'HIERARCHIES.HVER'                  then 'HIERARCHIES_NN_HVER'
+		 when 'DEVICE_TYPES.DPT_ID'               then 'DEVICE_TYPES_NN_DPT_ID'
+		 when 'DEVICE_TYPES.DPTYPE'               then 'DEVICE_TYPES_NN_DPTYPE'
+		 when 'ITEMS.ID'                          then 'ITEMS_NN_ID'
+		 when 'ITEMS.NAME'                        then 'ITEMS_NN_NAME'
+		 when 'ITEMS.TYPE'                        then 'ITEMS_NN_TYPE'
+		 when 'RECIPES.TAGID'                     then 'RECIPES_NN_TAGID'
+		 when 'RECIPES.NAME'                      then 'RECIPES_NN_NAME'
+		 when 'RECIPE_VERSIONS.RVER'              then 'RECIPE_VERSIONS_NN_RVER'
+		 when 'RECIPE_DATA.PROPID'                then 'RECIPE_DATA_NN_PROPID'
+		 when 'RECIPE_DATA.RVER'                  then 'RECIPE_DATA_NN_RVER'
+		 when 'RECIPE_DATA.ID'                    then 'RECIPE_DATA_NN_ID'
+		 when 'RECIPE_TAGS.TAGID'                 then 'RECIPE_TAGS_NN_TAGID'
+		 when 'RECIPE_TAGS.PROPID'                then 'RECIPE_TAGS_NN_PROPID'
+		 when 'DEVICE_ELEMENTS.DEVELEM_ID'        then 'DEVICE_ELEMENTS_NN_DEVELEM_ID'
+		 when 'DEVICE_ELEMENTS.DPT_ID'            then 'DEVICE_ELEMENTS_NN_DPT_ID'
+		 when 'DEVICE_ELEMENTS.ELEMENTNAME'       then 'DEVICE_ELEMENTS_NN_ELEMENTNAME'
+		 when 'DEVICE_ELEMENTS.ELEMENTTYPE'       then 'DEVICE_ELEMENTS_NN_ELEMENTTYPE'
+		 when 'CONFIG_ITEMS.CITEM_ID'             then 'CONFIG_ITEMS_NN_CITEM_ID'
+		 when 'CONFIG_ITEMS.DPT_ID'               then 'CONFIG_ITEMS_NN_DPT_ID'
+		 when 'CONFIG_ITEMS.ITEM_ID'              then 'CONFIG_ITEMS_NN_ITEM_ID'
+		 when 'CONFIG_ITEM_PROPERTIES.IPROP_ID'   then 'CONFIG_ITEMPROPS_NN_IPROPID'
+		 when 'CONFIG_ITEM_PROPERTIES.CITEM_ID'   then 'CONFIG_ITEMPROPS_NN_CITEMID'
+		 when 'CONFIG_ITEM_PROPERTIES.DEVELEM_ID' then 'CONFIG_ITEMPROPS_NN_DEVELID'
+		 when 'CONFIG_DESC.CONF_ID'               then 'CONFIG_DESC_NN_CONF_ID'
+		 when 'CONFIG_DESC.CONF_TAG'              then 'CONFIG_DESC_NN_CONF_TAG'
+		 when 'CONFIG_TAGS.CONF_ID'               then 'CONFIG_TAGS_NN_CONF_ID'
+		 when 'CONFIG_TAGS.CITEM_ID'              then 'CONFIG_TAGS_NN_CITEM_ID'
+		 when 'CONFIG_TAGS.VALID_FROM'            then 'CONFIG_TAGS_NN_VALID_FROM'
+		 when 'REFERENCES.REFVER'                 then 'REFERENCES_NN_REFVER'
+		 when 'REFERENCES.ID'                     then 'REFERENCES_NN_ID'
+		 when 'REFERENCES.REF_ID'                 then 'REFERENCES_NN_REF_ID'
+		 when 'CONFIG_ADDRESSES.IPROP_ID'         then 'CONFIG_ADDRESSES_NN_IPROP_ID'
+		 when 'CONFIG_ALERTS.IPROP_ID'            then 'CONFIG_ALERTS_NN_IPROP_ID'
+		 when 'CONFIG_DPEALERTS.IPROP_ID'         then 'CONFIG_DPEALERTS_NN_IPROP_ID'
+		 when 'CONFIG_SUMALERTS.IPROP_ID'         then 'CONFIG_SUMALERTS_NN_IPROP_ID'
+		 when 'CONFIG_ALERTS_MISC.IPROP_ID'       then 'CONFIG_ALERTS_MISC_NN_IPROP_ID'
+		 when 'CONFIG_ARCHIVING.IPROP_ID'         then 'CONFIG_ARCHIVING_NN_IPROP_ID'
+		 when 'CONFIG_DPFUNCTIONS.IPROP_ID'       then 'CONFIG_DPFUNCTIONS_NN_IPROP_ID'
+		 when 'CONFIG_CONVERSIONS.IPROP_ID'       then 'CONFIG_CONVERSIONS_NN_IPROP_ID'
+		 when 'CONFIG_PVRANGES.IPROP_ID'          then 'CONFIG_PVRANGES_NN_IPROP_ID'
+		 when 'CONFIG_SMOOTHING.IPROP_ID'         then 'CONFIG_SMOOTHING_NN_IPROP_ID'
+		 when 'CONFIG_UF.IPROP_ID'                then 'CONFIG_UF_NN_IPROP_ID'
+		 else NULL
+	  end;
+	if newconstrname is null then
+        dbms_output.put_line('SKIPPING:'||cur.tn||'.'||colname||chr(10));
+	else
+		stmt:='ALTER TABLE '||cur.ow||'.'||cur.tn||' RENAME CONSTRAINT '||cur.cn||' TO '||newconstrname;
+		--dbms_output.put_line(stmt||chr(10));
+		execute immediate stmt;
+	end if;
+  end if;
+END LOOP;
+end;
+/
+
+-- add unique constraints
+ALTER TABLE "RECIPE_TAGS"
+ ADD CONSTRAINT "RECIPE_TAGS_UK" UNIQUE ("PROPID","TAGID","VALID_FROM") ENABLE;
+
+ALTER TABLE "CONFIG_TAGS"
+ ADD CONSTRAINT "CONFIG_TAGS_UK" UNIQUE ("CONF_ID","CITEM_ID","VALID_FROM") ENABLE;
+
+ALTER TABLE "REFERENCES"
+ ADD CONSTRAINT "REFERENCES_UK" UNIQUE ("REFVER","ID","VALID_FROM") ENABLE;
+
+ALTER TABLE "CONFIG_ADDRESSES"
+ ADD CONSTRAINT "CONFIG_ADDRESSES_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_ALERTS"
+ ADD CONSTRAINT "CONFIG_ALERTS_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_DPEALERTS"
+ ADD CONSTRAINT "CONFIG_DPEALERTS_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_SUMALERTS"
+ ADD CONSTRAINT "CONFIG_SUMALERTS_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_ALERTS_MISC"
+ ADD CONSTRAINT "CONFIG_ALERTS_MISC_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_ARCHIVING"
+ ADD CONSTRAINT "CONFIG_ARCHIVING_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_DPFUNCTIONS"
+ ADD CONSTRAINT "CONFIG_DPFUNCTIONS_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_CONVERSIONS"
+ ADD CONSTRAINT "CONFIG_CONVERSIONS_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_PVRANGES"
+ ADD CONSTRAINT "CONFIG_PVRANGES_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_SMOOTHING"
+ ADD CONSTRAINT "CONFIG_SMOOTHING_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_UF"
+ ADD CONSTRAINT "CONFIG_UF_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+ALTER TABLE "CONFIG_GENERAL"
+ ADD CONSTRAINT "CONFIG_GENERAL_UK" UNIQUE ("IPROP_ID") ENABLE;
+
+
+#include "fwConfigurationDB_PLSQLAPI.SQL"
+#include "fwConfigurationDB_SCHEMAVERSION.SQL"

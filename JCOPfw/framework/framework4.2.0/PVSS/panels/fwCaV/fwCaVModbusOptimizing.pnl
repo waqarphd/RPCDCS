@@ -1,0 +1,667 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 1009 628 N "_3DFace" 0
+E "main()
+{
+  ;
+}" 0
+ E E E 1 -1 -1 0  120 60
+""0  1
+E "dyn_string tableElements; // To reduce the load on the dpConnect for the dpe values
+
+// function to dpConnect to table fields
+void updateTableValue(string dp1, anytype value)
+{                
+        for(int j=1; j<=dynlen(tableElements); j++)
+        {         
+                 if(strpos(dp1,tableElements[j])>-1)
+                 {
+                       setValue(\"dpElements\", \"cellValueRC\", j-1, \"value\", value);    
+                       setValue(\"dpElements\", \"cellValueRC\", j-1, \"lastUpdated\", getCurrentTime());     
+                       return; 
+                 }      
+        }                  
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"dpElements"
+""
+1 10 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"acceptDrops" ""
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 8 88 992 592
+"main()
+{
+  this.sortOnClick(false);
+}" 0
+E 1 0 1 9 0 "dpe" 38 1 0 "s" 1
+LANG:1 17 Datapoint element
+E
+1
+LANG:1 0 
+
+350 "address" 10 1 0 "s" 1
+LANG:1 7 Address
+E
+1
+LANG:1 0 
+
+100 "subIndex" 5 1 0 "s" 1
+LANG:1 9 Sub.Index
+E
+1
+LANG:1 0 
+
+60 "datatype" 4 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+50 "direction" 5 1 0 "s" 1
+LANG:1 9 Direction
+E
+1
+LANG:1 0 
+
+60 "value" 5 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+60 "lastUpdated" 11 1 0 "s" 1
+LANG:1 7 Updated
+E
+1
+LANG:1 0 
+
+110 "newAddress" 10 1 0 "s" 1
+LANG:1 11 New Address
+E
+1
+LANG:1 0 
+
+100 "newSubIndex" 5 1 0 "s" 1
+LANG:1 9 Sub.index
+E
+1
+LANG:1 0 
+
+60 
+18 18 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 1 1 1 7
+1 0
+2 2
+"PRIMITIVE_TEXT1"
+""
+1 20 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 10 208 33
+0 2 2 "0s" 0 0 0 192 0 0  20 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 MODBUS optimization
+13 4
+"search"
+""
+1 260 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 63 Uses dpNames() to search for DPs and DPEs with modbus settings.
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 258 58 402 82
+
+T 
+1
+LANG:1 16 Search for dpes
+
+"main()
+{
+    dyn_string dps = dpNames(\"*\"+searchForWhat.text+\"*.**\");
+    
+    if(dynlen(dps)==0)
+    {
+         DebugN(\"No dps found..\");
+         return; 
+    }
+   
+    bool configExists;
+    dyn_anytype config; 
+    bool isActive; 
+    dyn_string exceptionInfo;   
+    int sumOldSubIndexes=0;
+    fwOpenProgressBar(\"Modbus settings\", \"Preparing data..\", 1);
+    dyn_int okDataTypes = makeDynInt(566, 561);
+     
+    dpElements.deleteAllLines();
+    dpElements.stop(TRUE);
+    int rowCount=0;
+    for(int j=1; j<=dynlen(dps); j++)
+    {                         
+           fwPeriphAddress_get(dps[j], configExists, config, isActive, exceptionInfo); 
+           
+           if(configExists && (config[fwPeriphAddress_TYPE]==fwPeriphAddress_TYPE_MODBUS) && config[fwPeriphAddress_DIRECTION]!=1 && dynContains(okDataTypes,config[fwPeriphAddress_DATATYPE]))
+           {
+                dpElements.appendLine(\"dpe\",dps[j],
+                                      \"address\",config[fwPeriphAddress_ROOT_NAME],
+                                      \"direction\",config[fwPeriphAddress_DIRECTION],
+                                      \"datatype\",config[fwPeriphAddress_DATATYPE], 
+                                      \"value\",\"-\", 
+                                      \"subIndex\",config[fwPeriphAddress_MODBUS_SUBINDEX]); 
+                
+                setValue(\"dpElements\", \"cellBackColRC\", rowCount, \"dpe\", \"_3DFace\");
+                setValue(\"dpElements\", \"cellBackColRC\", rowCount, \"address\", \"_3DFace\");
+                setValue(\"dpElements\", \"cellBackColRC\", rowCount, \"subIndex\", \"_3DFace\");
+                setValue(\"dpElements\", \"cellBackColRC\", rowCount, \"datatype\", \"_3DFace\");
+                setValue(\"dpElements\", \"cellBackColRC\", rowCount, \"direction\", \"_3DFace\");
+                setValue(\"dpElements\", \"cellBackColRC\", rowCount, \"value\", \"_3DFace\");
+                               
+                sumOldSubIndexes = sumOldSubIndexes+config[fwPeriphAddress_MODBUS_SUBINDEX];
+                
+                rowCount++;
+           }
+    }  
+    dpElements.stop(FALSE);
+    
+    /* 
+       Sort the addresses..
+       this is why I have to split up the operation in two for loops
+    */
+    dyn_bool sort = makeDynBool(true, true, true); 
+    dpElements.sort(sort,\"address\",\"datatype\",\"subIndex\");
+    
+    // for the dpconnect of values
+    if(useDpConnect.state(0))
+    {
+          string val;
+          for(int j=1; j<=dpElements.lineCount; j++)
+          {
+              getValue(\"dpElements\", \"cellValueRC\", j-1, \"dpe\", val); 
+              tableElements[j] = val;
+              dpConnect(\"updateTableValue\",val);
+          }
+    }
+    else
+    {
+          for(int j=1; j<=dynlen(tableElements); j++)
+              dpDisconnect(\"updateTableValue\", tableElements[j]);
+    }
+    
+    int subIndexSets;
+    // no sub indexes >> start using them
+    if(sumOldSubIndexes==0)
+    {
+              dyn_dyn_string allElements;
+              dyn_anytype rowValues;
+              int subIndex;
+              int maxSubIndex;
+              int prevDataType;
+              string address;
+              string mainAddress, orgAddress;
+              int addressInt, mainAddressInt;
+              int sumAddresses;
+              for(int i=0; i<dpElements.lineCount; i++)
+              {
+                  getValue(\"dpElements\",\"getLineN\",i,rowValues);
+        
+                  if(rowValues[4]==566) //float
+                    maxSubIndex = 59;
+                  else if(rowValues[4]==561) // int16
+                    maxSubIndex=119;
+                  else
+                  {
+                     DebugN(\"Data type not defined\", rowValues);
+                     continue; 
+                  }
+        
+                  orgAddress = rowValues[2];
+        
+                  address = rowValues[2];
+                  strreplace(address,\"M\",\"\");
+                  strreplace(address,\".\",\"\");
+        
+                  addressInt = (int)address;
+        
+                  if(mainAddressInt==0)
+                    mainAddressInt = addressInt;
+                  
+                  if(rowValues[4]==566)
+                  {
+                    sumAddresses = addressInt-mainAddressInt;
+                    if(sumAddresses!=0)
+                      sumAddresses = sumAddresses/2;
+                  }
+                  else
+                    sumAddresses = addressInt-mainAddressInt;
+                  
+                  if(prevDataType!=rowValues[4] || sumAddresses>maxSubIndex || sumAddresses<0)
+                  {
+                      //DebugN(\"New set of sub indexes\",prevDataType,rowValues[4],sumAddresses,maxSubIndex);
+                      subIndexSets++;
+                      mainAddress = orgAddress;  
+                      subIndex = 0;
+                      mainAddressInt = addressInt;
+                  }
+                  else
+                  {
+                      //subIndex++;
+                      subIndex = sumAddresses;//(addressInt-mainAddressInt); 
+                  }
+        
+                  prevDataType = rowValues[4];
+        
+                  dpElements.cellValueRC(i,\"newAddress\",mainAddress);
+                  dpElements.cellValueRC(i,\"newSubIndex\",subIndex);
+                  //DebugN(mainAddress, orgAddress, addressInt, maxSubIndex, subIndex);
+                  optimize.text(\"Optimize\");
+                  optimize.enabled(true);
+              }
+    }
+    else // reverse >> sub indexes found >> remove them
+    {
+              dyn_anytype rowValues;
+              int subIndex;
+              string address, newAddress;
+              int addressInt;
+              for(int i=0; i<dpElements.lineCount; i++)
+              {
+                  getValue(\"dpElements\",\"getLineN\",i,rowValues);
+                  
+                  newAddress=\"\";
+                  address = rowValues[2];                 
+                  dyn_string splitAddress = strsplit(address,\".\");
+                  
+                  if(rowValues[4]==566)
+                    addressInt = (int)splitAddress[dynlen(splitAddress)]+(rowValues[3]*2);
+                  else
+                    addressInt = (int)splitAddress[dynlen(splitAddress)]+(rowValues[3]);
+                  
+                  for(int j=1; j<dynlen(splitAddress); j++)
+                    if(j==1)
+                        newAddress = splitAddress[j];
+                    else
+                        newAddress = newAddress+\".\"+splitAddress[j];
+                  newAddress = newAddress+\".\"+(string)addressInt;
+        
+                  dpElements.cellValueRC(i,\"newAddress\",newAddress);
+                  dpElements.cellValueRC(i,\"newSubIndex\",0);
+              }  
+              optimize.text(\"Reverse\");  
+              optimize.enabled(true);  
+      
+    }   
+    subIndexText.text(subIndexSets);  
+    rowCountText.text(dpElements.lineCount); 
+    fwCloseProgressBar(\"Finished..\");
+}
+" 0
+ E E E
+14 5
+"searchForWhat"
+""
+1 20 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 18 58 252 82
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text(\"Evap\");
+  //this.text(\"modbus\");
+}" 0
+ E
+14 7
+"subIndexText"
+""
+1 160 600 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 158 598 212 622
+3 "0s" 0 0 0 0 0 -1  E E E
+2 8
+"PRIMITIVE_TEXT3"
+""
+1 12 603 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 12 603 154 617
+0 2 2 "0s" 0 0 0 192 0 0  12 603 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 28 Number of new sub index sets
+13 9
+"optimize"
+""
+1 790 600 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 788 598 882 622
+
+T 
+1
+LANG:1 8 Optimize
+"main()
+{
+
+        dyn_string exceptionInfo;
+        dyn_anytype configParameters;
+        bool configExists, isActive;
+        string dpe, newAddress, subIndex;
+  
+        fwOpenProgressBar(\"Modbus settings\", \"Changing modbus address settings..\", 1);
+        DebugN(optimize.text);
+
+        for(int i=0; i<dpElements.lineCount; i++)
+        {
+              getValue(\"dpElements\",\"cellValueRC\",i,\"dpe\",dpe);
+              getValue(\"dpElements\",\"cellValueRC\",i,\"newAddress\",newAddress);
+              getValue(\"dpElements\",\"cellValueRC\",i,\"newSubIndex\",subIndex);
+              fwPeriphAddress_get(dpe, configExists, configParameters, isActive, exceptionInfo); 
+
+              configParameters[fwPeriphAddress_MODBUS_LOWLEVEL] = true;   
+              if(subIndex!=0 && optimize.text==\"Optimize\")
+              {
+                 configParameters[fwPeriphAddress_DIRECTION] = DPATTR_ADDR_MODE_INPUT_SQUERY; 
+                 configParameters[fwPeriphAddress_MODBUS_POLL_GROUP] = \"\";                 
+              }     
+              else
+              {
+                 configParameters[fwPeriphAddress_DIRECTION] = DPATTR_ADDR_MODE_INPUT_POLL; 
+                 configParameters[fwPeriphAddress_MODBUS_POLL_GROUP] =  \"_\"+pollGroup.text;     
+                 //DebugN(DPATTR_ADDR_MODE_INPUT_POLL);          
+              }   
+              DebugN(dpe, subIndex);
+              configParameters[fwPeriphAddress_MODBUS_SUBINDEX] = subIndex;
+              configParameters[fwPeriphAddress_ROOT_NAME] = newAddress;
+
+              fwPeriphAddress_set(dpe, configParameters, exceptionInfo);
+              if(dynlen(exceptionInfo)>0)
+                DebugN(exceptionInfo);
+        }
+        
+        dpElements.deleteAllLines();
+        
+        optimize.enabled(false);
+        
+        fwCloseProgressBar(\"Finished..\");
+        
+        // feedback to the user when the operation is done.
+        bool ok;
+        fwGeneral_openMessagePanel(\"Operation ended successfully.\\nIf you want to see the new changes just do a\\nnew search with this tool..\", ok, exceptionInfo, \"Done\", true);
+}" 0
+ E E E
+14 10
+"rowCountText"
+""
+1 372 600 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 370 598 424 622
+3 "0s" 0 0 0 0 0 -1  E E E
+2 11
+"PRIMITIVE_TEXT4"
+""
+1 280 604 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 280 604 354 618
+0 2 2 "0s" 0 0 0 192 0 0  280 604 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 14 Number of rows
+2 12
+"PRIMITIVE_TEXT5"
+""
+1 580 57 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 580 57 975 71
+0 2 2 "0s" 0 0 0 192 0 0  580 57 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 79 White columns contain changes which will be done when pushing optimize/reverse.
+2 13
+"PRIMITIVE_TEXT6"
+""
+1 580 71 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 580 71 768 85
+0 2 2 "0s" 0 0 0 192 0 0  580 71 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 39 Grey columns show the current settings.
+13 14
+"PUSH_BUTTON3"
+""
+1 890 600 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 888 598 982 622
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+    PanelOff();
+}" 0
+ E E E
+20 16
+"useDpConnect"
+""
+1 261 39 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 259 37 383 61
+1
+T 
+1
+LANG:1 13 Use dpConnect
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE14 17
+"pollGroup"
+""
+1 630 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 628 8 862 32
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text(\"PollCaV\");
+}" 0
+ E
+2 18
+"PRIMITIVE_TEXT7"
+""
+1 570 13 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 570 13 617 27
+0 2 2 "0s" 0 0 0 192 0 0  570 13 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 10 Poll group
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

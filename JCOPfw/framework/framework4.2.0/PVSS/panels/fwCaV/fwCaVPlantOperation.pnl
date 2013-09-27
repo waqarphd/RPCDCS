@@ -1,0 +1,1047 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 775 752 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+	dyn_string exceptionInfo;
+                
+	fwCaV_addUserLogin(415,-2);
+	
+        // The Access Control component have to be installed and the checkbox to enable CaV AC have to be checked for AC to work. 
+	if(isFunctionDefined(\"fwAccessControl_selectPrivileges\") && fwCaV_ACEnabled($sDpName))
+	{
+		fwAccessControl_setupPanel(\"fwCaV_applyPanelAccessControl\", exceptionInfo);
+		if (dynlen(exceptionInfo))
+		{
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}	
+	}
+	else {
+                // if not AC is installed or if the AC is not enabled in the CaV AC setup panel the user will have expert priviliges 
+		fwCaV_fullAccess();
+	}
+        
+        
+        // check if .Settings.control have a peripheral address.
+        // if not disable all controls related to this dpe
+	dyn_string exceptionInfo;
+        bool configExists, isActive;
+        dyn_anytype config;
+        fwPeriphAddress_get($sDpName+\".Settings.control\", configExists, config, isActive, exceptionInfo);
+        if(!configExists)
+        {
+            setValue(\"operationPanel.stateApplyChange\",\"visible\",false);
+            setValue(\"operationPanel.actions\",\"visible\",false);
+            setValue(\"operationPanel.Frame3\",\"visible\",false);
+            setValue(\"operationPanel.clearAlarms\",\"visible\",false);
+            setValue(\"operationPanel.stateSetting\",\"enabled\",false);   
+        }
+        
+        // if there are no loops or areas related to this plant hide the children table
+        dyn_string children;
+        fwDevice_getChildrenInSlots($sDpName, fwDevice_HARDWARE, children, exceptionInfo);
+        if(dynlen(children)==0)
+        {
+          Frame3.visible(false);   
+          removeSymbol(myModuleName(), myPanelName(),\"childrenPanel\");
+        }
+        
+}
+
+" 0
+ "main()
+{
+;
+}" 0
+ E E E 1 0 0 0  10 10
+""0  1
+E "
+bool isExpert = FALSE;
+bool isOperator = FALSE;
+
+fwCaV_applyPanelAccessControl(string s1, string s2)
+{
+	dyn_string exceptionInfo, items;
+	string accessc;
+	
+	DisableAllInPanel();
+	
+	items[1] = \"\";
+	dpGet($sDpName + \".privileges\", accessc);
+	if(accessc != \"\")
+	{
+		items = strsplit(accessc,\"|\");
+		if (items[1] != \"!\")
+		{
+			fwAccessControl_isGranted(items[2],isOperator, exceptionInfo);
+                        
+                        // if an expert user have the same rights as an operator then there will only be one item in this dyn                        
+			if(dynlen(items)>=3)
+                           fwAccessControl_isGranted(items[3],isExpert, exceptionInfo);
+                        else
+                           fwAccessControl_isGranted(items[2],isExpert, exceptionInfo);
+		
+			if (dynlen(exceptionInfo))
+			{
+				fwExceptionHandling_display(exceptionInfo);
+				return;
+			}
+			
+			if (isOperator)
+			{
+				EnableOperatorPanel();
+			}
+			if (isExpert)
+			{
+				EnableExpertPanel();
+			}
+		}
+	}
+}
+
+fwCaV_fullAccess()
+{
+      EnableExpertPanel();
+      isExpert = TRUE;
+}
+
+DisableAllInPanel()
+{	
+	setValue(\"Button7\",\"enabled\",FALSE);
+	
+	setValue(\"operationPanel.actions\",\"enabled\",FALSE);
+	setValue(\"operationPanel.stateApplyChange\",\"enabled\",FALSE);
+	setValue(\"operationPanel.stateSetting\",\"enabled\",FALSE);
+	
+	setValue(\"actionPanel.Button1\",\"enabled\",FALSE);
+	
+	setValue(\"childrenPanel.stateSetting\",\"enabled\",FALSE);
+	setValue(\"childrenPanel.stateApplyChange\",\"enabled\",FALSE);   
+}
+
+EnableOperatorPanel()
+{
+	setValue(\"Button7\",\"enabled\",TRUE);	
+	setValue(\"actionPanel.Button1\",\"enabled\",TRUE);
+}
+
+EnableExpertPanel()
+{
+	setValue(\"Button7\",\"enabled\",TRUE);
+	
+	setValue(\"operationPanel.actions\",\"enabled\",TRUE);
+	setValue(\"operationPanel.stateApplyChange\",\"enabled\",TRUE);
+	setValue(\"operationPanel.stateSetting\",\"enabled\",TRUE);
+	
+	setValue(\"actionPanel.Button1\",\"enabled\",TRUE);
+	
+	setValue(\"childrenPanel.stateSetting\",\"enabled\",TRUE);
+	setValue(\"childrenPanel.stateApplyChange\",\"enabled\",TRUE);
+}
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+;
+}" 0
+
+""
+NC
+1
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 228 38
+0 2 0 "0s" 0 0 0 64 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 23 Cooling Plant Operation
+1 256 0 "" 19
+1 "message" 1 1 "main()
+{
+/*	string compassDeclarations;
+
+	if(!dpExists($sDpName))
+		return;
+
+	if(dpTypeName($sDpName)==\"_FwViews\")
+		compassDeclarations = \".fwReferences.cfwDeclarations\";
+	else
+		compassDeclarations = \".fwDeclarations.fwReferences.cfwDeclarations\";
+
+	//dpConnect(\"checkEnableState\",TRUE,$sDpName+compassDeclarations+\".enableCmd:_online.._value\");
+		
+	this.visible(TRUE);
+*/
+}
+
+checkEnableState(string dpe, bool enableState)
+{
+	if(enableState)
+		this.text(\"Enabled\");
+	else
+		this.text(\"Disabled\");
+}" 0
+ 
+0
+1 257 0 "" 18
+1 "leftClick" 1 1 "// SimpleCtrlScriptStart {invalid}
+main()
+{
+  ChildPanelOnCentralModal(	\"fwDeviceEditorNavigator/fwAction.pnl\",
+  							\"Action Panel\",
+  							makeDynString(\"$sDpName:\" + $sDpName));
+}" 0
+ 
+0
+2 6
+"Text2"
+""
+1 20 72 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 74 98 90
+0 2 0 "0s" 0 0 0 64 0 0  12 74 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Plant Name:
+2 7
+"Text3"
+""
+1 20 99 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 101 98 117
+0 2 0 "0s" 0 0 0 64 0 0  12 101 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Description
+2 8
+"Text4"
+""
+1 20 45 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 47 58 63
+0 2 0 "0s" 0 0 0 64 0 0  12 47 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Model:
+30 62
+"Frame3"
+""
+1 20 721 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.1617873651772 0 0.70242214532872 -13.2357473035439 204.256055363322 0 E 20 431 670 721
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Children
+30 107
+"Frame1"
+""
+1 20 430 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+51 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.976253298153031 0 1.00334448160535 -9.52506596306063 9.56521739130449 0 E 20 130 400 430
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Plant Operation
+1 259 16 "" 2
+0
+1 260 16 "" 1
+0
+1 261 16 "" 0
+0
+14 3
+"alertSummary"
+""
+1 784 21.1666666666667 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 371 10 417 36
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+	dyn_string exceptionInfo;
+
+	fwColour_connectItemBackColToStatus($sDpName + \".\", exceptionInfo);
+
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E
+13 4
+"Button7"
+""
+1 243 12 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 241 10 365 36
+
+T 
+1
+LANG:1 15 Alert Summary :
+"main()
+{
+ 	// open on new panel or existing Alert Summary Panel
+	ChildPanelOnCentralModal(	\"fwConfigs/fwAlarmSummaryOperationPopupPanel.pnl\",
+								\"Alert Summary Panel\",
+								makeDynString(\"$sDpe:\" + $sDpName + \".\"));
+                    
+}" 0
+ E E E
+1 258 1 "" 0
+1 "message" 1 1 "main()
+{
+	time rootPanelPathTime, childPanelPathTime;
+	unsigned managerNumber = myManNum();
+	string rootPanelPath, childPanelPath, rootPanelName, childPanelName, panelName;
+	
+	
+	if(isDollarDefined(\"$sPanelRelativePath\"))
+	{
+		panelPath = $sPanelRelativePath;
+	}
+	
+	if(panelPath == \"\")
+	{
+		dpGet(	\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName\", rootPanelPath,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName:_original.._stime\", rootPanelPathTime,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.PanelName\", rootPanelName,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName\", childPanelPath,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName:_original.._stime\", childPanelPathTime,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.PanelName\", childPanelName);
+	
+
+		//	DebugN(rootPanelPath, rootPanelPathTime, childPanelPath, childPanelPathTime);
+	
+		if(rootPanelPathTime > childPanelPathTime)
+		{
+			panelPath = rootPanelPath;
+			panelName = rootPanelName;
+		}
+		else
+		{
+			panelPath = childPanelPath;
+			panelName = childPanelName;
+		}
+	
+		if(myPanelName() == panelName)
+		{
+			goodPanelName = TRUE;
+//			DebugN(\"Correct panel name\");
+		}
+		else
+		{
+			goodPanelName = FALSE;
+//			DebugN(\"Wrong panel name\");
+		}	
+	}
+//	DebugN(\"The good path is \" + panelPath);
+}" 0
+ 
+1 "leftClick" 1 1 "main()
+{
+	int replaced;
+	string 	componentName, path, tempPanelPath, helpFile, browserCommand;
+	dyn_string aux, exceptionInfo;
+	
+//	DebugN(\"The good path is \" + panelPath);
+	
+	if(!goodPanelName)
+	{
+		fwException_raise(	exceptionInfo,
+							\"ERROR\",
+							\"Open panel name doesn't match with PVSS database. Try opening the panel again.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Get component name. We assume panels are inside a directory
+	// named after the component name
+	strreplace(panelPath, \"\\\\\", \"/\");
+	aux = strsplit(panelPath, \"/\");
+	componentName = aux[1];
+//	DebugN(panelPath, componentName);
+	
+	// Remove extension if given
+	if(strpos(panelPath, \".pnl\") >= 0)
+	{
+		tempPanelPath = substr(panelPath, 0, strpos(panelPath, \".pnl\"));
+	}
+	else
+	{
+		tempPanelPath = panelPath;
+	}
+	
+	// try to find the help file associated with the panel
+	helpFile = tempPanelPath + \".html\";
+//	DebugN(\"helpFile \" + helpFile + \" tempPanelPath \" + tempPanelPath + \" componentName \" + componentName);
+	path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+	if(path == \"\")
+	{		
+		helpFile = tempPanelPath + \".htm\";
+//		DebugN(\"helpFile \" + helpFile);
+		path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+//	DebugN(componentName + \"/panels/\" + helpFile);
+		if(path == \"\")
+		{
+			fwException_raise(	exceptionInfo,
+								\"ERROR\",
+								\"Could not find the help file associated with the current panel\",
+								\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	
+//	DebugN(\"Final help path \" + path);
+	
+	fwOpenProgressBar(\"Help\", \"Opening help file...\", 1);
+	// If there were no exceptions, then display the help
+	if(_WIN32)
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandWindows\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+//		system(\"start iexplore \" + path + \" &\");
+		system(browserCommand);
+	}
+	else
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandLinux\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+		system(browserCommand);
+//		system(\"start iexplore \" + path + \" &\");
+	}
+	fwCloseProgressBar();
+}	" 0
+ 
+0
+14 9
+"modelText"
+""
+1 90 45 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 88 43 552 70
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+	string modelName;
+	dyn_string exceptionInfo;
+
+	fwDevice_getModel(makeDynString($sDpName), modelName, exceptionInfo);
+	this.text = modelName;
+	
+	if(dynlen(exceptionInfo)>0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+	}
+}" 0
+ E
+14 11
+"plantNameText"
+""
+1 90 72 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 88 70 552 97
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = $sDpName;
+}" 0
+ E
+14 12
+"descriptionText"
+""
+1 90 99 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 88 97 552 124
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = dpGetComment($sDpName + \".\");
+}" 0
+ E
+13 63
+"Close"
+""
+1 683 721 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 681 719 765 747
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}
+" 0
+ E E "main()
+{
+	/*if($bHierarchyBrowser) 
+	{
+		this.visible = FALSE;
+	}
+	else 
+	{
+		this.visible = TRUE;
+	}*/
+}" 0
+
+30 196
+"FRAME1"
+""
+1 430 142 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+68 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.13333333333333 0 0.989130434782613 -97.3333333333331 -0.456521739130441 0 E 430 142 761 511
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 25 Plant Specific Parameters
+1 262 27 "" 59
+0
+1 263 27 "" 68
+0
+1 264 27 "" 69
+0
+1 265 27 "" 70
+0
+1 266 27 "" 71
+0
+1 267 27 "" 72
+0
+1 268 27 "" 73
+0
+1 269 27 "" 74
+0
+1 270 27 "" 75
+0
+1 271 27 "" 76
+0
+1 272 27 "" 79
+0
+1 273 27 "" 80
+0
+1 274 27 "" 81
+0
+1 275 27 "" 82
+0
+1 276 27 "" 83
+0
+1 277 27 "" 84
+0
+1 278 27 "" 85
+0
+1 279 27 "" 86
+0
+1 280 27 "" 87
+0
+1 281 27 "" 88
+0
+1 282 27 "" 93
+0
+1 283 27 "" 94
+0
+1 284 27 "" 111
+0
+1 285 27 "" 89
+0
+1 286 27 "" 90
+0
+1 287 27 "" 91
+0
+1 288 27 "" 92
+0
+1 289 27 "" 108
+0
+1 290 27 "" 109
+0
+1 291 27 "1" 0
+0
+1 292 27 "1" 1
+0
+1 293 27 "1" 10
+1 "leftClick" 1 1 "main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentral(\"fwCaV/fwCaVPlantAlarmDetails.pnl\",
+      \"Warning details - \" + $sDpName,
+      makeDynString(\"$sDpName:\" + $sDpName, \"$sMode:alarmWord\", \"$sTitle:Alarm details\"));
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnCentral}
+// File {fwCaV/fwCaVPlantAlarmDetails.pnl}
+// Panel {Warning details}
+// Parent {}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// PanelPara1 {$sDpName:$sDpName}
+// PanelPara2 {$sMode:$sMode}
+// PanelPara3 {$sTitle:$sTitle}
+// SimpleCtrlScriptEnd {EP_childPanelOn}" 0
+ 
+0
+1 294 27 "1" 11
+1 "leftClick" 1 1 "// SimpleCtrlScriptStart {invalid}
+main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentral(\"fwCaV/fwCaVPlantAlarmDetails.pnl\",
+      \"Warning details - \" + $sDpName,
+      makeDynString(\"$sDpName:\" + $sDpName, \"$sMode:warningWord\", \"$sTitle:Warning details\"));
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnCentral}
+// File {fwCaV/fwCaVPlantAlarmDetails.pnl}
+// Panel {Warning details}
+// Parent {}
+// Module {}
+// OffsetX {0}
+// OffsetY {0}
+// PanelPara1 {$sDpName:$sDpName}
+// PanelPara2 {$sMode:$sMode}
+// PanelPara3 {$sTitle:$sTitle}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ 
+0
+1 303 29 "" 4
+0
+1 304 29 "" 0
+0
+1 305 29 "" 2
+0
+1 306 29 "" 3
+0
+1 307 29 "" 7
+0
+1 308 30 "" 0
+0
+1 309 30 "" 1
+0
+1 310 30 "" 2
+1 "message" 1 1 "dyn_string gListOfDpElementToConnect;
+
+main()
+{
+	string unit;
+	dyn_string exceptionInfo;
+	
+	valuesTable.sortOnClick = FALSE;
+	valuesTable.deleteAllLines;
+	
+	initDpeListForValuesTable(exceptionInfo);
+		
+	for(int i = 1; i <= dynlen(values); i++) 
+	{
+		gListOfDpElementToConnect[i] = $sDpName + values[i][INPUT_INDEX]; 
+		unit = dpGetUnit(gListOfDpElementToConnect[i]);
+		valuesTable.appendLine(\"parameter\", values[i][LABEL_INDEX], \"units\", unit);
+	}
+
+//	DebugN(\"settingsTable \"  + gListOfDpElementToConnect);
+	fwColourTable_connectCellBackColToValueStatus(exceptionInfo);
+	valuesTable.lineVisible(0);
+}" 0
+ 
+1 "textFieldOut" 1 1 "main(int xpos,string columnName,string value)
+{
+	dyn_string exceptionInfo;
+		
+	if (columnName == \"status\") 
+	{
+		if ((isExpert) || (isOperator))
+		{
+			ChildPanelOnCentralModal(	\"fwConfigs/fwAlarmOperationPopupPanel.pnl\",
+									\"AlarmOp\", 
+									makeDynString(\"$sDpe:\" + $sDpName + values[xpos + 1][INPUT_INDEX]));
+		}
+	}
+	else if ((isExpert) || (isOperator))
+	{
+		fwGeneral_openDetailsPanel($sDpName + values[xpos + 1][INPUT_INDEX], exceptionInfo);
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+	}
+}" 0
+ 
+0
+13 255
+"PPVCycle"
+""
+1 335 720 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 333 718 437 744
+
+T 
+1
+LANG:1 9 PPV Cycle
+"main()
+{
+ 	// open on new panel for PPV cycle values
+	ChildPanelOnCentralModal(\"objects/fwCaV/fwCaVPPVCycle.pnl\",
+				 \"PPV Cycle\",
+				 makeDynString(\"$sDpName:\" + $sDpName));
+                    
+}" 0
+ E E "main()
+{
+       dyn_string exceptionInfo;
+       bool configExists;    
+       bool isActive;      // not used
+       dyn_anytype config; // not used
+       int count;
+       
+       dyn_string ppvCycleParams;
+       ppvCycleParams = dpNames($sDpName+\".Actual.PPVCycle.*\");
+       
+       if(dynlen(ppvCycleParams)==0)
+         return;
+
+       for(int i=1; i<=dynlen(ppvCycleParams); i++)
+       {
+          fwPeriphAddress_get(ppvCycleParams[i], configExists, config, isActive, exceptionInfo);
+          if(dynlen(exceptionInfo)>0)
+	  {
+		//fwExceptionHandling_display(exceptionInfo);
+                continue;
+	  }
+          
+          if(configExists)
+            count++;        
+       }  
+       
+       if(count>0)
+         this.visible(true);
+}" 0
+
+1 311 31 "" 0
+0
+1 312 31 "" 1
+0
+1 313 31 "" 2
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+1 295 27 "1.0" 4
+0
+1 296 27 "1.0" 0
+0
+1 297 27 "1.0" 3
+0
+1 298 27 "1.0" 1
+1 "message" 1 1 "main()
+{
+	dyn_string exceptionInfo;
+	
+//	DebugN(\"Led:\",$sDpName,$sDpSubName);
+
+	// if colors are defined use them, if not, take alert colors
+	if(isDollarDefined(\"$color0\") && isDollarDefined(\"$color1\"))
+	{
+		if(($color0 != \"\") && ($color1 != \"\"))
+			connectItemBackCol();
+		else
+			fwColour_connectItemBackColToStatus($sDpName + $sDpSubName, exceptionInfo);
+	}
+	else
+		fwColour_connectItemBackColToStatus($sDpName + $sDpSubName, exceptionInfo);
+}
+
+connectItemBackCol()
+{
+	dyn_errClass err;
+
+	if(dpSubStr($sDpName + $sDpSubName, DPSUB_DP_EL ) == \"\")
+	{
+		setValue(\"\", \"color\", \"_dpdoesnotexist\");
+		return;
+	}
+	
+	dpConnect(\"setBackColorCB\", TRUE, $sDpName + $sDpSubName + \":_online.._value\", $sDpName + $sDpSubName + \":_online.._invalid\");
+
+	err = getLastError();
+	if (dynlen(err) > 0)
+		setValue(\"\", \"color\", \"_dpdoesnotexist\");
+}
+
+setBackColorCB(string dpe, int newValue, string invalidDpe, bool invalid)
+{
+	if(invalid)
+		this.backCol = \"FwDead\";
+	else if(newValue == 0)
+		this.backCol = $color0;
+	else
+		this.backCol = $color1;
+}" 0
+ 
+0
+1 299 27 "1.1" 4
+0
+1 300 27 "1.1" 0
+0
+1 301 27 "1.1" 3
+0
+1 302 27 "1.1" 1
+1 "message" 1 1 "main()
+{
+	dyn_string exceptionInfo;
+	
+//	DebugN(\"Led:\",$sDpName,$sDpSubName);
+
+	// if colors are defined use them, if not, take alert colors
+	if(isDollarDefined(\"$color0\") && isDollarDefined(\"$color1\"))
+	{
+		if(($color0 != \"\") && ($color1 != \"\"))
+			connectItemBackCol();
+		else
+			fwColour_connectItemBackColToStatus($sDpName + $sDpSubName, exceptionInfo);
+	}
+	else
+		fwColour_connectItemBackColToStatus($sDpName + $sDpSubName, exceptionInfo);
+}
+
+connectItemBackCol()
+{
+	dyn_errClass err;
+
+	if(dpSubStr($sDpName + $sDpSubName, DPSUB_DP_EL ) == \"\")
+	{
+		setValue(\"\", \"color\", \"_dpdoesnotexist\");
+		return;
+	}
+	
+	dpConnect(\"setBackColorCB\", TRUE, $sDpName + $sDpSubName + \":_online.._value\", $sDpName + $sDpSubName + \":_online.._invalid\");
+
+	err = getLastError();
+	if (dynlen(err) > 0)
+		setValue(\"\", \"color\", \"_dpdoesnotexist\");
+}
+
+setBackColorCB(string dpe, int newValue, string invalidDpe, bool invalid)
+{
+	if(invalid)
+		this.backCol = \"FwDead\";
+	else if(newValue == 0)
+		this.backCol = $color0;
+	else
+		this.backCol = $color1;
+}" 0
+ 
+0
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "actionPanel"
+"fwDeviceEditorNavigator/fwActionButton.pnl" 512 10 T 2 1 0 1 -2 -10
+1
+"$sDpName""$sDpName"
+3 1 "Group4"
+"objects\\fwGeneral\\fwHelpButton.pnl" 661 10 T 3 1 0 1 59 2
+1
+"$sPanelRelativePath""fwCaV/fwCaVPlantOperation"
+3 16 ""
+"objects\\fwCaV\\fwCaVTimeoutIndicator.pnl" 350 720 T 54 1 0 1 -340 -7
+1
+"$sDpName""$sDpName"
+3 27 "operationPanel"
+"objects/fwCaV/fwCaVPlantControl.pnl" 20 160 T 70 1 0 1 -4 -3
+1
+"$sDpName""$sDpName"
+3 29 "childrenPanel"
+"objects/fwCaV/fwCaVPlantChildrenOverview.pnl" 20 530 T 72 U 
+1
+"$sDpName""$sDpName"
+3 30 "plantSpecificParams"
+"objects/fwCaV/fwCaVSpecificParametersSmall.pnl" 400 160 T 73 1 0 1 -1 9
+1
+"$sDpName""$sDpName"
+3 31 "PANEL_REF32"
+"objects/fwCaV/fwCaVInvokeBitmapButtonNew.pnl" 30 540 T 75 1 0 1 -20 4
+2
+"$sCaption""Plant bitmap"
+"$sDpName""$sDpName"
+0

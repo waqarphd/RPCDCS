@@ -1,0 +1,845 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 946 610 N "_3DFace" 4
+"$hostname"
+"$item"
+"$project"
+"$type"
+"main()
+{
+  dyn_string hostnames;
+  dyn_string  projectNames;
+  dyn_string allPaths;
+  dyn_string ips;
+  dyn_string macs;
+  dyn_string ips2;
+  dyn_string macs2;
+  dyn_string bmc_ips;
+  dyn_string bmc_ips2;
+  dyn_string ds;  
+  int row = 0;
+  
+  dynClear(projectNames);
+  dynClear(hostnames);
+  dynClear(allPaths);
+  
+
+ 
+  if(fwInstallationDB_connect() != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: DB Connection failed\", makeDynString(\"$1:DB Connection failed.\\nPlease check DB connection parameters\"));
+  }
+
+  if(isDollarDefined(\"$fsm\"))
+  {
+    hostnames = strsplit($hostname, \"|\");
+    projectNames = strsplit($project, \"|\");
+    for(int i = 1; i <= dynlen(hostnames); i++)
+    {
+      strreplace(hostnames[i], \" \", \"\");
+      strreplace(projectNames[i], \" \", \"\");
+      computerProjects[i][1] = hostnames[i];
+      computerProjects[i][2] = projectNames[i];
+      tfComputerPattern.text = dynlen(hostnames)>1?\"Multiple selection\":hostnames[1];
+      tfComputerPattern.enabled = false;
+      tfProjectPattern.text = dynlen(projectNames)>1?\"Multiple selection\":projectNames[1];
+      tfProjectPattern.enabled = false;
+    }
+  }
+  else
+  {
+    switch($type)
+    {
+      case FW_INST_SYSTEM_TYPE: 
+        if(fwInstallationDB_getHosts(hostnames, ips, macs, ips2, macs2, bmc_ips, bmc_ips2) != 0){
+          ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not read list of computers from DB\"));
+          return;
+        }  
+      break; //end of system
+    
+      case FW_INST_COMPUTER_TYPE: dynAppend(hostnames, $item);
+        tfComputerPattern.text = $item;
+        tfComputerPattern.enabled = false;
+        break; //end of computer
+    
+      case FW_INST_PROJECT_TYPE: ds = strsplit($item, FW_SYS_STAT_SEPARATOR);
+        dynAppend(hostnames, ds[1]);
+        dynAppend(projectNames, ds[2]);
+        tfComputerPattern.text = ds[1];
+        tfComputerPattern.enabled = false;
+        tfProjectPattern.text = ds[2];
+        tfProjectPattern.enabled = false;
+      
+        computerProjects[1][1] = ds[1];
+        computerProjects[1][2] = ds[2];
+      
+
+        break; //end of project
+    
+      default: return;
+             
+    }//end of switch
+
+  
+    for(int i = 1 ; i <= dynlen(hostnames); i++)
+    {
+      computerProjects[i][1] = hostnames[i];    
+
+      dynClear(projectNames);
+    
+      if($type != FW_INST_PROJECT_TYPE)
+      {
+        if(fwInstallationDB_getPvssProjects(projectNames, computerProjects[i][1]) != 0){
+          ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not read list of project from DB\"));
+          return;
+        }
+      }    
+      for(int j = 2; j <= (dynlen(projectNames) + 1); j++)
+      {
+        computerProjects[i][j] = projectNames[j-1];
+      }//end of loop over j    
+    }
+  }
+  search();
+  //DebugN(\"$type, computerProjects: \", $type, computerProjects);
+  
+  //Access Control:
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyProjectPathAcCB\", ex);
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+}
+
+
+
+" 0
+ E E E E 1 -1 -1 0  78 56
+""0  1
+E "#uses \"fwInstallationDB.ctl\"
+#uses \"fwInstallationDBAgent.ctl\"
+#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+dyn_dyn_string computerProjects; 
+
+search()
+{
+  string computerPattern = tfComputerPattern.text;
+  string projectPattern = tfProjectPattern.text;
+  
+  tbProjects.deleteAllLines();
+    
+  for(int i = 1; i <= dynlen(computerProjects); i++ )
+  {
+    for(int j = 2; j <= dynlen(computerProjects[i]); j++)
+    {
+//      if(patternMatch(\"*\" + computerPattern + \"*\", computerProjects[i][1]) &&
+//         patternMatch(\"*\" + projectPattern + \"*\", computerProjects[i][j]))  
+      if((computerPattern == \"Multiple selection\" && 
+         projectPattern == \"Multiple selection\") || 
+         (patternMatch(\"*\" + computerPattern + \"*\", computerProjects[i][1]) &&
+         patternMatch(\"*\" + projectPattern + \"*\", computerProjects[i][j])))  
+      {
+        tbProjects.appendLine(\"computer\", computerProjects[i][1], \"project\", computerProjects[i][j]);
+      }
+    }
+  }
+  
+}
+
+void applyProjectPathAcCB(string s1, string s2)
+{
+  disableAllInProjectPathPanel();
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+ 
+    for(int i = 1; i <= dynlen(computerProjects); i++)
+    {
+      string projectDp;
+      fwSysOverview_getProjectDp(computerProjects[i][1], computerProjects[i][2], projectDp, exceptionInfo);
+      string domain;
+      if (projectDp == \"\" || dynlen(exceptionInfo) >0 || !dpExists(projectDp))
+      {
+        fwSysOverview_getACDomain(domain);
+      }
+      else
+        fwSysOverview_getACDomain(domain, projectDp);
+   
+      if(domain == \"\") //AC not yet configured. Enable access 
+      {
+        hasExpertPrivilege = true;
+        break;
+      }
+      else
+      {
+        fwAccessControl_isGranted(domain + \":\" + expertPrivilege, hasExpertPrivilege, exceptionInfo);
+        // check and handle exceptions that might have been thrown by the function above
+        if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+        if (!hasExpertPrivilege)
+          break;
+      }
+    }
+  }
+  else
+    hasExpertPrivilege = true;
+  // enable UI elements, depending on the access rights:
+ 
+  if (hasExpertPrivilege)
+  {
+    btOk.enabled = true;
+    btApply.enabled = true;
+    btnChange.enabled = true;
+    btnDel.enabled = true;
+    btnDown.enabled = true;
+    btnInsert.enabled = true;
+    btnUp.enabled = true;
+    cbPaths.enabled = true;
+  }
+}
+
+void disableAllInProjectPathPanel()
+{
+  btOk.enabled = false;
+  btApply.enabled = false;
+  btnChange.enabled = false;
+  btnDel.enabled = false;
+  btnDown.enabled = false;
+  btnInsert.enabled = false;
+  btnUp.enabled = false;
+  cbPaths.enabled = false;
+}    
+
+registerPathsInProjects()
+{
+  string project;
+  string computer;
+  dyn_string paths = sliProjPaths.items;
+  dyn_string ds;
+  dyn_float df;
+  dyn_int lines = tbProjects.getSelectedLines();
+  int err = 0;
+  
+  string description = myPanelName()  + \": Asigning paths to projects. \";
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    project = \"\";
+    computer = \"\";
+    
+    getMultiValue(\"tbProjects\", \"cellValueRC\", lines[i], \"computer\", computer, 
+                  \"tbProjects\", \"cellValueRC\", lines[i], \"project\", project);
+    
+    if(project == \"\" || computer == \"\")
+      continue;
+
+    if(fwInstallationDB_deleteAllProjectPaths(project, computer))
+    {
+      ++err;
+      DebugN(\"Could not unregister paths for project: \" + project + \" computer:\" + computer);
+    }
+    description += \"Project: \" + project + \" Computer: \" + computer + \" Paths: \" + paths;
+    if(fwInstallationDBAgent_registerProjectPaths(paths, project, computer))
+    {
+      DebugN(\"Could not register paths:\" + paths + \" in project: \" + project + \" computer: \" + computer);
+      ++err;
+    }
+  }
+  fwConfigurationDBSystemInformation_logAction(description);
+    if(err)
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"There were errors registering the project paths. Check log-viewer for more info\"));
+    
+}
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 6
+"btApply"
+""
+1 704 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  702 558 788 588
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  registerPathsInProjects();
+}" 0
+ E E E
+13 7
+"PUSH_BUTTON2"
+""
+1 796 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  794 558 880 588
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOffReturn(makeDynFloat(0.), makeDynString(\"\"));
+}" 0
+ E E E
+13 8
+"btOk"
+""
+1 610 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  608 558 694 588
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  registerPathsInProjects(false);
+  PanelOffReturn(makeDynFloat(1.), makeDynString(\"OK\"));
+}" 0
+ E E E
+2 9
+"PRIMITIVE_TEXT1"
+""
+1 20 30 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 10 158 24
+0 2 2 "0s" 0 0 0 192 0 0  20 10 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 24 Assign Paths to Projects
+2 14
+"PRIMITIVE_TEXT2"
+""
+1 30 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 50 190 70
+0 2 2 "0s" 0 0 0 64 0 0  30 50 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Computer search pattern:
+2 15
+"PRIMITIVE_TEXT3"
+""
+1 30 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 80 190 100
+0 2 2 "0s" 0 0 0 64 0 0  30 80 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 23 Project search pattern:
+14 16
+"tfComputerPattern"
+""
+1 160 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  158 48 282 69
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = \"\";
+}" 0
+ E
+14 17
+"tfProjectPattern"
+""
+1 160 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  158 78 282 99
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = \"\";
+}" 0
+ E
+13 18
+"PUSH_BUTTON4"
+""
+1 300 70 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  298 68 392 102
+
+T 
+1
+LANG:1 6 Search
+"main()
+{
+  search();
+}
+" 0
+ E E E
+2 19
+"PRIMITIVE_TEXT4"
+""
+1 300 50 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 300 50 460 70
+0 2 2 "0s" 0 0 0 64 0 0  300 50 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 30 Do NOT use wildcards, e.g. "*"
+25 22
+"tbProjects"
+""
+1 30 150 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  28 148 442 542
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+"main(int row, string column, string value)
+{
+  string project, host;
+  dyn_string paths;
+  dyn_int lines;
+  
+  lines = this.getSelectedLines();
+  if(dynlen(lines) == 0)
+    return;
+  
+  if(dynlen(lines) > 1)
+  {
+    sliProjPaths.deleteAllItems();
+    txTitle.text = \"Multiple projects selected. Paths not shown\";
+    return;
+  }
+  
+  getMultiValue(\"\",\"cellValueRC\", lines[1], \"project\", project, \"\", \"cellValueRC\", lines[1], \"computer\", host);
+  txTitle.text = \"Project Paths for: \" + project + \"@\" + host;
+  fwInstallationDB_getProjectPaths(project, host, paths);
+  
+  sliProjPaths.items = paths;
+}" 0
+ 1 0 1 2 0 "computer" 16 1 0 "s" 1
+LANG:1 8 Computer
+E
+1
+LANG:1 0 
+
+160 "project" 24 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 0 
+
+232 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+17 23
+"sliProjPaths"
+""
+1 480 150 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  478 148 882 502
+0
+
+E
+"main()
+{
+  dyn_string paths = this.items;
+  
+  if(this.selectedPos() == dynlen(paths))
+    this.selectedPos(dynlen(paths)-1);
+
+  cbPaths.text = this.selectedText;
+}" 0
+
+E
+
+0 0
+13 25
+"btnUp"
+""
+1 890 150 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  888 148 922 182
+
+P 
+10862530
+"pictures/dpeMon_up.gif"
+1
+LANG:1 0 
+"main()
+{
+  int pos = sliProjPaths.selectedPos();
+  dyn_string paths = sliProjPaths.items;
+  
+//DebugN(pos, paths[pos], paths[pos-1]);  
+
+  if(pos > 1)
+  {
+    string tmp = paths[pos-1];
+    paths[pos-1] = paths[pos];
+    paths[pos] = tmp;
+    sliProjPaths.items = paths;
+  }
+}" 0
+ E E E
+13 26
+"btnDown"
+""
+1 890 190 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 32 Courier New,-1,12,5,40,0,0,0,0,0
+LANG:0 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0  888 188 922 222
+
+P 
+10862530
+"pictures/dpeMon_down.gif"
+1
+LANG:1 0 
+"main()
+{
+  int pos = sliProjPaths.selectedPos();
+  dyn_string paths = sliProjPaths.items;
+  
+  if(pos < (dynlen(paths)-1)) //Don't let last-but-one path to be moved down
+  {
+    string tmp = paths[pos+1];
+    paths[pos+1] = paths[pos];
+    paths[pos] = tmp;
+    sliProjPaths.items = paths;
+  }
+
+}" 0
+ E E E
+13 27
+"btnDel"
+""
+1 888 408 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  888 408 928 438
+
+P 
+13160660
+"pictures/delete1.xpm"
+2
+LANG:1 0 
+LANG:0 0 
+"main()
+{
+  string path;
+  getValue(\"sliProjPaths\",\"selectedPos\",path);
+  setValue(\"sliProjPaths\",\"deletePos\",path);
+}" 0
+ E E E
+13 28
+"btnInsert"
+""
+1 888 438 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  888 438 928 468
+
+P 
+13421721
+"pictures/insertA_en.gif"
+2
+LANG:1 0 
+LANG:0 0 
+"main()
+{
+  string path;
+  dyn_string paths;
+  int pos  = 1;
+  
+  getMultiValue(\"cbPaths\",\"text\",path,
+                \"sliProjPaths\",\"items\",paths,
+                \"sliProjPaths\",\"selectedPos\",pos);
+  
+  if(pos < 0)
+    pos = 0;
+  
+  if (dynContains(paths, path) <= 0 && path != \"\")
+  {
+    if(pos < dynlen(paths))
+      pos += 1;
+
+    dynInsertAt(paths, path, pos);
+    sliProjPaths.items(paths);
+  }
+}" 0
+ E E E
+13 29
+"btnChange"
+""
+1 888 468 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  888 468 928 498
+
+P 
+13421721
+"pictures/apply_en.gif"
+2
+LANG:1 0 
+LANG:0 0 
+"main()
+{
+
+  string path;
+  dyn_string paths;
+  int pos  = 1;
+  
+  getMultiValue(\"cbPaths\",\"text\",path,
+                \"sliProjPaths\",\"items\",paths,
+                \"sliProjPaths\",\"selectedPos\",pos);
+
+  if (pos > 0)
+  {
+    paths[pos] = path;
+    sliProjPaths.items(paths);
+  }
+  
+}" 0
+ E E E
+14 32
+"cbPaths"
+""
+1 480 520 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  478 518 882 542
+3 "0s" 0 0 0 0 0 -1  E E E
+2 34
+"txTitle"
+""
+1 480 120 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 480 120 840 140
+0 2 2 "0s" 0 0 0 64 0 0  480 120 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 19 No Project selected
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

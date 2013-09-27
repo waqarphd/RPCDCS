@@ -1,0 +1,2736 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 558 350 N "_3DFace" 0
+E E E E E 1 -1 -1 0  10 10
+""0  1
+E "init()
+{
+	if(!globalExists(\"FwDimServiceNames\"))
+	{
+		addGlobal(\"FwDimServiceNames\", DYN_STRING_VAR);
+		addGlobal(\"FwDimDpNames\", DYN_STRING_VAR);
+		addGlobal(\"FwDimDpNames1\", DYN_STRING_VAR);
+	}
+	dynClear(FwDimServiceNames);
+	dynClear(FwDimDpNames);
+	dynClear(FwDimDpNames1);
+}
+
+get_structure(string dp, dyn_string &dpels, dyn_string &dimtypes)
+{
+string dpt;
+dyn_string items, dps;
+int struc;
+dyn_string list_items, list_types;
+dyn_string ldpels, ldimtypes;
+int i;
+
+	dps = strsplit(dp,\";\");
+	for(i = 1; i <= dynlen(dps); i++)
+	{
+		dp = dps[i];
+		dpt= dpTypeName ( dp );
+		items = strsplit(dp,\".\");
+                dynClear(list_items);
+                dynClear(list_types);
+		get_type_info( dpt, list_items, list_types, items[1]); 
+		find_struct(dp, list_items, list_types, ldpels, ldimtypes);
+//DebugN(dps[i], dpt, list_items, list_types, items[1], ldpels, ldimtypes);
+		dynAppend(dpels, ldpels);
+		dynAppend(dimtypes, ldimtypes);
+	}
+}
+
+find_struct(string dp, dyn_string list_items, dyn_string list_types,
+	dyn_string &dpels, dyn_string &dimtypes)
+{
+int i;
+
+	dynClear(dpels);
+	dynClear(dimtypes);
+	for(i = 1; i <= dynlen(list_items); i++)
+	{
+		if(strpos(list_items[i],dp) == 0)
+		{
+			dynAppend(dpels, list_items[i]);
+			dynAppend(dimtypes, list_types[i]);
+		}
+	}
+}
+	
+
+get_type_info( string dpt, dyn_string &list_items, dyn_string &list_types,
+	string &prefix)
+{
+dyn_dyn_string lnames;
+dyn_dyn_int ltypes;
+int struc, i, j, k;
+string ldpt, str, dimtype;
+dyn_string items;
+
+	struc=dpTypeGet(dpt,lnames,ltypes);
+	for(i = 2; i <= dynlen(ltypes); i++)
+	{
+		for(j = 1; j <= dynlen(ltypes[i]); j++)
+		{
+			if(ltypes[i][j] != 0)
+			{
+				str = prefix;
+				items[j] = lnames[i][j];
+				for(k = 2; k <= j; k++)
+				{
+					str += \".\";
+					str += items[k];
+				}
+				if(	(ltypes[i][j] != DPEL_TYPEREF) && (ltypes[i][j] != DPEL_STRUCT))
+				{
+					dimtype = getDimDpType(ltypes[i][j]);
+					if(dimtype != \"+\")
+					{
+						dynAppend(list_items, str);
+						dynAppend(list_types, dimtype);
+					}
+				}
+				if(ltypes[i][j] == DPEL_TYPEREF)
+				{
+					ldpt = lnames[i][j+1];
+					get_type_info(ldpt, list_items, list_types, str);
+				}
+				break;
+			}			
+		}	
+	} 		
+} 
+
+
+string getDimDpType(int elTyp)
+{
+string dimType;
+/*
+DpIdentifier dp;
+DpIdentification *dpIdent;
+DpElementType elTyp;
+
+	Manager::getId(dpName, dp);
+	dpIdent = Manager::getDpIdentificationPtr();
+	dpIdent->getElementType(dp, elTyp);
+*/
+	switch(elTyp)
+	{
+		case DPEL_STRING:
+//			type = DIM_STRING;
+			dimType = \"C\";
+			break;
+		case DPEL_UINT:
+//			type = DIM_UINTEGER;
+			dimType = \"I:1\";
+			break;
+		case DPEL_INT:
+//			type = DIM_INTEGER;
+			dimType = \"I:1\";
+			break;
+		case DPEL_FLOAT:
+//			type = DIM_FLOAT;
+			dimType = \"F:1\";
+			break;
+		case DPEL_DYN_UINT:
+//			type = DIM_UINT_ARRAY;
+			dimType = \"I\";
+			break;
+		case DPEL_DYN_INT:
+//			type = DIM_INT_ARRAY;
+			dimType = \"I\";
+			break;
+		case DPEL_DYN_FLOAT:
+//			type = DIM_FLOAT_ARRAY;
+			dimType = \"F\";
+			break;
+		case DPEL_DYN_STRING:
+//			type = DIM_STRING_ARRAY;
+			dimType = \"C\";
+			break;
+		case DPEL_BOOL:
+//			type = DIM_BOOL;
+			dimType = \"I:1\";
+			break;
+		case DPEL_DYN_BOOL:
+//			type = DIM_BOOL_ARRAY;
+			dimType = \"I\";
+			break;
+		case DPEL_BIT32:
+//			type = DIM_BITFIELD;
+			dimType = \"I:1\";
+			break;
+		case DPEL_DYN_BIT32:
+//			type = DIM_BITFIELD_ARRAY;
+			dimType = \"I\";
+			break;
+		case DPEL_CHAR:
+//			type = DIM_CHAR;
+			dimType = \"C:1\";
+			break;
+//		case DPELEMENT_BLOB:
+//		case DPELEMENT_DYNBLOB:
+		case DPEL_DYN_CHAR:
+//			type = DIM_CHAR_ARRAY;
+			dimType = \"C\";
+			break;
+		case DPEL_TIME:
+			dimType = \"I:1\";
+			break;
+		case DPEL_DYN_TIME:
+			dimType = \"I\";
+			break;
+//		case DPEL_TYPEREF:
+//			dimType = \"RecurseType\";
+//			break;
+//		case DPEL_STRUCT:
+
+		case DPEL_CHAR_STRUCT:
+		case DPEL_UINT_STRUCT:
+		case DPEL_INT_STRUCT:
+		case DPEL_FLOAT_STRUCT:
+		case DPEL_BOOL_STRUCT:
+		case DPEL_BIT32_STRUCT:
+		case DPEL_STRING_STRUCT:
+//			type = DIM_RECURSE;
+			dimType = \"+\";
+			break;
+		default:
+//			type = DIM_NOT_SUPPORTED;
+			dimType = \"?\";
+			break;
+	}
+	return(dimType);
+}
+
+update_format(string dp, string config, string service_name, int pub_type)
+{
+	dyn_string dpels, dimtypes;
+	string format, format1;
+	
+//	format = \"\";
+	format = \"Computed Dynamically\";
+	if(!globalExists(\"CurrDPElems\"))
+	{
+		addGlobal(\"CurrDPElems\", DYN_STRING_VAR);
+		addGlobal(\"CurrDPFormats\", DYN_STRING_VAR);
+	}
+	if(service_name != \"\")
+	{
+		if(pub_type == 1)
+			fwDim_getPublishedServiceFormat(config, service_name, format1);
+		else
+			fwDim_getPublishedCommandFormat(config, service_name, format1);		
+		if(format1 != \"\")
+			format = format1;
+		setValue(\"service_format\",\"text\",format);
+	}
+	if(dp != \"\")
+	{
+		get_structure(dp, dpels, dimtypes);
+		CurrDPElems = dpels;
+		CurrDPFormats = dimtypes;
+		setValue(\"service_format\",\"text\",format);
+	}
+//	else
+//	{
+//		CurrDPElems = makeDynString();
+//		CurrDPFormats = makeDynString();
+//	}
+}
+
+int check_format(string format)
+{
+	dyn_string items;
+	string error = \"\";
+	int i;
+	
+	items = strsplit(format,\";\");
+	if(dynlen(items) != dynlen(CurrDPElems))
+		error = \"Wrong number of items in Format String\";
+	for(i = 1; i <= dynlen(items); i++)
+	{
+		if(items[i][0] == '?') 
+			error = \"Unknown DIM Type for DP element: \"+CurrDPElems[i];
+		else if( (i != dynlen(items)) && (items[i][1] != ':'))
+			error = \"Unknown Size for DP element: \"+CurrDPElems[i];
+	}
+	if(error != \"\")
+	{
+		DebugN(error);
+		return 0;
+	}
+	return 1;
+}
+
+update_values_dp(string dp_name, int flag = 0)
+{
+	update_values(dp_name, flag, \"\");
+}
+
+update_values_service(string service_name)
+{
+	update_values(\"\", 0, service_name);
+}
+
+update_values(string dp_name, int flag = 0, string service_name)
+{
+	dyn_string services, formats, dps, defaults, dps1, children;
+	dyn_int times, flags, updates;
+	string config, type, serv, dp;
+	int index, more, cmnd_flag = 0, rpc_flag = 0, pub_flag = 0, pub_flag_index, pos;
+
+	getValue(\"config\",\"text\",config);
+	getValue(\"select\",\"text\",type);
+	more = 0;
+	switch(type)
+	{
+	case \"Subscribed Services\":
+		fwDim_getSubscribedServices(config,services, 
+			dps, defaults, times, flags, updates);
+		more = 1;
+		break;
+	case \"Subscribed Commands\":
+		fwDim_getSubscribedCommands(config,services, 
+			dps, flags);
+		cmnd_flag = 1;
+		break;
+	case \"Published Services\":
+		pub_flag = 1;
+		fwDim_getPublishedServices(config,services, 
+			dps);
+		break;
+	case \"Published Commands\":
+		pub_flag = 2;
+		fwDim_getPublishedCommands(config,services, 
+			dps);
+		break;
+	case \"Subscribed RPCs\":
+		fwDim_getSubscribedRPCs(config,services, 
+			dps, dps1);
+		rpc_flag = 1;
+		break;
+	case \"Published RPCs\":
+		fwDim_getPublishedRPCs(config,services, 
+			dps, dps1);
+		rpc_flag = 1;
+		break;
+	}
+	dp = dp_name;
+	if(dp_name != \"\")
+	{
+		if(!flag)
+			index = dynContains(dps, dp_name);
+		else
+			index = dynContains(dps1, dp_name);
+	}
+	if(service_name != \"\")
+	{
+		index = dynContains(services,service_name);
+	}
+	if(index)
+	{
+		serv = services[index];
+		dp = dps[index];
+		if(pub_flag)
+		{
+			pub_flag_index = 0;
+			if(strreplace(serv,\"/ALARM_INFO\",\"\"))
+			{
+				pub_flag_index = 1;
+				setValue(\"service_format\",\"visible\",0);	
+				setValue(\"service_format_label\",\"visible\",0);	
+				setValue(\"service_format_help\",\"visible\",0);	
+				if(pos = strpos(dp,\":\"))
+					dp = substr(dp,0,pos);
+			}
+			else
+			{
+				setValue(\"service_format\",\"visible\",1);	
+				setValue(\"service_format_label\",\"visible\",1);	
+				setValue(\"service_format_help\",\"visible\",1);	
+			}
+		}
+		setValue(\"service_name1\",\"text\",serv);
+		setValue(\"dp_name\",\"text\",dp);
+		if(cmnd_flag)
+		{
+			children = dpNames(dp+\".*\");
+			if(dynlen(children))
+			{
+				setValue(\"merge\",\"visible\",1);
+				if(flags[index] == -1)
+					flags[index] = 2;
+				setValue(\"merge\",\"number\",flags[index]);
+			}
+			else
+			{
+				setValue(\"file\",\"visible\",1);
+				if(flags[index] == -1)
+					flags[index] = 1;
+				setValue(\"file\",\"number\",flags[index]);
+			}
+		}
+		if(more)
+		{
+			setValue(\"default\",\"text\",defaults[index]);
+			setValue(\"time\",\"text\",times[index]);
+                        if(flags[index] == 3)
+                        {
+			  setValue(\"stamp\",\"state\",0,1);
+			  setValue(\"stamp\",\"state\",1,1);
+                        }
+                        else if(flags[index] == 2)
+                        {
+			  setValue(\"stamp\",\"state\",0,0);
+			  setValue(\"stamp\",\"state\",1,1);
+                        }
+                        else if(flags[index] == 1)
+                        {
+			  setValue(\"stamp\",\"state\",0,1);
+			  setValue(\"stamp\",\"state\",1,0);
+                        }
+                        else
+                        {
+			  setValue(\"stamp\",\"state\",0,0);
+			  setValue(\"stamp\",\"state\",1,0);
+                        }
+			setValue(\"update_first\",\"state\", 0, updates[index]);
+		}
+		if(rpc_flag)
+		{
+//			if(!flag)
+				setValue(\"dp_name1\",\"text\",dps1[index]);
+//			else
+//				setValue(\"dp_name\",\"text\",dps[index]);			
+		}
+		if(pub_flag == 1)
+		{
+			children = dpNames(dp+\".*\");
+			if(!dynlen(children))
+			{
+				setValue(\"alarms\",\"visible\",1);
+				setValue(\"alarms\",\"number\",pub_flag_index);
+			}
+			else
+			{
+				setValue(\"alarms\",\"visible\",0);
+				setValue(\"alarms\",\"number\",0);
+			}
+		}
+	}
+	else
+	{
+//		setValue(\"service_name1\",\"text\",\"\");
+		if(cmnd_flag)
+		{
+			if(dp != \"\")
+			{
+				children = dpNames(dp+\".*\");
+				if(dynlen(children))
+				{
+					setValue(\"merge\",\"visible\",1);
+					setValue(\"merge\",\"number\",0);
+				}
+				else
+				{
+					setValue(\"file\",\"visible\",1);
+					setValue(\"file\",\"number\",0);
+				}
+			}
+		}
+		if(more)
+		{
+			setValue(\"default\",\"text\",\"\");
+			setValue(\"time\",\"text\",0);
+			setValue(\"stamp\",\"state\",0,0);
+			setValue(\"stamp\",\"state\",1,0);
+		}
+		if(pub_flag)
+		{
+			if(dp != \"\")
+			{
+				children = dpNames(dp+\".*\");
+				if(!dynlen(children))
+				{
+					setValue(\"alarms\",\"visible\",1);
+					setValue(\"alarms\",\"number\",0);
+				}
+				else
+				{
+					setValue(\"alarms\",\"visible\",0);
+					setValue(\"alarms\",\"number\",0);
+				}
+			}
+		}
+	}
+	if(pub_flag)
+	{
+		if(index)
+			update_format(dp, config, serv, pub_flag);
+		else
+			update_format(dp, config, \"\", pub_flag);
+	}
+}
+" 0
+ 2
+"CBRef" "0"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 1
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 12 98 27
+0 2 0 "0s" 0 0 0 64 0 0  12 12 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 DIM Edit:
+2 2
+"Text2"
+""
+1 240 10 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 242 12 328 27
+0 2 0 "0s" 0 0 0 64 0 0  242 12 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 2 on
+2 108
+"busy_label"
+""
+1 100 40 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+100 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 102 42 458 58
+0 2 0 "0s" 0 0 0 64 0 0  102 42 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+22 4
+"config"
+""
+1 270 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 268 8 422 35
+0
+
+E
+"main()
+{
+	string config;
+	dyn_string items;
+	
+	getValue(\"\",\"text\",config);
+	fwDim_createConfig(config);
+	
+	getValue(\"\",\"items\",items);
+	if(!dynContains(items, config))
+        {
+		dynAppend(items, config);
+	        setValue(\"\",\"items\",items);
+	        setValue(\"\",\"text\",config);
+        }
+	setValue(\"def_label\",\"visible\",0);	
+	setValue(\"default\",\"visible\",0);	
+	setValue(\"time_label\",\"visible\",0);	
+	setValue(\"sec_label\",\"visible\",0);	
+	setValue(\"time\",\"visible\",0);	
+	setValue(\"stamp\",\"visible\",0);
+	setValue(\"update_first\",\"visible\",0);
+	setValue(\"merge\",\"visible\",0);	
+	setValue(\"file\",\"visible\",0);	
+
+	setValue(\"service_label\",\"visible\",0);	
+	setValue(\"service_name1\",\"visible\",0);
+	setValue(\"servsel\",\"visible\",0);
+	setValue(\"dp_label\",\"visible\",0);
+	setValue(\"dp_name\",\"visible\",0);
+	setValue(\"dpsel\",\"visible\",0);
+	setValue(\"dpsel_add\",\"visible\",0);
+	setValue(\"dp_label1\",\"visible\",0);
+	setValue(\"dp_name1\",\"visible\",0);
+	setValue(\"dpsel1\",\"visible\",0);
+	setValue(\"dpsel_add1\",\"visible\",0);
+	setValue(\"add\",\"visible\",0);
+	setValue(\"remove\",\"visible\",0);
+	setValue(\"delete\",\"visible\",0);
+	setValue(\"copy\",\"visible\",0);
+
+	setValue(\"service_format\",\"visible\",0);	
+	setValue(\"service_format_label\",\"visible\",0);	
+	setValue(\"service_format_help\",\"visible\",0);	
+	setValue(\"alarms\",\"visible\",0);	
+
+	setValue(\"dim_label\",\"visible\",0);	
+	setValue(\"man_label\",\"visible\",0);	
+	setValue(\"poll_label\",\"visible\",0);	
+	setValue(\"DNS_label\",\"visible\",0);	
+	setValue(\"alive_label\",\"visible\",0);	
+	setValue(\"num\",\"visible\",0);	
+	setValue(\"poll\",\"visible\",0);	
+	setValue(\"DNS\",\"visible\",0);	
+	setValue(\"alive\",\"visible\",0);	
+	setValue(\"update\",\"visible\",0);	
+	setValue(\"start\",\"visible\",0);	
+	setValue(\"stop\",\"visible\",0);	
+	setValue(\"restart\",\"visible\",0);	
+
+	setValue(\"service_name1\",\"text\",\"\");
+	setValue(\"dp_name\",\"text\",\"\");
+	setValue(\"dp_name1\",\"text\",\"\");
+	setValue(\"select\",\"text\",\"Please Choose Option\");
+}" 0
+
+E
+ 1 0
+26 31
+"select"
+""
+1 80 10 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 78 8 232 35
+ 0 1
+LANG:1 20 Please Choose Option
+"" 0 0 0 0 0
+ 7 1 1
+LANG:1 11 DIM Manager
+"0" 0 0 0 0 0
+ 1 1
+LANG:1 19 Subscribed Services
+"1" 0 0 0 0 0
+ 1 1
+LANG:1 19 Subscribed Commands
+"2" 0 0 0 0 0
+ 1 1
+LANG:1 15 Subscribed RPCs
+"5" 0 0 0 0 0
+ 1 1
+LANG:1 18 Published Services
+"3" 0 0 0 0 0
+ 1 1
+LANG:1 18 Published Commands
+"4" 0 0 0 0 0
+ 1 1
+LANG:1 14 Published RPCs
+"6" 0 0 0 0 0
+ "main()
+{
+dyn_string items;
+
+	LayerOff(2);
+	LayerOff(3);
+	LayerOff(4);
+	LayerOff(5);
+	LayerOff(6);
+	LayerOff(7);
+	LayerOff(8);
+	while(1)
+	{
+		update();
+		delay(3);
+	}
+}
+
+update()
+{
+dyn_string olditems, items, published, formats;
+string config, color;
+int i;
+		
+	getValue(\"config\",\"items\",olditems);
+	items = dpNames(\"*\",\"_FwDimConfig\");
+	for( i = 1; i <= dynlen(items); i++)
+	{
+		items[i] = dpSubStr(items[i],DPSUB_DP);
+	}
+	if(olditems != items)
+	{
+		setValue(\"config\",\"items\",items);
+		getValue(\"config\",\"text\",config);
+		if(!dynContains(items, config))
+			setValue(\"config\",\"text\",items[1]);
+	}
+}
+" 0
+ "main(int id)
+{
+	dyn_string services, more, formats, dps;
+	dyn_string defaults, items, dps1;
+	dyn_int times, flags, updates, nums;
+	string config, type, DNS_node;
+	int num, poll, alive, i;
+
+	init();
+	setValue(\"def_label\",\"visible\",0);	
+	setValue(\"default\",\"visible\",0);	
+	setValue(\"time_label\",\"visible\",0);	
+	setValue(\"sec_label\",\"visible\",0);	
+	setValue(\"time\",\"visible\",0);	
+	setValue(\"stamp\",\"visible\",0);
+	setValue(\"update_first\",\"visible\",0);
+	setValue(\"merge\",\"visible\",0);	
+	setValue(\"file\",\"visible\",0);	
+		
+	setValue(\"service_label\",\"visible\",0);	
+	setValue(\"service_name1\",\"visible\",0);
+	setValue(\"servsel\",\"visible\",0);
+	setValue(\"dp_label\",\"visible\",0);
+	setValue(\"dp_name\",\"visible\",0);
+	setValue(\"dpsel\",\"visible\",0);
+	setValue(\"dpsel_add\",\"visible\",0);
+	setValue(\"dp_label1\",\"visible\",0);
+	setValue(\"dp_name1\",\"visible\",0);
+	setValue(\"dpsel1\",\"visible\",0);
+	setValue(\"dpsel_add1\",\"visible\",0);
+	setValue(\"add\",\"visible\",0);
+	setValue(\"remove\",\"visible\",0);
+	setValue(\"delete\",\"visible\",0);
+	setValue(\"copy\",\"visible\",0);
+
+	setValue(\"service_format\",\"visible\",0);	
+	setValue(\"service_format_label\",\"visible\",0);	
+	setValue(\"service_format_help\",\"visible\",0);	
+	setValue(\"alarms\",\"visible\",0);	
+
+	setValue(\"dim_label\",\"visible\",0);	
+	setValue(\"man_label\",\"visible\",0);	
+	setValue(\"poll_label\",\"visible\",0);	
+	setValue(\"DNS_label\",\"visible\",0);	
+	setValue(\"alive_label\",\"visible\",0);	
+	setValue(\"num\",\"visible\",0);	
+	setValue(\"poll\",\"visible\",0);	
+	setValue(\"DNS\",\"visible\",0);	
+	setValue(\"alive\",\"visible\",0);	
+	setValue(\"update\",\"visible\",0);	
+	setValue(\"start\",\"visible\",0);	
+	setValue(\"stop\",\"visible\",0);	
+	setValue(\"restart\",\"visible\",0);	
+
+	setValue(\"service_name1\",\"text\",\"\");
+	setValue(\"dp_name\",\"text\",\"\");
+	setValue(\"dp_name1\",\"text\",\"\");
+
+	getValue(\"config\",\"text\",config);
+	LayerOff(2);
+	LayerOff(3);
+	LayerOff(4);
+	LayerOff(5);
+	LayerOff(6);
+	LayerOff(7);
+	LayerOff(8);
+	switch(id)
+	{
+	case 0:
+		setValue(\"\",\"text\",\"DIM Manager\");
+
+		setValue(\"dim_label\",\"visible\",1);	
+		setValue(\"man_label\",\"visible\",1);	
+		setValue(\"poll_label\",\"visible\",1);	
+		setValue(\"DNS_label\",\"visible\",1);	
+		setValue(\"alive_label\",\"visible\",1);	
+		setValue(\"num\",\"visible\",1);	
+		setValue(\"poll\",\"visible\",1);	
+		setValue(\"DNS\",\"visible\",1);	
+		setValue(\"alive\",\"visible\",1);	
+		setValue(\"update\",\"visible\",1);	
+		setValue(\"start\",\"visible\",1);	
+		setValue(\"stop\",\"visible\",1);	
+		setValue(\"restart\",\"visible\",1);
+		setValue(\"delete\",\"visible\",1);
+		setValue(\"copy\",\"visible\",1);
+
+		LayerOn(2);
+		fwDim_getManNum(config, num);
+		if(!num)
+		{
+			items = dpNames(\"*\",\"_FwDimConfig\");
+			for( i = 1; i <= dynlen(items); i++)
+			{
+				items[i] = dpSubStr(items[i],DPSUB_DP);
+				fwDim_getManNum(items[i], nums[i]);
+			}
+			for(i = 1; i <= 20; i++)
+			{
+				if(!dynContains(nums, i))
+				{
+					num = i;
+					break;
+				}
+			}
+		}
+		fwDim_getPollingRate(config, poll);
+		if(!poll)
+			poll = 100;
+		fwDim_getAliveRate(config, alive);
+		if(!alive)
+			alive = 10;
+		setValue(\"num\",\"text\",num);	
+		setValue(\"poll\",\"text\",poll);	
+		setValue(\"alive\",\"text\",alive);
+		fwDim_getDimDnsNode(config, DNS_node);
+//		DNS_node = getenv(\"DIM_DNS_NODE\");
+		setValue(\"DNS\",\"text\",DNS_node);	
+		break;	
+	case 1:
+		setValue(\"\",\"text\",\"Subscribed Services\");
+		setValue(\"busy_label\",\"text\",\"Please Wait Retrieving Subscribed Services...\");
+		fwDim_getSubscribedServices(config,services, 
+			dps, defaults, times, flags, updates);
+
+		setValue(\"def_label\",\"visible\",1);	
+		setValue(\"default\",\"visible\",1);	
+		setValue(\"time_label\",\"visible\",1);	
+		setValue(\"sec_label\",\"visible\",1);	
+		setValue(\"time\",\"visible\",1);	
+		setValue(\"stamp\",\"visible\",1);	
+		setValue(\"update_first\",\"visible\",1);
+
+		LayerOn(4);
+		setValue(\"default\",\"text\",\"\");	
+		setValue(\"time\",\"text\",0);	
+		setValue(\"stamp\",\"state\",0, 0);	
+		setValue(\"stamp\",\"state\",1, 0);	
+		setValue(\"update_first\",\"state\",0, 1);	
+		break;
+	case 2:
+		setValue(\"merge\",\"visible\",0);	
+		setValue(\"file\",\"visible\",0);	
+		LayerOn(5);
+		setValue(\"busy_label\",\"text\",\"Please Wait Retrieving Subscribed Commands...\");
+		setValue(\"\",\"text\",\"Subscribed Commands\");
+		fwDim_getSubscribedCommands(config, services, 
+			dps, flags);
+		break;
+	case 3:
+		setValue(\"service_format\",\"visible\",1);	
+		setValue(\"service_format_label\",\"visible\",1);	
+		setValue(\"service_format_help\",\"visible\",1);	
+		setValue(\"service_format\",\"text\",\"\");
+		LayerOn(7);
+		setValue(\"\",\"text\",\"Published Services\");
+		setValue(\"busy_label\",\"text\",\"Please Wait Retrieving Published Services...\");
+		fwDim_getPublishedServices(config,services, 
+			dps);
+		break;
+	case 4:
+		setValue(\"service_format\",\"visible\",1);	
+		setValue(\"service_format_label\",\"visible\",1);	
+		setValue(\"service_format_help\",\"visible\",1);	
+		setValue(\"service_format\",\"text\",\"\");
+//		setValue(\"alarms\",\"visible\",1);	
+//		setValue(\"service_format\",\"text\",\"\");
+		LayerOn(7);
+		setValue(\"\",\"text\",\"Published Commands\");
+		setValue(\"busy_label\",\"text\",\"Please Wait Retrieving Published Commands...\");
+		fwDim_getPublishedCommands(config,services, 
+			dps);
+		break;
+	case 5:
+		setValue(\"\",\"text\",\"Subscribed RPCs\");
+		setValue(\"busy_label\",\"text\",\"Please Wait Retrieving Subscribed RPCs...\");
+		fwDim_getSubscribedRPCs(config,services, 
+			dps, dps1);
+		break;
+	case 6:
+//		setValue(\"service_format\",\"visible\",1);	
+//		setValue(\"service_format_label\",\"visible\",1);	
+//		setValue(\"service_format_help\",\"visible\",1);	
+//		setValue(\"service_format\",\"text\",\"\");
+		LayerOn(7);
+		setValue(\"\",\"text\",\"Published RPCs\");
+		setValue(\"busy_label\",\"text\",\"Please Wait Retrieving Published RPCs...\");
+		fwDim_getPublishedRPCs(config,services, 
+			dps, dps1);
+		break;
+	}
+	if(id)
+	{
+
+		setValue(\"service_label\",\"visible\",1);	
+		setValue(\"service_name1\",\"visible\",1);
+		setValue(\"dp_label\",\"visible\",1);
+		setValue(\"dp_name\",\"visible\",1);
+		setValue(\"dpsel\",\"visible\",1);
+		setValue(\"dpsel_add\",\"visible\",1);
+		setValue(\"add\",\"visible\",1);
+		setValue(\"remove\",\"visible\",1);
+
+		LayerOn(3);
+		setValue(\"servsel\",\"visible\",0);
+		setValue(\"service_name1\",\"items\",services);
+		setValue(\"dp_name\",\"items\",dps);
+		setValue(\"dp_label\",\"text\",\"Datapoint Name\");
+
+		if(id < 3)
+		{
+			setValue(\"servsel\",\"visible\",1);
+		}
+		if(id > 4)
+		{
+
+			setValue(\"dp_label1\",\"visible\",1);
+			setValue(\"dp_name1\",\"visible\",1);
+			setValue(\"dpsel1\",\"visible\",1);
+			setValue(\"dpsel_add1\",\"visible\",1);
+			setValue(\"dp_name1\",\"items\",dps1);
+
+			LayerOn(6);
+			if(id == 5)
+			{
+				setValue(\"servsel\",\"visible\",1);
+				setValue(\"dp_label\",\"text\",\"Datapoint Out Name\");
+				setValue(\"dp_label1\",\"text\",\"Datapoint In Name\");
+			}
+			if(id == 6)
+			{
+				setValue(\"dp_label\",\"text\",\"Datapoint In Name\");
+				setValue(\"dp_label1\",\"text\",\"Datapoint Out Name\");
+			}
+		}
+	}
+	dynAppend(FwDimServiceNames, services);
+	dynAppend(FwDimDpNames, dps);
+	dynAppend(FwDimDpNames1, dps1);	
+	setValue(\"busy_label\",\"text\",\"\");
+}
+" 0
+0 
+19 109
+"file"
+""
+1 40 140 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+101 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 138 522 192
+2
+T 
+1
+LANG:1 29 Send the item when it changes
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 74 File: The item is a file name (to be replaced by its contents at run time)
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+2 65
+"dim_label"
+""
+1 20 60 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 32 72 108 88
+0 2 0 "0s" 0 0 0 64 0 0  32 72 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 PVSS00dim
+2 66
+"man_label"
+""
+1 110 70 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 112 72 188 88
+0 2 0 "0s" 0 0 0 64 0 0  112 72 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 is Manager
+2 67
+"poll_label"
+""
+1 40 120 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 42 122 248 148
+0 2 0 "0s" 0 0 0 64 0 0  42 122 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 37 Internal Polling Rate (milliseconds):
+2 68
+"DNS_label"
+""
+1 40 200 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 42 202 268 228
+0 2 0 "0s" 0 0 0 64 0 0  42 202 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 27 DIM_DNS_NODE[:DIM_DNS_PORT]
+2 78
+"alive_label"
+""
+1 40 160 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+72 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 42 162 268 188
+0 2 0 "0s" 0 0 0 64 0 0  42 162 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 34 PVSS Alive Message Rate (seconds):
+2 103
+"to_label"
+""
+1 380 290 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 382 292 468 307
+0 2 0 "0s" 0 0 0 64 0 0  382 292 1
+1
+LANG:1 87 -*-Arial-bold-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,697,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 To:
+21 69
+"num"
+""
+1 190 70 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 188 68 232 95
+0
+
+E
+E
+E
+
+N 0 100 1 0 1 1
+13 70
+"start"
+""
+1 170 240 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 238 252 272
+
+T 
+1
+LANG:1 5 Start
+"main()
+{
+	string config;
+	int num, poll, alive;
+	string DNS_node;
+	
+	getValue(\"config\",\"text\",config);
+	getValue(\"num\",\"text\",num);
+	getValue(\"poll\",\"text\",poll);
+	getValue(\"alive\",\"text\",alive);
+	getValue(\"DNS\",\"text\",DNS_node);
+	if(!num)
+		num = 1;
+	fwDim_setManNum(config, num);
+	if(!poll)
+		poll = 100;
+	fwDim_setPollingRate(config, poll);
+	if(!alive)
+		alive = 10;
+	fwDim_setAliveRate(config, alive);
+	fwDim_setDimDnsNode(config, DNS_node);
+	fwDim_start(config, num, DNS_node);
+}
+
+" 0
+ E E E
+13 71
+"restart"
+""
+1 370 240 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 368 238 452 272
+
+T 
+1
+LANG:1 7 Restart
+"main()
+{
+	string config;
+	int num, poll, alive, DNS_node;
+	
+	getValue(\"config\",\"text\",config);
+	getValue(\"num\",\"text\",num);
+	getValue(\"poll\",\"text\",poll);
+	getValue(\"alive\",\"text\",alive);
+	getValue(\"DNS\",\"text\",DNS_node);
+	if(!num)
+		num = 1;
+	fwDim_setManNum(config, num);
+	if(!poll)
+		poll = 100;
+	fwDim_setPollingRate(config, poll);
+	if(!alive)
+		alive = 10;
+	fwDim_setAliveRate(config, alive);
+	fwDim_setDimDnsNode(config, DNS_node);
+	fwDim_kill(config);
+	delay(3);
+	fwDim_start(config, num, DNS_node);
+}
+" 0
+ E E E
+21 72
+"poll"
+""
+1 249 119 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 248 118 312 145
+0
+
+E
+E
+E
+
+N 0 1000 10 1 1 1
+13 73
+"stop"
+""
+1 270 240 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 268 238 352 272
+
+T 
+1
+LANG:1 4 Stop
+"main()
+{
+	string config;
+	getValue(\"config\",\"text\",config);
+
+	fwDim_kill(config);
+}" 0
+ E E E
+13 74
+"update"
+""
+1 70 240 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 68 238 152 272
+
+T 
+1
+LANG:1 6 Update
+"main()
+{
+	string config, DNS_node;
+	int num, poll, alive;
+	
+	getValue(\"config\",\"text\",config);
+	getValue(\"num\",\"text\",num);
+	getValue(\"poll\",\"text\",poll);
+	getValue(\"alive\",\"text\",alive);
+	getValue(\"DNS\",\"text\",DNS_node);
+	if(!num)
+		num = 1;
+	fwDim_setManNum(config, num);
+	if(!poll)
+		poll = 100;
+	fwDim_setPollingRate(config, poll);
+	if(!alive)
+		alive = 10;
+	fwDim_setAliveRate(config, alive);
+	fwDim_setDimDnsNode(config, DNS_node);
+}
+" 0
+ E E E
+13 75
+"delete"
+""
+1 150 290 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 148 288 252 322
+
+T 
+1
+LANG:1 13 Delete Config
+"main()
+{
+	string config;
+	int index;
+	dyn_string items;
+	
+	getValue(\"config\",\"text\",config);
+	fwDim_deleteConfig(config);
+	getValue(\"config\",\"items\",items);
+	if(index = dynContains(items, config))
+		dynRemove(items, index);
+	setValue(\"config\",\"items\",items);
+	setValue(\"config\",\"text\",items[1]);
+
+	setValue(\"def_label\",\"visible\",0);	
+	setValue(\"default\",\"visible\",0);	
+	setValue(\"time_label\",\"visible\",0);	
+	setValue(\"sec_label\",\"visible\",0);	
+	setValue(\"time\",\"visible\",0);	
+	setValue(\"stamp\",\"visible\",0);
+		
+	setValue(\"service_label\",\"visible\",0);	
+	setValue(\"service_name1\",\"visible\",0);
+	setValue(\"dp_label\",\"visible\",0);
+	setValue(\"dp_name\",\"visible\",0);
+	setValue(\"dpsel\",\"visible\",0);
+	setValue(\"dpsel_add\",\"visible\",0);
+	setValue(\"add\",\"visible\",0);
+	setValue(\"remove\",\"visible\",0);
+	setValue(\"delete\",\"visible\",0);
+	setValue(\"copy\",\"visible\",0);
+
+	setValue(\"dim_label\",\"visible\",0);	
+	setValue(\"man_label\",\"visible\",0);	
+	setValue(\"poll_label\",\"visible\",0);	
+	setValue(\"alive_label\",\"visible\",0);	
+	setValue(\"DNS_label\",\"visible\",0);	
+	setValue(\"num\",\"visible\",0);	
+	setValue(\"poll\",\"visible\",0);	
+	setValue(\"alive\",\"visible\",0);	
+	setValue(\"DNS\",\"visible\",0);	
+	setValue(\"update\",\"visible\",0);	
+	setValue(\"start\",\"visible\",0);	
+	setValue(\"stop\",\"visible\",0);	
+	setValue(\"restart\",\"visible\",0);	
+
+	setValue(\"service_name1\",\"text\",\"\");
+	setValue(\"dp_name\",\"text\",\"\");
+	setValue(\"select\",\"text\",\"Please Choose Option\");
+
+}
+" 0
+ E E E
+13 76
+"copy"
+""
+1 270 290 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 268 288 372 322
+
+T 
+1
+LANG:1 11 Copy Config
+"main()
+{
+	int vis;
+	
+	getValue(\"to_label\",\"visible\",vis);
+	if(vis)
+	{
+		setValue(\"to_label\",\"visible\",0);
+		setValue(\"new_config\",\"visible\",0);
+	}
+	else
+	{
+		setValue(\"to_label\",\"visible\",1);
+		setValue(\"new_config\",\"visible\",1);
+	}
+}
+" 0
+ E E E
+14 77
+"DNS"
+""
+1 270 200 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 268 198 462 225
+3 "0s" 0 0 0 0 0 -1  E E E
+21 79
+"alive"
+""
+1 269 159 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 268 158 312 185
+0
+
+E
+E
+E
+
+N 0 1000 10 1 1 1
+14 104
+"new_config"
+""
+1 402 290 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+98 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 400 288 532 315
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+	string config, new_config;
+	int index;
+	dyn_string items;
+	
+	getValue(\"config\",\"text\",config);
+	getValue(\"new_config\",\"text\",new_config);
+//	fwDim_createConfig(new_config);
+	if(new_config != \"\")
+	{
+		fwDim_copyConfig(config, new_config);
+		getValue(\"config\",\"items\",items);
+		if(!dynContains(items, new_config))
+			dynAppend(items, new_config);
+		setValue(\"config\",\"items\",items);
+		setValue(\"config\",\"text\",items[dynlen(items)]);
+	setValue(\"def_label\",\"visible\",0);	
+	setValue(\"default\",\"visible\",0);	
+	setValue(\"time_label\",\"visible\",0);	
+	setValue(\"sec_label\",\"visible\",0);	
+	setValue(\"time\",\"visible\",0);	
+	setValue(\"stamp\",\"visible\",0);
+		
+	setValue(\"service_label\",\"visible\",0);	
+	setValue(\"service_name1\",\"visible\",0);
+	setValue(\"dp_label\",\"visible\",0);
+	setValue(\"dp_name\",\"visible\",0);
+	setValue(\"dpsel\",\"visible\",0);
+	setValue(\"dpsel_add\",\"visible\",0);
+	setValue(\"add\",\"visible\",0);
+	setValue(\"remove\",\"visible\",0);
+	setValue(\"delete\",\"visible\",0);
+	setValue(\"copy\",\"visible\",0);
+
+	setValue(\"dim_label\",\"visible\",0);	
+	setValue(\"man_label\",\"visible\",0);	
+	setValue(\"poll_label\",\"visible\",0);	
+	setValue(\"alive_label\",\"visible\",0);	
+	setValue(\"DNS_label\",\"visible\",0);	
+	setValue(\"num\",\"visible\",0);	
+	setValue(\"poll\",\"visible\",0);	
+	setValue(\"alive\",\"visible\",0);	
+	setValue(\"DNS\",\"visible\",0);	
+	setValue(\"update\",\"visible\",0);	
+	setValue(\"start\",\"visible\",0);	
+	setValue(\"stop\",\"visible\",0);	
+	setValue(\"restart\",\"visible\",0);	
+	setValue(\"service_name1\",\"text\",\"\");
+	setValue(\"dp_name\",\"text\",\"\");
+	setValue(\"select\",\"text\",\"Please Choose Option\");
+	}
+	setValue(\"to_label\",\"visible\",0);
+	setValue(\"new_config\",\"visible\",0);
+}
+" 0
+
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+2 80
+"service_label"
+""
+1 40 70 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 42 72 158 87
+0 2 0 "0s" 0 0 0 64 0 0  42 72 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Service Name
+2 81
+"dp_label"
+""
+1 280 70 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 282 72 438 87
+0 2 0 "0s" 0 0 0 64 0 0  282 72 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Datapoint Name
+22 82
+"service_name1"
+""
+1 40 90 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 88 242 115
+0
+
+E
+"
+main()
+{
+	string name;
+	
+	getValue(\"\",\"text\",name);
+	setValue(\"merge\",\"visible\",0);
+	update_values_service(name);
+}
+" 0
+
+E
+ 1 0
+13 83
+"dpsel"
+""
+1 470 90 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 468 88 500 114
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp;
+	int pos;
+
+	dp = \"\";
+	dpSelector(dp,false);
+//	dpSelector(dp,true);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+//   		if (strpos(dp,\".\")<0) dp+=\".\";
+   		setValue(\"dp_name\",\"text\",dp);
+   		update_values_dp(dp);
+	}
+}
+" 0
+ E E E
+13 84
+"add"
+""
+1 120 240 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 118 238 232 272
+
+T 
+1
+LANG:1 3 Add
+"main()
+{
+	string service, dp, defaultv, dp1, format;
+	int timev, qflag, tflag, flag, update, n;
+	string type, config;
+	
+	getValue(\"config\",\"text\",config);
+	getValue(\"service_name1\",\"text\",service);
+	getValue(\"dp_name\",\"text\",dp);
+	getValue(\"select\",\"text\",type);
+	switch(type)
+	{
+	case \"Subscribed Services\":
+		getValue(\"default\",\"text\",defaultv);
+		getValue(\"time\",\"text\",timev);
+		getValue(\"stamp\",\"state\",0, qflag);
+		getValue(\"stamp\",\"state\",1, tflag);
+                flag = 0;
+                if(qflag)
+                  flag += 1;
+                if(tflag)
+                  flag += 2;
+		getValue(\"update_first\",\"state\",0, update);
+		fwDim_subscribeService(config, service, dp, 
+		defaultv, timev, flag, update);
+		break;
+	case \"Subscribed Commands\":
+		{
+		dyn_string children = dpNames(dp+\".*\");
+		if(dynlen(children))
+		{
+			getValue(\"merge\",\"number\", flag);
+			if(!flag)
+				fwDim_subscribeCommand(config, service, dp);
+			else if(flag == 1)
+				fwDim_subscribeMultiplexedCommand(config, service, dp);
+			else
+				fwDim_subscribeFileCommand(config, service, dp);
+		}
+		else
+		{
+			getValue(\"file\",\"number\", flag);
+			if(!flag)
+				fwDim_subscribeCommand(config, service, dp);
+			else
+				fwDim_subscribeFileCommand(config, service, dp);
+		}
+		break;
+		}
+	case \"Published Services\":
+		getValue(\"alarms\",\"number\",n);
+		if(!n)
+		{
+			getValue(\"service_format\",\"text\", format);
+			if(format == \"Computed Dynamically\")
+				format = \"\";
+			if(format == \"\")
+				fwDim_publishService(config, service, dp);
+			else
+			{
+				if(check_format(format))
+					fwDim_publishService(config, service, dp, format);
+			}
+		}
+		else
+		{
+				fwDim_publishAlarmService(config, service, dp);
+		}
+		break;
+	case \"Published Commands\":
+		getValue(\"service_format\",\"text\", format);
+		if(format == \"Computed Dynamically\")
+			format = \"\";
+		if(format == \"\")
+			fwDim_publishCommand(config, service, dp);
+		else
+		{
+			if(check_format(format))
+				fwDim_publishCommand(config, service, dp, format);
+		}
+		break;
+	case \"Subscribed RPCs\":
+		getValue(\"dp_name1\",\"text\",dp1);
+		fwDim_subscribeRPC(config, service, dp, dp1);
+		break;
+	case \"Published RPCs\":
+		getValue(\"dp_name1\",\"text\",dp1);
+		fwDim_publishRPC(config, service, dp, dp1);
+		break;
+	}
+}
+" 0
+ E E E
+13 85
+"remove"
+""
+1 280 240 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 238 392 272
+
+T 
+1
+LANG:1 6 Remove
+"main()
+{
+	string service, dp, defaultv;
+	int timev, flag, n;
+	string type, config, str;
+	
+	getValue(\"config\",\"text\",config);
+	getValue(\"service_name1\",\"text\",service);
+	getValue(\"dp_name\",\"text\",dp);
+	getValue(\"select\",\"text\",type);
+	switch(type)
+	{
+	case \"Subscribed Services\":
+		if(dp != \"\")
+			fwDim_unSubscribeServicesByDp(config, dp);
+		else if(service != \"\")
+			fwDim_unSubscribeServices(config, service);
+		break;
+	case \"Subscribed Commands\":
+		if(service != \"\")
+			fwDim_unSubscribeCommands(config, service);
+		else if(dp != \"\")
+			fwDim_unSubscribeCommandsByDp(config, dp);
+		break;
+	case \"Published Services\":
+		getValue(\"alarms\",\"number\",n);
+		if(!n)
+		{
+			if(service != \"\")
+				fwDim_unPublishServices(config, service);
+			else if(dp != \"\")
+				fwDim_unPublishServicesByDp(config, dp);
+		}
+		else
+		{
+			if(service != \"\")
+				fwDim_unPublishAlarmServices(config, service);
+		}
+		break;
+	case \"Published Commands\":
+		if(service != \"\")
+			fwDim_unPublishCommands(config, service);
+		else if(dp != \"\")
+			fwDim_unPublishCommandsByDp(config, dp);
+		break;
+	case \"Subscribed RPCs\":
+		if(service != \"\")
+			fwDim_unSubscribeRPCs(config, service);
+//		else if(dp != \"\")
+//			fwDim_unPublishCommandsByDp(config, dp);
+		break;
+	case \"Published RPCs\":
+		if(service != \"\")
+			fwDim_unPublishRPCs(config, service);
+//		else if(dp != \"\")
+//			fwDim_unPublishCommandsByDp(config, dp);
+		break;
+	}
+}
+" 0
+ E E E
+22 86
+"dp_name"
+""
+1 280 90 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 88 472 115
+0
+
+E
+"main()
+{
+	string dp;
+	
+	setValue(\"merge\",\"visible\",0);
+	getValue(\"\",\"text\",dp);
+	update_values_dp(dp);
+}
+" 0
+
+E
+ 1 0
+13 87
+"dpsel_add"
+""
+1 500 90 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+81 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 498 88 530 114
+
+P 
+13434828
+"pictures/dp_sel_more.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string str, dp;
+	int pos;
+
+	dp = \"\";
+	getValue(\"dp_name\",\"text\",str);
+	dpSelector(dp,false);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+//   		if (strpos(dp,\".\")<0) dp+=\".\";
+		if(str != \"\")
+			str +=\";\";
+		str += dp;
+   		setValue(\"dp_name\",\"text\",str);
+   		update_values_dp(str);
+	}
+}
+" 0
+ E E E
+13 88
+"servsel"
+""
+1 240 90 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+82 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 238 88 270 114
+
+P 
+13434828
+"pictures/dim_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string serv, type;
+	dyn_float res;
+	dyn_string ret;
+
+	getValue(\"select\",\"text\",type);
+	ChildPanelOnReturn(\"fwDIM/fwDimServiceSelect.pnl\",\"DIM Service Selector\",
+		makeDynString(type),
+		20,75, res, ret);
+	if(res[1])
+	{
+   		setValue(\"service_name1\",\"text\",ret[1]);
+   		update_values_service(ret[1]);
+	}
+}
+" 0
+ E E E
+19 107
+"alarms"
+""
+1 280 120 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+99 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 118 522 192
+2
+T 
+1
+LANG:1 20 Publish Online Value
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 25 Publish Alarm Information
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main(int button)
+{
+	if(button == 1)
+	{
+		setValue(\"service_format\",\"visible\",0);	
+		setValue(\"service_format_label\",\"visible\",0);	
+		setValue(\"service_format_help\",\"visible\",0);	
+	}
+	else
+	{
+		setValue(\"service_format\",\"visible\",1);	
+		setValue(\"service_format_label\",\"visible\",1);	
+		setValue(\"service_format_help\",\"visible\",1);	
+	}
+}" 0
+
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+2 89
+"sec_label"
+""
+1 340 140 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+83 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 342 142 438 168
+0 2 0 "0s" 0 0 0 64 0 0  342 142 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 0 = On Change
+2 90
+"def_label"
+""
+1 40 120 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+84 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 42 122 158 137
+0 2 0 "0s" 0 0 0 64 0 0  42 122 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 13 Default Value
+2 91
+"time_label"
+""
+1 280 120 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+85 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 282 122 438 137
+0 2 0 "0s" 0 0 0 64 0 0  282 122 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 Update Interval (seconds)
+14 92
+"default"
+""
+1 40 140 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+86 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 138 172 165
+3 "0s" 0 0 0 0 0 -1  E E E
+20 93
+"stamp"
+""
+1 38.2239382239382 166 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+87 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 168 272 232
+2
+T 
+1
+LANG:1 28 Use Quality Flag from Source
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 26 Use Time Stamp from Source
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+"main()
+{
+	setValue(\"\",\"state\",0,0);
+	setValue(\"\",\"state\",1,0);
+}" 0
+ E
+EE14 94
+"time"
+""
+1 280 140 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 138 332 165
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	setValue(\"\",\"text\",\"0\");
+}" 0
+ E
+20 95
+"update_first"
+""
+1 278 168 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 168 541 202
+1
+T 
+1
+LANG:1 23 Update on First Connect
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+"main()
+{
+	setValue(\"\",\"state\",0,0);
+}" 0
+ E
+EE0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+19 96
+"merge"
+""
+1 40 130 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+90 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 128 522 202
+3
+T 
+1
+LANG:1 41 Send full structure when any item changes
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 53 Multiplex: Send individual items on change as strings
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 79 File: The last item is a file name (to be replaced by its contents at run time)
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+2 97
+"dp_label1"
+""
+1 280 140 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+91 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 282 142 418 157
+0 2 0 "0s" 0 0 0 64 0 0  282 142 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Datapoint Name
+13 98
+"dpsel1"
+""
+1 470 160 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+92 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 468 158 500 184
+
+P 
+13434828
+"pictures/dp_sel.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string dp;
+	int pos;
+
+	dp = \"\";
+	dpSelector(dp,false);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+//   		if (strpos(dp,\".\")<0) dp+=\".\";
+   		setValue(\"dp_name1\",\"text\",dp);
+   		update_values_dp(dp,1);
+	}
+}
+/*
+update_values(string dp)
+{
+	dyn_string services, formats, dps, defaults, dps1;
+	dyn_int times, flags, updates;
+	string config, type;
+	int index, more, cmnd_flag = 0, rpc_flag = 0;
+	dyn_string children;
+
+	getValue(\"config\",\"text\",config);
+	getValue(\"select\",\"text\",type);
+	more = 0;
+	switch(type)
+	{
+	case \"Subscribed Services\":
+		fwDim_getSubscribedServices(config,services, 
+			dps, defaults, times, flags, updates);
+		more = 1;
+		break;
+	case \"Subscribed Commands\":
+		fwDim_getSubscribedCommands(config,services, 
+			dps, flags);
+		cmnd_flag = 1;
+		break;
+	case \"Published Services\":
+		fwDim_getPublishedServices(config,services, 
+			dps);
+		break;
+	case \"Published Commands\":
+		fwDim_getPublishedCommands(config,services, 
+			dps);
+		break;
+	case \"Subscribed RPCs\":
+		fwDim_getSubscribedRPCs(config,services, 
+			dps, dps1);
+		rpc_flag = 1;
+		break;
+	case \"Published RPCs\":
+		fwDim_getPublishedRPCs(config,services, 
+			dps, dps1);
+		rpc_flag = 1;
+		break;
+	}
+	if(index = dynContains(dps1, dp))
+	{
+		setValue(\"service_name1\",\"text\",services[index]);
+		if(cmnd_flag)
+		{
+			children = dpNames(dp+\".*\");
+			if(dynlen(children))
+			{
+				setValue(\"merge\",\"visible\",1);
+				setValue(\"merge\",\"number\",flags[index]);
+			}
+		}
+		if(more)
+		{
+			setValue(\"default\",\"text\",defaults[index]);
+			setValue(\"time\",\"text\",times[index]);
+			setValue(\"stamp\",\"state\",0,flags[index]);
+		}
+		if(rpc_flag)
+		{
+			setValue(\"dp_name\",\"text\",dps[index]);
+		}
+	}
+	else
+	{
+//		setValue(\"service_name1\",\"text\",\"\");
+		if(cmnd_flag)
+		{
+			children = dpNames(dp+\".*\");
+			if(dynlen(children))
+			{
+				setValue(\"merge\",\"visible\",1);
+				setValue(\"merge\",\"number\",0);
+			}
+		}
+		if(more)
+		{
+			setValue(\"default\",\"text\",\"\");
+			setValue(\"time\",\"text\",0);
+			setValue(\"stamp\",\"state\",0,0);
+		}
+	}
+}
+*/" 0
+ E E E
+13 99
+"dpsel_add1"
+""
+1 500 160 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+LANG:0 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+ 498 158 530 184
+
+P 
+13434828
+"pictures/dp_sel_more.bmp"
+1
+LANG:1 0 
+"main()
+{
+	string str, dp;
+	int pos;
+
+	dp = \"\";
+	getValue(\"dp_name1\",\"text\",str);
+	dpSelector(dp,false);
+	if(dp != \"\")
+	{
+		if(pos = strpos(dp,\":\"))
+			dp = substr(dp,pos+1);
+//   		if (strpos(dp,\".\")<0) dp+=\".\";
+		if(str != \"\")
+			str +=\";\";
+		str += dp;
+   		setValue(\"dp_name1\",\"text\",str);
+   		update_values_dp(str,1);
+	}
+}
+/*
+update_values(string dp)
+{
+	dyn_string services, formats, dps, defaults, dps1;
+	dyn_int times, flags, updates;
+	string config, type;
+	int index, more, cmnd_flag = 0, rpc_flag = 0;
+	dyn_string children;
+
+	getValue(\"config\",\"text\",config);
+	getValue(\"select\",\"text\",type);
+	more = 0;
+	switch(type)
+	{
+	case \"Subscribed Services\":
+		fwDim_getSubscribedServices(config,services, 
+			dps, defaults, times, flags, updates);
+		more = 1;
+		break;
+	case \"Subscribed Commands\":
+		fwDim_getSubscribedCommands(config,services, 
+			dps, flags);
+		cmnd_flag = 1;
+		break;
+	case \"Published Services\":
+		fwDim_getPublishedServices(config,services, 
+			dps);
+		break;
+	case \"Published Commands\":
+		fwDim_getPublishedCommands(config,services, 
+			dps);
+		break;
+	case \"Subscribed RPCs\":
+		fwDim_getSubscribedRPCs(config,services, 
+			dps, dps1);
+		rpc_flag = 1;
+		break;
+	case \"Published RPCs\":
+		fwDim_getPublishedRPCs(config,services, 
+			dps, dps1);
+		rpc_flag = 1;
+		break;
+	}
+	if(index = dynContains(dps1, dp))
+	{
+		setValue(\"service_name1\",\"text\",services[index]);
+		if(cmnd_flag)
+		{
+			children = dpNames(dp+\".*\");
+			if(dynlen(children))
+			{
+				setValue(\"merge\",\"visible\",1);
+				setValue(\"merge\",\"number\",flags[index]);
+			}
+		}
+		if(more)
+		{
+			setValue(\"default\",\"text\",defaults[index]);
+			setValue(\"time\",\"text\",times[index]);
+			setValue(\"stamp\",\"state\",0,flags[index]);
+		}
+		if(rpc_flag)
+		{
+			setValue(\"dp_name\",\"text\",dps[index]);
+		}
+	}
+	else
+	{
+//		setValue(\"service_name1\",\"text\",\"\");
+		if(cmnd_flag)
+		{
+			children = dpNames(dp+\".*\");
+			if(dynlen(children))
+			{
+				setValue(\"merge\",\"visible\",1);
+				setValue(\"merge\",\"number\",0);
+			}
+		}
+		if(more)
+		{
+			setValue(\"default\",\"text\",\"\");
+			setValue(\"time\",\"text\",0);
+			setValue(\"stamp\",\"state\",0,0);
+		}
+	}
+}
+*/" 0
+ E E E
+22 100
+"dp_name1"
+""
+1 280 160 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+94 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 278 158 472 185
+0
+
+E
+"main()
+{
+	string dp;
+	
+	setValue(\"merge\",\"visible\",0);
+	getValue(\"\",\"text\",dp);
+	update_values_dp(dp,1);
+}
+/*
+update_values(string dp)
+{
+	dyn_string services, formats, dps, defaults, dps1;
+	dyn_int times, flags, updates;
+	string config, type;
+	int index, more, cmnd_flag = 0, rpc_flag = 0;
+	dyn_string children;
+
+	getValue(\"config\",\"text\",config);
+	getValue(\"select\",\"text\",type);
+	more = 0;
+	switch(type)
+	{
+	case \"Subscribed Services\":
+		fwDim_getSubscribedServices(config,services, 
+			dps, defaults, times, flags, updates);
+		more = 1;
+		break;
+	case \"Subscribed Commands\":
+		fwDim_getSubscribedCommands(config,services, 
+			dps, flags);
+		cmnd_flag = 1;
+		break;
+	case \"Published Services\":
+		fwDim_getPublishedServices(config,services, 
+			dps);
+		break;
+	case \"Published Commands\":
+		fwDim_getPublishedCommands(config,services, 
+			dps);
+		break;
+	case \"Subscribed RPCs\":
+		fwDim_getSubscribedRPCs(config,services, 
+			dps, dps1);
+		rpc_flag = 1;
+		break;
+	case \"Published RPCs\":
+		fwDim_getPublishedRPCs(config,services, 
+			dps, dps1);
+		rpc_flag = 1;
+		break;
+	}
+	if(index = dynContains(dps1, dp))
+	{
+		setValue(\"service_name1\",\"text\",services[index]);
+		if(cmnd_flag)
+		{
+			children = dpNames(dp+\".*\");
+			if(dynlen(children))
+			{
+				setValue(\"merge\",\"visible\",1);
+				setValue(\"merge\",\"number\",flags[index]);
+			}
+		}
+		if(more)
+		{
+			setValue(\"default\",\"text\",defaults[index]);
+			setValue(\"time\",\"text\",times[index]);
+			setValue(\"stamp\",\"state\",0,flags[index]);
+		}
+		if(rpc_flag)
+		{
+			setValue(\"dp_name\",\"text\",dps[index]);
+		}
+	}
+	else
+	{
+//		setValue(\"service_name1\",\"text\",\"\");
+		if(cmnd_flag)
+		{
+			children = dpNames(dp+\".*\");
+			if(dynlen(children))
+			{
+				setValue(\"merge\",\"visible\",1);
+				setValue(\"merge\",\"number\",0);
+			}
+		}
+		if(more)
+		{
+			setValue(\"default\",\"text\",\"\");
+			setValue(\"time\",\"text\",0);
+			setValue(\"stamp\",\"state\",0,0);
+		}
+	}
+}
+*/" 0
+
+E
+ 1 0
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+2 101
+"service_format_label"
+""
+1 40 140 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+95 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 42 142 158 157
+0 2 0 "0s" 0 0 0 64 0 0  42 142 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Service Format
+14 102
+"service_format"
+""
+1 40 160 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+96 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 38 158 242 185
+3 "0s" 0 0 0 0 0 -1  E E E
+13 105
+"service_format_help"
+""
+1 240 160 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+98 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 238 158 272 184
+
+T 
+1
+LANG:1 3 Fmt
+"main()
+{
+	string serv, format;
+	dyn_float res;
+	dyn_string ret;
+
+	getValue(\"service_format\",\"text\",format);
+	ChildPanelOnReturn(\"fwDIM/fwDimServiceFormat.pnl\",\"DIM Service Format\",
+		makeDynString(format), 20,75, res, ret);
+	if(res[1])
+	{
+   		setValue(\"service_format\",\"text\",ret[1]);
+	}
+}" 0
+ E E E
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

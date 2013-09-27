@@ -1,0 +1,438 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,335 185 541 479 N "_3DFace" 2
+"$sDpName"
+"$sParentReference"
+"main()
+{
+	int i, x, y;
+	string model;
+	dyn_string device, symbolFileNames, exceptionInfo;
+	
+	device = makeDynString($sDpName, \"\", \"\", \"\");
+	fwDevice_getModelSlots(device, slots, exceptionInfo);
+	fwDevice_getModelSymbols(device, symbolFileNames, exceptionInfo);	
+	
+	getValue(\"symbolRect\", \"position\", x, y);
+	//DebugN(\"x = \" + x + \" y = \" + y);
+	comment.text = dpGetComment($sDpName + \".\");
+	
+	// draw PS symbol
+	addSymbol(	myModuleName(), 
+				myPanelName(), 
+				symbolFileNames[1], 
+				\"HVPanel\",
+				makeDynString(	\"$sDpName:\" + $sDpName,
+								\"$sAction:\",
+      							\"$sParentReference:\" + $sParentReference),
+				x - 22, y - 76, 0, 1.0, 1.0);
+
+	// initialize list of boards
+	for(i = 1; i <= slots; i++)
+	{
+		ds_oldModelBoardList[i] = \"\";
+	}
+	
+	// draw boards
+	drawAllSlots(device);
+}" 0
+"main()
+{
+	int i;
+}" 0
+E E E 1 -1 -1 0  0 0
+"" 0 1
+E"
+int slots;
+dyn_string ds_oldModelBoardList;
+
+
+drawAllSlots(dyn_string device)
+{
+	int i, x0, y0, xSize, ySize;
+	dyn_string boards, boardModels, exceptionInfo;
+	
+	// if nothing was changed return
+	fwDevice_getChildrenInSlots(device, fwDevice_HARDWARE, boards, exceptionInfo);
+	//DebugN(boards, ds_oldModelBoardList);
+	
+	// get geometry of area to display boards
+	getValue(\"crateRect\", \"position\", x0, y0);
+	getValue(\"crateRect\", \"size\", xSize, ySize);
+	
+	// display each board
+	for (i = 1; i <= dynlen(boards); i++) 
+	{   
+		// if there was a board before and now there isn't, remove symbol
+		if (ds_oldModelBoardList[i] != \"\" && boards[i] == \"\") 
+		{ 	
+			removeSymbol(myModuleName(), myPanelName(), \"Slot\" + i);
+		}   
+		
+		// if there is a board now check if the model is the same as before. 
+		// If it isn't redraw the board      
+      	if (boards[i] != \"\")
+		{ 			
+			fwDevice_getModel(makeDynString(boards[i]), boardModels[i], exceptionInfo);
+			if(ds_oldModelBoardList[i] != boardModels[i])
+				drawSlot(i, x0, y0, xSize, ySize, boards[i], slots);			
+		}
+		else
+		{
+			boardModels[i] = \"\";
+		}
+	}
+	
+	// store current list of boards
+	ds_oldModelBoardList = boardModels;
+}
+
+drawSlot(int i, int x0, int y0, int xSize, int ySize, string boardName, int crateSlots)
+{
+	bool symbolIsHorizontal;
+	int x, y, numOfSlots;
+	dyn_int di;
+	string deviceName;
+	dyn_string symbolFileNames, exceptionInfo;
+	
+	fwDevice_getModelSymbols(makeDynString(boardName), symbolFileNames, exceptionInfo);
+	//DebugN(boardName, symbolFileNames);
+	di =_PanelSize(symbolFileNames[1]);
+	symbolIsHorizontal = di[1] > di[2];
+	
+	if (symbolIsHorizontal) 
+	{ // symbol is longer in horizontal direction
+		y = y0 + (i - 1) * ySize / crateSlots;
+		x = x0;
+	}
+	else
+	{
+		y = y0;
+		x = x0 + (i - 1) * xSize / crateSlots;
+	}
+	fwDevice_getName(boardName, deviceName, exceptionInfo);
+	fwDevice_getModelSlots(makeDynString(boardName), numOfSlots, exceptionInfo);
+	//DebugN(\"Num of slots \" + numOfSlots);
+	addSymbol(	myModuleName(),
+   				myPanelName(),
+   				symbolFileNames[1],
+   				\"Slot\" + i,
+   				makeDynString(	\"$sDpName:\" + boardName,
+   								\"$sParentReference:\" + deviceName,
+   								\"$sNumOfChannels:\" + numOfSlots,
+   								\"$sRefName:\" + \"Slot\" + i),
+      			x, y, 0, 1.0, 1.0);
+} 
+" 0
+ 2
+"CBRef""0"
+"EClose""main()
+{
+	int i;
+}" 0
+
+""
+NC
+1
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+6 44
+"Border1"
+""
+1 20 145 E E E 1 E 1 E N {0,0,0} E N "Grau" E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 80 530 430
+6 49
+"symbolRect"
+""
+1 36 155 E E E 1 E 1 E N {0,0,0} E N "Grau" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  setValue(\"\",\"foreCol\",\"Grau\");
+}
+" 0
+ E 0 1 1 0 1 E U  1 E 20 88 520 388
+2 51
+"Text7"
+""
+1 43 744 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 28 399 88 415
+0 2 2 "s" 0 0 0 192 0 0  28 399
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 8 Comment:
+2 74
+"lCaption"
+""
+1 51 45 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+21 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 12 318 34
+0 2 2 "s" 0 0 0 192 0 0  12 12
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-160-100-100-*-*-iso8859-1|-19,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 33 CAEN Crate Hardware Configuration
+2 91
+"Text2"
+""
+1 1153 805 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 47 95 63
+0 2 2 "s" 0 0 0 192 0 0  22 47
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 11 Crate Name:
+6 92
+"Border2"
+""
+1 492 396 E E E 1 E 1 E N "_Transparent" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  2 0 1 "pictures/returnIndicator.gif" 12632256 E 492 396 506 421
+14 8
+"TextField1"
+""
+1 100 45 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+98 43 532 73
+2 "s" 0 0 0 0 0 0 
+E
+"main()
+{
+	this.text= $sDpName;
+}" 0
+
+E
+13 78
+"Config"
+""
+1 115 444 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+113 442 227 470
+T 
+1
+LANG:1 15 Simple Settings
+"main()
+{   
+	dyn_string addressParams, exceptionInfo;
+	
+	fwDevice_getAddressDefaultParams(dpTypeName($sDpName), addressParams, exceptionInfo);
+
+   	ChildPanelOnCentralModal(	\"fwDevice/fwDeviceSimpleConfiguration.pnl\",
+   								\"Device Simple Configuration\",
+   								makeDynString(	\"$sDpName:\" + $sDpName,
+   												\"$bHierarchyBrowser:0\",
+   												\"$dsAddressParams\" + addressParams));
+}" 0
+ E E E
+13 89
+"Button3"
+""
+1 465 444 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+463 442 534 470
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+14 90
+"comment"
+""
+1 90 397 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+88 395 492 422
+3 "s" 0 0 0 0 0 0 
+"main()
+{
+/*	string newComment;
+	dyn_float returnedValues;
+	dyn_string selectedDpes;
+	
+	if(!dpExists($sDpName)) 
+		return;
+
+	ChildPanelOnCentralModalReturn(	\"fwCaenLabelChangeSetting.pnl\", 
+									\"Comment Change Setting Panel\",
+									makeDynString(	\"$sDpName:\" + $sDpName,
+													\"$dpSetName:\" + this.text),
+									returnedValues,
+									selectedDpes);
+
+	if (dynlen(selectedDpes) == 0) 
+		return;
+		
+	newComment = selectedDpes[1];
+	if((newComment != this.text) && (newComment != \"\"))
+	{
+		dpSetComment($sDpName + \".\", newComment);
+		this.text = newComment;
+	}
+*/
+}" 0
+
+E
+"main()
+{
+	dpSetComment($sDpName + \".\" , this.text);
+}" 0
+
+13 93
+"createButton"
+""
+1 10 444 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+8 442 109 470
+T 
+1
+LANG:1 10 Add boards
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+	
+   	ChildPanelOnCentralModalReturn(	\"fwDevice/fwDeviceCreate.pnl\",
+   									\"Create Device\",
+   									makeDynString(\"$sDpName:\" + $sDpName),
+   									df, ds);
+
+	drawAllSlots($sDpName);
+	//fwDeviceEditorNavigator_executeCommand(fwDEN_COMMAND_REFRESH);
+}" 0
+ E E "main()
+{
+//	this.visible = isEditingMode();
+}" 0
+
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

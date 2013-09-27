@@ -1,0 +1,1360 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 813 833 N "_3DFace" 3
+"$conditionsToCheck"
+"$only_fired"
+"$sysnames"
+"main()
+{
+  
+
+  sysnames = strsplit($sysnames, \",\");
+
+  int pos       ;
+  int mode = $only_fired;
+  switch (mode) {
+      case 0:
+        pos = 2;
+        break;
+      case 1:
+         pos = 1;
+         break;
+      case 2:
+        pos = 2;
+        break;
+  }                 
+  cbOnlyFired.selectedPos = pos;
+  setMode(pos);
+  
+  if (dynlen(sysnames) == 0) sysnames = makeDynString(getSystemName());
+  for (int i=1; i<= dynlen(sysnames); i++) {
+    sysnames[i] = strrtrim(sysnames[i],\":\") + \":\";
+    tblSystems.appendLine(\"systemName\", sysnames[i]);
+  }
+  
+  conditionsToCheck = makeDynString();
+  if (isDollarDefined(\"$conditionsToCheck\")) {
+      fwGeneral_stringToDynString($conditionsToCheck, conditionsToCheck,\",\");      
+  }
+  
+
+  
+  tblConditions.deleteAllLines();
+  for (int i=1; i<= dynlen(conditionsToCheck);i++) {
+     conditionsToCheck[i] = dpSubStr(conditionsToCheck[i], DPSUB_SYS_DP);
+     
+     tblConditions.appendLine(\"condition\", CMSfwDetectorProtection_getInputDescription(conditionsToCheck[i]),
+                              \"dp\", conditionsToCheck[i]); 
+     conditionsToCheck[i] +=   \".status\";
+  }
+  if (dynlen(conditionsToCheck)>0) {
+      cbOnlyFired.deletePos(3);
+      txtCondFilter.visible = false;
+      cbCondTypeFilter.visible = false;
+  }
+  
+  tblConditions.visible = (dynlen(conditionsToCheck)>0);
+  txtConditions.visible = (dynlen(conditionsToCheck)>0);
+
+  loadObjects();
+
+  
+  refresh();
+  
+}" 0
+ E E E E 1 -1 -1 0  31 95
+""0  1
+E "#uses \"CMSfwDetectorProtection/CMSfwDetectorProtection.ctl\"
+#uses \"majority_treeCache/treeCache.ctl\"
+
+dyn_string exc;
+dyn_string sysnames;
+bool only_fired;
+bool by_type = false;
+bool show_description = true;
+dyn_dyn_mixed objects;
+
+dyn_string all_conditions, all_inputs; dyn_bool all_fired; dyn_string all_locked_dpes; dyn_dyn_int all_locking_conditions; dyn_int conditions_count_locked;
+dyn_dyn_string all_locking_types; dyn_string all_types;
+dyn_dyn_int all_conditions_object_indexes;
+dyn_dyn_int all_conditions_condition_indexes;
+dyn_string conditionsToCheck;
+
+int view_selectedCondition;
+int view_Limit = 100;
+int view_Offset;
+
+  
+bool handleExc() {
+  if (dynlen(exc) > 0) {
+     fwExceptionHandling_display(exc); 
+     dynClear(exc);
+     return false;
+  }   
+  return true;
+}
+
+
+void showMsg(string msg) {
+    bool ok; dyn_string exc;
+     fwGeneral_openMessagePanel(msg,ok, exc,\"\",true); 
+     return; 
+}
+
+void setMode(int pos) {
+  bool vis;
+   switch (pos) {
+     case 1:
+      only_fired = true;
+      by_type = false;
+      vis = true;
+    break;
+      case 2:
+      only_fired = false;
+      by_type = false;
+      vis = true;
+    break;    
+      case 3:  
+      only_fired = true;
+      by_type = true;  
+      vis = false;
+    break;     
+  } 
+   
+   lblCondName.visible = vis;
+   cbCondName.visible = vis;
+   txtCondFilter.visible = vis && (dynlen(conditionsToCheck)==0);
+   cbCondTypeFilter.visible = vis && (dynlen(conditionsToCheck)==0);
+   cbCondTypeFilter.items = makeDynString(\"*\");
+   cbCondTypeFilter.selectedPos = 1;
+   
+   
+}
+
+void refresh() {
+  btnRefresh.enabled = false;
+  cbOnlyFired.enabled = false;
+  cbCondTypeFilter.enabled = false;
+  txtProgress.text = \"Analyzing condition status\";
+  txtProgress.visible = true;
+  
+  tbl.deleteAllLines();
+  tableNodes.deleteAllLines();
+  btnPrev.visible = false;
+  btnNext.visible = false;
+  txtLimits.text = \"\";
+  
+  
+  if (by_type) 
+    setValue(\"tbl\",\"columnHeader\",0,\"Condition Type\"); 
+  else
+    setValue(\"tbl\",\"columnHeader\",0,\"Condition\");
+  
+  string type; dyn_string types = makeDynString();
+  dyn_dyn_string all_condition_type;
+    dyn_int types_count_locked;
+    
+
+
+
+    all_conditions =conditionsToCheck;
+    
+  CMSfwDetectorProtection_analyzeMultipleSystems(sysnames, objects, by_type, only_fired, show_description,
+                             all_conditions, all_inputs, 
+                            all_fired,  all_locked_dpes,  all_locking_conditions, conditions_count_locked,    all_condition_type, types,
+                            all_locking_types, all_types, types_count_locked, 
+                            all_conditions_object_indexes, all_conditions_condition_indexes,                                             
+                            exc );
+
+  if (! handleExc() ) {
+   txtProgress.text = \"Error\";   
+    return;
+  }
+  txtProgress.text = \"Sorting results and filling table\";
+    
+  if (by_type) {    
+   dyn_string sorted_types = all_types;
+  dynSortAsc(sorted_types);
+  
+ // DebugN(all_conditions, all_fired, all_locked_dpes);
+  int c;
+  for (int k=1; k<= dynlen(sorted_types); k++) {
+      c= dynContains(all_types, sorted_types[k]);      
+      tbl.appendLine(\"c\", c,\"condition\", all_types[c],\"status\",(\"FIRED\"),\"num\",(types_count_locked[c]));
+      tbl.cellBackColRC(tbl.lineCount -1, \"status\", \"FwStateAttention3\");
+  } 
+    
+  } else {
+  
+
+    dyn_string sorted_conditions = all_conditions;
+  dynSortAsc(sorted_conditions);
+  
+  int c;
+  for (int k=1; k<= dynlen(sorted_conditions); k++) {
+      c= dynContains(all_conditions, sorted_conditions[k]);
+      
+      if ((only_fired) && (! all_fired[c])) continue;
+      if (cbCondTypeFilter.selectedText != \"*\") {
+          if (! dynContains(all_condition_type[c], cbCondTypeFilter.selectedText) ) continue;
+      }
+      if ((dynlen(conditionsToCheck) > 0) && (! dynContains(conditionsToCheck, all_inputs[c]))) {
+        continue;
+      }
+      if (conditionIsActive(c)) {
+        tbl.appendLine(\"c\", c,\"condition\", all_conditions[c],\"status\",(all_fired[c]?\"FIRED\":\"OK\"),\"num\",((all_fired[c])?(conditions_count_locked[c]):(\"\")));
+        tbl.cellBackColRC(tbl.lineCount -1, \"status\", (all_fired[c]?\"FwStateAttention3\":\"FwStateOKPhysics\"));
+      } else {
+        tbl.appendLine(\"c\", c,\"condition\", all_conditions[c],\"status\",\"Disabled\",\"num\",\"\");
+        tbl.cellBackColRC(tbl.lineCount -1, \"status\", \"FwEquipmentDisabled\");          
+      }
+  }    
+  }
+  
+  dynSortAsc(types);
+  dynInsertAt(types, \"*\",1);
+  cbCondTypeFilter.items = types;
+   
+ txtProgress.visible = false; 
+ 
+  btnRefresh.enabled = true;
+  cbOnlyFired.enabled = true;
+  cbCondTypeFilter.enabled = true;
+  txtProgress.visible =false;
+}
+
+
+
+bool conditionIsActive(int c) {
+  int s, i;  
+  for (int k= 1; k<= dynlen(all_conditions_object_indexes[c]); k++) {
+      s = all_conditions_object_indexes[c][k];
+      i = all_conditions_condition_indexes[c][k];
+      if ((objects[s])[CMSfwDetectorProtection_CONDITIONACTIVE][i]) return true;       
+  }
+  
+  return false;
+}  
+  
+void loadObjects() {
+  txtProgress.text = \"Loading configurations\";
+  txtProgress.visible = true;
+  CMSfwDetectorProtection_loadObjects(sysnames, objects, exc);
+  handleExc();
+  txtProgress.visible = false;
+}
+
+
+dyn_string selectLockedBy(int c) {
+   dyn_string locked = all_locked_dpes;   
+   if (by_type) {
+      for (int i=dynlen(locked); i>0; i--) {
+        if (! dynContains(all_locking_types[i], all_types[c])) 
+          dynRemove(locked,i);
+     } 
+  } else {
+     for (int i=dynlen(locked); i>0; i--) {
+        if (! dynContains(all_locking_conditions[i], c)) 
+          dynRemove(locked,i);
+     } 
+   }
+   return locked;
+}
+
+
+void applyFilter(dyn_string& dpes) {
+  string dptype  = cbDpType.selectedText;
+  string dpelement = cbElement.selectedText;
+  
+  
+  string el;
+  for (int i=dynlen(dpes); i>0; i--) {
+    if ((dptype != \"All\") && (dpTypeName(dpes[i]) != dptype))  { dynRemove(dpes,i); continue; }
+    el = dpes[i]; strreplace(el,  dpSubStr(el, DPSUB_SYS_DP), \"\");   
+    if ((dpelement != \"All\") && (el != dpelement)) dynRemove(dpes,i);
+  }
+}
+
+view_dpes(int c, int offset = 0) {
+  view_selectedCondition = c;
+  if (offset<0) offset = 0;
+  view_Offset = offset;
+  int n =  offset + view_Limit;
+  dyn_string locked_dpes = selectLockedBy(c);
+  applyFilter(locked_dpes);
+    
+  
+  cbDpType.items = makeDynString(\"All\");
+  cbElement.items = makeDynString(\"All\");
+  string element; string type;
+  for (int i=1; i<= dynlen(locked_dpes); i++) {    
+    element = locked_dpes[i];
+    strreplace(element,  dpSubStr(locked_dpes[i], DPSUB_SYS_DP),\"\");
+    if (! dynContains(cbElement.items, element)) cbElement.appendItem(element);
+    type = dpTypeName(locked_dpes[i]);
+    if (! dynContains(cbDpType.items, type)) cbDpType.appendItem(type);
+  }
+  
+
+  
+  if (n>dynlen( locked_dpes)) n = dynlen( locked_dpes);      
+  
+//  DebugN(\"Show DPES from \" + (1 +  offset) + \" to \" +  n + \" of \" + dynlen( all_locked_dpes[c]));
+    
+  txtLimits.text =   (1 +  offset) + \" to \" +  n + \" of \" + dynlen( locked_dpes);
+  txtLimits.visible = true;
+  tableNodes.deleteAllLines();
+
+   for (int d=1 + offset; d<= n; d++) {
+      tableNodes.appendLine(\"dpe\", locked_dpes[d],
+                            \"name\", getName(locked_dpes[d],all_inputs[c]));
+      
+  }
+  for (int c=0; c<= tbl.lineCount; c++) {
+     tbl.cellBackColRC(c,\"firing\",\"_Window\");
+  }  
+  btnPrev.text = \"Prev \" + view_Limit;
+  btnNext.text = \"Next \" + view_Limit;
+  btnPrev.visible = (offset > 0);
+  btnNext.visible = (n < dynlen(locked_dpes));
+}
+
+string getName(string dpe, string inputdpe) {
+  string dp = dpSubStr(dpe, DPSUB_SYS_DP);
+  string element = dpe;
+  strreplace(element, dp,\"\");
+
+  
+  string definitionDp; dyn_string exc;
+
+  string descr = dpGetDescription(dp + \".\");
+  if (descr != dp + \".\") {
+     return descr + \" \" + element; 
+  }
+  
+  
+  string sys;
+  fwGeneral_getSystemName(dpe, sys, exc);
+  int start, stop;
+  int objindex = dynContains(sysnames, sys);
+  int conditionIndex = dynContains(objects[objindex][CMSfwDetectorProtection_INPUTDPES],inputdpe);
+ // DebugN(\"objindex\",objindex,\"conditionIndex\", conditionIndex);
+  
+  if (conditionIndex >0) {
+     if (objects[objindex][CMSfwDetectorProtection_OUTPUTMODE][conditionIndex] == CMSfwDetectorProtection_MODE_TREECACHE) {
+   //    DebugN(\"Found tree cache mode for condition \" + conditionIndex + \" with \" + objects[objindex][CMSfwDetectorProtection_TREECACHETOPNODE][conditionIndex]);
+       treeCache_start(objects[objindex][CMSfwDetectorProtection_TREECACHETOPNODE][conditionIndex]);
+       treeCache_getVisitIndexes(objects[objindex][CMSfwDetectorProtection_TOPNODE][conditionIndex], start, stop);
+       for (int n=start; n<= stop; n++) {
+         if (treeCache_getUnit(n,true) == \"DU\") {
+           if (treeCache_getFsmDevDp(n,true) == dp) {
+             return treeCache_getFsmUserLabel(n,true) + \" \" + element;
+           }
+         } 
+       }
+     }
+      
+  }
+     
+  
+  return dpe;
+}
+
+
+
+showProblems(dyn_string& problems) { 
+   bool not_running = false;
+  string msg;
+    fwGeneral_dynStringToString(problems, msg);
+    ChildPanelOnCentral(\"CMSfwDetectorProtection/verificationProblems.pnl\",\"Locking problems\", makeDynString(\"$title:Check if locked\",\"$problems:\" + msg,
+                                                                                                                              \"$not_running:\" + ((not_running)?1:0)));
+    
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tbl"
+""
+1 10 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  
+  dyn_anytype res;
+  getValue(\"\",\"getLineN\",row,res);
+  int conditionIndex = res[dynlen(res)];
+  
+  dyn_string menu = makeDynString();
+  string input; string reply;
+  
+  dyn_string infoFunctions, condNames, uniqueFunctions;
+  if (! by_type) {
+  menu = makeDynString(\"PUSH_BUTTON,View Input,1,1\");
+   input = dpSubStr(all_inputs[conditionIndex],DPSUB_SYS_DP);
+   reply = CMSfwDetectorProtection_convertToReplyDp(input);
+  if (dpExists(reply)) {
+    dynAppend(menu ,  \"PUSH_BUTTON,View Reply,2,1\");
+  }
+  
+  
+  for (int i=1; i<= dynlen(sysnames); i++) {
+    for (int c=1; c<= dynlen((objects[i])[CMSfwDetectorProtection_INPUTDPES]); c++) {
+      if ((objects[i])[CMSfwDetectorProtection_INPUTDPES][c] == input + \".status\") {
+        if (dynlen((objects[i])[CMSfwDetectorProtection_INFOFUNCTION]) >= c) {
+          if (strlen((objects[i])[CMSfwDetectorProtection_INFOFUNCTION][c]) > 0) {
+            dynAppend(infoFunctions,(objects[i])[CMSfwDetectorProtection_INFOFUNCTION][c]);
+            dynAppend(condNames,(objects[i])[CMSfwDetectorProtection_CONDITIONNAME][c]);
+          }
+        }
+      }
+    }    
+  }
+  dynAppend(menu, \"PUSH_BUTTON,View Values of affected Dpes,5,1\");  
+  }
+
+  if (dynlen(infoFunctions)>0) {
+    uniqueFunctions = infoFunctions;
+    dynUnique(uniqueFunctions);
+    if (dynlen(uniqueFunctions) == 1) {
+        dynAppend(menu,\"PUSH_BUTTON,Additional Info,101,1\");
+    } else {
+      string comm;
+      for (int i=1; i<= dynlen(uniqueFunctions); i++) {
+        comm = \"\";
+        for (int j=1; j<= dynlen(infoFunctions); j++) {
+          if (infoFunctions[j] == uniqueFunctions[i]) {
+              comm += condNames[j] + \" \";
+          }
+        }
+        dynAppend(menu, \"PUSH_BUTTON,Additional Info for \" + comm + \",\" + (100 + i) + \",1\");
+      }
+     
+    }     
+  }
+  
+  if (by_type) {
+      dynAppend(menu, \"PUSH_BUTTON,View fired conditions of this type,3,1\");
+      dynAppend(menu, \"PUSH_BUTTON,View all conditions of this type,4,1\");
+  }
+  
+  
+  
+  
+  int a ;
+  popupMenu(menu, a);
+  
+  if (a>100) {
+      showInfo(uniqueFunctions[a-100]);
+      return;
+  }
+  switch (a) {
+      case 1:
+        ChildPanelOnCentral(\"CMSfwDetectorProtection/view_input.pnl\",input, makeDynString(\"$sDpName:\" + input));
+        break;
+     case 2:
+       ChildPanelOnCentral(\"CMSfwDetectorProtection/view_reply.pnl\",input, makeDynString(\"$sDpName:\" + reply));       
+       break;
+     case 3:
+       cbOnlyFired.selectedPos = 1;
+       setMode(1);
+       dyn_string types = all_types;
+       dynSortAsc(types);
+       dynInsertAt(types, \"*\",1);
+       cbCondTypeFilter.items = types;
+       cbCondTypeFilter.selectedPos = dynContains(types, res[1]);
+       refresh();
+       break;
+    case 4:
+       cbOnlyFired.selectedPos = 2;
+       setMode(2);
+       dyn_string types = all_types;
+       dynSortAsc(types);
+       dynInsertAt(types, \"*\",1);
+       cbCondTypeFilter.items = types;
+       cbCondTypeFilter.selectedPos = dynContains(types, res[1]);
+       refresh();
+       break;   
+    case 5:   
+       showAffected(input);
+       break;
+  }  
+}
+
+void showInfo(string function) {
+     if (execScript(function, makeDynString()) == -1) {
+        DebugN(\"Error in running script \" + function);  
+      } 
+}
+
+void showAffected(string input) {
+  dyn_string exceptionInfo, problems;
+  string replydp= CMSfwDetectorProtection_convertToReplyDp(input);
+  int num;
+  bool invalid;
+  txtProgress.visible = true;
+  txtProgress.text = \"Analyzing dps\";
+  dyn_string list;
+  for (int i=1; i<= dynlen(sysnames); i++) {
+       num = getSystemId(sysnames[i]);
+       dpGet(replydp + \".sys\" + num + \":_original.._invalid\", invalid);
+       if (invalid) continue;
+      dynClear(list);
+      txtProgress.text = \"Analyzing dps on \" + sysnames[i];
+      CMSfwDetectorProtection_getListAffectedDpes(replydp, sysnames[i], list, exceptionInfo);
+      dynAppend(problems, list);
+      if (dynlen(exceptionInfo)>0) {
+          break;
+      } 
+   }
+  txtProgress.text = \"\";
+  txtProgress.visible = false;
+   if (dynlen(exceptionInfo)>0) {
+      fwExceptionHandling_display(exceptionInfo);
+   } else {
+      showProblemsWithTitle(problems, \"Affected dpes\",CMSfwDetectorProtection_getInputDescription(input));       
+   }
+}
+
+showProblemsWithTitle(dyn_string& problems, string title, string description) { 
+  
+  string msg;
+    fwGeneral_dynStringToString(problems, msg);
+    ChildPanelOnCentral(\"CMSfwDetectorProtection/verificationProblems.pnl\",\"Results for \"  +description,
+                        makeDynString(\"$title:\" + description,\"$problems:\" + msg,\"$mainTitle:\" + title,
+                                                                                               \"$not_running:0\" ));    
+}" 0
+ E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  8 138 442 695
+E"main(int row, string column, string value)
+{
+
+  tableNodes.visible = true;
+  txtFilter1.visible  = true;
+  txtFilter2.visible  = true;
+  cbDpType.visible  = true;
+  cbElement.visible = true;
+  btnApplyFilter.visible = true;
+  cbDpType.items = makeDynString(\"All\");
+  cbElement.items = makeDynString(\"All\");
+
+  tableNodes.deleteAllLines();
+  dyn_anytype res;
+  getValue(\"\",\"getLineN\",row,res);
+  
+  int c= res[dynlen(res)];
+   view_dpes(c);
+}
+" 0
+ 1 0 1 5 0 "condition" 25 1 0 "s" 1
+LANG:1 9 Condition
+E
+1
+LANG:1 0 
+
+241 "status" 4 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+48 "num" 8 1 0 "s" 1
+LANG:1 13 # DPEs locked
+E
+1
+LANG:1 0 
+
+86 "firing" 2 1 0 "s" 1
+LANG:1 0 
+E
+1
+LANG:1 0 
+
+30 "c" 3 0 0 "s" 1
+LANG:1 1 c
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+25 1
+"tableNodes"
+""
+1 450 140 E E E 1 E 0 E N "_3DText" E N "_Window" E E
+ "main(int row, string column)
+{
+  int a;
+  popupMenu(makeDynString(\"PUSH_BUTTON,Show DPE info,1,1\"), a);
+ dyn_anytype res;
+ getValue(\"\",\"getLineN\",row, res);
+ string dpe = res[2];
+  
+  if (a == 1) {
+    string panelname = \"CMSfwDetProt_dpe_info\";
+    if (isPanelOpen(panelname) ) {
+      PanelOffPanel(panelname);
+      delay(1);
+    }
+        
+    ChildPanelOnCentral(\"CMSfwDetectorProtection/dpe_info.pnl\", panelname, makeDynString(\"$sDpe:\" + dpe));
+                           
+  }
+}
+
+" 0
+ E
+2 0 0 0 0 0
+E E "main(bool enter)
+{
+ 
+}" 0
+
+0
+1
+LANG:1 0 
+
+1
+"draggable" ""
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  448 138 765 701
+E"main(int row, string column, string value)
+{
+ dyn_anytype res;
+ getValue(\"\",\"getLineN\",row, res);
+ string dpe = res[2];
+ 
+ int d= dynContains(all_locked_dpes, dpe);
+ if (by_type) {
+    for (int c=1; c<= dynlen(all_types); c++) {
+       tbl.cellBackColRC(getRow(c),\"firing\",(dynContains(all_locking_types[d],all_types[c])?\"FwStateAttention1\":\"_Window\"));
+   }  
+ } else {
+   for (int c=1; c<= dynlen(all_conditions); c++) {
+       tbl.cellBackColRC(getRow(c),\"firing\",(dynContains(all_locking_conditions[d],c)?\"FwStateAttention1\":\"_Window\"));
+   }  
+ }
+ 
+}
+
+int getRow(int conditionIndex) {
+  dyn_anytype res;
+
+  for (int i=0; i< tbl.lineCount; i++) {
+      getValue(\"tbl\",\"getLineN\",i,res);
+      if ((int) res[dynlen(res)] == conditionIndex) return i;
+  } 
+  return -1;
+}" 0
+ 1 0 1 2 0 "name" 32 1 0 "s" 1
+LANG:1 3 DPE
+E
+1
+LANG:1 0 
+
+300 "dpe" 21 0 0 "s" 1
+LANG:1 3 DPE
+E
+1
+LANG:1 0 
+
+200 
+22 22 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 0 7
+1 0
+13 2
+"btnRefresh"
+""
+1 10 110 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  8 108 66 137
+
+P 
+4294967295
+"pictures/refresh_e.gif"
+1
+LANG:1 7 Refresh
+"main()
+{
+  
+  refresh();
+  
+  
+}" 0
+ E E E
+2 3
+"PRIMITIVE_TEXT1"
+""
+1 21 0 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 21 0 465 55
+0 2 2 "0s" 0 0 0 64 0 0  21 0 1
+1
+LANG:1 33 MS Shell Dlg,-1,19,5,75,0,0,0,0,0
+0 1
+LANG:1 31  Summary for Protection Actions
+2 4
+"Text8"
+""
+1 592 2 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 594 4 646 21
+0 2 0 "0s" 0 0 0 192 0 0  594 4 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Systems
+25 5
+"tblSystems"
+""
+1 20 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  592 20 765 84
+"main()
+{	this.tableMode(TABLE_SELECT_NOTHING);
+	this.selectByClick(TABLE_SELECT_NOTHING);
+
+	
+}" 0
+"main(int row, string column, string value)
+{
+  DebugN(row,column,value);
+	int i, rows;
+	dyn_float df;
+	dyn_string ds, systems;
+	
+
+		rows = this.lineCount();
+		for(i=0; i<rows; i++)
+			systems[i+1] = this.cellValueRC(i, \"systemName\");
+
+//DebugN(systems);
+
+		ChildPanelOnCentralModalReturn(\"fwAlarmHandling/fwAlarmHandlingSystemPicker.pnl\", \"System Picker\", makeDynString(\"$dsSelectedSystems:\" + systems),
+																			df, ds);
+
+                for (int i=1; i<= dynlen(ds); i++) 
+                  ds[i] = strrtrim(ds[i],\":\") + \":\";
+                
+//DebugN(ds);
+		if(df[1] > 0.5)
+		{
+			this.deleteAllLines();
+			this.appendLines(dynlen(ds), \"systemName\", ds);
+		}
+	
+                
+                sysnames = ds;
+                loadObjects();
+                refresh();
+                
+}" 0
+ 0 0 1 1 1 "systemName" 13 1 0 "s" 1
+LANG:1 7 Systems
+E
+1
+LANG:1 0 
+
+160 
+16 16 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 0 1 0 0 7
+1 0
+13 8
+"PUSH_BUTTON7"
+""
+1 676 790 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  674 788 771 823
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+
+  PanelOff();
+}" 0
+ E E E
+22 9
+"cbOnlyFired"
+""
+1 24 53 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  22 51 176 78
+3
+1
+LANG:1 21 Only Fired Conditions
+
+0
+1
+LANG:1 14 All Conditions
+
+0
+1
+LANG:1 21 Fired Condition Types
+
+0
+
+E
+"main()
+{
+
+  setMode(this.selectedPos);    
+  refresh();
+}" 0
+
+E
+ 0 0
+2 10
+"PRIMITIVE_TEXT2"
+""
+1 25 34 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 25 34 117 48
+0 2 2 "0s" 0 0 0 192 0 0  25 34 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Conditions to show:
+2 13
+"txtProgress"
+""
+1 20 80 E E E 1 E 0 E N "FwStateAttention3" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 80 464 135
+0 2 2 "0s" 0 0 0 64 0 0  20 80 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,75,0,0,0,0,0
+0 1
+LANG:1 31 Analyzing conditions for system
+13 14
+"btnNext"
+""
+1 677 109 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  675 107 767 134
+
+T 
+1
+LANG:1 4 Next
+"main()
+{
+  view_dpes(view_selectedCondition, view_Offset + view_Limit);
+}" 0
+ E E E
+13 15
+"btnPrev"
+""
+1 452 109 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  450 107 542 134
+
+T 
+1
+LANG:1 4 Prev
+"main()
+{
+view_dpes(view_selectedCondition, view_Offset - view_Limit);
+}" 0
+ E E E
+2 16
+"txtLimits"
+""
+1 568 116 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 568 116 693 149
+0 2 2 "0s" 0 0 0 64 0 0  568 116 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 100-200 / 3000
+22 18
+"cbDpType"
+""
+1 560 708 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  558 706 712 733
+0
+
+E
+"main()
+{
+
+}" 0
+
+E
+ 0 0
+22 19
+"cbElement"
+""
+1 560 733 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  558 731 712 758
+0
+
+E
+"main()
+{
+
+}" 0
+
+E
+ 0 0
+13 20
+"btnApplyFilter"
+""
+1 712 709 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  710 707 768 736
+
+P 
+4294967295
+"pictures/refresh_e.gif"
+1
+LANG:1 7 Refresh
+"main()
+{
+  
+  view_dpes(view_selectedCondition);
+  
+  
+}" 0
+ E E E
+2 21
+"txtFilter1"
+""
+1 447 715 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 447 715 545 729
+0 2 2 "0s" 0 0 0 192 0 0  447 715 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 17 Filter by DP Type
+2 22
+"txtFilter2"
+""
+1 447 744 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 447 744 541 758
+0 2 2 "0s" 0 0 0 192 0 0  447 744 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 17 Filter by Element
+22 23
+"cbCondName"
+""
+1 22 732 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  20 730 174 757
+2
+1
+LANG:1 26 Description from the Input
+
+0
+1
+LANG:1 24 Name in configuration DP
+
+0
+
+E
+"main()
+{
+  show_description = (this.selectedPos == 1);
+  
+  refresh();
+}" 0
+
+E
+ 0 0
+2 24
+"lblCondName"
+""
+1 22 712 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 22 712 146 726
+0 2 2 "0s" 0 0 0 192 0 0  22 712 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Show condition names as:
+22 25
+"cbCondTypeFilter"
+""
+1 180 110 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  178 108 392 135
+1
+1
+LANG:1 1 *
+
+0
+
+E
+"main()
+{
+  refresh();
+}" 0
+
+E
+ 0 0
+2 26
+"txtCondFilter"
+""
+1 92 117 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 2 1 E U  1 E 92 117 169 131
+0 2 2 "0s" 0 0 0 192 0 0  92 117 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 14 Filter by Type
+13 27
+"PUSH_BUTTON8"
+""
+1 173 733 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  171 731 295 758
+
+T 
+1
+LANG:1 15 check if locked
+"main()
+{
+  
+  dyn_int values;
+  dyn_string locked_dpes = all_locked_dpes;
+  bool fired;
+  //DebugN(all_locking_conditions, all_fired);
+  for (int i=dynlen(locked_dpes); i>0; i--) {
+      locked_dpes[i] +=  \":_lock._original._locked\";
+  }
+ 
+  if (dynlen(locked_dpes) == 0) {
+    showMsg(\"No DPE should be locked\");
+    return;
+  }
+  
+  DebugN(\"Getting \" + dynlen(locked_dpes) + \" values\");
+  dynClear(values);
+  _treeCache_dpGetAll(locked_dpes, values);
+  DebugN(\"Getting \" , locked_dpes);
+
+  dyn_string problems = makeDynString();
+  for (int i=1; i<= dynlen(values); i++) {
+    if (values[i]==0) {
+        dynAppend(problems, dpSubStr(locked_dpes[i],DPSUB_SYS_DP_EL) + \"=not_locked\");
+//        DebugN(\"Not locked \" + locked_dpes[i]);
+    }
+  }
+  if (dynlen(problems) == 0) showMsg(\"ok\");
+  else showProblems(problems);
+
+}" 0
+ E E E
+2 28
+"txtConditions"
+""
+1 364 2 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 366 4 427 21
+0 2 0 "0s" 0 0 0 192 0 0  366 4 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 10 Conditions
+25 29
+"tblConditions"
+""
+1 -409.9940828402367 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  359 20 590 84
+"main()
+{	this.tableMode(TABLE_SELECT_NOTHING);
+	this.selectByClick(TABLE_SELECT_NOTHING);
+
+	
+}" 0
+"main(int row, string column, string value)
+{
+  dyn_anytype res;
+  getValue(\"\",\"getLineN\",row,res);
+  string input = res[dynlen(res)];
+
+  ChildPanelOnCentral(\"CMSfwDetectorProtection/view_input.pnl\",input, makeDynString(\"$sDpName:\" + input));
+  
+}" 0
+ 0 0 1 2 1 "condition" 19 1 0 "s" 1
+LANG:1 9 condition
+E
+1
+LANG:1 0 
+
+226 "dp" 13 0 0 "s" 1
+LANG:1 2 dp
+E
+1
+LANG:1 0 
+
+160 
+16 16 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 0 1 0 0 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

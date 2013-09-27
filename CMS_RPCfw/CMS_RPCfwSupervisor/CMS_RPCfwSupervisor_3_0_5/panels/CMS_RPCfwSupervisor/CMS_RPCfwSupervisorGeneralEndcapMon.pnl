@@ -1,0 +1,1087 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 806 762 N "_3DFace" 0
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "dyn_dyn_string channels,maxMin,chs;
+dyn_string tChs;
+dyn_string iChs;
+string hvSys,lvSys,gasSys;
+dyn_float tValues;
+dyn_float iValues;
+int totI,totT;
+const int GAS = 3;
+const int HV = 1;
+const int LV = 2;
+const int TT = 4;
+const int LB = 5;
+const int FEB = 6;
+
+#uses \"CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl\"
+
+void getAllGasChs(string sys,dyn_string & channels){
+  
+     channels = dpNames(\"*\"+sys+\"E*\",\"RPCGasChannel\");
+  
+  }
+
+void getAllFebs(string sys,dyn_string & channels){
+  
+  dyn_string names, geo = dpNames(\"*\"+sys+\"Feb_R*\",\"RpcFebGeo\");
+  //DebugN()
+  string febid;
+  for(int i= 1;i<=dynlen(geo);i++){
+    
+    dpGet(geo[i]+\".febIds\",febid);        
+    //DebugN(geo[i]);    
+    names = strsplit(febid,\";\");
+    for(int y = 1;y<=dynlen(names);y++)
+      dynAppend(channels,sys+\"Feb\"+names[y]);
+    
+    }
+
+  }
+void cleanText(){
+  
+  string text = showRes.text;
+  while(text!=\"\")
+  {
+  showRes.removeParagraph(0);
+  text = showRes.text;
+}
+ Entries.text = \"Entries: \";
+   
+  }
+
+
+// cleanVal(values,indexes,obj[pos],param[pos]);
+void cleanVal(dyn_float & values,dyn_int & problems, int type,string param){
+
+int offset = 0;;
+    
+  for(int i = 1; i<=dynlen(values);i++)
+  {
+    switch (type) {
+      case HV:
+        if(strpos(param,\"vMon\")>0)
+        {
+          values[i]= values[i] / 1000 ;
+//         DebugN(values[i]); 
+        }
+         if((values[i]==0)||((strpos(param,\"vMon\")>0)&&(values[i]<1)))
+        {
+         //  DebugN(values[i],param);
+         dynRemove(values,i);
+         dynAppend(problems,i+offset);
+         i--;
+          offset++;
+       }
+        break; 
+      case LV:
+        
+         if((values[i]>1)||(values[i]==0))
+        { 
+           dynAppend(problems,i+offset);
+
+         dynRemove(values,i);
+     
+         i--;
+         offset++;    
+        }
+          break;
+      case LB:
+         if(values[i]>1)
+        {
+         dynAppend(problems,i+offset);
+           dynRemove(values,i);
+         i--;
+        offset++;
+       }
+        break;
+      case TT:
+         if(values[i]<0)
+        {
+           dynRemove(values,i);
+            dynAppend(problems,i+offset);
+        i--;
+        offset++;
+         }
+        break;
+      case GAS:    
+        if(values[i]<0)
+        {
+          dynRemove(values,i);
+            dynAppend(problems,i+offset);
+        i--;
+        offset++;
+         }
+        
+        break;
+      case FEB:    
+        if(values[i]<1)
+        {
+          dynRemove(values,i);
+            dynAppend(problems,i+offset);
+        i--;
+        offset++;
+         }
+        
+        break;
+      }
+  
+  }
+    //DebugN(dynlen(values)); 
+  }
+void getAllChs(string sys,string type, dyn_string & channels)
+{
+ 
+  string alias;
+  dyn_string exInfo,nodes, children;
+  fwNode_getNodes(sys, fwDevice_LOGICAL, nodes, exInfo);
+  // DebugN(nodes);
+     for(int i = 1; i <= dynlen(nodes); i++)
+      {
+        alias = dpGetAlias(nodes[i] + \".\");
+	//DebugN(nodes[i], alias);
+	nodes[i] = sys + alias;
+      
+      if(strpos(nodes[i],type)>1)  
+        fwDevice_getChildren(nodes[i], fwDevice_LOGICAL, children, exInfo);		                        
+      
+      }
+    // DebugN(children);
+     for(int i = 1; i<=dynlen(children);i++)
+     {
+     //if((strpos(children[i],search)>1))  
+       dynAppend(channels,sys + fwDU_getPhysicalName(children[i]));      
+     }
+  
+  }
+ 
+  
+
+fillHistos(dyn_float df, int width, string title, dyn_string & result,dyn_string maxMin)
+{ 
+shape bt=getShape(title); 
+
+
+
+ dyn_float array, test;
+// Start position
+float max = 0, min = 9999;
+int mIdx,minIdx;
+int zero = 0; 
+dynClear(array);
+int pos;
+for(int i = 1; i<=dynlen(df);i++)
+{
+  if(df[i]>-1)
+  {
+  if(df[i]>max)
+    {
+    max = df[i];
+    mIdx = i;
+  }
+  if(df[i]<min)
+  {
+  min = df[i];
+  minIdx = i;
+  }
+  
+  pos = df[i];
+  pos = (pos / width)+1;
+  if(dynlen(array)<pos)
+    array[pos]=0;
+    array[pos]=(array[pos]+ 1.0);
+  }
+  //DebugN(\"elem: \",df[i],array[pos],max);
+  else
+    zero++;
+}
+//DebugN(\"1\",array);
+//dyn_float temp = array;
+int zeros = 0;
+for(int i = 1 ; i<=dynlen(array); i++)
+{
+  if(array[i]==0)
+  {
+    zeros++;
+    }
+  else
+    break;
+
+}
+//DebugN(df);
+if((min != 9999)&&(dynlen(df)!=0))
+{
+//      maxMin[1] = fwDU_getLogicalName(Tchannels[mIdx]);
+//      maxMin[3] = fwDU_getLogicalName(Tchannels[minIdx]);
+  
+  if(mIdx!=0){
+ maxMin[2] = df[mIdx];
+ maxMin[4] = df[minIdx];}
+  else
+  {
+    maxMin[2] = 0;
+ maxMin[4] = 0;
+ 
+    //df[1]= 0;
+    }
+//DebugN(iChs[mIdx],df[mIdx]);
+result[1] = \"Entries: \" + (dynlen(df)-zero);
+string avg = dynAvg(df);
+int avgpos = strpos(avg,\".\");
+
+result[5] = \"Mean: \" + substr(avg, 0, avgpos + 3); 
+result[3] = maxMin[2];
+
+//DebugN(min,df[minIdx],df[mIdx],max);
+if(df[minIdx]>0)
+{
+  int xst=(df[minIdx]-width); 
+bt.xStart= xst-zeros;
+//barTrend.xOrigin(-10);
+}
+else
+bt.xStart=width -1;
+  
+//Debug(df);
+
+bt.xRange= max+ width * 4;
+bt.xWidth=width;
+max = 0;
+
+//DebugN(\"Arr:\", array);
+for(int i =1;i<=dynlen(array);i++)
+{
+  if(array[i]>max)
+    max = array[i];
+ 
+  }
+bt.yRange = max + (max)/2; 
+// Setting the values
+
+//DebugN(array,df);
+setValue(bt, \"data\",array);
+ 
+// Update bar trend
+ 
+bt.flush();
+}
+else
+{
+  result[4] = \"All chambers off\";
+  result[2] = \"No values different to zero\";
+  result[1] = \"Entries: 0\";
+  result[3] = \"0\";
+  }
+}
+dyn_float refreshValues(string param, int type)
+{
+ dyn_float val ;
+dyn_string chann = chs[type];
+for(int i=1;i<=dynlen(chann);i++)
+   dpGet(chann[i]+param,val[i]);
+//dpGet(chann,val);
+DebugN(\"len=\", dynlen(chann), \"  channel=\", chann[1]);
+return val;
+
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+27 0
+"barTrend"
+""
+1 416 124 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  414 122 748 362
+2 0 30 5 9 "%H:%M" 0 1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  0 3 0 1 0 1 N {0,0,0}
+0 0 30 1 1 "%H:%M" 0 1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  0 3 0 1 0 1 N {0,0,0}
+1 0 0 10 1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  3 0 1 0 1 N {0,0,0}
+0 0 1 0 1 N {0,0,0} 2 0 0 20 20 N "_ETM" N "_ETM" N "_ETM" 1 0 10
+E
+2 1
+"Unit"
+""
+1 750 334 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 750 334 778 354
+0 2 2 "0s" 0 0 0 65 0 0  750 334 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 2 uA
+30 2
+"FRAME1"
+""
+1 164 54 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+30 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.30526315789474 0 1 -172.063157894737 24 0 E 164 54 735 382
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Online histograms
+19 3
+"RADIO_BOX1"
+""
+1 60 104 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  58 102 226 260
+8
+T 
+1
+LANG:1 7 Current
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 7 Voltage
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 25 LV Front End Board Status
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 25 LV Link Board Bord Status
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 20 Chamber Temperatures
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 16 Gas Flow cell In
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 17 Gas Flow Cell Out
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 16 FEB Temperatures
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+"main()
+{
+  //pchoice.enabled = false;
+  RADIO_BOX1.enabled = false;
+  Title.text = \"Refreshing.....\";
+  //iTitle.text = \"Refreshing.....\";          
+ // DebugN(\"s\",iChs);
+
+  
+     //dyn_string iChs;
+  
+  if(hvSys==\"\")
+    hvSys=RPCfwSupervisor_getComponent(\"EndcapHV\");
+  if(lvSys==\"\")
+    lvSys=RPCfwSupervisor_getComponent(\"EndcapLV\");
+  if(gasSys==\"\")
+    gasSys=RPCfwSupervisor_getComponent(\"Services\");
+  
+  
+  //getAllChs(gasSys,\"Gas\",chs[GAS]);
+  getAllChs(hvSys,\"HV\",chs[HV]);
+  //DebugN(chs[FEB]);
+  
+dyn_string param = makeDynString(\".actual.iMon\",\".actual.vMon\",\".actual.status\",\".actual.status\",\".actual.temperature\",\".flowIn\",\".flowOut\",\".temperature1\");
+dyn_int obj = makeDynInt(HV,HV,LV,LB,TT,GAS,GAS,FEB);   
+
+dyn_string unit = makeDynString(\"uA\",\"kV\",\"\",\"\",\"C\",\"l/h\",\"l/h\",\"C\");
+
+dyn_string text = makeDynString(\"Chamber currents\",\"Chamber Voltages\",\"FEB Status\",\"LBB Status\",\"Chamber temperature\",
+                                \"Chamber flowcell In\",\"Chamber flowcell Out\",\"Feb Temperature\");
+   
+//  DebugN(hvSys,dynlen(iChs));
+  
+int pos = this.number;
+  pos++;
+  //DebugN(pos);
+  
+dyn_float values =  refreshValues(param[pos],obj[pos]);
+
+int pre = dynlen(values);
+
+dyn_int indexes;
+if(dynlen(values)>0)
+  cleanVal(values,indexes,obj[pos],param[pos]);
+int post = dynlen(values);
+
+cleanText();
+showRes.append(\"Chamber not in the histogram: \");
+for(int i = 1; i<=dynlen(indexes);i++)
+{
+  showRes.append(fwDU_getLogicalName(chs[obj[pos]][indexes[i]]));
+  
+  }
+
+int width = 1; 
+dyn_string result,maxMin;
+
+if(post>0)
+{
+fillHistos(values,width,\"barTrend\",result,maxMin);
+Entries.text = result[5]+\" \"+unit[pos] +\"\\n \"+result[1] +\"/\"+ pre;
+Title.text = text[pos];// \"Chambers current\"; 
+Unit.text = unit[pos] ;
+//mean.text =  +\"\\n ciao\";
+}
+else
+Title.text = \"No Hardware channels found.\";// \"Chambers current\"; 
+ 
+
+ getAllChs(lvSys,\"LV\",chs[LV]);
+  getAllChs(lvSys,\"LBB\",chs[LB]);
+  getAllChs(lvSys,\"T\",chs[TT]);
+  getAllGasChs(gasSys,chs[GAS]);
+  getAllFebs(gasSys,chs[FEB]);
+ 
+   RADIO_BOX1.enabled = true;
+
+}
+
+" 0
+ "main(int button)
+{
+dyn_string param = makeDynString(\".actual.iMon\",\".actual.vMon\",\".actual.status\",\".actual.status\",\".actual.temperature\",\".flowIn\",\".flowOut\",\".temperature1\");
+dyn_int obj = makeDynInt(HV,HV,LV,LB,TT,GAS,GAS,FEB);   
+  
+int pos = button;
+  pos++;
+  //DebugN(pos);
+Title.text = \"Refreshing...\";  
+cleanText();
+
+if(obj[pos]==FEB)
+  showRes.append(\"THIS MAY TAKE VERY LONGER....\");
+  
+dyn_float values =  refreshValues(param[pos],obj[pos]);
+int pre = dynlen(values);
+dyn_int indexes;
+if(dynlen(values)>0)
+  cleanVal(values,indexes,obj[pos],param[pos]);
+
+int post = dynlen(values);
+cleanText();
+showRes.append(\"Chamber not in the histogram: \");
+for(int i = 1; i<=dynlen(indexes);i++)
+{
+  showRes.append(fwDU_getLogicalName(chs[obj[pos]][indexes[i]]));  
+}
+dyn_string unit = makeDynString(\"uA\",\"kV\",\"\",\"\",\"C\",\"l/h\",\"l/h\",\"C\");
+dyn_string text = makeDynString(\"Chamber currents\",\"Chamber Voltages\",\"FEB Status\",\"LBB Status\",\"Chamber temperature\",
+                                \"Chamber flowcell In\",\"Chamber flowcell Out\",\"Feb Temperature\");
+
+//DebugN(\"s\",values);
+// Values
+int width = 1;
+dyn_string result,maxMin;
+//DebugN(\"ss\",post);
+if(post>0)
+{
+fillHistos(values,width,\"barTrend\",result,maxMin);
+Entries.text = result[5]+\" \"+unit[pos] +\"\\n \"+result[1] +\"/\"+ pre;
+//mean.text = result[5];
+Title.text = text[pos];// \"Chambers current\"; 
+Unit.text = unit[pos];
+}
+else
+Title.text = \"No Hardware channels found.\";// \"Chambers current\"; 
+//DebugN(values);
+}" 0
+
+13 4
+"PUSH_BUTTON1"
+""
+1 418 368 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  416 366 500 394
+
+T 
+1
+LANG:1 7 refresh
+"main()
+{
+dyn_string param = makeDynString(\".actual.iMon\",\".actual.vMon\",\".actual.status\",\".actual.status\",\".actual.temperature\",\".flowIn\",\".flowOut\",\".temperature1\");
+dyn_int obj = makeDynInt(HV,HV,LV,LB,TT,GAS,GAS,FEB);   
+
+dyn_string unit = makeDynString(\"uA\",\"kV\",\"\",\"\",\"C\",\"l/h\",\"l/h\",\"C\");
+
+dyn_string text = makeDynString(\"Chamber currents\",\"Chamber Voltages\",\"FEB Status\",\"LBB Status\",\"Chamber temperature\",
+                                \"Chamber flowcell In\",\"Chamber flowcell Out\",\"Feb Temperature\");
+   
+
+  
+int pos = RADIO_BOX1.number;
+  pos++;
+  //DebugN(pos);
+Title.text = \"Refreshing...\";  
+
+dyn_float values =  refreshValues(param[pos],obj[pos]);
+
+int pre = dynlen(values);
+cleanText();
+dyn_int indexes;
+if(dynlen(values)>0)
+  cleanVal(values,indexes,obj[pos],param[pos]);
+int post = dynlen(values);
+
+showRes.append(\"Chamber not in the histogram: \");
+for(int i = 1; i<=dynlen(indexes);i++)
+{
+  showRes.append(fwDU_getLogicalName(chs[obj[pos]][indexes[i]]));
+  
+  }
+
+
+//DebugN(\"s\",values);
+// Values
+int width = 1;
+
+dyn_string result,maxMin;
+
+
+//DebugN(\"ss\",post);
+
+if(post>0)
+{
+fillHistos(values,width,\"barTrend\",result,maxMin);
+Entries.text = result[5]+\" \"+unit[pos] +\"\\n \"+result[1] +\"/\"+ pre;
+Title.text = text[pos];// \"Chambers current\"; 
+Unit.text = unit[pos];
+}
+else
+Title.text = \"No Hardware channels found.\";// \"Chambers current\"; 
+  
+
+
+//DebugN(values);
+
+
+}" 0
+ E E E
+2 5
+"PRIMITIVE_TEXT3"
+""
+1 48 30 E E E 1 E 1 E N "_Window" E N "_ETM" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 1 1 E U  1 E 48 30 398 55
+0 6 2 "0s" 0 0 0 65 0 0  48 30 2
+1
+LANG:1 26 Arial,-1,16,5,75,0,0,0,0,0
+0 1
+LANG:1 28 RPC ENDCAP GLOBAL MONITORING
+1
+LANG:1 26 Arial,-1,16,5,75,0,0,0,0,0
+0 1
+LANG:1 0 
+2 6
+"Title"
+""
+1 488 96 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 488 96 683 118
+0 2 2 "0s" 0 0 0 65 0 0  488 96 1
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,75,0,0,0,0,0
+0 1
+LANG:1 1 g
+29 7
+"showRes"
+""
+1 56 264 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  56 264 380 390
+15 PVSS.TextEdit.1
+0
+"main()
+{
+//   this.enabled = false;
+//   this.vScrollBarMode = \"AlwaysOn\";
+}" 0
+30 8
+"FRAME2"
+""
+1 44 431 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+39 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.05263157894737 -4 -33.6842105263164 0 E 44 431 789 717
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Global Trending
+6 9
+"canvas"
+""
+1 40 280 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+this.visible=FALSE;
+}" 0
+ E 0 1 1 0 1 E 1 0 1 216 380 0 E 40 60 520 280
+19 10
+"pchoice"
+""
+1 71.9999999999998 522 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  70 520 236 612
+4
+T 
+1
+LANG:1 22 Total Current per Disc
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 25 Averange Current per Disc
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 28 Sum of Temperatures per Disc
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 28 Average Temperature per Disc
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+"main()
+{
+this.number = 1;
+  
+dyn_string tempSensor,parameters,values,exceptionInfo;
+dyn_string deviceList,deviceList1;
+
+if(hvSys==\"\")
+    hvSys=RPCfwSupervisor_getComponent(\"EndcapHV\");  
+
+if(lvSys==\"\")
+    lvSys=RPCfwSupervisor_getComponent(\"EndcapLV\");
+
+deviceList = dpNames(hvSys+\"*E*\",\"RpcGlobalValue\");
+deviceList1 = dpNames(lvSys+\"*E*\",\"RpcGlobalTValue\");
+string type;
+
+if(this.number == 0  || this.number==1)
+{
+  if(this.number == 0)             { type = \"total\";   }
+  else if (this.number == 1)       {type = \"averange\"; }
+
+  int tot = dynlen(deviceList);
+  dyn_string logName,chss;// = tempSensor;
+  for(int i = 1;i<=tot;i++)
+	{
+	dynAppend(parameters,\"channel\"+ i);
+        dynAppend(tempSensor,deviceList[i]);
+        dynAppend(parameters,\"value\"+ i);
+        dynAppend(tempSensor,type);
+        dynAppend(chss,deviceList[i]+\".\"+type);
+	int pos = strpos(deviceList[i],\"E\");
+        dynAppend(parameters,\"param\"+ i);
+        dynAppend(tempSensor,substr(deviceList[i],pos));
+	}
+  //DebugN(tot,parameters,tempSensor);
+  int x,y,xSize,ySize;
+  string dpTrendName;
+  if (tot>5)
+    dpTrendName = \"six\";
+  else
+    dpTrendName = \"five\";
+  //=\"ChamTrend\"+tot;
+    RPCSupervisor_SetAxis(dpTrendName,tot,chss);
+	getValue(\"canvas\",\"position\",x,y);
+	getValue(\"canvas\",\"size\",xSize,ySize);
+	//DebugN($2,\"sasa\",deviceList,tempSensor,dpTrendName,parameters);
+	fwTrending_addFaceplate(myModuleName(), myPanelName(), \"Trend\",
+				RPCfwSupervisor_getSupervisorSys()+dpTrendName,
+				parameters,
+				tempSensor,
+				x,y-ySize, exceptionInfo);
+}
+else if (this.number==2   ||  this.number==3)
+{  
+  if (this.number == 2)    {  type = \"total\";    }
+  else if (this.number == 3)    {  type = \"averange\"; }
+  int tot = dynlen(deviceList1);
+  dyn_string logName,chss;// = tempSensor;
+  for(int i = 1;i<=tot;i++)
+	{
+	dynAppend(parameters,\"channel\"+ i);
+        dynAppend(tempSensor,deviceList1[i]);
+        dynAppend(parameters,\"value\"+ i);
+        dynAppend(tempSensor,type);
+        dynAppend(chss,deviceList[i]+\".\"+type);
+	int pos = strpos(deviceList1[i],\"E\");
+        dynAppend(parameters,\"param\"+ i);
+        dynAppend(tempSensor,substr(deviceList1[i],pos));
+	}
+  //DebugN(tot,parameters,tempSensor);
+  int x,y,xSize,ySize;
+  string dpTrendName;
+  if (tot>5)
+    dpTrendName = \"six\";
+  else
+    dpTrendName = \"five\";
+    RPCSupervisor_SetAxis(dpTrendName,tot,chss);
+  //=\"ChamTrend\"+tot;
+	getValue(\"canvas\",\"position\",x,y);
+	getValue(\"canvas\",\"size\",xSize,ySize);
+	//DebugN($2,\"sasa\",deviceList1,tempSensor,dpTrendName,parameters);
+	fwTrending_addFaceplate(myModuleName(), myPanelName(), \"Trend\",
+				RPCfwSupervisor_getSupervisorSys()+dpTrendName,
+				parameters,
+				tempSensor,
+				x,y-ySize, exceptionInfo);
+
+      }
+}" 0
+ "main(int button)
+{
+  
+dyn_string tempSensor,parameters,values,exceptionInfo;
+dyn_string deviceList, deviceList1;
+
+if(hvSys==\"\")
+    hvSys=RPCfwSupervisor_getComponent(\"EndcapHV\");  
+if(lvSys==\"\")
+    lvSys=RPCfwSupervisor_getComponent(\"EndcapLV\");
+  
+deviceList = dpNames(hvSys+\"*E*\",\"RpcGlobalValue\");
+deviceList1 = dpNames(lvSys+\"*E*\",\"RpcGlobalTValue\");
+//DebugN(deviceList1);
+
+
+//DebugN(\"button=\",button);
+
+if(button==0  || button ==1)
+{
+  string type;
+  if(button == 0)     {   type = \"total\";     }  
+  else if(button==1)  {  type = \"averange\";   }
+
+  int tot = dynlen(deviceList);
+  dyn_string logName,chss;// = tempSensor;
+  for(int i = 1;i<=tot;i++)
+	{
+	dynAppend(parameters,\"channel\"+ i);
+        dynAppend(tempSensor,deviceList[i]);
+        dynAppend(parameters,\"value\"+ i);
+        dynAppend(tempSensor,type);
+        dynAppend(chss,deviceList[i]+\".\"+type);
+	int pos = strpos(deviceList[i],\"E\");
+        dynAppend(parameters,\"param\"+ i);
+        dynAppend(tempSensor,substr(deviceList[i],pos));
+	}
+
+  //DebugN(tot,parameters,tempSensor);
+  int x,y,xSize,ySize;
+  string dpTrendName;
+  if (tot>5)  dpTrendName = \"six\";
+  else        dpTrendName = \"five\";
+  //=\"ChamTrend\"+tot;
+  RPCSupervisor_SetAxis(dpTrendName,tot,chss);
+  getValue(\"canvas\",\"position\",x,y);
+	getValue(\"canvas\",\"size\",xSize,ySize);
+	//DebugN($2,\"sasa\",deviceList,tempSensor,dpTrendName,parameters);
+	fwTrending_addFaceplate(myModuleName(), myPanelName(), \"Trend\",
+				RPCfwSupervisor_getSupervisorSys()+dpTrendName,
+				parameters,
+				tempSensor,
+				x,y-ySize, exceptionInfo);
+       }
+
+
+else if (button==2  || button==3)
+{
+string type;
+  if(button == 2)     {   type = \"total\";     }  
+  else if(button==3)  {  type = \"averange\";   }
+
+  int tot = dynlen(deviceList1);
+  dyn_string logName,chss;// = tempSensor;
+  for(int i = 1;i<=tot;i++)
+	{
+	dynAppend(parameters,\"channel\"+ i);
+        dynAppend(tempSensor,deviceList1[i]);
+        dynAppend(parameters,\"value\"+ i);
+        dynAppend(tempSensor,type);
+        dynAppend(chss,deviceList1[i]+\".\"+type);
+	int pos = strpos(deviceList1[i],\"E\");
+        dynAppend(parameters,\"param\"+ i);
+        dynAppend(tempSensor,substr(deviceList1[i],pos));
+	}
+
+  //DebugN(tot,parameters,tempSensor);
+  int x,y,xSize,ySize;
+  string dpTrendName;
+  if (tot>5)  dpTrendName = \"six\";
+  else        dpTrendName = \"five\";
+  //=\"ChamTrend\"+tot;
+ // DebugN(tot,chss);
+    RPCSupervisor_SetAxis(dpTrendName,tot,chss);
+ 	getValue(\"canvas\",\"position\",x,y);
+	getValue(\"canvas\",\"size\",xSize,ySize);
+	//DebugN($2,\"sasa\",deviceList,tempSensor,dpTrendName,parameters);
+	fwTrending_addFaceplate(myModuleName(), myPanelName(), \"Trend\",
+				RPCfwSupervisor_getSupervisorSys()+dpTrendName,
+				parameters,
+				tempSensor,
+				x,y-ySize, exceptionInfo);  
+  
+  
+}
+  
+  
+  
+}" 0
+
+13 11
+"PUSH_BUTTON2"
+""
+1 660 29 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  658 27 784 59
+
+T 
+1
+LANG:1 5 Close
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+2 12
+"Entries"
+""
+1 651.9375 365 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 2 1 1 E U  1 E 650 365 745 400
+1 2 2 "0s" 0 0 0 65 0 0  650 365 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Entries: 
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

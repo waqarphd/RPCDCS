@@ -1,0 +1,392 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 1200 364 N "_3DFace" 0
+"main()
+{
+  init();
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwInstallationDB.ctl\"
+
+init()
+{
+  bool isOk;
+  dyn_dyn_mixed dbManagersInfo, pvssManagersInfo;
+  
+  clear();
+  
+  if(fwInstallationDB_connect())
+  {
+     DebugN(\"Could not connect to DB. Please, check connection parameters and availability of the server.\");
+     return;
+  }
+   
+  if(fwInstallationDBAgent_checkProjectManagersInfo(isOk, dbManagersInfo, pvssManagersInfo) != 0)
+  {
+     DebugN(\"ERROR -> Could not check consistency between PVSS and DB for project managers\");
+  }
+  else
+  { 
+    for(int i = 1; i <= dynlen(pvssManagersInfo); i++)   
+    {
+      string col = \"yellow\";
+      tbPvssManagers.appendLine(\"manager\", pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_NAME_IDX], 
+                                  \"start\", pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_START_IDX],
+                                  \"restart\", pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_RESTART_IDX], 
+                                  \"reset\", pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_RESETMIN_IDX],
+                                  \"seckill\", pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_SECKILL_IDX], 
+                                  \"options\", pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX],
+                                  \"alerts\", pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_TRIGGERS_ALERTS_IDX]);
+      
+      for(int j = 1; j <= dynlen(dbManagersInfo); j++)
+      {     
+        if(pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_NAME_IDX] == dbManagersInfo[j][FW_INSTALLATION_DB_MANAGER_NAME_IDX] && 
+           pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_START_IDX] == dbManagersInfo[j][FW_INSTALLATION_DB_MANAGER_START_IDX] &&
+           pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX] == dbManagersInfo[j][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX])
+        {
+//          DebugN(pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_NAME_IDX],
+//                 pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX],
+//                 pvssManagersInfo[i][FW_INSTALLATION_DB_MANAGER_START_IDX], 
+//                 dbManagersInfo[j][FW_INSTALLATION_DB_MANAGER_START_IDX]);
+          
+          col = \"_Window\";
+          break;
+        }
+      }   
+      
+      tbPvssManagers.cellBackColRC(i-1, \"manager\",  col);
+      tbPvssManagers.cellBackColRC(i-1, \"start\", col);
+      tbPvssManagers.cellBackColRC(i-1, \"restart\", col);
+      tbPvssManagers.cellBackColRC(i-1, \"reset\", col);
+      tbPvssManagers.cellBackColRC(i-1, \"seckill\", col);
+      tbPvssManagers.cellBackColRC(i-1, \"options\", col);
+      tbPvssManagers.cellBackColRC(i-1, \"alerts\", col);
+      
+    }
+    for(int i = 1; i <= dynlen(dbManagersInfo); i++)   
+    {
+      string col = \"yellow\";
+      
+      //Savannah #55313: UI crash if values are not initialized.
+      string temp = dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX];      
+      dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX] = temp;
+          
+      tbDbManagers.appendLine(\"manager2\", dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_NAME_IDX], 
+                                  \"start2\", dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_START_IDX],
+                                  \"restart2\", dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_RESTART_IDX], 
+                                  \"reset2\", dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_RESETMIN_IDX],
+                                  \"seckill2\", dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_SECKILL_IDX], 
+                                  \"options2\", dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX],
+                                  \"alerts2\", dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_TRIGGERS_ALERTS_IDX]);
+    
+      
+      
+      for(int j = 1; j <= dynlen(pvssManagersInfo); j++)
+      {     
+        if(pvssManagersInfo[j][FW_INSTALLATION_DB_MANAGER_NAME_IDX] == dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_NAME_IDX] && 
+           pvssManagersInfo[j][FW_INSTALLATION_DB_MANAGER_START_IDX] == dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_START_IDX] &&
+           pvssManagersInfo[j][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX] == dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX])
+        {
+//          DebugN(pvssManagersInfo[j][FW_INSTALLATION_DB_MANAGER_NAME_IDX],
+//                 pvssManagersInfo[j][FW_INSTALLATION_DB_MANAGER_OPTIONS_IDX],
+//                 pvssManagersInfo[j][FW_INSTALLATION_DB_MANAGER_START_IDX], 
+//                 dbManagersInfo[i][FW_INSTALLATION_DB_MANAGER_START_IDX]);
+          col = \"_Window\";
+          break;
+        }
+      }
+      
+      tbDbManagers.cellBackColRC(i-1, \"manager2\",  col);
+      tbDbManagers.cellBackColRC(i-1, \"start2\", col);
+      tbDbManagers.cellBackColRC(i-1, \"restart2\", col);
+      tbDbManagers.cellBackColRC(i-1, \"reset2\", col);
+      tbDbManagers.cellBackColRC(i-1, \"seckill2\", col);
+      tbDbManagers.cellBackColRC(i-1, \"options2\", col);
+      tbDbManagers.cellBackColRC(i-1, \"alerts2\", col);
+    }
+  } 
+}
+
+void clear()
+{
+  tbPvssManagers.deleteAllLines();
+  tbDbManagers.deleteAllLines();
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 3
+"FRAME6"
+""
+1 34 199 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+7 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 2.20930232558139 0 1.70602939269035 -53.1162790697673 -323.461753907285 0 E 34 199 293 347
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 15 Running Project
+30 4
+"FRAME7"
+""
+1 34 199 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+9 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 2.23328032997863 0 1.70922019227425 528.068468780727 -324.096723024481 0 E 34 199 293 347
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 14 DB Information
+13 56
+"btnCheck"
+""
+1 1060 280 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+113 0 0 0 0 0
+E E E
+0
+1
+LANG:1 25 Check PVSS_DB consistency
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 1058 278 1182 312
+
+T 
+1
+LANG:1 7 Refresh
+"main()
+{  
+  init();
+}" 0
+ E E E
+13 57
+"PUSH_BUTTON1"
+""
+1 1060 320 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+115 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 1058 318 1182 352
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+25 58
+"tbPvssManagers"
+""
+1 28 34 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+116 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 26 32 588 256
+EE 1 0 1 7 0 "manager" 8 1 0 "s" 1
+LANG:1 7 Manager
+E
+1
+LANG:1 0 
+
+80 "start" 7 1 0 "s" 1
+LANG:1 10 Start Mode
+E
+1
+LANG:1 0 
+
+72 "restart" 4 1 0 "s" 1
+LANG:1 8 Restart#
+E
+1
+LANG:1 0 
+
+51 "reset" 5 1 0 "s" 1
+LANG:1 9 Reset Min
+E
+1
+LANG:1 0 
+
+55 "seckill" 3 1 0 "s" 1
+LANG:1 8 Sec Kill
+E
+1
+LANG:1 0 
+
+42 "options" 21 1 0 "s" 1
+LANG:1 7 Options
+E
+1
+LANG:1 0 
+
+200 "alerts" 3 1 0 "s" 1
+LANG:1 6 Alerts
+E
+1
+LANG:1 0 
+
+38 
+14 14 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+30 59
+"frPvss"
+""
+1 20 335 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+118 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.49910468776566 0 2.37168141592919 -23.9820937553134 -792.513274336281 0 E 20 335 811 449
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 16 Project Managers
+25 62
+"tbDbManagers"
+""
+1 610 36.3870967741935 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+124 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 608 34 1170 258
+EE 1 0 1 7 0 "manager2" 8 1 0 "s" 1
+LANG:1 7 Manager
+E
+1
+LANG:1 0 
+
+80 "start2" 7 1 0 "s" 1
+LANG:1 10 Start Mode
+E
+1
+LANG:1 0 
+
+72 "restart2" 4 1 0 "s" 1
+LANG:1 8 Restart#
+E
+1
+LANG:1 0 
+
+51 "reset2" 5 1 0 "s" 1
+LANG:1 9 Reset Min
+E
+1
+LANG:1 0 
+
+55 "seckill2" 3 1 0 "s" 1
+LANG:1 8 Sec Kill
+E
+1
+LANG:1 0 
+
+42 "options2" 21 1 0 "s" 1
+LANG:1 7 Options
+E
+1
+LANG:1 0 
+
+200 "alerts2" 3 1 0 "s" 1
+LANG:1 6 Alerts
+E
+1
+LANG:1 0 
+
+38 
+14 14 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

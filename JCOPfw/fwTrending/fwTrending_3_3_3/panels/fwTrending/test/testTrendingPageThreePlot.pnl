@@ -1,0 +1,368 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,394 138 1270 835 N "unSynopticBackground" 0
+"main()
+{
+	test_initTrends(\"1\", \"un-Q_180-ATVAC-AnaDig-00002\", 
+								  makeDynString(\"PosSt\",\"OutOVSt\", \"\",
+								  \"\", \"\", \"\", \"\", \"\"),
+								  makeDynString(\"PosSt\",\"PosSt\",\"\",
+								  \"\", \"\", \"\", \"\", \"\"),
+								  makeDynString(\"unDisplayValue_Status\",\"unDisplayValue_Output\",\"\",
+								  \"\", \"\", \"\", \"\", \"\"), 0, 0,
+								  makeDynString(true, true, false, false,false,false,false,false),
+								  makeDynString(false, true, false, false,false,false,false,false), false, 600,
+								  0, 0, \"\");
+
+	test_initTrends(\"2\", \"un-Q_180-ATVAC-Controller-00001\", 
+//									makeDynString(\"MV\",\"AtSPo\",\"OutOVSt\"),
+//									makeDynString(\"AtSPo\",\"AtSPo\",\"OutOVSt\"),
+//									makeDynString(\"unDisplayValue_Status\", \"unDisplayValue_Request\",\"unDisplayValue_Output\"),
+									makeDynString(\"MV\",\"AtSPo\",\"OutOVSt\",
+												\"\", \"\", \"\", \"\", \"\"),
+									makeDynString(\"AtSPo\",\"AtSPo\",\"OutOVSt\",
+												\"\", \"\", \"\", \"\", \"\"),
+									makeDynString(\"unDisplayValue_Status\", \"unDisplayValue_Request\",\"unDisplayValue_Output\",
+												\"\", \"\", \"\", \"\", \"\"),
+									0, 280,
+									makeDynString(true, false, true, true,true,true,true,true),
+									makeDynString(false, false, false, false,false,false,false,false), true,
+									28800,
+									0.1, 10, \"dl\");
+
+	test_initTrends(\"3\", \"un-Q_180-ATVAC-Controller-00001\", 
+//									makeDynString(\"MV\",\"AtSPo\",\"OutOVSt\"),
+//									makeDynString(\"AtSPo\",\"AtSPo\",\"OutOVSt\"),
+//									makeDynString(\"unDisplayValue_Status\", \"unDisplayValue_Request\",\"unDisplayValue_Output\"),
+									makeDynString(\"MV\",\"AtSPo\",\"OutOVSt\",
+												\"MPosRSt\", \"AuPosRSt\", \"AtSPoL\", \"AtSPoH\", \"AtOutOH\"),
+									makeDynString(\"AtSPo\",\"AtSPo\",\"OutOVSt\",
+												\"AtSPo\",\"AtSPo\",\"OutOVSt\", \"AtSPo\",\"AtSPo\"),
+									makeDynString(\"unDisplayValue_Status\", \"unDisplayValue_Request\",\"unDisplayValue_Output\",
+												\"\", \"\", \"\", \"\", \"\"),
+									0, 560,
+									makeDynString(false, true, true, true,false,true,true,false),
+									makeDynString(false, false, false, false,false,false,false,false), true,
+									28800,
+									0.1, 10, \"ExampleDP_Arg1\");
+}
+test_initTrends(string ref, string sDpName, dyn_string dsAnalog, dyn_string dsRange, dyn_string dsColor, int x, int y,
+				dyn_bool bVisible, dyn_bool bSVisible, bool isLog, int timeRange, float min, float perc, string dp)
+{
+	string deviceName, sRangeMin, sRangeMax;
+	float fRangeMin, fRangeMax;
+	int iRangeType, iRes, position, i, length;
+	dyn_string dsDpe, dsCurveLegend, dsCurveColor, dsCurveRange, dsCurveDPE, dsCurveParameters;
+	dyn_float dfMax, dfMin;
+	string alias = dpGetAlias(sDpName+\".\");
+	string systName = getSystemName();
+	string deviceSystemName, deviceAlias, deviceDescription;
+	dyn_string dpeUnit=makeDynString(\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\");
+	string curveDPE, curveLegend, curveToolTipText, curveColor, curveRange, curveUnit, curveVisibility, axiiText, curvesType;
+	
+	// 1. Init : get range configuration
+	deviceName = unGenericDpFunctions_getDpName(sDpName);
+	unGenericDpFunctions_getFaceplateRange(deviceName, dsDpe, dfMax, dfMin);
+	deviceSystemName = unGenericDpFunctions_getSystemName(sDpName);
+	deviceAlias = unGenericDpFunctions_getAlias(sDpName);
+	deviceDescription = unGenericDpFunctions_getDescription(deviceName);
+
+	// 2. For each value to plot
+	length = dynlen(dsAnalog);
+	while (dynlen(dsRange)<=length)
+		{
+		dynAppend(dsRange, \"\");
+		}
+	while (dynlen(dsColor)<=length)
+		{
+		dynAppend(dsColor, \"\");
+		}
+	for(i=1;i<=length;i++)
+		{
+		if (dpExists(deviceName + \".ProcessInput.\" + dsAnalog[i]))	// Good value to plot
+			{
+			dynAppend(dsCurveDPE, deviceName + \".ProcessInput.\" + dsAnalog[i] + \":_online.._value\");
+			dpeUnit[i] = dpGetUnit(deviceName + \".ProcessInput.\" + dsAnalog[i]);
+			dynAppend(dsCurveLegend, dsAnalog[i]);
+			position = dynContains(dsDpe, dsAnalog[i]);
+			if (position > 0)								// A config exists for this dpe
+				{
+				sRangeMin = dfMin[position];
+				sRangeMax = dfMax[position];
+				}
+			else											// Search for pv_range
+				{
+				if (dsRange[i] != \"\")
+					{
+					if (dpExists(deviceName + \".ProcessInput.\" + dsRange[i]))
+						{
+						dpGet(deviceName + \".ProcessInput.\" + dsRange[i] + \":_pv_range.._type\", iRangeType);
+						if (iRangeType == DPCONFIG_MINMAX_PVSS_RANGECHECK)
+							{
+							iRes = dpGet(deviceName + \".ProcessInput.\" + dsRange[i] + \":_pv_range.._min\", fRangeMin,
+										 deviceName + \".ProcessInput.\" + dsRange[i] + \":_pv_range.._max\", fRangeMax);
+							}
+						}
+					else
+						{
+						iRangeType = DPCONFIG_NONE;
+						}
+					}
+				else
+					{
+					iRangeType = DPCONFIG_NONE;
+					}
+				if ((iRangeType != DPCONFIG_MINMAX_PVSS_RANGECHECK) || (iRes < 0))
+					{
+					fRangeMin = UN_RANGE_MIN_DEFAULT;		// Default values
+					fRangeMax = UN_RANGE_MAX_DEFAULT;
+					}
+				sRangeMin = fRangeMin;
+				sRangeMax = fRangeMax;
+				}
+			dynAppend(dsCurveRange, sRangeMin + \":\" + sRangeMax);
+			dynAppend(dsCurveColor, dsColor[i]);
+			}
+		else
+			{
+				dsCurveLegend[i] = \"\";
+				dsCurveColor[i] = \"\";
+				dsCurveRange[i] = \"\";
+				dsCurveDPE[i] = \"\";
+			}
+		}
+
+	// 3. Open trend panel
+	while (dynlen(dsCurveLegend)<=UN_FACEPLATE_TRENDS_MAX)
+		{
+		dynAppend(dsCurveLegend, \"\");
+		}
+	while (dynlen(dsCurveRange)<=UN_FACEPLATE_TRENDS_MAX)
+		{
+		dynAppend(dsCurveRange, \"\");
+		}
+	while (dynlen(dsCurveDPE)<=UN_FACEPLATE_TRENDS_MAX)
+		{
+		dynAppend(dsCurveDPE, \"\");
+		}
+	while (dynlen(dsCurveColor)<=UN_FACEPLATE_TRENDS_MAX)
+		{
+		dynAppend(dsCurveColor, \"\");
+		}
+if(sDpName == \"\") {
+
+		dynAppend(dsCurveParameters, \"$dsCurveDPE:\"+curveDPE);
+		dynAppend(dsCurveParameters, \"$dsCurveLegend:\"+curveLegend);
+		dynAppend(dsCurveParameters, \"$dsCurveToolTipText:\"+curveToolTipText);
+		dynAppend(dsCurveParameters, \"$dsCurveColor:\"+curveColor);
+		dynAppend(dsCurveParameters, \"$dsCurveRange:\"+curveRange);
+		dynAppend(dsCurveParameters, \"$dsUnit:\"+curveUnit);
+		dynAppend(dsCurveParameters, \"$dsCurveVisible:\"+curveVisibility);
+		dynAppend(dsCurveParameters, \"$dsCurveScaleVisible:\"+axiiText);
+		dynAppend(dsCurveParameters, \"$dsCurvesType:\"+curvesType);
+
+		dynAppend(dsCurveParameters, \"$ZoomWindowTitle:\");
+		dynAppend(dsCurveParameters, \"$sRefName:\"+ref);
+		dynAppend(dsCurveParameters, \"$sDpName:\"+dp);
+		dynAppend(dsCurveParameters, \"$fMinForLog:\");
+		dynAppend(dsCurveParameters, \"$fMaxPercentageForLog:\");
+		dynAppend(dsCurveParameters, \"$bTrendLog:\");
+		dynAppend(dsCurveParameters, \"$sTimeRange:\");
+	DebugN(dsCurveParameters);
+}
+else {
+	for(i=1;i<=UN_FACEPLATE_TRENDS_MAX;i++)
+		{
+			curveDPE += dsCurveDPE[i]+\";\";
+			if(dsAnalog[i] != \"\")
+				curveVisibility +=true+\";\";
+			else
+				curveVisibility +=false+\";\";
+			curveRange += dsCurveRange[i]+\";\";
+			curveLegend += dsCurveLegend[i]+\";\";
+			curveToolTipText += deviceSystemName+deviceAlias+\".\"+dsCurveLegend[i]+\" [\"+dpeUnit[i]+\"] \"+deviceDescription+\";\";
+			curveUnit += dpeUnit[i]+\";\";
+			axiiText += false+\";\";
+			curvesType += fwTrending_PLOT_TYPE_STEPS+\";\";
+			curveColor += dsCurveColor[i]+\";\";
+		}
+	for(i=UN_FACEPLATE_TRENDS_MAX;i<=fwTrending_TRENDING_MAX_CURVE;i++)
+		{
+			curveDPE += \";\";
+			curveVisibility +=false+\";\";
+			curveRange += \";\";
+			curveLegend += \";\";
+			curveToolTipText += \";\";
+			curveUnit += \";\";
+			axiiText += false+\";\";
+			curvesType += fwTrending_PLOT_TYPE_STEPS+\";\";
+			curveColor += \";\";
+		}		
+		dynAppend(dsCurveParameters, \"$dsCurveDPE:\"+curveDPE);
+		dynAppend(dsCurveParameters, \"$dsCurveLegend:\"+curveLegend);
+		dynAppend(dsCurveParameters, \"$dsCurveToolTipText:\"+curveToolTipText);
+		dynAppend(dsCurveParameters, \"$dsCurveColor:\"+curveColor);
+		dynAppend(dsCurveParameters, \"$dsCurveRange:\"+curveRange);
+		dynAppend(dsCurveParameters, \"$dsUnit:\"+curveUnit);
+		dynAppend(dsCurveParameters, \"$dsCurveVisible:\"+curveVisibility);
+		dynAppend(dsCurveParameters, \"$dsCurveScaleVisible:\"+axiiText);
+		dynAppend(dsCurveParameters, \"$dsCurvesType:\"+curvesType);
+
+		dynAppend(dsCurveParameters, \"$ZoomWindowTitle:\" + unGenericDpFunctions_getAlias(deviceName) + \",\" + unGenericDpFunctions_getDescription(deviceName));
+		dynAppend(dsCurveParameters, \"$sRefName:\"+ref);
+		dynAppend(dsCurveParameters, \"$sDpName:\"+dp);
+		dynAppend(dsCurveParameters, \"$fMinForLog:\"+min);
+		dynAppend(dsCurveParameters, \"$fMaxPercentageForLog:\"+perc);
+		dynAppend(dsCurveParameters, \"$bTrendLog:\"+isLog);
+		dynAppend(dsCurveParameters, \"$sTimeRange:\"+ timeRange);
+	DebugN(dsCurveParameters);
+}
+//	ChildPanelOnCentral(\"objects/fwTrending/fwTrendingFaceplate.pnl\", \"ll\", dsCurveParameters );
+//DebugN(dsCurveParameters);
+/*	addSymbol(myModuleName(), myPanelName(), \"fwTrending/fwTrendingTrendControl.pnl\", ref, dsCurveParameters,
+			x, y, 1.0, 1.0, 1.0);
+*/
+	addSymbol(myModuleName(), myPanelName(), \"fwTrending/fwTrendingTrendControl.pnl\", ref, dsCurveParameters,
+			x, y, 1.0, 1.0, 1.0);
+	addSymbol(myModuleName(), myPanelName(), \"fwTrending/fwTrendingThreePlot.pnl\", ref+\"trend\", dsCurveParameters,
+			x, y+20, 1.0, 1.0, 1.0);
+
+/*	addSymbol(myModuleName(), myPanelName(), \"objects/fwTrending/fwTrendingFaceplate.pnl\", ref, dsCurveParameters,
+			x, y, 1.0, 1.0, 1.0);
+*/
+//DebugN(ref+\".trendCaption\");
+
+//delay(10);
+
+}
+
+
+" 0
+EE E E 1 -1 -1 0  635 0
+"" 0 1
+EE 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+4 1
+"Line2"
+""
+1 0 275 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+2 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 1 2 1 0 1 E  0 275 1270 275
+4 2
+"Line1"
+""
+1 0 555 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+3 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 1 2 1 0 1 E  0 555 1270 555
+13 4
+"pageConfigurationButton"
+""
+1 1159 0 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-11,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1157 -2 1261 27
+T 
+1
+LANG:1 18 page configuration
+"main()
+{
+	string sDpName = /*$sDpName*/ \"page1\";
+	if(sDpName != \"\") {
+		if(dpExists(sDpName)) {
+			if(dpTypeName(sDpName) == \"_FwTrendingPage\") {
+// copy the plot to  working plot and call the plot config.
+				DebugN(\"Page config:\", sDpName);
+				fwTrending_editPage(sDpName);
+// on return on the plot config save the result in the sDpName.
+			}
+		}
+	}
+
+}
+" 0
+ E E "main()
+{
+	dyn_string exceptionInfo;
+	int iRes;
+	
+	if((isFunctionDefined(\"fwAccessControl_getUserPermission\")) && 
+			(isFunctionDefined(\"unGenericDpFunctionsHMI_setCallBack_user\"))) {
+		unGenericDpFunctionsHMI_setCallBack_user(\"selectCB\", iRes, exceptionInfo);
+	}
+}
+selectCB(string sUi, string sUser)
+{
+	bool granted = false;
+	dyn_string exceptionInfo, domainList, priviledgeList, systems;
+
+	fwAccessControl_getDomainList(domainList, exceptionInfo);
+	fwAccessControl_getPriviledgeList(priviledgeList, exceptionInfo);
+// get the priviledge and domain list. The configuration of the windowTree needs the first domain and the highest priviledge level
+	if(dynlen(exceptionInfo)<=0)
+	{
+		fwAccessControl_getUserPermission(priviledgeList[2], domainList[1], granted, exceptionInfo);
+	}
+
+	pageConfigurationButton.enabled(granted);
+}
+" 0
+
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

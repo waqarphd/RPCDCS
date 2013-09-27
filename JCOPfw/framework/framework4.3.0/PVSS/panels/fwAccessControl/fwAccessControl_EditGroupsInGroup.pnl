@@ -1,0 +1,796 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 789 480 N "_3DFace" 2
+"$groupName"
+"$includedGroups"
+"main()
+{
+dyn_string exceptionInfo;
+
+if (!isDollarDefined(\"$groupName\")) {
+	fwAccessControl_raiseException(exceptionInfo,\"ERROR\",
+		\"Dollar parameter $groupName missing\",\"\");
+};
+
+if (!isDollarDefined(\"$includedGroups\")) {
+	fwAccessControl_raiseException(exceptionInfo,\"ERROR\",
+		\"Dollar parameter $includedGroups missing\",\"\");
+};
+
+
+if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+}
+
+populatePanel();
+
+}
+" 0
+ E E E E 1 -1 -1 0  20 40
+""0  1
+E "dyn_string g_IncludedGroups;
+
+void populatePanel()
+{
+
+dyn_string domainlist, fullDomainNames, exceptionInfo;
+
+if ($groupName!=\"\") {
+	setValue(\"Group\",\"text\",$groupName);
+} else {
+	setValue(\"Group\",\"text\",\"[New Group]\");
+}
+
+
+g_IncludedGroups=$includedGroups;
+
+setValue(\"GroupsTable\",\"visible\",FALSE);
+setValue(\"ShowRecursively\",\"enabled\",FALSE);
+populateIncludedGroups();
+populateGroups();
+}
+
+//  FUNCTIONS FOR GRANTED PRIVILEGES PANE
+//__________________________________________________________________________
+
+void populateIncludedGroups()
+{
+dyn_string groups, exceptionInfo;
+int i;
+
+string groupName=$groupName;
+dyn_string domainNames;
+
+dynClear(g_IncludedGroups);
+
+groups=strsplit($includedGroups,\"|\");
+
+for (i=1;i<=dynlen(groups);i++) {
+	string grpstr=strltrim(strrtrim(groups[i]));
+	g_IncludedGroups[i]=grpstr;
+
+};
+
+repaintIncludedGroups();
+}
+
+//__________________________________________________________________________
+void repaintIncludedGroups()
+{
+
+int i,n;
+
+bool showAll;
+string domainFilter;
+
+getValue(\"ShowRecursively\",\"state\",0,showAll);
+
+setValue(\"IncludedGroupsTable\",\"deleteAllLines\");
+
+for (i=1;i<=dynlen(g_IncludedGroups);i++ ){
+
+	setValue(\"IncludedGroupsTable\",\"appendLine\",
+		\"Name\",g_IncludedGroups[i]);
+}
+
+// scroll the table to the top
+
+getValue(\"IncludedGroupsTable\",\"lineCount\",n);
+if (n>0) {setValue(\"IncludedGroupsTable\",\"lineVisible\",0);}
+
+}
+
+
+void populateGroups()
+{
+  dyn_string groupNames,groupFullNames,exceptionInfo;
+  fwAccessControl_getAllGroups(groupNames,groupFullNames,exceptionInfo);
+  if (dynlen(exceptionInfo)) {
+	fwAccessControl_displayException(exceptionInfo);
+	return;
+  }
+  
+  setValue(\"GroupsTable\",\"deleteAllLines\");
+  setValue(\"GroupsTable\",\"visible\",TRUE);
+
+
+  for (int i=1;i<=dynlen(groupNames);i++) {
+
+	bool included=dynContains(g_IncludedGroups,groupNames[i]);
+
+	setValue(\"GroupsTable\",\"appendLine\",
+		\"Name\",groupNames[i],
+		\"Included\",included);
+}
+
+repaintGroups();
+setValue(\"GroupsTable\",\"lineVisible\",0);
+setValue(\"ShowRecursively\",\"enabled\",TRUE);
+
+}
+
+
+
+void repaintGroups()
+{
+	int i,numLines;
+	bool included;
+	getValue(\"GroupsTable\",\"lineCount\",numLines);
+	for (i=1;i<=numLines;i++) {
+		getValue(\"GroupsTable\",\"cellValueRC\",i-1, \"Included\", included);
+		if (included) {
+			setValue(\"GroupsTable\",\"cellBackColRC\",i-1,
+				\"Name\",\"lightgrey\");
+		} else {
+			setValue(\"GroupsTable\",\"cellBackColRC\",i-1,
+				\"Name\",\"white\");
+		};
+	};
+}
+
+
+//__________________________________________________________________________
+void ShowAllGroupsChanged()
+{
+	repaintIncludedGroups();
+}
+//__________________________________________________________________________
+void AddSelected()
+{
+	dyn_int selLines;
+	int i;
+
+	getValue(\"GroupsTable\",\"getSelectedLines\",selLines);
+	for (i=1;i<=dynlen(selLines);i++) {
+		setValue(\"GroupsTable\",\"cellValueRC\",
+			selLines[i], \"Included\", TRUE);
+                string selectedGroup;
+		getValue(\"GroupsTable\",\"cellValueRC\",
+			selLines[i], \"Name\", selectedGroup);
+
+		int idx=dynlen(g_IncludedGroups)+1;
+		g_IncludedGroups[idx]=selectedGroup;
+
+	};
+        dynUnique(g_IncludedGroups);
+	setValue(\"GroupsTable\",\"removeSelectLines\",selLines);
+	repaintIncludedGroups();
+        repaintGroups();
+
+	// scroll the table so as the new line is visible
+	setValue(\"IncludedGroupsTable\",\"lineVisible\",-1);
+}
+//__________________________________________________________________________
+void AddGroups(dyn_string groups)
+{
+	int i,n;
+	bool included;
+
+	getValue(\"GroupsTable\",\"lineCount\",n);
+
+	for (i=0;i<n;i++) {
+          string groupName;
+	  getValue(\"GroupsTable\",\"cellValueRC\",i,
+                        \"Name\",groupName);
+          if (dynContains(groups,groupName)) {
+            dynAppend(g_IncludedGroups,groupName);
+	    setValue(\"GroupsTable\",\"cellValueRC\",
+			i, \"Included\", TRUE);
+          }
+        }
+
+        dynUnique(g_IncludedGroups);
+	repaintIncludedGroups();
+        repaintGroups();
+
+	// scroll the table so as the new line is visible
+	setValue(\"IncludedGroupsTable\",\"lineVisible\",-1);
+
+        dyn_int selLines;
+        // remove selection:
+	getValue(\"GroupsTable\",\"getSelectedLines\",selLines);
+	setValue(\"GroupsTable\",\"removeSelectLines\",selLines);
+
+        
+}
+
+//__________________________________________________________________________
+void AddAll()
+{
+	dyn_int selLines;
+	int i,n;
+	bool included;
+
+	getValue(\"GroupsTable\",\"lineCount\",n);
+
+	for (i=0;i<n;i++) {
+		getValue(\"GroupsTable\",\"cellValueRC\",
+			i, \"Included\", included);
+
+		if (!included) {
+
+		setValue(\"GroupsTable\",\"cellValueRC\",
+			i, \"Included\", TRUE);
+
+                string group;
+		getValue(\"GroupsTable\",\"cellValueRC\",
+			 i, \"Name\", group);
+
+		int idx=dynlen(g_IncludedGroups)+1;
+		g_IncludedGroups[idx]=group;
+
+		}
+	};
+	
+	// remove selection:
+	getValue(\"GroupsTable\",\"getSelectedLines\",selLines);
+	setValue(\"GroupsTable\",\"removeSelectLines\",selLines);
+
+	repaintIncludedGroups();
+	repaintGroups();
+	// scroll the table so as the new line is visible
+	setValue(\"IncludedGroupsTable\",\"lineVisible\",-1);
+
+}
+//__________________________________________________________________________
+void RemoveSelected()
+{
+	dyn_int selLines;
+	int i,j;
+	dyn_string toRemove;
+
+	getValue(\"IncludedGroupsTable\",\"getSelectedLines\",selLines);
+
+        int numGrps;
+	getValue(\"GroupsTable\",\"lineCount\",numGrps); 
+
+        
+	for (i=1;i<=dynlen(selLines);i++) {
+            string group;
+		getValue(\"IncludedGroupsTable\",\"cellValueRC\",selLines[i],
+			 \"Name\", group);
+
+		// remove from included groups list:
+                int idx=dynContains(g_IncludedGroups,group);
+                if (idx) dynRemove(g_IncludedGroups,idx);
+
+		// set \"Inclued\" column to FALSE in GroupsTable
+                
+
+		for (j=0;j<numGrps;j++) {
+			string grpname;
+			bool included;
+			getValue(\"GroupsTable\",\"cellValueRC\",j,
+			 \"Name\", grpname);
+			if (grpname==group) {
+			   setValue(\"GroupsTable\",\"cellValueRC\",j,
+			    \"Included\", FALSE);
+
+			}
+			
+		   }
+
+	}
+
+
+	repaintIncludedGroups();
+	repaintGroups();
+
+}
+//__________________________________________________________________________
+void RemoveAll()
+{
+	dynClear(g_IncludedGroups); 
+	int numGrps;
+	getValue(\"GroupsTable\",\"lineCount\",numGrps); 
+	for (int j=0;j<numGrps;j++) { 
+		setValue(\"GroupsTable\",\"cellValueRC\",j, 
+			    \"Included\", FALSE); 
+ 			 
+	} 
+
+	repaintIncludedGroups(); 
+	repaintGroups(); 
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+30 8
+"GroupsFrame"
+""
+1 20 120 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.421404682274248 0 1 -8.428093645484951 0 0 E 20 120 260 420
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Available groups
+30 10
+"IncludedGroupsFrame"
+""
+1 330 120 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+1
+1
+LANG:1 28 Groups included in the group
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.9608619173262979 0 1 112.9155672823218 0 0 E 330 120 690 419
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Included groups
+30 21
+"FRAME1"
+""
+1 20 60 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.25 0 1 205 -10 0 E 20 60 260 120
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Group:
+2 23
+"PRIMITIVE_TEXT1"
+""
+1 -6 -92 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 20 238 39
+0 2 2 "0s" 0 0 0 192 0 0  10 20 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 JCOP Framework Access Control
+25 7
+"GroupsTable"
+""
+1 27.68115942028986 142.3469387755102 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"draggable" ""
+"DragStart" "main(int keys, int row, string column)
+{
+  dyn_int selLines;
+  getValue(\"\",\"getSelectedLines\",selLines);
+  
+  string selectedGroups;
+  for (int i=1;i<=dynlen(selLines);i++) {
+    if (i!=1) selectedGroups=selectedGroups+\",\";
+    selectedGroups=selectedGroups+this.cellValueRC(selLines[i],\"Name\");
+  }
+  dragStart(selectedGroups);
+}"
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 28 143 352.0000000000001 407
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE );
+
+}" 0
+"main(int row, string column, string value)
+{
+
+	bool included;
+	getValue(\"\",\"cellValueRC\",row,\"Included\",included);
+
+	if (included) {
+	  // unselect it...
+	  setValue(\"\",\"removeSelectLines\",makeDynInt(row));
+	};
+}" 0
+ 1 0 1 2 1 "Name" 26 1 0 "s" 1
+LANG:1 10 Group name
+E
+1
+LANG:1 14 Privilege name
+
+300 "Included" 0 0 0 "s" 1
+LANG:1 8 Included
+E
+1
+LANG:1 0 
+
+0 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 11
+"AddButton"
+""
+1 378 228 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 378 228 418 258
+
+T 
+1
+LANG:1 1 >
+"main()
+{
+AddSelected();
+}" 0
+ E E E
+13 12
+"AddAllButton"
+""
+1 378 268 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 378 268 418 298
+
+T 
+1
+LANG:1 2 >>
+"main()
+{
+AddAll();
+}" 0
+ E E E
+13 13
+"RemoveButton"
+""
+1 378 308 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 378 308 418 338
+
+T 
+1
+LANG:1 1 <
+"main()
+{
+RemoveSelected();
+}" 0
+ E E E
+13 14
+"RemoveAllButton"
+""
+1 378 348 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 378 348 418 378
+
+T 
+1
+LANG:1 2 <<
+"main()
+{
+RemoveAll();
+}" 0
+ E E E
+25 9
+"IncludedGroupsTable"
+""
+1 438.1741573033708 142.9661016949153 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+2
+"acceptDrops" ""
+"DragDrop" "main(string information, int dragType, int row, string column)
+{
+  if (information==\"\") return;
+  dyn_string ds=strsplit(information,\",;\\n\\t\");
+  AddGroups(ds);
+}"
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 438 143 767 387
+"main()
+{
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+	setValue(\"\",\"tableMode\",TABLE_SELECT_MULTIPLE );
+
+}" 0
+E 1 0 1 1 1 "Name" 26 1 0 "s" 1
+LANG:1 16 Included groups:
+E
+1
+LANG:1 14 Privilege name
+
+300 
+20 20 "" 1 1
+LANG:1 2 #1
+8 68
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+20 20
+"ShowRecursively"
+""
+1 442.4639175257732 388 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 443 388 693 416
+1
+T 
+1
+LANG:1 38 Show all included groups (recursively)
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+	ShowAllGroupsChanged();
+}" 0
+13 16
+"ResetButton"
+""
+1 20 430 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 20 430 100 460
+
+T 
+1
+LANG:1 5 Reset
+"main()
+{
+	populatePanel();
+}" 0
+ E E E
+13 15
+"OKButton"
+""
+1 598 428 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 598 428 678 458
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+
+PanelOffReturn(makeDynFloat(1.0),g_IncludedGroups);
+
+}" 0
+ E E E
+13 1
+"CancelButton"
+""
+1 693 428 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 693 428 773 458
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+14 5
+"Group"
+""
+1 240 70 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 240 70 509 99
+2 "0s" 0 0 0 0 0 -1  E E E
+1 26 1 "" 0
+0
+2 25
+"PRIMITIVE_TEXT2"
+""
+1 340 450 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 186 450 494 465
+0 2 2 "0s" 0 0 0 193 0 0  340 450 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 55 HINT: Use drag-and-drop (including other applications)!
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 1 "PANEL_REF0"
+"objects/fwAccessControl/fwAccessControl_HelpButton.pnl" 330 19 T 12 1 0 1 413 -1
+1
+"$sPanelRelativePath""fwAccessControl/fwAccessControl_EditGroupPrivileges"
+0

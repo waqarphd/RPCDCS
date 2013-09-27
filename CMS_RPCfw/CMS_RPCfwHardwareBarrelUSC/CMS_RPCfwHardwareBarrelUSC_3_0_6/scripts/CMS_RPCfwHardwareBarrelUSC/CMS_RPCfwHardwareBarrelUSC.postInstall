@@ -1,0 +1,457 @@
+/*************************************************
+* Created by Giovanni Polese 
+*	date:08/03/2007
+*	LastChange:20/03/2013
+        version: 3.0
+        -New approach
+        -the key FSMVersionDB needs to edited
+        
+*************************************************/
+#uses "fwInstallationUtils.ctl"
+#uses "fwRDBArchiving/fwRDBConfig.ctl"
+#uses "CMS_RPCfwGeneral/CMS_RPCfwGeneral.ctl"
+#uses "CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl"
+#uses "CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc"
+#uses "CMSfwDetectorProtection/CMSfwDetectorProtection.ctl"
+#uses "majority_treeCache/treeCache.ctl"
+#uses "CMSfw_CAENOPCConfigurator/CMSfw_CAENOPCConfiguratorLib.ctl"
+
+const string componentName = "CMS_RPCfwHardwareBarrelUSC";
+const string FSMVersion = "1.0";
+const string standardRecipe = "RPCUSCBarrelGeneral_v1.0";
+main()
+{
+CMS_RPCfwGeneralInstallation_RPCDebug("null"); 
+CMS_RPCfwGeneralInstallation_RPCDebug("START Installation");
+
+  dyn_string exc;  
+  if (! isFunctionDefined("fwInstallationUtils_loadConfigurations")) {
+    DebugTN("Cannot run post install without fwInstallationUtils!!!");
+    return;
+  }
+
+
+//Start Database Connection and recive hardware and Logical schema
+fwFsmTree_stopTree();
+CMS_RPCfwGeneralInstallation_RPCDebug("Importing Configuration...");
+CMS_RPCfwGeneralInstallation_createUtilities();
+
+// Start installing the hardware view
+if(installHardwareView()<0) return; 
+
+CMS_RPCfwGeneralInstallation_RPCDebug("Hardware Created. Installing FSM...");
+bool reinstallFSM = CMS_RPCfwGeneralInstallation_getInstallationKey("FSMVersionInstalled_"+componentName,FSMVersion);
+if (reinstallFSM) installFSM();
+
+CMS_RPCfwGeneralInstallation_RPCDebug("FSM Created. Installing Additional Components...");
+installServices();
+
+
+  DebugTN("Configuring OPC Server");
+  CMSfw_CAENOPCConfigurator_configureFromFwCaenDps(exc);
+  fwInstallationUtils_appendManagers(componentName,exc);
+
+CMS_RPCfwGeneralInstallation_RPCDebug("RPC Hardware component installed successfully.");
+}
+
+
+
+void installFSM(){
+
+ generateTreeforDevice();
+
+// Insert the device node using hardware created
+
+ InsertHV();
+ CMS_RPCfwGeneralInstallation_createHVoffset();
+ InsertBoards(); 
+ InsertBcMaoCrate(); 
+ fwFsmTree_generateAll();
+ fwFsmTree_refreshTree();  
+  
+  
+}
+
+void generateTreeforDevice()
+{
+dyn_string nodes, exInfo;
+string chamber_node,ring_node,disc_node, top_node;
+int chamberNum;
+
+dyn_string discs=makeDynString("_WM2","_WM1","_W00","_WP1","_WP2");
+dyn_dyn_string rings;
+rings[1]=makeDynString("_S01","_S02","_S03","NT");
+rings[2]=makeDynString("_S04","_S05","_S06","FT");
+rings[3]=makeDynString("_S07","_S08","_S09","FB");
+rings[4]=makeDynString("_S10","_S11","_S12","NB");
+dyn_string cham=makeDynString("_RB1in","_RB1out","_RB2in","_RB2out","_RB3minus","_RB3plus","_RB4minus",
+				"_RB4plus","_RB4minusminus","_RB4plusplus");
+
+//create top node (type DCSNode)
+fwTree_getRootNodes(nodes,exInfo);
+//DebugN(nodes, exInfo);
+if(fwFsmTree_isNode("RPC_BARREL_HWUSC"))
+  fwFsmTree_removeNode("FSM","RPC_BARREL_HWUSC");
+top_node=fwFsmTree_addNode("FSM","RPC_BARREL_HWUSC","RPC_TopHwDevice",1);
+
+
+if(!fwFsmTree_isNode("RPC_BoardUSC"))
+top_node=fwFsmTree_addNode("RPC_BARREL_HWUSC","RPC_BoardUSC","RPC_Boards",1);
+if(!fwFsmTree_isNode("RPC_BCsUSC"))
+top_node=fwFsmTree_addNode("RPC_BARREL_HWUSC","RPC_BCsUSC","RPC_BC",0);
+if(!fwFsmTree_isNode("RPC_MaoUSC"))
+top_node=fwFsmTree_addNode("RPC_BARREL_HWUSC","RPC_MaoUSC","RPC_MAO",0);
+if(!fwFsmTree_isNode("RPC_CratesUSC"))
+top_node=fwFsmTree_addNode("RPC_BARREL_HWUSC","RPC_CratesUSC","RPC_SY1527",0);
+fwTree_getRootNodes(nodes, exInfo);
+
+//add list of children CU (type DiscNode) 
+dyn_string objs;
+for(int i = 1;i<=dynlen(discs);i++)
+{
+  
+   if(fwFsmTree_isNode("RPC_USC"+discs[i]+"_S1H0"+(i+1)+"_Bd"))
+            fwFsmTree_removeNode("RPC_BoardUSC","RPC_USC"+discs[i]+"_S1H0"+(i+1)+"_Bd");
+	  chamber_node=fwFsmTree_addNode("RPC_BoardUSC","RPC_USC"+discs[i]+"_S1H0"+(i+1)+"_Bd","RPC_Boards",0);
+  
+  for(int h = 1; h<=4;h++)
+  {
+    if(fwFsmTree_isNode("RPC_USC"+discs[i]+rings[h][4]))
+      fwFsmTree_removeNode("RPC_ChannelsUSC","RPC_USC"+discs[i]+rings[h][4]);
+      top_node=fwFsmTree_addNode("RPC_ChannelsUSC","RPC_USC"+discs[i]+rings[h][4],"RPC_Device",1);
+      fwFsmTree_setNodeVisibility("RPC_USC"+discs[i]+rings[h][4],0);
+    
+    for(int m = 1;m<4;m++)
+    {
+		
+		//add list of children CU (type ChamberNode)
+		if(rings[h][m]=="_S04") 
+			chamberNum=10;
+		else if(rings[h][m]=="_S11"||rings[h][m]=="_S09")
+			{
+			chamberNum=7;
+			cham[7]="_RB4";
+			}
+		else
+			{
+			chamberNum=8;
+			cham[7]="_RB4minus";
+			}
+	
+		for(int k=1;k<=chamberNum;k++)
+			{
+			//chamber_node=fwFsmTree_addNode("RPC_T","RPC"+discs[i]+rings[j]+cham[k]+"_T","RPC_T",0);
+			chamber_node=fwFsmTree_addNode("RPC_USC"+discs[i]+rings[h][4],"RPC"+discs[i]+rings[h][m]+cham[k]+"_HV","RPC_HV",0);
+			//chamber_node=fwFsmTree_addNode("RPC_LV","RPC"+discs[i]+rings[j]+cham[k]+"_LV","RPC_LV",0);
+			//DebugN("RPC"+discs[i]+rings[j][4]+rings[j][m]+cham[k]);
+			}
+		
+      
+      }
+  }
+  }
+
+
+DebugN("Structure ready");
+}
+
+void InsertHV()
+{dyn_string exInfo;
+
+// Add HV
+
+dyn_string deviceList=dpAliases("*RPCUSBarrel/HV/*","*");
+//DebugN(deviceList);
+int pos;
+string names;
+
+for(int i=1;i<=dynlen(deviceList);i++)
+{
+	pos =strpos(deviceList[i],"RPC_W");
+	if(pos>-1)
+	{
+		names = substr(deviceList[i],pos);
+		//DebugN("cHc",names);
+		if (fwTree_isNode(names,exInfo)!=0)
+                  {
+		  if (fwTree_isNode(deviceList[i],exInfo)==0) 
+                  fwFsmTree_addNode(names,deviceList[i] ,"FwCaenChannelHV", 0);
+                   //DebugN("we",names,deviceList[i] );
+                  }
+	}
+}
+DebugN("HV ready");
+
+}
+
+void globalCurrent()
+{
+   dyn_string types;
+  types = dpTypes("RpcGlobalValue");
+  //DebugN(types);
+  if(dynlen(types)<1) 
+     CMS_RPCfwGeneralInstallation_CreateTypesGenCurrent(); 
+   dyn_string wheels = makeDynString("WP2","WP1","W00","WM1","WM2");
+
+ 
+  dyn_string exceptionInfo;
+
+ for(int i = 1; i<=dynlen(wheels);i++)
+   {
+    if(!dpExists("globImon"+wheels[i]))
+      dpCreate("globImon"+wheels[i],"RpcGlobalValue");
+      fwArchive_setMultiple("globImon"+wheels[i]+".averange" , "RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,DPATTR_TIME_AND_VALUE_SMOOTH,
+                             0.3,2000,exceptionInfo);   
+      fwArchive_setMultiple("globImon"+wheels[i]+".total" , "RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,DPATTR_TIME_AND_VALUE_SMOOTH,
+                             3,2000,exceptionInfo);     
+     
+    }
+  DebugN("globImonBarrel dpt created");
+   
+  }
+
+
+void InsertBoards()
+{
+   int pos,pos1;
+string names;
+  //Add Boards
+  dyn_string exInfo;
+dyn_string deviceList=dpAliases("*RPCUSBarrel/Boards/*","*");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+	pos =strpos(deviceList[i],"_W");
+	if(pos>-1)
+	{
+	names = substr(deviceList[i],pos,10);
+        //DebugN("RPC_RB_USC"+names+"_Bd",deviceList[i] );
+		//pos1 = strpos(names,"LBB");
+		//names = substr(names,0,pos1+3);
+	fwFsmTree_addNode("RPC_USC"+names+"_Bd",deviceList[i] ,"FwCaenBoardEasy", 0);
+	}
+	}
+
+
+DebugN("BOARDS ready");
+}
+
+void InsertBcMaoCrate()
+{
+  //Add BC
+ int pos,pos1;
+string names;
+dyn_string exInfo;
+dyn_string deviceList=dpAliases("*RPCUSBarrel/BCs/*","*");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+        //DebugN("RPC_BCsUSC",deviceList[i]);
+        if(strpos(deviceList[i],"USC")>-1)
+	fwFsmTree_addNode("RPC_BCsUSC",deviceList[i] ,"FwCaenBoardSY1527A1676", 0);
+	}
+DebugN("BC ready");
+// Add MAO 
+dyn_string deviceList=dpAliases("*RPCUSBarrel/MAO/*","*");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+        //DebugN("RPC_Crates",deviceList[i]);
+	fwFsmTree_addNode("RPC_MaoUSC",deviceList[i] ,"FwCaenChannelMAO", 0);
+	}
+
+DebugN("crate ready");
+
+
+
+//Add Crate
+dyn_string deviceList=dpAliases("*RPCUSBarrel/Crates/*","*");
+for(int i=1;i<=dynlen(deviceList);i++)
+	{
+        //DebugN("RPC_Crates",deviceList[i]);
+	fwFsmTree_addNode("RPC_CratesUSC",deviceList[i] ,"FwCaenCrateSY1527Basic", 0);
+	}
+
+DebugN("crate ready");
+}
+
+void installServices(){
+  
+
+  CMS_RPCfwGeneralInstallation_createHVoffset();
+  CMS_RPCfwGeneralInstallation_RPCDebug("Offset Done");
+
+  globalCurrent();
+  setOPCServerStatus("rb1527hv","HVB");
+  setSMSAlert();
+  
+ 
+  CMS_RPCfwGeneralInstallation_installProtectionHV();
+  CMS_RPCfwGeneralInstallation_installProtectionHV("LHCCondition");
+
+  
+
+}
+void setSMSAlert()
+{
+  dyn_string exInfo;
+   CMS_RPCfwGeneralInstallation_smsAlertConfig("RPCUSC_BoardTemp","polese",3,exInfo);
+   CMS_RPCfwGeneralInstallation_smsAlertConfig("RPCUSC_BoardTemp","rpcbarre",1,exInfo);
+   configSmsAlarmBoard("RPCUSC_BoardTemp");
+  
+  //Syscheck alarm
+  CMS_RPCfwGeneralInstallation_smsAlertConfig("RPCUSC_SysCheck","polese",3,exInfo);
+  CMS_RPCfwGeneralInstallation_smsAlertConfig("RPCUSC_SysCheck","rpcbarre",1,exInfo);
+  configSmsRPCSysCheck("RPCUSC_SysCheck");
+  CMS_RPCfwGeneralInstallation_RPCDebug("SMS Configuration done.");
+  
+  }
+
+void configSmsRPCSysCheck(string notifType){
+
+  dyn_string exInfo,dp = dpNames("RPCCheckUSC","RPCUtils");
+  if(dynlen(dp)>0){
+  CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp[1]+".fvalue") ;
+
+  fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
+  }else{
+
+    if(!dpExists(getSystemName()+"RPCCheckUSC"))
+   {
+    dyn_string alertTexts = makeDynString( "Ok", "Not Ok");
+    dyn_float limits = (1); 
+    dyn_string alertClasses = makeDynString( "" , "_fwErrorAck.");
+    string alertPanel,summary,dp; dyn_string alertPanelParameters; string alertHelp;  
+    dpCreate("RPCCheckUSC","RPCUtils");
+    dp = getSystemName()+"RPCCheckUSC.fvalue";
+     fwArchive_set(dp,"RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,0,0,exInfo);
+     fwAlertConfig_set(dp,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exInfo);
+     fwAlertConfig_activate(dp,exInfo);
+ 
+     CMSfwAlertSystemUtil_addAlertToNotification(notifType,dp) ;
+
+      fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
+    }
+  }
+}
+
+void configSmsAlarmBoard(string notifType){
+
+  dyn_string deviceList,chs,exInfo;
+  dynAppend(deviceList,dpAliases("*RPCUSBarrel/Boards/*","*"));
+for(int i =1 ;i<=dynlen(deviceList);i++)
+  {
+  if(strpos(deviceList[i],"MAO")<0)
+  {
+  dynAppend(chs,fwDU_getPhysicalName(deviceList[i])+".Temp.Temp1");
+  }
+  
+  }
+dynClear(deviceList);
+dynAppend(deviceList,dpAliases("*RPCUSBarrel/MAO/*","*"));
+//DebugN(deviceList);
+for(int i = 1;i<=dynlen(deviceList);i++)
+{
+   
+ deviceList[i]=fwDU_getPhysicalName(deviceList[i]);
+ if(strpos(deviceList[i],"wNode")<0)
+ {
+ dynAppend(chs,fwDU_getPhysicalName(deviceList[i])+".actual.temp");
+  }
+}
+
+for(int i=1;i<=dynlen(chs);i++)
+{
+  
+CMSfwAlertSystemUtil_addAlertToNotification(notifType,chs[i]) ;
+}
+fwAlertConfig_activate("CMSAlertSystem/SumAlerts/" + notifType+".Notification",exInfo);
+ 
+}
+
+void setOPCServerStatus(string caen,string subsys){
+  
+  
+  dyn_string types;
+  types = dpTypes("RPCUtils");
+  if(dynlen(types)>0) {    
+   if(!dpExists("caen"+subsys+"ServerStatus"))
+    dpCreate("caen"+subsys+"ServerStatus","RPCUtils");
+  }
+  
+  dyn_string obj = dpNames("*"+caen+"*","FwCaenCrateSY1527");
+  string newDps;  
+//  DebugN(obj);
+  if(dynlen(obj)>0)
+  {
+  string dpe = obj+ ".Information.Sessions";
+  newDps = "caen"+subsys+"ServerStatus.svalue";
+  dyn_string exInfo;
+  dyn_anytype conf;
+  bool exist, isAct;
+  fwPeriphAddress_get(dpe, exist, conf,isAct,exInfo);
+   
+  string newItem = substr(conf[fwPeriphAddress_ROOT_NAME],0,(strpos(conf[fwPeriphAddress_ROOT_NAME],".")))+ ".ConnStatus";
+  
+  fwPeriphAddress_setOPC(newDps,conf[fwPeriphAddress_OPC_SERVER_NAME],
+                         conf[fwPeriphAddress_DRIVER_NUMBER],newItem,
+                         conf[fwPeriphAddress_OPC_GROUP_IN],
+                         conf[fwPeriphAddress_DATATYPE],
+                         conf[fwPeriphAddress_DIRECTION],
+                         conf[fwPeriphAddress_OPC_SUBINDEX],exInfo);
+  }else
+    CMS_RPCfwGeneralInstallation_RPCDebug("Caen Mainframe not found");
+ 
+  ///// Set db
+string archiveClassName="RDB-99) EVENT"; //"ValueArchive_0000";//Archive's name
+float timeInterval=3600; 
+dyn_string exceptionInfo;
+
+fwArchive_set(newDps, archiveClassName,DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,
+					0.3, timeInterval,exceptionInfo);
+
+/// store interlock
+string interlock = obj + ".FrontPanInP.Interlock";
+fwArchive_set(interlock, archiveClassName,DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,
+					0.3, timeInterval,exceptionInfo);
+   
+    
+}
+
+
+
+int installHardwareView(){
+
+  CMS_RPCfwGeneralInstallation_createOPCGroup(3);
+  bool bRes = createHardwareTree();
+  if (!bRes) {
+    CMS_RPCfwGeneralInstallation_RPCDebug("**** PROBLEMS IN CREATING DATA POINTS. Stopping the postInstall for RPC Barrel HV");
+    return -1;
+  }
+
+  //Apply recipe  
+  
+  dyn_string exceptionInfo,list;
+  dyn_dyn_mixed recipeObject;
+  fwConfigurationDB_checkInit(exceptionInfo);
+ 	fwConfigurationDB_getRecipeFromDB("",list, fwDevice_LOGICAL,standardRecipe, recipeObject,exceptionInfo);
+	  if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+         return -1;  
+        }
+
+	fwConfigurationDB_ApplyRecipe( recipeObject, fwDevice_LOGICAL,exceptionInfo); 
+        if (fwConfigurationDB_handleErrors(exceptionInfo)) {
+         return -1;  
+          }
+return 0;
+
+}
+
+bool createHardwareTree() {
+
+  dyn_string exInfo;
+  fwInstallationUtils_loadConfigurations(componentName,exInfo);
+
+  CMS_RPCfwGeneralInstallation_RPCDebug("Finished loading configurations ", exInfo);
+  if (dynlen(exInfo)>0) return false;
+  CMS_RPCfwGeneralInstallation_RPCDebug("Hardware Dps Imported");   
+  return true;
+}

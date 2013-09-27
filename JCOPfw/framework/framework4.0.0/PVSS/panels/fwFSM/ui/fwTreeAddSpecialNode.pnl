@@ -1,0 +1,718 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,264 176 690 351 N "_3DFace" 2
+"$1"
+"$2"
+EEE E E 1 -1 -1 0  0 0
+"" 0 1
+E"int MaxDevs;
+
+change_operation(string op, int limit, int low_limit = 1)
+{
+	setValue(\"low_threshold\",\"text\",low_limit);
+	if(op == \"more\")
+	{
+		setValue(\"threshold\",\"text\",limit);
+		setValue(\"else_text\",\"text\",\"devices in Bad State(s)  Goto MAJORITY_WARNING\");
+		setValue(\"state_text\",\"text\",\"in Bad State(s):\");
+	}
+	else
+	{
+		setValue(\"threshold\",\"text\",limit);
+		setValue(\"else_text\",\"text\",\"devices not in Good State(s)  Goto MAJORITY_WARNING\");
+		setValue(\"state_text\",\"text\",\"in Good State(s):\");
+	}
+}
+
+string setup()
+{
+	string type;
+	int threshold, low_threshold, or, and;
+	dyn_string bad_states;
+	string op, maj_name;
+	
+	getValue(\"type\",\"text\",type);
+	getValue(\"threshold\",\"text\",threshold);
+	getValue(\"low_threshold\",\"text\",low_threshold);
+	getValue(\"bad_states\",\"items\",bad_states);
+	getValue(\"op\",\"text\",op);
+	getValue(\"and\",\"state\",0, or);
+	getValue(\"and\",\"state\",1, and);
+	
+	maj_name = fwFsmTree_createMajorityDp($1, type, op, threshold, bad_states, or, and,
+		low_threshold); 
+	return maj_name;
+}
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 25
+"Text1"
+""
+1 10 20 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+"main()
+{
+int threshold, low_threshold, pos, index, or, and, reverse, i;
+string cu, lunit, node, type;
+dyn_string bad_states, items, states, children, exInfo;
+
+	node = fwTree_getNodeDisplayName($1, exInfo);	
+	setValue(\"\",\"text\",\"Control Unit/Logical Unit: \"+node);
+	if(dpExists($2))
+	{
+		dpGet($2+\".threshold\", threshold);
+		dpGet($2+\".low_threshold\", low_threshold);
+		dpGet($2+\".bad_states\", bad_states);
+		dpGet($2+\".disabled\", or);
+		dpGet($2+\".enabled\", and);
+		dpGet($2+\".reverse\", reverse);
+		if(low_threshold == 0)
+			low_threshold = 1;
+    items = strsplit($2,\"/\");
+    if(dynlen(items) > 2)
+    {
+			cu = items[1];
+    	lunit = items[2];
+    	type = items[3];
+    }
+    else
+    {
+			cu = items[1];
+    	lunit = items[1];
+    	type = items[2];
+    } 
+    pos = strpos(type,\"_FWMAJ\"); 
+    type = substr(type, 0, pos);
+		setValue(\"wait\",\"visible\", 1);
+	  children = fwFsm_getLogicalUnitChildrenOfType(cu, lunit, type);  
+	  if(index = dynContains(children, $1)) 
+			dynRemove(children, index);
+		MaxDevs = dynlen(children);
+		setValue(\"wait\",\"visible\", 0);
+		if(reverse)
+		{
+			fwFsm_getObjectStates(type, items);
+			for(i = 1; i <= dynlen(bad_states); i++)
+			{
+				if(index = dynContains(items, bad_states[i]))
+					dynRemove(items,index);	
+			}
+			setValue(\"type\",\"text\",type);
+			setValue(\"op\",\"text\",\"less\");
+      threshold = reverse - threshold;
+			change_operation(\"less\",threshold, low_threshold);
+			setValue(\"bad_states\",\"items\",items);
+			setValue(\"and\",\"state\",0,and);
+			setValue(\"and\",\"state\",1,or);
+		}
+		else
+		{
+			setValue(\"type\",\"text\",type);
+			setValue(\"op\",\"text\",\"more\");
+			change_operation(\"more\",threshold, low_threshold);
+			setValue(\"bad_states\",\"items\",bad_states);
+			setValue(\"and\",\"state\",0,or);
+			setValue(\"and\",\"state\",1,and);
+		}
+		setValue(\"apply\",\"visible\",1);
+	}
+}
+	" 0
+ E 0 1 1 0 1 E U  1 E 12 22 388 38
+0 2 0 "s" 0 0 0 64 0 0  12 22
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 9 Add Node:
+2 36
+"Text2"
+""
+1 10 50 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+32 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 52 248 68
+0 2 0 "s" 0 0 0 64 0 0  12 52
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 37 Majority for Devices/Objects of Type:
+2 43
+"state_text"
+""
+1 250 100 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 252 102 368 118
+0 2 0 "s" 0 0 0 64 0 0  252 102
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 16 in Bad State(s):
+2 44
+"Text4"
+""
+1 20 100 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+40 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 102 248 118
+0 2 0 "s" 0 0 0 64 0 0  22 102
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 48 If                   than                devices
+2 46
+"Text5"
+""
+1 510 100 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 512 102 688 118
+0 2 0 "s" 0 0 0 64 0 0  512 102
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 23     Goto MAJORITY_ERROR
+2 48
+"Text7"
+""
+1 20 270 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+44 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 272 258 288
+0 2 0 "s" 0 0 0 64 0 0  22 272
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 4 Else
+2 53
+"else"
+""
+1 20 220 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+49 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 222 498 238
+0 2 0 "s" 0 0 0 64 0 0  22 222
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 17 Else If  at least
+2 56
+"Text9"
+""
+1 60 270 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+52 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 62 272 298 288
+0 2 0 "s" 0 0 0 64 0 0  62 272
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 16 Goto MAJORITY_OK
+2 58
+"wait"
+""
+1 410 20 E E E 1 E 0 E N <{0,0,0},5,{204,204,204},5,{0,0,0},0,{0,0,0},0,{0,0,0},0,{0,0,0},0> E N "_3DFace" E E
+ E E
+54 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 412 22 648 38
+0 2 0 "s" 0 0 0 64 0 0  412 22
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 24 Updating, Please Wait...
+2 61
+"else_text"
+""
+1 180 220 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+57 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 182 222 658 238
+0 2 0 "s" 0 0 0 64 0 0  182 222
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 46 devices in Bad State(s)  Goto MAJORITY_WARNING
+13 27
+"Button2"
+""
+1 529 308 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+528 308 602 333
+T 
+1
+LANG:1 2 Ok
+"main() 
+{ 
+	string maj_name;
+	maj_name = setup();
+	PanelOffReturn(makeDynFloat(1),makeDynString(maj_name));
+}
+" 0
+ E E E
+13 28
+"Button3"
+""
+1 610 308 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+27 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+608 308 682 333
+T 
+1
+LANG:1 6 Cancel
+"main() 
+{ 
+	PanelOffReturn(makeDynFloat(0),makeDynString());
+} 
+
+" 0
+ E E E
+22 37
+"type"
+""
+1 270 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+33 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+268 48 472 75
+0
+"main()
+{
+	dyn_string exInfo, nodes, types;
+	int i;
+	string dev, type;
+	
+	if(dpExists($2))
+	{
+		setValue(\"\",\"enabled\",0);
+		return;
+	}
+	fwTree_getChildren($1, nodes, exInfo);
+	for(i = 1; i <= dynlen(nodes); i++)
+	{
+		if(strpos(nodes[i], \"_FWMAJ\") < 0)
+		{
+			fwTree_getNodeDevice(nodes[i], dev, type, exInfo);
+			if(!dynContains(types, type))
+				dynAppend(types, type);
+		}		
+	}				
+//	dynAppend(types,\"Any Type\");
+	setValue(\"\",\"items\",types);
+	setValue(\"\",\"text\",types[1]);
+}" 0
+
+"main()
+{
+string cu, lunit, type;
+dyn_string states, children, exInfo;
+int index;
+
+	getValue(\"\",\"text\",type);
+/*
+	fwFsm_getObjectStates(type, states);
+	setValue(\"states\",\"items\",states);
+*/
+//  fwFsm_getDomainObjectsOfType($1, type, children);
+	fwTree_getCUName($1, cu, exInfo);
+	lunit = fwTree_getNodeDisplayName($1, exInfo);
+	children = fwFsm_getLogicalUnitChildrenOfType(cu, lunit, type);  
+//DebugN($1, $2, cu, lunit, type, children);  
+//	if(index = dynContains(children, $1)) 
+//		dynRemove(children, index);
+	MaxDevs = dynlen(children);
+}
+" 0
+
+E
+ 0 0
+17 38
+"bad_states"
+""
+1 360 100 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "
+main()
+{
+	string type, op;
+	dyn_float res;
+	dyn_string ret;
+
+	getValue(\"type\",\"text\",type);
+	getValue(\"op\",\"text\",op);
+	addGlobal(\"CurrentBadStates\",DYN_STRING_VAR);
+	getValue(\"bad_states\",\"items\",CurrentBadStates);
+	ChildPanelOnReturn(\"fwFSM/ui/fwMajStates.pnl\",\"Choose States\",
+		makeDynString(type, op, $2),
+		20,75, res, ret);
+	if(res[1])
+	{
+		setValue(\"\",\"items\",ret);
+	}
+	removeGlobal(\"CurrentBadStates\");
+}
+" 0
+
+34 0 0 0 0 0
+"main()
+{
+	string type, op;
+	dyn_float res;
+	dyn_string ret;
+
+	getValue(\"type\",\"text\",type);
+	getValue(\"op\",\"text\",op);
+	addGlobal(\"CurrentBadStates\",DYN_STRING_VAR);
+	getValue(\"bad_states\",\"items\",CurrentBadStates);
+	ChildPanelOnReturn(\"fwFSM/ui/fwMajStates.pnl\",\"Choose States\",
+		makeDynString(type, op, $2),
+		20,75, res, ret);
+	if(res[1])
+	{
+		setValue(\"\",\"items\",ret);
+	}
+	removeGlobal(\"CurrentBadStates\");
+}
+" 0
+E E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+358 98 522 152
+0
+E
+E
+E
+
+3 1
+21 45
+"threshold"
+""
+1 139 99 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+41 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+137 97 191 124
+0
+E
+E
+E
+
+N 0 10000 1 3 1 1
+22 49
+"op"
+""
+1 39 99 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+45 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+37 97 101 124
+2
+1
+LANG:1 4 more
+ 1
+1
+LANG:1 4 less
+ 0
+E
+"main()
+{
+	string op;
+	int limit;
+	
+	getValue(\"\",\"text\",op);
+	if(op == \"more\")
+	{
+		limit = 3;
+		if(limit >= MaxDevs)
+			limit = MaxDevs-1;
+		change_operation(op,limit);
+	}
+	else
+	{
+		if(MaxDevs <= 3)
+			limit = 1;
+		else
+			limit = MaxDevs-3;
+		change_operation(op,limit);
+	}
+}" 0
+
+E
+ 0 0
+20 50
+"and"
+""
+1 358 155 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+46 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+356 153 552 197
+2
+T 
+1
+LANG:1 20 OR Disabled/Excluded
+ 0
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+T 
+1
+LANG:1 20 AND Enabled/Included
+ 0
+1
+LANG:1 0 
+ E  E  0 0 0 0 0
+2
+E E E E 
+E"main(int button, bool state)
+{
+int other;
+
+	if(button == 0)
+		other = 1;
+	else
+		other = 0;
+	if(state == 1)
+	{
+		setValue(\"and\",\"state\",other,0);
+//		setValue(\"and\",\"enabled\",0);
+	}
+}" 0
+21 54
+"low_threshold"
+""
+1 124 218 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+50 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+122 216 176 243
+0
+E
+E
+E
+
+N 0 10000 1 1 1 1
+22 55
+"op1"
+""
+1 60 190 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+51 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+58 188 122 215
+2
+1
+LANG:1 4 more
+ 1
+1
+LANG:1 4 less
+ 0
+E
+E
+E
+ 0 0
+13 60
+"apply"
+""
+1 449 308 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+56 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 70 -microsoft windows-arial-medium-r-normal-*-*-120-100-100-*-*-iso8859-1
+0 ""
+448 308 522 333
+T 
+1
+LANG:1 5 Apply
+"main() 
+{ 
+	setup();
+}
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

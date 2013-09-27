@@ -1,0 +1,406 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 580 418 N "_3DFace" 1
+"$systemName"
+E E E E E 1 -1 -1 0  78 95
+""0  1
+E "dyn_string alarmList;
+string systemName;
+
+const string SYSTEMINTEGRITY_EXTENSION = \"_systemIntegrityInfo\";
+const string SYSTEMINTEGRITY_DP_TYPE = \"_UnSystemIntegrity\";
+const string UN_SYSTEM_ALARM_DP_TYPE = \"_UnSystemAlarm\";
+const string PARENT_NODE = \"unSystemIntegrity\";
+const string UN_SYSTEM_ALARM_DPTYPE_DP_PATTERN = \"_unSystemAlarm_\";
+
+populateTree(string systemName) // after changes
+{ 
+  dyn_string deviceTypes, devices;
+  dyn_anytype alarmDPs, alarmValue; 
+  int i,j,index;
+  string desc;
+  int numSIAlerts = 0; 
+  
+  deviceTypes = dpNames(systemName + \"*\" + SYSTEMINTEGRITY_EXTENSION + \".diagnostic.result\", SYSTEMINTEGRITY_DP_TYPE);
+
+//  if(dynlen(deviceTypes) > 0)
+//    dpGet(deviceTypes, alarmDPs);
+//  else
+//    return;
+  devices = deviceTypes;
+  
+  for(i=1;i<=dynlen(devices);i++)
+  {
+    devices[i] = dpSubStr(devices[i], DPSUB_DP);
+    devices[i] = substr(devices[i], 0, strlen(devices[i]) - strlen(SYSTEMINTEGRITY_EXTENSION));       
+  }
+//DebugN(\"devices\", devices);  
+  dynUnique(devices);
+
+  while(1)
+  {  
+    alarmList = dpNames(systemName + UN_SYSTEM_ALARM_DPTYPE_DP_PATTERN + \"*\" + \".alarm\", UN_SYSTEM_ALARM_DP_TYPE);  
+    dpGet(deviceTypes, alarmDPs);
+    
+//DebugN(\"alarmList\",alarmList);
+//DebugN(\"alarmDPs\",alarmDPs);
+    
+    if(!tree.itemExists(PARENT_NODE))
+      tree.appendItem(\"\", PARENT_NODE, PARENT_NODE);	
+    
+    if(dynlen(alarmDPs) != numSIAlerts)
+    {
+      tree.clear();
+        
+      if(!tree.itemExists(PARENT_NODE))
+      tree.appendItem(\"\", PARENT_NODE, PARENT_NODE);	
+      
+      for(i = 1; i <= dynlen(devices); i++) 
+      {   
+        if(dynlen(alarmDPs[i]) > 0)
+        {
+          numSIAlerts = numSIAlerts + dynlen(alarmDPs[i]);
+          
+          tree.appendItem(PARENT_NODE, devices[i] , devices[i]);	
+          // tree.setIcon(deviceTypes[i], 0, getDeviceTypeIcon(deviceTypes[i]));
+//          tree.setIcon(deviceTypes[i], 0, PROJ_PATH + \"pictures/manager.gif\");
+         
+         for(j=1; j<= dynlen(alarmDPs[i]);j++)
+         {
+           index = dynContains(alarmList,systemName + alarmDPs[i][j]+\".alarm\");
+           if (index>0)
+           {
+             desc = dpGetDescription(alarmList[index]);
+//             tree.appendItem(deviceTypes[i], alarmList[index], desc);
+             tree.appendItem(devices[i], alarmList[index], desc); 
+             dpConnect(\"alertDPUpdate\", alarmList[index] + \":_alert_hdl.._act_state_color\", 
+                       alarmList[index] + \":_alert_hdl.._active\", alarmList[index] + \":_online.._text\", 
+                       alarmList[index] + \":_online.._stime\"
+                       );	
+           }
+            
+//           tree.setOpen(deviceTypes[i], true);
+             tree.setOpen(devices[i], true);
+         }
+       }
+        tree.setOpen(PARENT_NODE, true);
+      }
+    }
+    delay(30);
+  }
+}
+
+
+/*
+populateTree(string systemName)
+{ 
+  dyn_string deviceTypes, devices;
+  dyn_anytype alarmDPs, alarmValue; 
+  string desc;
+  int numSIAlerts = 0; 
+  dyn_string alarms, deviceList;
+  
+  deviceTypes = dpNames(systemName + \"*\" + SYSTEMINTEGRITY_EXTENSION + \".diagnostic.result\", SYSTEMINTEGRITY_DP_TYPE);
+
+  devices = deviceTypes;
+  
+  for(int i=1; i<=dynlen(devices); i++)
+  {
+    devices[i] = dpSubStr(deviceTypes[i], DPSUB_DP);
+    devices[i] = substr(deviceTypes[i], 0, strlen(deviceTypes[i]) - strlen(SYSTEMINTEGRITY_EXTENSION));
+  }
+  
+  dynUnique(devices);
+DebugN(\"devices\", devices);  
+  while(1)
+  {
+    if(dynlen(alarmList) != numSIAlerts)
+    {
+      tree.clear();
+      dynClear(alarmList);
+      dynClear(deviceList);
+      
+      if(!tree.itemExists(PARENT_NODE))
+      tree.appendItem(\"\", PARENT_NODE, PARENT_NODE);	
+      
+      for(int i =1; i<=dynlen(devices); i++)
+      {
+        dynClear(alarms);
+	
+//        alarms = dpNames(systemName + UN_SYSTEM_ALARM_DPTYPE_DP_PATTERN + devices[i] + \"*\" + \".alarm\", UN_SYSTEM_ALARM_DP_TYPE);
+        alarms = dpNames(systemName + UN_SYSTEM_ALARM_DPTYPE_DP_PATTERN + devices[i] + \"*\", UN_SYSTEM_ALARM_DP_TYPE);
+
+        if(dynlen(alarms) >0)
+        {
+DebugN(\"alarms\", alarms + \" \" + i);	
+          numSIAlerts = numSIAlerts + dynlen(alarms);
+          dynAppend(alarmList, alarms);
+//          dynAppend(deviceList, devices[i]);
+          
+          tree.appendItem(PARENT_NODE, devices[i] , devices[i]);	
+          
+          for(int j = 1; j <= dynlen(alarms); j++)
+          {
+//            ++numSIAlerts;
+            desc = dpGetDescription(alarms[j]);
+            tree.appendItem(devices[i], alarms[j], desc); 
+            dpConnect(\"alertDPUpdate\", alarms[j] + \".alarm:_alert_hdl.._act_state_color\", 
+                      alarms[j] + \".alarm:_alert_hdl.._active\", 
+                      alarms[j] + \".alarm:_online.._text\", 
+                      alarms[j] + \".alarm:_online.._stime\",
+                      alarms[j] + \".enable\"
+                      );	
+          }
+        }
+      }
+    }
+    delay(30);
+  }
+}
+
+alertDPUpdate(string sDpe1, string sAlertColour, string sDpe2, bool bMasked, string sDpe3, string text,string sDpe4, string sTime, string sDpe5, bool enable)
+{
+   string alarmName;
+   int pos;
+DebugN(\"inside CB: sDpe1\", sDpe1);
+   if(!enable)
+   {
+DebugN(\"inside CB\");
+     sAlertColour = PROJ_PATH + \"pictures/fwSystemOverview/no_response.gif\";
+     text = \"disabled\";
+   }
+   else
+   {
+     alarmName = dpSubStr(sDpe1, DPSUB_SYS_DP)+\".alarm\";
+DebugN(\" CB alarmName\", alarmName);
+     if(!bMasked) 
+       sAlertColour = \"\";
+     else if (sAlertColour==\"\") 
+     {
+       sAlertColour = PROJ_PATH + \"pictures/fwSystemOverview/green_led.gif\";  //no alarm
+         // sAlertColour = PROJ_PATH + \"pictures/fwSystemOverview/start_en.gif\";  //no alarm
+     }
+     else
+       sAlertColour = PROJ_PATH + \"pictures/fwSystemOverview/red_led.gif\";  //alarm
+   }
+   
+  if(tree.itemExists(alarmName))
+  { 
+    tree.setIcon(alarmName, 1, sAlertColour);
+    tree.setText(alarmName, 1, text);
+    tree.setText(alarmName, 2, sTime);
+  }
+}
+*/
+
+/*
+  dyn_string deviceTypes;
+  dyn_anytype alarmDPs, alarmValue; 
+  int i,j,index;
+  string desc;
+ 
+   tree.clear();
+  
+  if(!tree.itemExists(\"fwSystemIntegrity\"))
+     tree.appendItem(\"\", \"fwSystemIntegrity\", \"fwSystemIntegrity\");	
+  
+  deviceTypes = dpNames(systemName+\"*\"+UN_SYSTEMINTEGRITY_EXTENSION+\".diagnostic.result\", UN_SYSTEMINTEGRITY_DPTYPE);
+  
+  if(dynlen(deviceTypes)>0)
+    dpGet(deviceTypes, alarmDPs);
+  else
+    return;
+    
+  for(i=1;i<=dynlen(deviceTypes);i++)
+     {
+       deviceTypes[i] = dpSubStr(deviceTypes[i], DPSUB_DP);
+       deviceTypes[i] = substr(deviceTypes[i], 0, strlen(deviceTypes[i]) - strlen(UN_SYSTEMINTEGRITY_EXTENSION));
+      }
+  
+  dynUnique(deviceTypes);
+  
+  alarmList = dpNames(systemName+c_unSystemAlarm_dpPattern+\"*\"+\".alarm\", c_unSystemAlarm_dpType);
+  
+  for(i = 1; i <= dynlen(deviceTypes); i++) 
+     {   
+      if(dynlen(alarmDPs[i])>0)
+       {
+         tree.appendItem(\"fwSystemIntegrity\",deviceTypes[i] , deviceTypes[i]);	
+        // tree.setIcon(deviceTypes[i], 0, getDeviceTypeIcon(deviceTypes[i]));
+          tree.setIcon(deviceTypes[i], 0, PROJ_PATH + \"pictures/manager.gif\");
+          
+         for(j=1; j<= dynlen(alarmDPs[i]);j++)
+           {
+            index = dynContains(alarmList,systemName+alarmDPs[i][j]+\".alarm\");
+            if (index>0)
+             {
+              desc = dpGetDescription(alarmList[index]);
+              tree.appendItem(deviceTypes[i], alarmList[index], desc);
+              dpConnect(\"alertDPUpdate\", alarmList[index]+\":_alert_hdl.._act_state_color\", 
+	                 alarmList[index]+\":_alert_hdl.._active\", alarmList[index]+\":_online.._text\",alarmList[index]+\":_online.._stime\");	
+             }
+            
+           tree.setOpen(deviceTypes[i], true);
+          }          
+       }
+      
+      tree.setOpen(\"fwSystemIntegrity\", true);
+    }
+}
+*/
+
+alertDPUpdate(string sDpe1, string sAlertColour, string sDpe2, bool bMasked, string sDpe3, string text,string sDpe4, string sTime)
+{
+   string alarmName;
+   int pos;
+
+   alarmName = dpSubStr(sDpe1, DPSUB_SYS_DP)+\".alarm\";
+
+   if(!bMasked) 
+      sAlertColour = \"\";
+      else if (sAlertColour==\"\") {
+           sAlertColour = PROJ_PATH + \"pictures/fwSystemOverview/green_led.gif\";  //no alarm
+          // sAlertColour = PROJ_PATH + \"pictures/fwSystemOverview/start_en.gif\";  //no alarm
+          }
+         else
+           sAlertColour = PROJ_PATH + \"pictures/fwSystemOverview/red_led.gif\";  //alarm
+  if(tree.itemExists(alarmName))
+  { 
+    tree.setIcon(alarmName, 1, sAlertColour);
+    tree.setText(alarmName, 1, text);
+    tree.setText(alarmName, 2, sTime);
+  }
+}
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 3
+"Frame"
+""
+1 10 520 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.13360323886639 0 0.8055009823182711 -1.33603238866389 -8.05500982318271 0 E 10 10 505 520
+1
+LANG:1 26 Arial,-1,11,5,40,0,0,0,0,0
+0 1
+LANG:1 9 component
+29 4
+"tree"
+""
+1 30 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  30 30 550 390
+10 TreeWidget
+1
+0 "rightClicked" "(string id, int column)"
+"//  DebugN(\"right-click SI id\", id, column);
+      
+  dyn_string menu;
+  int answer;
+  string str = id;
+  string dpName;  
+   
+//  str = dpSubStr(str, DPSUB_DP);
+//  str = dpSubStr(str, DPSUB_SYS_DP);
+  dpName = dpGetDescription(str);
+//DebugN(\"dpExists(systemName + dpName) && patternMtch(RDB, dpName)\",dpExists(systemName + dpName) ,patternMatch( \"*RDB*\", dpName) );
+  if(dpExists(systemName + dpName) && patternMatch(\"*RDB*\", dpName))
+    menu = makeDynString (\"PUSH_BUTTON, Details,1,1\");
+    
+  if(menu !=\"\")
+    popupMenu(menu,answer); 
+     
+  if(answer == 1)
+  {
+//    ChildPanelOnCentral(\"vision/MessageInfo1\", \"WARNING: Old version detected\", makeDynString(\"some details are coming\" ));
+//    ChildPanelOnCentral(\"newPanel.pnl\", \"RDB: Details\", makeDynString(\"$SYS:\" + systemName));
+      ChildPanelOnCentral(\"fwSystemIntegrity/fwSystemIntegrity_RDB_details.pnl\", dpName + \":Details\", makeDynString(\"$dpName:\" + systemName + dpName));
+  }
+"
+"main()
+{
+  //string systemName = $sSystemName;
+//  string systemName;
+//  string systemDp = $sysDp;
+  
+  systemName = $systemName;
+  if(systemName == \"\")
+    systemName = getSystemName();
+  
+//  if(!dpExists(systemDp + fwSysOverview_SYSTEM_NAME, systemName))
+//    return;
+//  dpGet(systemDp + fwSysOverview_SYSTEM_NAME, systemName);
+  
+  int col; 
+  
+  Frame.text = \"System Integrity monitoring\";
+  tree.clear();
+  
+  getValue(\"tree\",\"columns\",col); 
+
+  if(col==0){
+    tree.addColumn(\"Description\");
+    tree.setColumnWidth(0,300);  
+    tree.addColumn(\"State\");
+    tree.addColumn(\"Time\");
+    }
+  
+  populateTree(systemName);
+}" 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

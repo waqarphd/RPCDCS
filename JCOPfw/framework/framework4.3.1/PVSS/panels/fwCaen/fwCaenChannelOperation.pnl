@@ -1,0 +1,1186 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 699 550 N "_3DFace" 1
+"$sDpName"
+"
+main()
+{
+	string deviceDpType, deviceModel;
+	dyn_string exceptionInfo;
+	dyn_dyn_string deviceHierarchy;
+	
+	// initialize global variables
+	dpName = dpSubStr($sDpName, DPSUB_SYS_DP);
+	deviceDpType = dpTypeName(dpName);
+	
+	dpElement = dpSubStr($sDpName, DPSUB_SYS_DP_EL);	
+	strreplace(dpElement, dpName, \"\");									
+
+	fwDevice_getModel(makeDynString(dpName), deviceModel, exceptionInfo);
+	fwDevice_getConfigElements(deviceDpType, fwDevice_ALL, elements, exceptionInfo, deviceModel, dpName);
+	
+//	DebugN(\"dpName \" + dpName, \" dpElement \", dpElement, \" deviceDpType \", deviceDpType, \" deviceModel \", deviceModel);
+//	DebugN(\"elements \", elements);
+	
+	// display names of channel and parents only if it is an independent channel
+	// (not referenced from another datapoint)
+	if($sDpName == dpName)
+	{
+		fwDevice_getHierarchy($sDpName, deviceHierarchy, exceptionInfo);
+	
+		channelNumberText.text = deviceHierarchy[1][3];
+		boardNameText.text = dpSubStr(deviceHierarchy[2][1], DPSUB_DP);
+		boardNumberText.text = deviceHierarchy[2][3];
+		crateNameText.text = dpSubStr(deviceHierarchy[3][1], DPSUB_DP);	
+	}
+	else	
+	{
+		channelNumberText.visible = FALSE;
+		boardNameText.visible = FALSE;
+		boardLabel.visible = FALSE;
+		boardNumberText.visible = FALSE;
+		crateNameText.visible = FALSE;
+		crateLabel.visible = FALSE;
+		slotLabel.visible = FALSE;
+		numberLabel.visible = FALSE;
+	}
+	
+	// enable timestamp display for vMon if it is a valid element
+	if(dynContains(elements[1], dpElement + \".actual.vMon\") < 1)
+	{	
+		LastModifiedField.visible(FALSE);
+		LastModifiedText.visible(FALSE);
+	}
+	else
+	{
+		LastModifiedField.visible(TRUE);
+		LastModifiedText.visible(TRUE);
+	}
+	
+	// display on/off command if the channel supports it
+	if(dynContains(elements[1], dpElement + \".settings.onOff\") < 1)
+	{	
+		onOffDisplay(FALSE);
+	}
+	else
+	{
+		// Needed in case panel loaded twice, one time immediately after the other
+		// and the on/off command is not available the first time but the second is		
+		onOffDisplay(TRUE);
+	}
+
+	// display global command if the channel supports it
+	if(dynContains(elements[1], dpElement + \".settings.globalOnEn\") < 1)
+	{	
+		globalOnDisplay(FALSE);
+	}
+	else
+	{
+		// Needed in case panel loaded twice, one time immediately after the other
+		// and the on/off command is not available the first time but the second is		
+		globalOnDisplay(TRUE);
+	}
+	
+	// display global command if the channel supports it
+	if(dynContains(elements[1], dpElement + \".settings.globalOffEn\") < 1)
+	{	
+		globalOffDisplay(FALSE);
+	}
+	else
+	{
+		// Needed in case panel loaded twice, one time immediately after the other
+		// and the on/off command is not available the first time but the second is		
+		globalOffDisplay(TRUE);
+	}
+	
+	panelInitialized = TRUE;
+}" 0
+ "main()
+{
+	int i;
+}" 0
+ E E E 1 -1 -1 0  0 0
+""0  1
+E "string dpName, dpElement;
+dyn_dyn_string elements;
+
+bool panelInitialized = FALSE;
+
+onOffDisplay(bool visible)
+{
+	Frame1.visible(visible);
+	onOffLabel.visible(visible);
+	onOff.visible(visible);
+	on.visible(visible);
+	off.visible(visible);
+}
+
+globalOnDisplay(bool visible)
+{
+	globalOnLabel.visible(visible);
+	globalOnValue.visible(visible);
+	globalOnEnable.visible(visible);
+	globalOnDisable.visible(visible);
+}
+
+globalOffDisplay(bool visible)
+{
+	globalOffLabel.visible(visible);
+	globalOffValue.visible(visible);
+	globalOffEnable.visible(visible);
+	globalOffDisable.visible(visible);
+}" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+	int i;
+}" 0
+
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 17
+"Text7"
+""
+1 36 55 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 227 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22 CAEN Channel Operation
+2 28
+"numberLabel"
+""
+1 571 150 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 568 52 617 69
+0 2 0 "0s" 0 0 0 194 0 0  617 52 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 7 Number:
+2 29
+"Text6"
+""
+1 52 119 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 19 52 70 69
+0 2 0 "0s" 0 0 0 194 0 0  70 52 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Channel:
+2 30
+"boardLabel"
+""
+1 382 267 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 19 92 57 109
+0 2 0 "0s" 0 0 0 192 0 0  19 92 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Board:
+2 31
+"crateLabel"
+""
+1 421 447 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 19 131 54 148
+0 2 0 "0s" 0 0 0 192 0 0  19 131 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 6 Crate:
+2 32
+"slotLabel"
+""
+1 429 273 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 398 93 425 110
+0 2 0 "0s" 0 0 0 194 0 0  425 93 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Slot:
+2 86
+"LastModifiedText"
+""
+1 593 571 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+85 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 373 444 488 461
+0 2 2 "0s" 0 0 0 192 0 0  373 444 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 vMon Last Modified:
+1 117 0 "" 19
+0
+1 118 0 "" 18
+0
+30 105
+"Frame1"
+""
+1 10 539 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+100 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 468 580 539
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 Commands
+2 107
+"onOffLabel"
+""
+1 73 680 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+101 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 35 500 71 517
+0 2 0 "0s" 0 0 0 194 0 0  71 500 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 5 Power
+2 109
+"globalOffLabel"
+""
+1 303 693 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+103 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 244 513 301 530
+0 2 0 "0s" 0 0 0 194 0 0  301 513 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 10 Global Off
+2 113
+"globalOnLabel"
+""
+1 303 663 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 243 483 301 500
+0 2 0 "0s" 0 0 0 194 0 0  301 483 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 Global On
+25 38
+"settingsTable"
+""
+1 5 160 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 158 352 432
+"dyn_string gListOfDpElementToConnect, gListOfSettingsDpElement;
+
+main()
+{
+	int i, j = 1, columns;
+	string dpe, unit, value;
+	dyn_string exceptionInfo;
+	dyn_dyn_string settings;
+	
+	settingsTable.sortOnClick = FALSE;
+	settingsTable.deleteAllLines;
+	
+	settings[1] = makeDynString(\"v0\", \".settings.v0\", \".readBackSettings.v0\");
+	settings[2] = makeDynString(\"v1\", \".settings.v1\", \".readBackSettings.v1\");
+	settings[3] = makeDynString(\"i0\", \".settings.i0\", \".readBackSettings.i0\");
+	settings[4] = makeDynString(\"i1\", \".settings.i1\", \".readBackSettings.i1\");
+	settings[5] = makeDynString(\"Ramp down\", \".settings.rDwn\", \".readBackSettings.rDwn\");
+	settings[6] = makeDynString(\"Ramp up\", \".settings.rUp\", \".readBackSettings.rUp\");
+	settings[7] = makeDynString(\"Trip time\", \".settings.tripTime\", \".readBackSettings.tripTime\");
+	settings[8] = makeDynString(\"v soft limit\", \".settings.vMaxSoftValue\", \".readBackSettings.vMaxSoftValue\");
+	settings[9] = makeDynString(\"Output register\", \".settings.outReg\", \".readBackSettings.outReg\");
+	settings[10] = makeDynString(\"Rearm acquisition\", \".settings.acqRes\", \".readBackSettings.acqRes\");
+	settings[11] = makeDynString(\"Slot power\", \".settings.slotPower\", \".readBackSettings.slotPower\");
+       	settings[12] = makeDynString(\"Internal trip\", \".settings.tripInt\", \".readBackSettings.tripInt\");
+       	settings[13] = makeDynString(\"External trip\", \".settings.tripExt\", \".readBackSettings.tripExt\");
+ 
+
+	
+	while(!panelInitialized)
+		delay(0, 300);
+
+	for(i = 1; i <= dynlen(settings); i++)
+	{
+		if(dynContains(elements[1], dpElement + settings[i][2]) > 0)
+		{	
+			gListOfSettingsDpElement[j] = dpName + dpElement + settings[i][2];
+			if(!dpExists(gListOfSettingsDpElement[j]))
+			{
+				fwException_raise(	exceptionInfo,
+									\"ERROR\", 
+									\"The data point element\" + gListOfSettingsDpElement[j] + \" does not exist.\", 
+									\"\");
+				this.cellBackColRC(j - 1, \"settings\", \"DpDoesNotExist\");
+			}
+			else 
+			{
+				dpe = gListOfSettingsDpElement[j];
+				gListOfSettingsDpElement[j] = dpSubStr(gListOfSettingsDpElement[j], DPSUB_SYS_DP_EL);
+
+				if(dpConnect(\"_fwSettingsDataCB\", dpe) == -1) 
+  				{
+  					fwException_raise(	exceptionInfo, 
+  										\"INFO\", 
+  										\"Connecting to the data point element\" + dpe + \" was unsuccessful.\", 
+  										\"\");
+					this.cellBackColRC(j - 1, \"settings\", \"DpDoesNotExist\");
+				}
+			}
+			dpGet(gListOfSettingsDpElement[j], value);
+
+			gListOfDpElementToConnect[j] = dpName + dpElement + settings[i][3];
+			unit = dpGetUnit(gListOfDpElementToConnect[j]);
+		
+			settingsTable.appendLine(	\"element\", settings[i][1], \"settings\", value, \"unit\", unit,
+										\"setDpe\", gListOfSettingsDpElement[j], \"readbackDpe\", gListOfDpElementToConnect[j]);
+//		DebugN(\"element\", settings[i][LABEL_INDEX], \"settings\", value, \"unit\",  unit);
+			j++;
+		}
+	}
+	
+	fwColourTable_connectCellBackColToValueStatus(exceptionInfo);
+	settingsTable.lineVisible(0);
+	
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+_fwSettingsDataCB(string dpe, string value)
+{
+	int cellPos;
+	string dpName;
+	
+	dpName = dpSubStr(dpe, DPSUB_SYS_DP_EL);
+	cellPos = dynContains(gListOfSettingsDpElement, dpName);
+
+	if(cellPos >= 1)
+	{
+		this.cellValueRC(cellPos - 1, \"settings\", value);
+	}
+}" 0
+"main(int xpos,string columnName,string value)
+{
+	string dpe;
+	dyn_string line, exceptionInfo;
+
+	line = settingsTable.getLineN(xpos);
+
+	if (columnName == \"settings\")
+	{
+		dpe = line[settingsTable.nameToColumn(\"setDpe\") + 1];
+		strreplace(dpe, dpName, \"\");
+		
+		ChildPanelOnCentral(\"fwGeneral/fwChangeSetting.pnl\", \"Settings\",
+							makeDynString(	\"$sDpName:\" + dpName,
+											\"$dpSetName:\" + dpe)); 
+	}
+	else 
+	{
+		dpe = line[settingsTable.nameToColumn(\"readbackDpe\") + 1];
+		fwGeneral_openDetailsPanel(dpe, exceptionInfo);
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+	}
+}" 0
+ 1 0 1 6 1 "element" 8 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+100 "settings" 6 1 0 "s" 1
+LANG:1 7 Setting
+E
+1
+LANG:1 0 
+
+75 "status" 7 1 0 "s" 1
+LANG:1 8 ReadBack
+E
+1
+LANG:1 0 
+
+90 "unit" 4 1 0 "s" 1
+LANG:1 5 Units
+E
+1
+LANG:1 0 
+
+55 "setDpe" 4 0 0 "s" 1
+LANG:1 6 setDpe
+E
+1
+LANG:1 0 
+
+55 "readbackDpe" 4 0 0 "s" 1
+LANG:1 11 readbackDpe
+E
+1
+LANG:1 0 
+
+55 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+14 33
+"channelNumberText"
+""
+1 640 174 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 618 48 672 75
+2 "0s" 0 0 0 0 0 -1  E E E
+14 34
+"channelNameText"
+""
+1 241 146 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 72 48 552 75
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = $sDpName;
+}" 0
+ E
+14 35
+"boardNameText"
+""
+1 814 313 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 72 88 372 115
+2 "0s" 0 0 0 0 0 -1  E E E
+14 36
+"crateNameText"
+""
+1 765 508 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 71 126 372 153
+2 "0s" 0 0 0 0 0 -1  E E E
+14 37
+"boardNumberText"
+""
+1 595 292 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 430 88 484 115
+2 "0s" 0 0 0 0 0 -1  E E E
+25 41
+"valuesTable"
+""
+1 355 161 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 358 159 692 432
+"dyn_string gListOfDpElementToConnect;
+
+main()
+{
+	int i, j = 1;
+	string unit;
+	dyn_string notToDisplayDpes, exceptionInfo;
+	
+	valuesTable.sortOnClick = FALSE;
+	valuesTable.deleteAllLines;
+	gListOfDpElementToConnect = makeDynString();
+	
+	notToDisplayDpes = makeDynString(	dpElement + \".actual.hardwareAlarm\",
+										dpElement + \".actual.iMonAlarmDefn\",
+										dpElement + \".actual.status\",
+										dpElement + \".actual.vMonAlarmDefn\");										
+										
+	while(!panelInitialized)
+		delay(0, 300);
+	
+	// display elements which contain \"actual\" in the name and are not in the 
+	// explicit list (notToDisplayDpes
+	for(i = 1; i <= dynlen(elements[1]); i++)
+	{
+		if((strpos(elements[1][i], \".actual.\") >= 0) && (dynContains(notToDisplayDpes, elements[1][i]) < 1)  )
+		{					
+			dynAppend(gListOfDpElementToConnect, dpName + elements[1][i]); 
+			unit = dpGetUnit(dpName + elements[1][i]);
+			valuesTable.appendLine(\"parameter\", elements[2][i], \"units\", unit, \"dpe\", dpName + elements[1][i]);
+		}
+	}
+
+//	DebugN(\"settingsTable \"  + gListOfDpElementToConnect);
+	fwColourTable_connectCellBackColToValueStatus(exceptionInfo);
+	valuesTable.lineVisible(0);
+}" 0
+"main(int xpos,string columnName,string value)
+{
+	string dpe;
+	dyn_string line, exceptionInfo;
+
+	line = valuesTable.getLineN(xpos);
+	dpe = line[valuesTable.nameToColumn(\"dpe\") + 1];
+	
+	if (columnName == \"status\") 
+	{
+		ChildPanelOnCentralModal(	\"fwConfigs/fwAlarmOperationPopupPanel.pnl\",
+									\"AlarmOp\", 
+									makeDynString(\"$sDpe:\" + dpe));
+	}
+	else 
+	{
+		fwGeneral_openDetailsPanel(dpe, exceptionInfo);
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+	}
+}" 0
+ 1 0 1 4 1 "parameter" 12 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+150 "status" 8 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+100 "units" 4 1 0 "s" 1
+LANG:1 5 Units
+E
+1
+LANG:1 0 
+
+55 "dpe" 4 0 0 "s" 1
+LANG:1 3 dpe
+E
+1
+LANG:1 0 
+
+55 
+26 26 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 78
+"on"
+""
+1 122 497 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 120 495 164 523
+
+T 
+1
+LANG:1 2 On
+"main()
+{
+	dpSet(dpName + dpElement +  + \".settings.onOff\", TRUE);
+}
+" 0
+ E E E
+13 79
+"off"
+""
+1 278 905 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 166 495 210 523
+
+T 
+1
+LANG:1 3 Off
+"main()
+{
+	dpSet(dpName + dpElement +  \".settings.onOff\", FALSE);
+}
+" 0
+ E E E
+14 88
+"LastModifiedField"
+""
+1 490 439 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+87 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 488 437 682 464
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+	string dpe;
+
+	while(!panelInitialized)
+		delay(0, 300);
+
+	if(this.visible == FALSE)
+		return;
+		
+	dpe = dpName + dpElement + \".actual.vMon\" + \":_online.._stime\";	
+
+	if(dpConnect(\"setValueCB\", dpe) == -1)
+	{
+		LastModifiedField.backCol = \"_dpdoesnotexist\";
+		LastModifiedField.foreCol = \"_dpdoesnotexist\";
+	}
+}
+
+setValueCB(string dp, string str)
+{
+   this.text = str;
+}" 0
+ E
+13 104
+"Close"
+""
+1 616 515 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+100 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 614 513 691 541
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}
+" 0
+ E E "main()
+{
+
+}" 0
+
+13 106
+"Button1"
+""
+1 18 436 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+101 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 16 434 202 461
+
+T 
+1
+LANG:1 27 Load settings from hardware
+"main()
+{
+	float value;
+	string setDpe, readbackDpe;
+	dyn_string line;
+		
+	for(int i = 1; i <= settingsTable.lineCount; i++)
+	{
+		line = settingsTable.getLineN(i - 1);
+		setDpe = line[settingsTable.nameToColumn(\"setDpe\") + 1];
+		readbackDpe = line[settingsTable.nameToColumn(\"readbackDpe\") + 1];
+		
+		dpGet(readbackDpe, value);
+		dpSet(setDpe, value);
+		
+//		DebugN(\"Setting \" + setDpe +\" to same value as \" + readbackDpe + \". Value = \" + value);
+	}
+}
+" 0
+ E E E
+14 108
+"onOff"
+""
+1 208 707 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+102 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 76 495 120 523
+2 "0s" 0 0 0 0 0 -1  E "main()
+{		
+	string dpe;
+
+	while(!panelInitialized)
+		delay(0, 300);
+
+	if(this.visible == FALSE)
+		return;
+		
+	dpe = dpName + dpElement + \".actual.isOn\";	
+	
+	if(dpConnect(\"setValueCB\", TRUE, dpe) == -1)
+	{
+		setValue(\"\", \"color\", \"_dpdoesnotexist\");
+    	return;
+	}
+}
+
+setValueCB(string dpe, bool value)
+{
+	if(value == 1)
+	{
+		this.text = \"ON\";
+	}
+	else
+	{
+		this.text = \"OFF\";
+	}
+}" 0
+ E
+13 110
+"globalOffEnable"
+""
+1 379 510 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+104 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 377 508 430 536
+
+T 
+1
+LANG:1 6 Enable
+"main()
+{
+	dpSet(dpName + dpElement + \".settings.globalOffEn\", TRUE);
+}
+" 0
+ E E E
+13 111
+"globalOffDisable"
+""
+1 568 918 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+105 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 432 508 485 536
+
+T 
+1
+LANG:1 7 Disable
+"main()
+{
+	dpSet(dpName + dpElement + \".settings.globalOffEn\", FALSE);
+}
+" 0
+ E E E
+14 112
+"globalOffValue"
+""
+1 505 712 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+106 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 307 508 372 535
+2 "0s" 0 0 0 0 0 -1  E "main()
+{	
+	string dpe;
+
+	while(!panelInitialized)
+		delay(0, 300);
+
+	if(this.visible == FALSE)
+		return;
+		
+	dpe = dpName + dpElement + \".readBackSettings.globalOffEn\";		
+		
+	if(dpConnect(\"setValueCB\", TRUE, dpe) == -1)
+	{
+		setValue(\"\", \"color\", \"_dpdoesnotexist\");
+    	return;
+	}
+}
+
+setValueCB(string dpe, bool value)
+{
+	if(value == 1)
+	{
+		this.text = \"Enabled\";
+	}
+	else
+	{
+		this.text = \"Disabled\";
+	}
+}" 0
+ E
+13 114
+"globalOnEnable"
+""
+1 379 480 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+108 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 377 478 430 506
+
+T 
+1
+LANG:1 6 Enable
+"main()
+{
+	dpSet(dpName + dpElement + \".settings.globalOnEn\", TRUE);
+}
+" 0
+ E E E
+13 115
+"globalOnDisable"
+""
+1 568 888 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+109 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 432 478 485 506
+
+T 
+1
+LANG:1 7 Disable
+"main()
+{
+	dpSet(dpName + dpElement + \".settings.globalOnEn\", FALSE);
+}
+" 0
+ E E E
+14 116
+"globalOnValue"
+""
+1 505 682 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+110 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 307 478 372 505
+2 "0s" 0 0 0 0 0 -1  E "main()
+{	
+	string dpe;
+
+	while(!panelInitialized)
+		delay(0, 300);
+
+	if(this.visible == FALSE)
+		return;
+		
+	dpe = dpName + dpElement + \".readBackSettings.globalOnEn\";	
+		
+	if(dpConnect(\"setValueCB\", TRUE, dpe) == -1)
+	{
+		setValue(\"\", \"color\", \"_dpdoesnotexist\");
+    	return;
+	}
+}
+
+setValueCB(string dpe, bool value)
+{
+	if(value == 1)
+	{
+		this.text = \"Enabled\";
+	}
+	else
+	{
+		this.text = \"Disabled\";
+	}
+}" 0
+ E
+1 119 1 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 ""
+"fwDeviceEditorNavigator/fwActionButton.pnl" 410 0 T 100 1 0 1 45 -2
+1
+"$sDpName""$sDpName"
+3 1 "Group3"
+"objects\\fwGeneral\\fwHelpButton.pnl" 633 10 T 110 1 0 1 29 0
+1
+"$sPanelRelativePath""fwCaen/fwCaenChannelOperation"
+0

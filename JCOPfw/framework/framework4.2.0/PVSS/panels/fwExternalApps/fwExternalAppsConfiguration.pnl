@@ -1,0 +1,628 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 490 830 N "_3DFace" 1
+"$sDpName"
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "
+#uses \"fwXML/fwXML.ctl\"
+
+#uses \"fwExternalApps/fwExternalApps.ctl\"
+
+string ConfigurationName;
+
+dyn_dyn_anytype XmlTable;
+dyn_dyn_anytype InfTable;
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+14 0
+"FileName"
+""
+1 10 79 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+ 8 78 422 108
+2 "0s" 0 0 0 0 0 -1  E E E
+13 1
+"FileSelect"
+""
+1 438 78 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+ 438 78 482 108
+
+P 
+14215660
+"pictures/fileselektor.xpm"
+1
+LANG:1 0 
+"
+void retrieveAllVariablesFromFile ( string fileName , dyn_string & variables )
+{
+file f;
+string line;
+string varName;
+int startPos, endPos;
+   
+  // DebugTN(\"Starts retrieveAllVariablesFromFile\");
+  f = fopen(fileName, \"r\");
+  while(feof(f)==0)
+  {
+    fgets(line, 1000, f);
+    while(patternMatch(\"*{var*}*\", line))
+    {
+      startPos = strpos(line, \"{var\");
+      endPos = strpos(line, \"}\");
+      varName = substr(line, startPos, (endPos-startPos)+1); 
+      dynAppend(variables, varName);
+      strreplace(line, varName, \"\");
+    }
+  }
+  fclose(f);
+    
+  dynSortAsc(variables);
+  dynUnique(variables);
+  // DebugTN(\"Ending retrieveAllVariablesFromFile\");
+}
+
+main()
+{
+  string xmlFileContents, fileName, name;
+  dyn_string exceptionInfo, variables, varvalues;
+  dyn_float resultFloat;
+  dyn_string resultText;
+  int experiment = 0;
+  int index;
+  
+  fwDevice_getName($sDpName, name, exceptionInfo);
+  
+  fileSelector(fileName, getPath(DATA_REL_PATH, \"fwExternalApps/\" + name), TRUE, \"*.xml\", TRUE);
+  
+  if ( fileName == \"\" ) { return; }
+  
+  if ( strpos(fileName,\"fwExternalApps/\"+name) < 0 )
+  {
+    fwException_raise(exceptionInfo, \"ERROR\", \"You are ONLY allowed to select files in the '\"+name+\"' sub-directory\", \"\");
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }
+  
+  FileName.text = fileName;
+  
+  retrieveAllVariablesFromFile ( fileName , variables );
+    
+  fwExternalApps_readXmlFile ( fileName , xmlFileContents , exceptionInfo );
+    
+  if ( dynlen(exceptionInfo) > 0 ) { fwExceptionHandling_display(exceptionInfo); return; }
+
+  if ( ( index = dynContains ( variables , fwExternalApps_EXPERIMENT_VARIABLE ) ) > 0 )
+     { experiment = 1; dynRemove ( variables , index ); }
+  
+  if ( ( index = dynContains ( variables , fwExternalApps_EXPERIMENT_VARIABLE_UPPERCASE ) ) > 0 )
+     { experiment = 1; dynRemove ( variables , index ); }
+  
+  if ( dynlen(variables) != 0 )  
+  {
+    fwException_raise(exceptionInfo, \"ERROR\", \"The XML-File Contains unknown Variables ( \"+(string)variables+\" )\", \"\");
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }
+  
+  if ( experiment != 0 )
+  {
+    string var, sub;
+    
+    // DebugN(\"Variables Found ( \"+variables+\" )\");
+    
+    ChildPanelOnCentralReturn ( \"/fwInstallation/fwInstallation_selectValueList.pnl\" , \"Select_Experiment\" , 
+                                makeDynString(\"$type:select\" ,
+                                              \"$text:The following Ext-App's Xml-File \" +
+                                              \"Needs an Experiment to be Selected!\\n\" + fileName ,
+                                              \"$textList:Please Select your Experiment\" ,
+                                              \"$listContent:\"+(string)makeDynString(\"ALICE\",\"ATLAS\",\"CMS\",\"LHCb\",\"LHCf\",\"TOTEM\")) , 
+                                resultFloat , resultText );
+      
+    // DebugN ( resultFloat , resultText );
+      
+    if ( ( resultFloat[1] != 0.0 ) || ( resultText[1] != \"ok\" ) ) { return; }
+      
+    var = fwExternalApps_EXPERIMENT_VARIABLE;
+    sub = resultText[2];
+    
+    // DebugN(\"Substitute '\"+var+\"' by '\"+sub+\"'\");
+    
+    strreplace ( xmlFileContents , var , sub );
+    
+    var = fwExternalApps_EXPERIMENT_VARIABLE_UPPERCASE;
+    sub = strtoupper ( sub );
+    
+    strreplace ( xmlFileContents , var , sub );
+  }
+  
+  // The following replacement is introduced because '<CR>' is an illegal Xml construction
+  strreplace ( xmlFileContents , \"<CR>\" , \"'Ctrl-M'\" );
+  
+  fwOpenProgressBar(\"Reading Configuration File\", \"Scanning XML-File and Constructing the Tree\", 1);
+  
+  // Give the progress-bar enough time to start popping-up as the code that follows will take all the CPU
+  delay(0,100);
+      
+  fwExternalApps_initialiseTable ( XmlTable , exceptionInfo );
+  
+  // Called if one uses the Gcs Xml parsing mechanism
+  // fwExternalApps_readsDevicesFromString ( xmlFileContents , 
+  //                ConfigurationName , XmlTable , exceptionInfo );
+  // Called if one uses the XmlCtrl parsing mechanism
+  fwExternalApps_readsDevicesFromXmlStr ( xmlFileContents , 
+                 ConfigurationName , XmlTable , exceptionInfo );
+  
+  // _fwExternalApps_printTable ( XmlTable );
+  
+  // Sleep One Second Such that the UI Can Communicate with \"pmon\"
+  // Didn't make any difference...
+  // delay(1);
+
+  fwExternalApps_populateTree ( \"ExtAppsTree\" , XmlTable , exceptionInfo );
+  
+  fwCloseProgressBar(\"External Data Displayed in Tree (Select what Needed)\");
+    
+  if ( dynlen(exceptionInfo) > 0 ) { fwExceptionHandling_display(exceptionInfo); }
+}
+
+
+
+" 0
+ E E E
+2 2
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  string name;
+  dyn_string exceptionInfo;
+  
+  fwDevice_getName($sDpName, name, exceptionInfo);
+  
+  this.text = \"External Application Configuration: \" + name;
+}" 0
+ E 0 1 1 0 1 E U  0 E 12 12 413 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 46 External Application Configuration: ($sDpName)
+13 3
+"Dismiss"
+""
+1 347.368421052632 460 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 338 778 482 812
+
+T 
+1
+LANG:1 15 Dismiss - Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+2 5
+"Text6"
+""
+1 55 155 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 52 208 69
+0 2 0 "0s" 0 0 0 192 0 0  12 52 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 35 Select the configuration file name:
+13 6
+"Proceed"
+""
+1 -107.894736842105 830 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 778 152 812
+
+T 
+1
+LANG:1 20 Import Configuration
+"
+main()
+{
+string name;
+dyn_string exceptionInfo;
+dyn_string nodeTypes;
+    
+  fwDevice_getName($sDpName, name, exceptionInfo);
+  if ( name == \"Accelerator\" )
+     { nodeTypes = makeDynString(\"FwExternalAppsLhc\", \"FwExternalAppsNode\"); }
+  else if ( name == \"Cooling\" )
+     { nodeTypes = makeDynString(\"FwExternalAppsCoolingLocation\"); }
+  else if ( name == \"LACS\" )
+     { nodeTypes = makeDynString(\"FwExternalAppsNode\", \"FwExternalAppsLacsZone\", \"FwExternalAppsNode\"); }
+  else if ( name == \"GCS\" )
+     { nodeTypes = makeDynString(\"FwExternalAppsGcs\", \"FwExternalAppsNode\"); }
+  else
+     { nodeTypes = makeDynString(); }
+  
+  // DebugN(nodeTypes);  
+  
+  fwOpenProgressBar(\"Reading configuration file\", \"Generating devices and DIP subscriptions\", 1);
+    
+  fwExternalApps_createDevicesFromTree ( ConfigurationName , name , nodeTypes , exceptionInfo );
+  
+  fwCloseProgressBar(\"External Data subscribed\");
+  
+  if ( dynlen(exceptionInfo) > 0 ) fwExceptionHandling_display(exceptionInfo);
+}
+
+
+  /*   The Old Code is Here  
+
+  string name;
+  dyn_string exceptionInfo;
+  dyn_string nodeTypes, nodeLevels, variables = makeDynString(), substitutions = makeDynString();
+    
+  fwDevice_getName($sDpName, name, exceptionInfo);
+  if(name == \"Cooling\")
+  {
+    nodeTypes = makeDynString(\"FwNode\", \"FwNode\", \"FwExternalAppsCoolingLocation\");
+    nodeLevels = makeDynString(\"1\", \"2\", \"*\");
+  }
+  else if(name == \"GCS\")
+  {
+    nodeTypes = makeDynString(\"FwNode\", \"FwNode\", \"FwExternalAppsGcs\", \"FwExternalAppsNode\");
+    nodeLevels = makeDynString(\"1\", \"2\", \"3\", \"*\");
+  }
+  // DebugN(nodeTypes, nodeLevels);  
+  fwOpenProgressBar(\"Reading configuration file\", \"Generating devices and DIP subscriptions\", 1);
+  
+  if(experimentSelector.visible)
+  {
+    dynAppend(variables, fwExternalApps_EXPERIMENT_VARIABLE);
+    dynAppend(substitutions, experimentSelector.text);
+  }
+  
+  fwExternalApps_createDevicesFromFile(FileName.text, name, nodeTypes, nodeLevels, exceptionInfo,
+                                       variables, substitutions);
+  fwCloseProgressBar(\"External Data subscribed\");
+  if(dynlen(exceptionInfo)>0) fwExceptionHandling_display(exceptionInfo);
+
+  */
+
+
+
+" 0
+ E E E
+29 9
+"ExtAppsTree"
+""
+1 10 270 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+ 10 270 481 621
+10 TreeWidget
+7
+0 "expanded" "(string id)"
+""
+0 "collapsed" "(string id)"
+""
+0 "selectionChanged" "(string id)"
+""
+0 "clicked" "(string id, int column)"
+"  // Invalid column in case one expands/collapses a tree-node!
+  if ( column < 0 ) { return; }
+
+  // DebugN(\"Clicked Column '\"+column+\"' for Item '\"+id+\"'\");
+
+  fwExternalApps_treeRowColumnClicked ( \"ExtAppsTree\" , XmlTable , id , column );
+  
+  fwExternalApps_showNodeDescription ( \"Description\" , InfTable , XmlTable , id , column );"
+0 "doubleClicked" "(string id, int column)"
+""
+0 "rightClicked" "(string id, int column)"
+""
+0 "itemRenamed" "(string id, int column, string text)"
+""
+"main()
+{
+  fwExternalApps_initialiseTree ( \"ExtAppsTree\" );
+}" 0
+13 10
+"Collaps"
+""
+1 10 220 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 218 232 252
+
+T 
+1
+LANG:1 13 Collapse Tree
+"main()
+{
+  fwExternalApps_openTree ( \"ExtAppsTree\" , XmlTable , FALSE );
+}" 0
+ E E E
+13 12
+"Expand"
+""
+1 260 220 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 258 218 482 252
+
+T 
+1
+LANG:1 11 Expand Tree
+"main()
+{
+  fwExternalApps_openTree ( \"ExtAppsTree\" , XmlTable , TRUE );
+}" 0
+ E E E
+2 16
+"PRIMITIVE_TEXT2"
+""
+1 53 733 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 630 470 647
+0 2 0 "0s" 0 0 0 192 0 0  10 630 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 75 Click Tree-Node for Infos [Subs/Publ-Name Tag-Name Element-and-Description]
+29 17
+"Description"
+""
+1 10 650 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+ 10 650 481 761
+10 TreeWidget
+7
+0 "expanded" "(string id)"
+""
+0 "collapsed" "(string id)"
+""
+0 "selectionChanged" "(string id)"
+""
+0 "clicked" "(string id, int column)"
+""
+0 "doubleClicked" "(string id, int column)"
+""
+0 "rightClicked" "(string id, int column)"
+""
+0 "itemRenamed" "(string id, int column, string text)"
+""
+"main()
+{
+  fwExternalApps_initialiseTree ( \"Description\" , 0 );
+}" 0
+29 18
+"HelpInfo"
+""
+1 10 120 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+5
+"lineWidth" "int 0"
+"margin" "int 0"
+"readOnly" "bool TRUE"
+"textFormat" "enum 1"
+"currentFont" "font Arial,10,-1,5,50,0,0,0,0,0"
+ 10 120 481 211
+15 PVSS.TextEdit.1
+5
+0 "TextChanged" "()"
+""
+0 "ReturnPressed" "()"
+""
+0 "ModificationChanged" "(bool mod)"
+""
+0 "Clicked" "(int para, int pos)"
+""
+0 "CursorPositionChanged" "(int para, int pos)"
+""
+"main()
+{
+langString fontType = \"Arial,10,-1,5,50,0,0,0,0,0\";
+
+string CheckPict = getPath(PICTURES_REL_PATH,\"checked.png\");
+string DeletePict = getPath(PICTURES_REL_PATH,\"delete.png\");
+
+string infos = \"The 'Active' column shows if the corresponding Node is \"
+             + \"&nbsp; <img src=\\\"\"+CheckPict+\"\\\"> active or \"
+             + \"<img src=\\\"\"+DeletePict+\"\\\"> &nbsp; inactive.<br>\"
+             + \"The 'All/Some/None' lable beside it denotes how many of its children are active.<br>\"
+             + \"Click the 'Active' column for a specific Node to toggle its State to (in)active and all its children will also become (in)active. &nbsp; \"
+             + \"An active Node whose children have become inactive will also become inactive unless it carries Subscr/Public Data!\";
+
+  setValue(\"\",\"vScrollBarMode\",\"AlwaysOff\");
+  setValue(\"\",\"font\",fontType);
+  setValue(\"\",\"text\",infos);
+}" 0
+13 19
+"PUSH_BUTTON1"
+""
+1 170 780 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 778 322 812
+
+T 
+1
+LANG:1 21 Open DIP Config Panel
+"
+
+main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ModuleOnWithPanel(\"DIP Configuration\",
+                    0, 0, 0, 0, 0, 0, \"\",
+                    \"fwDIP/fwDip.pnl\",
+                    \"fwDIP\",
+                    makeDynString());
+}
+
+
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

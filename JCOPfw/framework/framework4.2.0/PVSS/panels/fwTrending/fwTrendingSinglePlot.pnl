@@ -1,0 +1,539 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,284 141 181 81 N "_3DFace" 4
+"$Col"
+"$PageName"
+"$Row"
+"$plot"
+"main()
+{
+	int i,j;
+	dyn_dyn_string pageData;
+	dyn_string exceptionInfo;
+  
+	displayPlotInfo($plot, exceptionInfo);
+
+//DebugN($PageName);
+
+	if(dpExists($PageName))
+	{
+		fwTrending_getPage($PageName, pageData, exceptionInfo);
+		j = $Row;
+		i = $Col;
+	
+		if(dynlen(pageData[fwTrending_PAGE_OBJECT_PLOTS]) >= (6 * (j - 1) + i))
+		{
+	//DebugN(pageData[fwTrending_PAGE_OBJECT_PLOTS][6 * (j - 1) + i]);
+	//DebugN(pageData[fwTrending_PAGE_OBJECT_PLOT_TEMPLATE_PARAMETERS][6 * (j - 1) + i]);
+			localParameterValues.text = pageData[fwTrending_PAGE_OBJECT_PLOT_TEMPLATE_PARAMETERS][6 * (j - 1) + i];
+		}
+	}
+}" 0
+EE E E 1 -1 -1 0  0 0
+"" 0 1
+E"displayPlotInfo(string plotName, dyn_string &exceptionInfo)
+{
+	bool isConnected;
+	string title, color, model, currentParameters;
+	dyn_string parameters;
+	dyn_dyn_string plotData;
+
+	Text3.text = plotName;
+	
+	if(plotName == \"\")
+	{
+		Text1.text = \"\";					
+		setNullPlot();
+		return;
+	}
+        
+	if(dpExists(plotName))
+	{
+		if(dpTypeName(plotName) == fwTrending_PLOT)
+		{
+			_fwTrending_isSystemForDpeConnected(plotName, isConnected, exceptionInfo);
+			if(isConnected)
+			{
+//DebugN(\"HERE\");
+
+				fwDevice_getModel(plotName, model, exceptionInfo);
+				fwTrending_getPlot(plotName, plotData, exceptionInfo);
+				fwTrending_getAllTemplateParametersForConfiguration(plotData, fwTrending_PLOT, parameters, exceptionInfo);
+				if(dynlen(parameters) > 0)
+				{
+					ParameterButton.visible = TRUE;
+					ParameterBackground.visible = TRUE;
+				}
+				else
+				{
+					ParameterButton.visible = FALSE;
+					ParameterBackground.visible = FALSE;
+				}
+						
+				title = plotData[fwTrending_PLOT_OBJECT_TITLE][1];
+				if(title != \"\")
+					Text1.text = title;
+				else
+					Text1.text = plotName;
+			
+				color = plotData[fwTrending_PLOT_OBJECT_BACK_COLOR][1];
+				Text1.backCol = color;
+		
+				color = plotData[fwTrending_PLOT_OBJECT_FORE_COLOR][1];
+				Text1.foreCol = color;
+				Polyline1.foreCol = color;
+				Polyline2.foreCol = color;
+				Polyline3.foreCol = color;
+				Border1.backCol = plotData[fwTrending_PLOT_OBJECT_COLORS][1];
+				Border2.backCol = plotData[fwTrending_PLOT_OBJECT_COLORS][1];
+				Border3.backCol = plotData[fwTrending_PLOT_OBJECT_COLORS][1];
+				Border4.backCol = plotData[fwTrending_PLOT_OBJECT_COLORS][1];
+				Border1.foreCol = plotData[fwTrending_PLOT_OBJECT_COLORS][1];
+				Border2.foreCol = plotData[fwTrending_PLOT_OBJECT_COLORS][1];
+				Border3.foreCol = plotData[fwTrending_PLOT_OBJECT_COLORS][1];
+				Border4.foreCol = plotData[fwTrending_PLOT_OBJECT_COLORS][1];
+							
+				switch(model)
+				{
+					case fwTrending_XY_PLOT_MODEL:
+						Polyline1.visible = FALSE;
+						Polyline2.visible = TRUE;
+						Polyline3.visible = FALSE;
+						Border1.visible = FALSE;
+						Border2.visible = FALSE;
+						Border3.visible = FALSE;
+						Border4.visible = FALSE;
+						break;
+					case fwTrending_HISTOGRAM_PLOT_MODEL:
+						Polyline1.visible = FALSE;
+						Polyline2.visible = FALSE;
+						Polyline3.visible = TRUE;
+						Border1.visible = TRUE;
+						Border2.visible = TRUE;
+						Border3.visible = TRUE;
+						Border4.visible = TRUE;
+						break;
+					default:
+						Polyline1.visible = TRUE;
+						Polyline2.visible = FALSE;
+						Polyline3.visible = FALSE;
+						Border1.visible = FALSE;
+						Border2.visible = FALSE;
+						Border3.visible = FALSE;
+						Border4.visible = FALSE;
+						break;
+				}
+			}
+			else
+			{
+				ParameterButton.visible = FALSE;
+				ParameterBackground.visible = FALSE;
+				Text1.backCol = \"_3DFace\";
+				Text1.text = plotName + \"\\n(System not connected)\";					
+				Polyline1.visible = FALSE;
+				Polyline2.visible = FALSE;
+				Polyline3.visible = FALSE;
+				Border1.visible = FALSE;
+				Border2.visible = FALSE;
+				Border3.visible = FALSE;
+				Border4.visible = FALSE;
+			}
+		}
+		else
+		{
+			Text1.text = plotName + \"\\n(Plot not existing)\";					
+			setNullPlot();
+		}
+	}
+	else
+	{
+		Text1.text = plotName + \"\\n(Plot not existing)\";					
+		setNullPlot();
+	}
+}
+
+setNullPlot()
+{
+	ParameterButton.visible = FALSE;
+	ParameterBackground.visible = FALSE;
+	Text1.backCol = \"_3DFace\";
+	Text1.foreCol = \"_3DText\";
+	Text3.text = \"\";
+	Polyline1.foreCol = \"_3DFace\";
+	Polyline2.foreCol = \"_3DFace\";
+	Polyline3.foreCol = \"_3DFace\";
+	Border1.backCol = \"_3DFace\";
+	Border2.backCol = \"_3DFace\";
+	Border3.backCol = \"_3DFace\";
+	Border4.backCol = \"_3DFace\";
+	Border1.foreCol = \"_3DFace\";
+	Border2.foreCol = \"_3DFace\";
+	Border3.foreCol = \"_3DFace\";
+	Border4.foreCol = \"_3DFace\";
+}" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 29
+"isNewPlot"
+""
+1 10 20 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+28 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 22 58 38
+1 2 0 "s" 0 0 0 64 0 0  12 22
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 5 FALSE
+2 27
+"Text3"
+""
+1 10 20 E E E 0 E 0 E N {0,0,0} E N {255,255,255} E E
+ E E
+27 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 22 58 38
+1 2 0 "s" 0 0 0 64 0 0  12 22
+ 1
+1
+LANG:1 119 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,3,2,1,49,Courier New
+0 ""
+1
+LANG:1 0 
+2 0
+"Text1"
+""
+1 0 0 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 2 2 178 78
+1 2 0 "s" 0 0 0 64 0 0  2 2
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 0 
+10 8
+"Polyline1"
+""
+1 10 69 E E E 1 E 0 E N {0,0,0} E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 4 2 1 1 E U  0 E 6 11 69
+31 44
+51 44
+108 34
+129 44
+169 19
+0
+2 23
+"Text2"
+""
+1 150 50 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+	string currentParameters;
+	dyn_float df;
+	dyn_string ds, exceptionInfo;
+	dyn_dyn_string plotData;
+	
+	Text2.foreCol = \"White\";
+	Polyline4.foreCol = \"Black\";
+
+	ChildPanelOnCentralModalReturn(\"fwTrending/fwTrendingChoose.pnl\", \"Choose Plot\",
+																	makeDynString(\"$sDpType:\" + fwTrending_PLOT, \"$sCurrentChoice:\" + Text3.text),
+																	df, ds);
+
+	if(ds[1] != \"Cancel\")
+	{                
+		if(ds[1] == \"OK\")
+		{
+			if(ds[2] != Text3.text)
+			{
+				localParameterValues.text = \"\";
+				isNewPlot.text = \"TRUE\";
+			}
+			else
+				isNewPlot.text = \"FALSE\";
+
+			displayPlotInfo(ds[2], exceptionInfo);
+
+			fwTrending_getPlot(ds[2], plotData, exceptionInfo);		
+			currentParameters = localParameterValues.text;
+					
+			fwTrending_checkAndGetAllTemplateParameters(plotData[fwTrending_PLOT_OBJECT_TITLE][1],
+																									plotData, fwTrending_PLOT, currentParameters, exceptionInfo);
+			localParameterValues.text = currentParameters;
+		}
+		else
+		{
+			isNewPlot.text = \"FALSE\";
+			displayPlotInfo(\"\", exceptionInfo);
+			localParameterValues.text = \"\";
+		}
+	}
+
+	Text2.foreCol = \"Black\";
+	Polyline4.foreCol = \"White\";
+}" 0
+ 0 1 1 0 1 E U  1 E 152 52 168 68
+1 2 0 "s" 0 0 0 65 0 0  152 52
+ 1
+1
+LANG:1 105 -microsoft windows-Arial-bold-r-normal-*-*-140-100-100-*-*-iso8859-1|-16,0,0,0,700,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 4  ...
+10 26
+"Polyline4"
+""
+1 150 70 E E E 1 E 1 E N {255,255,255} E N "_Transparent" E E
+ E E
+26 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 3 150 70
+150 50
+170 50
+0
+2 32
+"localParameterValues"
+""
+1 10 50 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+31 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 52 108 68
+1 2 0 "s" 0 0 0 64 0 0  12 52
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 5 Text4
+2 30
+"ParameterButton"
+""
+1 120 50 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+	string plotName, currentParameters;
+	dyn_string exceptionInfo;
+	dyn_dyn_string plotData;
+        
+	ParameterButton.foreCol = \"White\";
+	ParameterBackground.foreCol = \"Black\";
+
+	plotName = Text3.text;
+	currentParameters = localParameterValues.text;
+		
+	fwTrending_getPlot(plotName, plotData, exceptionInfo);
+
+	fwTrending_modifyAllTemplateParameters(\"Plot\", plotData, fwTrending_PLOT, currentParameters, exceptionInfo);
+
+	localParameterValues.text = currentParameters;
+	
+	ParameterButton.foreCol = \"Black\";
+	ParameterBackground.foreCol = \"White\";
+}" 0
+ 0 1 1 0 1 E U  1 E 122 52 138 68
+1 2 0 "s" 0 0 0 65 0 0  122 52
+ 1
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+1
+LANG:1 3 {a}
+10 31
+"ParameterBackground"
+""
+1 120 70 E E E 1 E 0 E N {255,255,255} E N "_Transparent" E E
+ E E
+30 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 3 120 70
+120 50
+140 50
+0
+10 34
+"Polyline2"
+""
+1 165 24 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+33 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 4 1 0 1 E U  0 E 5 165 25
+95 39
+15 17
+45 67
+105 17
+1
+6 35
+"Border1"
+""
+1 17 67 E E E 1 E 0 E N "_WindowText" E N {255,255,255} E E
+ E E
+34 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 4 1 0 1 E U  1 E 17 47 40 67
+6 36
+"Border2"
+""
+1 62 67 E E E 1 E 0 E N "_WindowText" E N {255,255,255} E E
+ E E
+35 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 4 1 0 1 E U  1 E 62 53 85 67
+6 37
+"Border3"
+""
+1 40 67 E E E 1 E 0 E N "_WindowText" E N {255,255,255} E E
+ E E
+36 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 4 1 0 1 E U  1 E 40 27 62 67
+6 38
+"Border4"
+""
+1 85 67 E E E 1 E 0 E N "_WindowText" E N {255,255,255} E E
+ E E
+37 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 4 1 0 1 E U  1 E 85 41 107 67
+10 41
+"Polyline3"
+""
+1 16 20 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+1
+"dashclr"N "_Transparent"
+E E 0 3 1 0 1 E U  0 E 3 16 20
+16 68
+116 68
+0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+2 "Group1" 17 27 107 67
+4 38 37 36 35
+0

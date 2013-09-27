@@ -1,0 +1,477 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 684 536 N "_3DFace" 3
+"$hostnames"
+"$projects"
+"$versions"
+"main()
+{
+  updatePanel();
+}
+
+
+" 0
+ E E E E 1 -1 -1 0  50 50
+""0  1
+E "#uses \"fwInstallationDBUpgrade.ctl\"
+
+void updatePanel()
+{
+  dyn_string projects = strsplit($projects, \"|\");
+  dyn_string computers = strsplit($hostnames, \"|\");
+  dyn_string versions = strsplit($versions, \"|\");
+  dyn_mixed upgradeInfo;
+  string status = \"\";
+      
+  tblProjects.deleteAllLines();
+  for(int i = 1; i <= dynlen(projects); i++)
+  {
+    strreplace(projects[i], \" \", \"\");
+    strreplace(computers[i], \" \", \"\");
+    strreplace(versions[i], \" \", \"\");
+    dynClear(upgradeInfo);
+    fwInstallationDBUpgrade_getProjectToolUpgradeRequest(upgradeInfo, computers[i], projects[i]);
+    if(dynlen(upgradeInfo) <= 0)
+      status = \"NOT REQUESTED\";
+    else
+      status = \"PENDING\";
+    
+    tblProjects.appendLine(\"projects\", projects[i], \"computers\", computers[i], \"versions\", versions[i], \"upgrades\", status);
+  }//end of for loop
+  
+}
+
+void registerUpgradeRequests()
+{
+  string host = \"\", project = \"\";
+  dyn_int lines = tblProjects.getSelectedLines();
+  string path = txtSourceDir.text;
+  dyn_mixed upgradeInfo;
+  
+  if(path == \"\")
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Empty Path\", makeDynString(\"$1:You must define the path to the new version of the\\nFW Component Installation Tool\"));
+    return;
+  }
+  else if(dynlen(lines) <= 0)
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"Empty Path\", makeDynString(\"$1:You must select the project where the \\nFW Component Installation Tool will be upgrded\"));
+    return;
+  }
+
+  upgradeInfo[FW_INSTALLATION_DB_TOOL_UPGRADE_SOURCE_DIR] = path;
+  upgradeInfo[FW_INSTALLATION_DB_TOOL_UPGRADE_TARGET_DIR] = tfTargetPath.text;
+  
+  for(int i = 1; i <= dynlen(lines); i++)
+  {
+    getMultiValue(\"tblProjects\", \"cellValueRC\", lines[i], \"computers\", host,
+                  \"tblProjects\", \"cellValueRC\", lines[i], \"projects\", project);
+                  
+    upgradeInfo[FW_INSTALLATION_DB_TOOL_UPGRADE_SAFE_MODE] = cbSafeMode.state(0);
+
+    if(fwInstallationDBUpgrade_registerProjectToolUpgradeRequest(upgradeInfo, host, project))
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Failed to register upgrade request. \\nHost: \"+host+\"\\nProject:\" + project));    
+  }//end of loop for    
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tblProjects"
+""
+1 30 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  28 38 667 342
+"main()
+{
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);  
+}
+" 0
+E 1 0 1 4 0 "computers" 20 1 0 "s" 1
+LANG:1 5 Hosts
+E
+1
+LANG:1 0 
+
+190 "projects" 20 1 0 "s" 1
+LANG:1 8 Projects
+E
+1
+LANG:1 0 
+
+190 "versions" 10 1 0 "s" 1
+LANG:1 16 Current Versions
+E
+1
+LANG:1 0 
+
+105 "upgrades" 13 1 0 "s" 1
+LANG:1 8 Upgrades
+E
+1
+LANG:1 0 
+
+130 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+13 1
+"PUSH_BUTTON1"
+""
+1 560 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  558 488 662 522
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOffReturn(makeDynFloat(0.), makeDynString(\"CANCEL\"));
+}" 0
+ E E E
+2 2
+"PRIMITIVE_TEXT1"
+""
+1 30 20 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 30 20 406 34
+0 2 2 "0s" 0 0 0 192 0 0  30 20 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 62 Remote Upgrade Request for the FW Component Installation Tool:
+13 6
+"PUSH_BUTTON3"
+""
+1 450 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  448 488 552 522
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+   registerUpgradeRequests();
+   updatePanel();
+}
+
+" 0
+ E E E
+13 7
+"PUSH_BUTTON4"
+""
+1 340 490 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  338 488 442 522
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  registerUpgradeRequests();
+  PanelOffReturn(makeDynFloat(1.), makeDynString(\"OK\"));
+}
+" 0
+ E E E
+14 10
+"txtSourceDir"
+""
+1 330 373 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,12,5,40,0,0,0,0,0
+0  328 371 604 397
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+}
+" 0
+
+13 11
+"btnSelectSourceDir"
+""
+1 612 370 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  610 368 654 402
+
+P 
+14215660
+"pictures/fileselektor.xpm"
+1
+LANG:1 0 
+"main()
+{
+
+  string sPath;
+  int iErr = folderSelector( sPath );
+  if(( iErr >= 1 ) && ( strlen( sPath ) > 0 ))
+  {
+    if(patternMatch(\"*/\", sPath))
+      sPath += \"/\";
+    
+    strreplace( sPath, \"//\", \"/\" ); 
+    strreplace( sPath, \"\\\\\", \"/\" ); 
+    txtSourceDir.text = sPath;  
+  }
+}
+
+
+" 0
+ E E E
+2 12
+"PRIMITIVE_TEXT2"
+""
+1 52 376 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 52 376 300 390
+0 2 2 "0s" 0 0 0 192 0 0  52 376 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 52 Path to the new version of the FW Installation Tool:
+30 13
+"FRAME1"
+""
+1 30 343 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+17 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.6954314720812185 0 104.4670050761421 0 E 30 343 661 541
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Upgrade Information
+20 15
+"cbSafeMode"
+""
+1 50 450 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  48 448 272 472
+1
+T 
+1
+LANG:1 36 Set project to safe mode for upgrade
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+EE14 18
+"tfTargetPath"
+""
+1 330 413 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,12,5,40,0,0,0,0,0
+0  328 411 604 437
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+}
+" 0
+
+13 19
+"PUSH_BUTTON6"
+""
+1 612 410 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  610 408 654 442
+
+P 
+14215660
+"pictures/fileselektor.xpm"
+1
+LANG:1 0 
+"main()
+{
+
+  string sPath;
+  int iErr = folderSelector( sPath );
+  if(( iErr >= 1 ) && ( strlen( sPath ) > 0 ))
+  {
+    if(patternMatch(\"*/\", sPath))
+      sPath += \"/\";
+    
+    strreplace( sPath, \"//\", \"/\" ); 
+    strreplace( sPath, \"\\\\\", \"/\" ); 
+    txtSourceDir.text = sPath;  
+  }
+}
+
+
+" 0
+ E E E
+2 20
+"PRIMITIVE_TEXT3"
+""
+1 52 416 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 52 416 328 430
+0 2 2 "0s" 0 0 0 192 0 0  52 416 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 57 Target Path (if empty, the target PROJ_DIR will be used):
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

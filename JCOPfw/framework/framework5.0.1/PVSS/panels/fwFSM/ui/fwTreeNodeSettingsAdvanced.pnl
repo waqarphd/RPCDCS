@@ -1,0 +1,1015 @@
+V 11
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 670 458 N "_3DFace" 3
+"$1"
+"$2"
+"$3"
+"main()
+{
+dyn_float res;
+dyn_string items, ret;
+string unit;
+
+  set_up_table();
+}
+
+set_up_table()
+{
+  int        i, j = 0;
+  string     sDp;
+  dyn_string list;
+  
+  tabAll.tableMode(TABLE_SELECT_MULTIPLE);
+  tabAll.selectByClick(TABLE_SELECT_LINE);
+  tabSel.tableMode(TABLE_SELECT_MULTIPLE);
+  tabSel.selectByClick(TABLE_SELECT_LINE);
+  dsAllDps = makeDynString();
+  dsSelDps = makeDynString();
+//  setValue(\"type\",\"text\",\"Please Choose Type\");
+  set_up($3, dsAllDps);
+}
+
+set_up(string node, dyn_string &nodes)
+{
+	dyn_string exInfo, types;
+	int i;
+	string dev, type;
+	types = get_all_children(node, 0);
+  dynUnique(types);
+	setValue(\"type\",\"items\",types);
+//  setValue(\"type\",\"text\",\"Please Choose Type\");
+}
+" 0
+ E E E E 1 -1 -1 0  20 30
+""0  1
+E "/*
+string get_type()
+{
+	string dev, type;
+	dyn_string exInfo;
+
+	fwTree_getNodeDevice($3, dev, type, exInfo);
+	return type;
+}
+
+string get_type_enabled(int &enabled)
+{
+	string dev, type;
+	dyn_string exInfo;
+
+	type = get_type();
+  enabled = 1;
+//	if((fwFsm_isProxy($2)) || (fwFsm_isObjectReference($3)))
+	if(fwFsm_isObjectReference($3))
+		enabled = 0;
+	return type;
+}
+
+int get_CU()
+{
+	int cu;
+	dyn_string exInfo;
+
+	fwTree_getNodeCU($3, cu, exInfo);
+	return cu;
+}
+
+int get_CU_enabled(int &enabled)
+{
+	int cu, pcu, ccu;
+	dyn_string exInfo, children;
+  string parent;
+	int i, can_change = 1;
+
+	cu = get_CU();
+	fwTree_getParent($3, parent, exInfo);
+	fwTree_getNodeCU(parent, pcu, exInfo);
+	if(cu)
+	{
+//		fwTree_getNodeCU($1, pcu, exInfo);
+		if(!pcu)
+		{
+			can_change = -1;
+//DebugN(\"Can't change, Parent is not CU\");
+		}
+		fwTree_getChildren($3,children, exInfo);
+		for(i = 1; i <= dynlen(children); i++)
+		{
+			fwTree_getNodeCU(children[i], ccu, exInfo);
+			if(ccu)
+			{
+				can_change = -2;
+//DebugN(\"Can't change, Some children are CUs\");
+				break;
+			}
+		}
+	}
+	else
+	{
+//		fwTree_getNodeCU($1, pcu, exInfo);
+		if(strpos($3,\"&\") == 0)
+		{
+			can_change = -3;
+//DebugN(\"Can't change, CU name already exists\");
+		}
+		if(!pcu)
+		{
+			can_change = -4;
+//DebugN(\"Can't change, Parent not CU\");
+		}
+	}
+//	enabled = 1;
+//	if(cant_change)
+	enabled = can_change;
+	return cu;
+}
+
+string get_label()
+{
+	string label;
+
+	fwUi_getLabel($1, $2, label);
+	return label;
+}
+
+string get_default_label()
+{
+	string label;
+
+	label = fwFsm_getDefaultLabel($1, $2);
+	return label;
+}
+
+string get_panel()
+{
+	string panel, type;
+
+	fwUi_getUserPanel($1, $2, panel);
+	if(panel == \"\")
+	{
+		fwFsm_getObjectType($2, type);
+		fwUi_getTypePanel(type, panel);
+	}
+	return panel;
+}
+
+string get_default_panel()
+{
+	string panel;
+
+	panel = fwFsm_getDefaultPanel($1, $2);
+	return panel;
+}
+
+get_flags(int &visible, int &op, int &domain_op)
+{
+	op = 0;
+	domain_op = 0;
+	fwUi_getVisibility($1,$2, visible);
+	if($1 != $2)
+		fwUi_getOperation($1,$2, op);
+	else
+		fwUi_getDomainOperation($1, domain_op);
+}
+*/
+// bit0 = CU, bit1 = DU, bit2 = LO, bit3 = LU
+bit32 find_type()
+{
+	dyn_string children, exInfo;
+	bit32 type;
+	
+	if($1 != $2)
+	{
+		if(fwFsm_isProxy($2))
+			setBit(type, 1, 1);
+		else
+		{
+			fwTree_getChildren($3,children, exInfo);
+			if(dynlen(children))
+				setBit(type, 3, 1);
+			else
+				setBit(type, 2,1);
+		}
+	}
+	else
+	{
+		setBit(type, 0, 1);
+		if(fwFsm_isProxy($2))
+			setBit(type, 1, 1);
+	}
+	return type;
+}
+/*
+int get_ctrlFlag()
+{
+  int flag;
+  
+  flag = fwFsm_getCUCtrlFlag($1);
+  return flag;
+}
+*/
+global dyn_string dsAllDps;
+global dyn_string dsAllDpsOrig, dsAllDpsOrigMore;
+global dyn_string dsSelDps;
+
+localDisableAll()
+{
+  cmdSel.enabled = false;
+  cmdSelAll.enabled = false;
+  cmdRem.enabled = false;
+  cmdRemAll.enabled = false;
+  cmdOk.enabled = false;
+}
+
+localEnableAll()
+{
+  cmdSel.enabled = true;
+  cmdSelAll.enabled = true;
+  cmdRem.enabled = true;
+  cmdRemAll.enabled = true;
+  cmdOk.enabled = true;
+
+}
+
+get_children_rec(string node, dyn_string &all_nodes, dyn_string &all_types, dyn_string &orig, dyn_string &more, string type = \"\")
+{
+	dyn_string nodes, exInfo, types;
+	int i, ref;
+	string dev, node_type, ref_obj;
+
+ 	fwTree_getChildren(node, nodes, exInfo);
+	for(i = 1; i <= dynlen(nodes); i++)
+	{
+   get_children_rec(nodes[i], all_nodes, all_types, orig, more, type);
+   dynAppend(orig, nodes[i]);
+		fwTree_getNodeDevice(nodes[i], dev, node_type, exInfo);
+		ref_obj = nodes[i];
+		nodes[i] = fwTree_getNodeDisplayName(nodes[i], exInfo);
+		if((ref = fwFsm_isObjectReference(ref_obj)))
+		{
+ 				nodes[i] = \"&\"+nodes[i];
+				nodes[i] += \"(\"+fwFsm_getReferencedObjectDevice(ref_obj)+\")\";
+		}
+   dynAppend(more, nodes[i]);
+   if(type != \"\")
+   {
+     if(node_type == type)
+     {
+       dynAppend(all_nodes, nodes[i]);
+       dynAppend(all_types, node_type);
+     }
+   }
+   else
+   {
+     dynAppend(all_nodes, nodes[i]);
+     dynAppend(all_types, node_type);
+   }
+	}
+}
+                 
+dyn_string get_all_children(string node, int show_flag)
+{
+	dyn_string nodes, exInfo, types, orig, more;
+	int i, ref;
+	string dev, type, ref_obj;
+	
+	dynClear(dsAllDpsOrig);
+	dynClear(dsAllDpsOrigMore);
+  get_children_rec(node, nodes, types, orig, more);
+	dsAllDpsOrig = orig;
+	dsAllDpsOrigMore = more;
+//DebugN(node, nodes, types, type);
+  if(show_flag)
+  {
+  	tabAll.deleteAllLines();
+  	dsAllDps = nodes;
+    tabAll.appendLines(dynlen(dsAllDps), \"#1\", dsAllDps);
+  }
+  return types;
+}
+
+get_children(string node, string type)
+{
+	dyn_string nodes, exInfo, types, typenodes, alltypes, showtypes, orig, more;
+	int i, ref;
+	string dev, devtype, ref_obj;
+	
+	dynClear(dsAllDpsOrig);
+	dynClear(dsAllDpsOrigMore);
+  get_children_rec(node, nodes, types, orig, more, type);
+//DebugN(node, nodes, types, type);
+	dsAllDpsOrig = orig;
+	dsAllDpsOrigMore = more;
+	tabAll.deleteAllLines();
+	dsAllDps = nodes;
+  tabAll.appendLines(dynlen(dsAllDps), \"#1\", dsAllDps);
+
+	alltypes = fwFsm_getAllObjectTypes();
+ 	if(fwFsm_isProxyType(type))
+  {
+    for(i = 1; i <= dynlen(alltypes); i++)
+    {
+      if(fwFsm_isProxyType(alltypes[i]))
+        dynAppend(showtypes,alltypes[i]);
+    }
+  }
+  else
+  {
+    for(i = 1; i <= dynlen(alltypes); i++)
+    {
+      if(!fwFsm_isProxyType(alltypes[i]))
+        dynAppend(showtypes,alltypes[i]);
+    }
+  }
+  to_type.items = showtypes;
+}
+
+" 0
+ 2
+"CBRef" "0"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text2"
+""
+1 20 20 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	string text;
+	int visible, op, domain_op, flag;
+	bit32 node_type;
+	
+	node_type = find_type();
+	if(!getBit(node_type, 0))
+	{
+		if(getBit(node_type,1))
+		{
+			text = \"Device Unit: \"+$1+\"::\"+$2;
+		}
+		else
+		{
+			if(getBit(node_type, 3))
+				text = \"Logical Unit: \"+$1+\"::\"+$2;
+			else
+				text = \"Logical Object: \"+$1+\"::\"+$2;
+		}
+	}
+	else
+	{
+		text = \"Control Unit: \"+$1;
+	}
+	setValue(\"\",\"text\",text);
+}" 0
+ E 0 1 1 0 1 E U  1 E 12 12 100 29
+0 2 2 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 12 Device Name:
+13 5
+"cmdCancel"
+""
+1 698.125 580 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  538 408 652 438
+
+T 
+2
+LANG:1 6 Cancel
+LANG:0 9 Abbrechen
+"main()
+{
+  PanelOffReturn(makeDynFloat(0),makeDynString()); 
+}" 0
+ E E E
+13 6
+"cmdOk"
+""
+1 428.875 580 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  398 408 512 438
+
+T 
+2
+LANG:1 2 Ok
+LANG:0 2 OK
+"main()
+{
+  int        i, index;
+  dyn_int    di;
+  dyn_float  df;
+  dyn_string ds, dsDps;
+  string old_type, new_type;
+
+  if ( tabSel.lineCount < 1 )
+  {
+    PanelOffReturn(makeDynFloat(0), makeDynString());
+    return;
+  }
+
+  old_type = type.text;
+  new_type = to_type.text;
+  if(old_type == new_type)
+  {
+    PanelOffReturn(makeDynFloat(0), makeDynString());
+    return;
+  }
+  dynAppend(dsDps, old_type);
+  dynAppend(dsDps, new_type);
+  for ( i = 1; i <= tabSel.lineCount; i++ )
+  {
+    ds = tabSel.getLineN(i-1);
+    dynAppend(dsDps, ds[1]);
+  }
+
+  if(dynlen(dsDps) > 2)
+  {
+    for(i = 3; i <= dynlen(dsDps); i++)
+    {
+      if(index = dynContains(dsAllDpsOrigMore, dsDps[i]))
+      {
+        dsDps[i] = dsAllDpsOrig[index]; 
+      }
+	  }
+    PanelOffReturn(makeDynFloat(1), dsDps);
+  }
+  else
+    PanelOffReturn(makeDynFloat(0), makeDynString());
+}
+
+/*
+main()
+{
+	dyn_string pars;
+	string type, label, panel, new_type, new_label, new_panel;
+	int i, cu, visible, op, domain_op, ctrl_flag;
+	int new_cu, new_visible, new_op, new_domain_op, par4, doit, new_ctrl_flag;
+	
+	doit = 0;
+	for(i = 1; i <= 7; i++)
+		pars[i] = \"\";
+	getValue(\"label\",\"text\",new_label);
+	label = get_label();
+	if(label != new_label)
+		doit = 1;
+	else
+		new_label = \"\";
+	getValue(\"panel\",\"text\",new_panel);
+	panel = get_panel();
+	if(panel != new_panel)
+		doit = 1;
+	else
+		new_panel = \"\";
+	getValue(\"visible_flag\",\"state\",0,new_visible);
+	get_flags(visible, op, domain_op);
+	if(visible != new_visible)
+		doit = 1;
+	else
+		new_visible = -1;
+	if($1 != $2)
+	{
+		getValue(\"operator_flag\",\"state\",0,new_op);
+		if(op != new_op)
+			doit = 1;
+		else
+			new_op = -1;
+		par4 = new_op;
+	}
+	else
+	{
+		getValue(\"children_operator_flag\",\"state\",0,new_domain_op);
+		if(domain_op != new_domain_op)
+			doit = 1;
+		else
+			new_domain_op = -1;
+		par4 = new_domain_op;
+	}
+	if(doit)
+	{
+		pars[1] = new_label;
+		pars[2] = new_panel;
+		pars[3] = new_visible;
+		pars[4] = par4;
+	}
+	getValue(\"type\",\"text\",new_type);
+	type = get_type();
+	if(type != new_type)
+	{
+		pars[5] = new_type;
+	}
+	getValue(\"cu\",\"state\",0, new_cu);
+	cu = get_CU();
+	if(cu != new_cu)
+	{
+		pars[6] = new_cu;
+	}
+  if(cu)
+  {
+	  getValue(\"ctrl\",\"number\", new_ctrl_flag);
+	  ctrl_flag = get_ctrlFlag();
+	  if(ctrl_flag != new_ctrl_flag)
+	  {
+	  	pars[7] = new_ctrl_flag;
+	  }
+  }
+//DebugN(pars);
+	PanelOffReturn(makeDynFloat(1),pars); 
+}
+*/" 0
+ E E E
+2 29
+"PRIMITIVE_TEXT1"
+""
+1 20 90 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 92 258 108
+0 2 0 "0s" 0 0 0 64 0 0  22 92 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 10 From Type:
+25 30
+"tabAll"
+""
+1 20 130 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 118 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,0,0,0,0,Courier New
+0  18 128 312 322
+EE 0 0 1 1 1 "#1" 22 1 0 "s" 1
+LANG:1 2 #1
+E
+1
+LANG:1 0 
+
+257 
+16 16 "" 1 1
+LANG:1 2 #1
+8 30
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 118 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,0,0,0,0,Courier New
+0 0 2 1 0 7
+1 0
+13 31
+"cmdSel"
+""
+1 320 150 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+31 1 0 0 39 0
+E E E
+0
+2
+LANG:1 29 Select marked nodes to delete
+LANG:0 37 Markierte DPs zum Löschen selektieren
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  318 148 352 175
+
+P 
+13434828
+"pictures/cmdSel.bmp"
+1
+LANG:1 0 
+"main()
+{
+  int        i;
+  dyn_int    di;
+  dyn_string dsDps;
+
+  localDisableAll();
+  
+  di = tabAll.getSelectedLines;
+  dynSortAsc(di);
+  for ( i = dynlen(di); i > 0; i-- )
+  {
+    dsDps[i] = dsAllDps[di[i]+1];
+    dynRemove(dsAllDps, di[i]+1);
+  }
+  dynAppend(dsSelDps, dsDps);
+  dynSortAsc(dsSelDps);
+  dynUnique(dsSelDps);
+
+  tabSel.deleteAllLines();
+  tabAll.deleteAllLines();
+  tabSel.appendLines(dynlen(dsSelDps), \"#1\", dsSelDps);
+  tabAll.appendLines(dynlen(dsAllDps), \"#1\", dsAllDps);
+
+  txtSelected.text = \" ( \" + tabSel.lineCount + \" )\";
+
+  localEnableAll();
+}" 0
+ E E E
+13 32
+"cmdSelAll"
+""
+1 320 180 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 1 0 1 39 0
+E E E
+0
+2
+LANG:1 26 Select all nodes to delete
+LANG:0 32 Alle DPs zum Löschen selektieren
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  318 178 352 205
+
+P 
+13434828
+"pictures/cmdSelAll.bmp"
+1
+LANG:1 0 
+"main()
+{
+  dyn_string ds = dsSelDps;
+  
+  localDisableAll();
+
+  tabSel.deleteAllLines();
+  dynAppend(dsAllDps, ds);
+  dynSortAsc(dsAllDps);
+  tabSel.appendLines(dynlen(dsAllDps), \"#1\", dsAllDps);
+  dsSelDps = dsAllDps;
+  dsAllDps = makeDynString();
+  dynSortAsc(dsSelDps);
+  tabAll.deleteAllLines();
+
+  txtSelected.text = \" ( \" + tabSel.lineCount + \" )\";
+
+  localEnableAll();
+}" 0
+ E E E
+13 33
+"cmdRem"
+""
+1 320 230 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+33 1 0 0 37 0
+E E E
+0
+2
+LANG:1 27 Don't delete selected nodes
+LANG:0 27 Markierte DPs nicht löschen
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  318 228 352 255
+
+P 
+13434828
+"pictures/cmdRem.bmp"
+1
+LANG:1 0 
+"main()
+{
+  int        i;
+  dyn_int    di;
+  dyn_string dsDps;
+
+  localDisableAll();
+
+  di = tabSel.getSelectedLines;
+  dynSortAsc(di);
+  for ( i = dynlen(di); i > 0; i-- )
+  {
+    dsDps[i] = dsSelDps[di[i]+1];
+    dynRemove(dsSelDps, di[i]+1);
+  }
+  dynAppend(dsAllDps, dsDps);
+  dynSortAsc(dsAllDps);
+  dynUnique(dsAllDps);
+
+  tabSel.deleteAllLines();
+  tabAll.deleteAllLines();
+  tabAll.appendLines(dynlen(dsAllDps), \"#1\", dsAllDps);
+  tabSel.appendLines(dynlen(dsSelDps), \"#1\", dsSelDps);
+
+  txtSelected.text = \" ( \" + tabSel.lineCount + \" )\";
+
+  localEnableAll();
+}" 0
+ E E E
+13 34
+"cmdRemAll"
+""
+1 320 260 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+34 1 0 1 37 0
+E E E
+0
+2
+LANG:1 22 Don't delete any nodes
+LANG:0 17 Keine DPs löschen
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  318 258 352 285
+
+P 
+13434828
+"pictures/cmdRemAll.bmp"
+1
+LANG:1 0 
+"main()
+{
+  dyn_string ds = dsAllDps;
+  
+  localDisableAll();
+
+  tabSel.deleteAllLines();
+  dsAllDps = dsSelDps;
+  dynAppend(dsAllDps, ds);
+  dynSortAsc(dsAllDps);
+  dsSelDps = makeDynString();
+  tabAll.deleteAllLines();
+  tabAll.appendLines(dynlen(dsAllDps), \"#1\", dsAllDps);
+
+  txtSelected.text = \" ( \" + tabSel.lineCount + \" )\";
+
+  localEnableAll();
+}" 0
+ E E E
+25 35
+"tabSel"
+""
+1 336 28 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 118 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,0,0,0,0,Courier New
+0  358 128 652 322
+EE 0 0 1 1 1 "#1" 22 1 0 "s" 1
+LANG:1 2 #1
+E
+1
+LANG:1 0 
+
+257 
+16 16 "" 1 1
+LANG:1 2 #1
+8 30
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 118 -microsoft windows-Courier New-normal-r-normal-*-*-110-100-100-*-*-iso8859-1|-12,0,0,0,400,0,0,0,0,0,0,0,0,Courier New
+0 0 2 1 0 7
+1 0
+22 38
+"type"
+""
+1 100 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  98 88 352 115
+0
+
+E
+"main()
+{
+string type;
+
+	getValue(\"\",\"text\",type);
+ choose.visible = 0;
+	if(type == \"All Types\")
+		get_all_children($3);
+	else
+		get_children($3, type);
+}
+/*
+get_children(string node, string type)
+{
+	dyn_string nodes, exInfo, types, typenodes;
+	int i, ref;
+	string dev, devtype;
+	
+	fwTree_getChildren(node, nodes, exInfo);
+	for(i = 1; i <= dynlen(nodes); i++)
+	{
+		fwTree_getNodeDevice(nodes[i], dev, devtype, exInfo);
+//		strreplace(nodes[i],\"&\",\"&&\");
+
+		if(devtype == type)
+		{
+			dynAppend(dsAllDpsOrig, nodes[i]);	
+			if((ref = fwFsm_isObjectReference(nodes[i])))
+			{
+				nodes[i] = fwFsm_getReferencedObject(nodes[i]);
+				if(ref == 1)
+					nodes[i] = \"&&\"+nodes[i];
+			}
+			dynAppend(typenodes, nodes[i]);
+		}	
+	}				
+	tabAll.deleteAllLines();
+	dsAllDps = typenodes;
+  tabAll.appendLines(dynlen(dsAllDps), \"#1\", dsAllDps);
+}
+*/" 0
+
+E
+ 0 0
+2 39
+"PRIMITIVE_TEXT2"
+""
+1 20 60 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 52 278 69
+0 2 2 "0s" 0 0 0 192 0 0  12 52 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 41 Change Types of Children in this Sub Tree
+2 40
+"PRIMITIVE_TEXT3"
+""
+1 20 340 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 342 258 358
+0 2 0 "0s" 0 0 0 64 0 0  22 342 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 8 To Type:
+22 41
+"to_type"
+""
+1 100 340 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  98 338 352 365
+0
+
+E
+E
+E
+ 0 0
+2 42
+"txtSelected"
+""
+1 620 110 E E E 1 E 0 E N {0,0,0} E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 620 110 647 127
+0 0 0 "0s" 0 0 0 192 0 0  620 110 1
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 2
+LANG:1 6  ( 0 )
+LANG:0 6  ( 0 )
+2 44
+"choose"
+""
+1 370 100 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 362 92 502 109
+0 2 2 "0s" 0 0 0 192 0 0  362 92 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 21 Please Choose Type...
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

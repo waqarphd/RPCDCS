@@ -1,0 +1,1010 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 841 676 N "_3DFace" 0
+"main()
+{
+    dyn_string exceptionInfo;
+    //Access control callback function
+    fwAccessControl_setupPanel(\"applyAccessControl\",exceptionInfo);
+	
+    // check and handle exceptions that might have been thrown by the functions above
+    if (dynlen(exceptionInfo)) 
+    {
+      fwAccessControl_displayException(exceptionInfo);
+      return;
+    }    
+}" 0
+ E E E E 1 -1 -1 0  50 20
+""0  1
+E "loadParentTemplates()
+{
+  dyn_string items = makeDynString(\"\");
+  dyn_string templates = dpNames(\"*\", \"FwSystemOverviewDeviceConfigurationTemplate\");
+  for(int i=1; i<= dynlen(templates);i++)
+  {
+    string dp = dpSubStr(templates[i], DPSUB_DP);
+    dyn_string tmpArr = strsplit(dp, \"_\");
+    if (dynlen(tmpArr)>1)
+      dynAppend(items, tmpArr[2]);
+  }
+  cbParentPattern.items = items;
+  setValue(\"cbParentPattern\", \"selectedPos\", 1);
+}
+
+loadTemplates()
+{ 
+  dyn_string items;
+  dyn_string templates = dpNames(\"*\", \"FwSystemOverviewDeviceConfigurationTemplate\");
+
+  for(int i=1; i<= dynlen(templates);i++)
+  {
+    string dp = dpSubStr(templates[i], DPSUB_DP);
+    dyn_string tmpArr = strsplit(dp, \"_\");
+    if (dynlen(tmpArr)>1)
+      dynAppend(items, tmpArr[2]);
+  }
+  btnLoad.enabled = dynlen(templates) > 0;
+
+  cbPatterns.items = items;
+}
+applyAccessControl(string s1, string s2)
+{
+  string domain;
+  dyn_string exceptionInfo;
+  bool granted = FALSE;
+  fwSysOverview_getACDomain(domain);
+
+  if(domain != \"\")
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(1);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, granted, exceptionInfo);
+    
+    if (dynlen(exceptionInfo)) {
+     fwAccessControl_displayException(exceptionInfo); return;
+    } 
+  }
+  else
+    granted = true;
+  
+  DisableAllInPanel(granted);
+  
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+22 0
+"cbPatterns"
+""
+1 62 14 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  60 12 184 35
+0
+
+"main()
+{
+ loadTemplates();
+}" 0
+
+"main()
+{
+  if (this.selectedPos > 0)
+    btnLoad.enabled = true;
+  
+  tbConfig.deleteAllLines();
+}" 0
+
+E
+ 0 0
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 2 17 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 2 17 49 31
+0 2 2 "0s" 0 0 0 192 0 0  2 17 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Template:
+13 2
+"btnLoad"
+""
+1 192 12 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  190 10 314 37
+
+T 
+1
+LANG:1 4 Load
+"main()
+{
+  tbConfig.deleteAllLines();
+  loadParentTemplates();
+  string template = cbPatterns.selectedText;
+  string templateDp = \"fwSystemOverviewDeviceConfigTemplate_\" + template;
+  if (dpExists(templateDp))
+  {
+    
+    dyn_string dpePatterns;
+    dyn_string dpeTypes;    
+    dyn_string smsFlags;
+    dyn_string URLs;
+    dyn_string descriptions;
+    dyn_string aliases;
+    string parentTemplate;
+    dpGet(templateDp + \".dpePatterns\", dpePatterns,
+          templateDp + \".dpeTypes\", dpeTypes,
+          templateDp + \".smsFlags\", smsFlags,
+          templateDp + \".URLs\", URLs,
+          templateDp + \".descriptions\", descriptions,
+          templateDp + \".aliases\", aliases,
+          templateDp + \".parentTemplate\", parentTemplate);
+
+    deleteCurrentPatternFromParentPatterns(template);
+    if (parentTemplate != \"\")
+      cbParentPattern.selectedPos(dynContains(cbParentPattern.items, parentTemplate)); 
+
+    tbConfig.appendLines(dynlen(dpePatterns), \"dpePattern\", dpePatterns, \"dpeType\", dpeTypes, \"smsFlag\", smsFlags, \"url\", URLs, \"description\", descriptions, \"alias\", aliases);
+    btnSave.enabled = true;
+  } 
+  else btnSave.enabled = false;
+}
+deleteCurrentPatternFromParentPatterns(string template)
+{
+  dyn_string items =  cbParentPattern.items;
+  int pos = dynContains(items, template);
+  if (pos >= 0)
+    cbParentPattern.deletePos(pos);
+  
+}
+
+" 0
+ E E E
+25 3
+"tbConfig"
+""
+1 20 100 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"selectionChangedCB" "synchronized main()
+{
+  dyn_int lines = tbConfig.getSelectedLines();
+  if (dynlen(lines) == 0)
+    return;
+  int row = lines[1];
+   slPatterns.deleteAllItems();
+  slPatterns.items = makeDynString(tbConfig.cellValueRC(row, \"dpePattern\"));
+  tfUrl.text = tbConfig.cellValueRC(row, \"url\");
+  tfAlias.text = tbConfig.cellValueRC(row, \"alias\");  
+  tfDescription.text = tbConfig.cellValueRC(row, \"description\");    
+  cbSms.text = tbConfig.cellValueRC(row, \"smsFlag\");  
+
+}"
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 98 752 392
+"main()
+{
+  this.tableMode(TABLE_SELECT_LINE);
+  this.selectByClick(TABLE_SELECT_LINE);
+}" 0
+"main(int row, string column, string value)
+{
+ }" 0
+ 1 0 1 6 0 "dpePattern" 11 1 1 "s" 1
+LANG:1 11 Dpe Pattern
+E
+1
+LANG:1 0 
+
+120 "dpeType" 11 1 1 "s" 1
+LANG:1 8 Dpe Type
+E
+1
+LANG:1 0 
+
+120 "alias" 11 1 1 "s" 1
+LANG:1 5 Alias
+E
+1
+LANG:1 0 
+
+120 "description" 14 1 1 "s" 1
+LANG:1 11 Description
+E
+1
+LANG:1 0 
+
+150 "url" 14 1 1 "s" 1
+LANG:1 3 URL
+E
+1
+LANG:1 0 
+
+150 "smsFlag" 5 1 1 "s" 1
+LANG:1 3 SMS
+E
+1
+LANG:1 0 
+
+60 
+16 16 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+30 4
+"FRAME1"
+""
+1 30 363 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+4 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.35 0 4.409448818897636 -30.5 -1560.629921259842 0 E 30 363 631 491
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Configuration
+2 5
+"PRIMITIVE_TEXT2"
+""
+1 22 412 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 412 79 426
+0 2 2 "0s" 0 0 0 192 0 0  22 412 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Dpe Pattern
+2 6
+"PRIMITIVE_TEXT3"
+""
+1 402 413 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 402 413 427 427
+0 2 2 "0s" 0 0 0 192 0 0  402 413 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Alias
+2 7
+"PRIMITIVE_TEXT4"
+""
+1 402 444 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 402 444 455 458
+0 2 2 "0s" 0 0 0 192 0 0  402 444 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Description
+2 8
+"PRIMITIVE_TEXT5"
+""
+1 402 483 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 402 483 423 497
+0 2 2 "0s" 0 0 0 192 0 0  402 483 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 URL
+2 9
+"PRIMITIVE_TEXT6"
+""
+1 402 514 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 402 514 427 528
+0 2 2 "0s" 0 0 0 192 0 0  402 514 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 SMS
+22 11
+"cbSms"
+""
+1 482 511.0000000000002 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  480 509 604 533
+2
+1
+LANG:1 2 NO
+
+0
+1
+LANG:1 3 YES
+
+0
+
+E
+"main()
+{
+}
+
+" 0
+
+E
+ 1 0
+14 12
+"tfUrl"
+""
+1 482 480 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  480 478 754 501
+3 "0s" 0 0 0 0 0 -1  E E E
+14 13
+"tfDpePattern"
+""
+1 20 570 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 568 292 591
+3 "0s" 0 0 0 0 0 -1  E E E
+14 14
+"tfDescription"
+""
+1 480 441 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  478 439 752 462
+3 "0s" 0 0 0 0 0 -1  E E E
+14 15
+"tfAlias"
+""
+1 480 410 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  478 408 752 431
+3 "0s" 0 0 0 0 0 -1  E E E
+13 17
+"btnAdd"
+""
+1 760 400 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  758 398 792 432
+
+P 
+4294967295
+"pictures/append.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  dyn_string patterns = slPatterns.items;
+  if ( cbSms.selectedText == \"YES\" && tfUrl.text == \"\")// no SMS if there is no procedure associated with the alarm
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:SMS can only be send for alarms with asociated web\\nprocedure! Please, provide URL.\"));
+    return;
+  }
+  for (int i=1; i<=dynlen(patterns); i++)
+  { 
+    tbConfig.appendLine(\"dpePattern\", patterns[i], \"alias\", tfAlias.text, \"description\", tfDescription.text,
+                      \"smsFlag\", cbSms.selectedText, \"url\", tfUrl.text);
+  }
+}" 0
+ E E E
+13 18
+"btnDelete"
+""
+1 760 360 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  758 358 792 392
+
+P 
+4294967295
+"pictures/del_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  dyn_int lines;
+  getValue(\"tbConfig\", \"getSelectedLines\", lines);
+  if (dynlen(lines) >0)
+    tbConfig.deleteLineN(lines[1]);
+}" 0
+ E E E
+13 19
+"btnDeleteAll"
+""
+1 760 320 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  758 318 792 352
+
+P 
+4294967295
+"pictures/delAll_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  tbConfig.deleteAllLines();
+}" 0
+ E E E
+2 21
+"PRIMITIVE_TEXT7"
+""
+1 22 62 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 62 102 76
+0 2 2 "0s" 0 0 0 192 0 0  22 62 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Parent Template
+22 22
+"cbParentPattern"
+""
+1 110 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  108 58 232 81
+0
+
+"main()
+{
+  loadParentTemplates();
+}
+" 0
+
+E
+E
+ 0 0
+2 23
+"PRIMITIVE_TEXT8"
+""
+1 400 540 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 400 540 745 585
+0 2 2 "0s" 0 0 0 64 0 0  400 540 2
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 66 Allowed wildcards are: %rootDevice, %rootAlias, %rootDescription, 
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 62 %device, %deviceAlias, %deviceDescription, %application, %tree
+13 24
+"btnSave"
+""
+1 690 610 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  688 608 812 635
+
+T 
+1
+LANG:1 4 Save
+"main()
+{
+  string templateDp = \"fwSystemOverviewDeviceConfigTemplate_\" + cbPatterns.selectedText;
+  if (dpExists(templateDp))
+  {
+    dyn_string dpePatterns;
+    dyn_string dpeTypes;    
+    dyn_string smsFlags;
+    dyn_string URLs;
+    dyn_string descriptions;
+    dyn_string aliases;
+    string parentTemplate;
+    int lines = tbConfig.lineCount();
+    for(int i=0; i<lines; i++)
+    {
+      dynAppend(dpePatterns, tbConfig.cellValueRC(i, \"dpePattern\"));
+      dynAppend(dpeTypes, tbConfig.cellValueRC(i, \"dpeType\"));      
+      dynAppend(URLs, tbConfig.cellValueRC(i, \"url\"));
+      dynAppend(aliases, tbConfig.cellValueRC(i, \"alias\"));
+      dynAppend(descriptions, tbConfig.cellValueRC(i, \"description\"));
+      dynAppend(smsFlags, tbConfig.cellValueRC(i, \"smsFlag\"));      
+    }
+    dpSet(templateDp + \".dpePatterns\", dpePatterns,
+          templateDp + \".dpeTypes\", dpeTypes,
+          templateDp + \".smsFlags\", smsFlags,
+          templateDp + \".URLs\", URLs,
+          templateDp + \".descriptions\", descriptions,
+          templateDp + \".aliases\", aliases,
+          templateDp + \".parentTemplate\", cbParentPattern.selectedText);
+    loadTemplates();
+  }
+}
+" 0
+ E E E
+13 25
+"btnSaveAsNew"
+""
+1 690 640 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  688 638 812 665
+
+T 
+1
+LANG:1 11 Save as new
+"main()
+{
+  string templateDp = \"fwSystemOverviewDeviceConfigTemplate_\" + tfPatternName.text;
+  if (!dpExists(templateDp))
+  {
+    dpCreate(templateDp, \"FwSystemOverviewDeviceConfigurationTemplate\");
+    dyn_string dpePatterns;
+    dyn_string dpeTypes;        
+    dyn_string smsFlags;
+    dyn_string URLs;
+    dyn_string descriptions;
+    dyn_string aliases;
+    string parentTemplate;
+    int lines = tbConfig.lineCount();
+    for(int i=0; i<lines; i++)
+    {
+      dynAppend(dpePatterns, tbConfig.cellValueRC(i, \"dpePattern\"));
+      dynAppend(dpeTypes, tbConfig.cellValueRC(i, \"dpeType\"));          
+      dynAppend(URLs, tbConfig.cellValueRC(i, \"url\"));
+      dynAppend(aliases, tbConfig.cellValueRC(i, \"alias\"));
+      dynAppend(descriptions, tbConfig.cellValueRC(i, \"description\"));
+      dynAppend(smsFlags, tbConfig.cellValueRC(i, \"smsFlag\"));      
+    }
+    dpSet(templateDp + \".dpePatterns\", dpePatterns,
+          templateDp + \".dpeTypes\", dpeTypes,          
+          templateDp + \".smsFlags\", smsFlags,
+          templateDp + \".URLs\", URLs,
+          templateDp + \".descriptions\", descriptions,
+          templateDp + \".aliases\", aliases,
+          templateDp + \".parentTemplate\", cbParentPattern.selectedText);
+    loadTemplates();    
+  }
+}
+" 0
+ E E E
+2 26
+"PRIMITIVE_TEXT8"
+""
+1 512 645 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 512 645 540 659
+0 2 2 "0s" 0 0 0 192 0 0  512 645 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 Name
+14 27
+"tfPatternName"
+""
+1 562 642 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"textChangedCB" "main(string newText)
+{
+  string name = strrtrim(strltrim(tfPatternName.text));
+  dyn_string items = cbPatterns.items;
+  btnSaveAsNew.enabled = strlen(name) > 0 && !dynContains(items, name);
+}"
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  560 640 684 663
+3 "0s" 0 0 0 0 0 -1  E E E
+17 28
+"slPatterns"
+""
+1 20 430 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 428 292 552
+0
+
+E
+"main()
+{
+  tfDpePattern.text = slPatterns.selectedText;
+  
+}" 0
+
+E
+
+0 0
+13 34
+"PUSH_BUTTON1"
+""
+1 300 560 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  298 558 332 592
+
+P 
+4294967295
+"pictures/append.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  dyn_string patterns = slPatterns.items;
+  dynAppend(patterns, tfDpePattern.text);
+  slPatterns.items = patterns;
+
+}
+
+
+" 0
+ E E E
+13 35
+"PUSH_BUTTON2"
+""
+1 300 480 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  298 478 332 512
+
+P 
+4294967295
+"pictures/del_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+E E "main()
+{
+  int pos = slPatterns.selectedPos;
+  slPatterns.deletePos(pos);
+
+}
+
+
+
+" 0
+ E
+13 36
+"PUSH_BUTTON3"
+""
+1 300 440 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  298 438 332 472
+
+P 
+4294967295
+"pictures/delAll_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  slPatterns.deleteAllItems();
+
+}
+" 0
+ E E E
+13 37
+"btnAddPatterns"
+""
+1 210 400 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  208 398 292 425
+
+T 
+1
+LANG:1 12 Add Multiple
+"main()
+{
+  dyn_string patterns;
+  dyn_float df;
+  ChildPanelOnCentralModalReturn(\"fwSystemOverview/fwSystemOverview_multiplePatternsSelector.pnl\",
+                                \"Patterns selector\",
+                                makeDynString(),
+                                df, patterns);
+
+  int numOfPatterns = dynlen(patterns);
+  for (int i=1; i<= numOfPatterns; i++)
+  {
+    slPatterns.appendItem(patterns[i]);
+  }
+}" 0
+ E E E
+13 38
+"PUSH_BUTTON4"
+""
+1 300 520 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  298 518 332 552
+
+P 
+4294967295
+"pictures/apply_16.png"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  int pos = slPatterns.selectedPos;
+  dyn_string items = slPatterns.items;
+  items[pos] = tfDpePattern.text;
+  slPatterns.items = items;
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

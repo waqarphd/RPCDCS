@@ -1,0 +1,633 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 770 573 N "_3DFace" 2
+"$1"
+"$2"
+"put_state(int n, string device, string state, string color, string label, string dutype)
+{
+	int ret;
+	string flag;
+
+	ret = addSymbol(myModuleName(),myPanelName(),
+		\"fwFSM/fsm/config_device_state_more.pnl\",
+//		\"fwFSM/fsm/config_device_state.pnl\",
+		\"state\"+n, 
+		makeDynString(device,state,color,label, n, \"1\", dutype),
+		0,10+(n-1)*90,0,0,1);
+}
+
+main()
+{
+	int i;
+	dyn_string state_list;
+	string state, color, label;
+
+	Abort = 0;
+	fwFsm_createTmpDeviceType($1);
+	addGlobal(\"_GlobalStatesLines\", DYN_DYN_STRING_VAR);
+	addGlobal(\"_GlobalStateFlags\", DYN_INT_VAR);
+	decode_script();
+	fwFsm_getLocalStates(state_list);
+	for(i = 1; i <= dynlen(state_list); i++)
+	{
+		if(Abort)
+			break;
+		state = state_list[i];
+		fwFsm_getLocalStateColor(state, color);
+		if(i == 1)
+			label = \"if\";
+		else if(i == dynlen(state_list))
+			label = \"else\";
+		else
+			label = \"else if\";
+		if(i <= 5)
+			put_state(i, $1, state, color, label, $2);
+		else
+			setValue(\"More\",\"visible\",1);
+	}
+	setValue(\"Abort\",\"visible\",0);
+}
+
+" 0
+ E E E E 1 -1 -1 0  50 80
+""0  1
+E "dyn_string aux_text;
+int Abort;
+
+string get_dependencies()
+{
+	dyn_string state_list;
+	string text, ret;
+	dyn_string items, item_types;
+  int i;
+
+//	fwFsm_getLocalStates(state_list);
+//	getComponents(state_list);
+	fwFsm_getLocalStateComps(items, item_types);
+/*
+	text = $2+\"_valueChanged( string domain, string device\"; 
+
+	for(i = 1; i <= dynlen(items); i++)
+	{
+		text += \",\\n\";
+		strreplace(items[i],\".\",\"_dot_\");
+   text += \"      \"+item_types[i]+\" \"+items[i]; 
+	}
+  text += \", string &fwState )\\n{\\n\"; 
+DebugTN(text);
+*/
+//DebugTN(items, item_types);
+  ret = items;
+  strreplace(ret,\" | \",\"|\");
+  return(ret);
+}
+
+string change_dependencies(dyn_string itemsAndTypes)
+{
+	dyn_string state_list;
+	string full_text, old_text, text, ret;
+	dyn_string parts, items, item_types, old_items, old_item_types;
+  int i;
+
+  fwFsm_getLocalStateComps(old_items, old_item_types);
+  old_text = $2+\"_valueChanged( string domain, string device\"; 
+  for(i = 1; i <= dynlen(old_items); i++)
+  {
+    old_text += \",\\n\";
+    strreplace(old_items[i],\".\",\"_dot_\");
+    old_text += \"      \"+old_item_types[i]+\" \"+old_items[i]; 
+  }
+  old_text += \", string &fwState )\\n{\\n\"; 
+  for(i = 1; i <= dynlen(itemsAndTypes); i++)
+  {
+    parts = strsplit(itemsAndTypes[i],\" \");
+    dynAppend(items,parts[1]);
+    dynAppend(item_types, parts[2]);
+  }
+//DebugTN(\"settingComps\", items, item_types);
+  fwFsm_setLocalStateComps(items,item_types);
+  text = $2+\"_valueChanged( string domain, string device\"; 
+  for(i = 1; i <= dynlen(items); i++)
+  {
+    text += \",\\n\";
+    strreplace(items[i],\".\",\"_dot_\");
+    text += \"      \"+item_types[i]+\" \"+items[i]; 
+  }
+  text += \", string &fwState )\\n{\\n\"; 
+
+  fwFsm_getLocalStateScript(full_text);
+//  fwFsm_setLocalStateScript(text);
+  strreplace(full_text,old_text,text);
+//DebugTN(full_text);
+  fwFsm_setLocalStateScript(full_text);
+}
+
+generate_script()
+{
+	dyn_string action_text_in;
+	string text, text1, aux, value, cond;
+	int i, j, k, more, n, pos;
+	dyn_string state_list;
+	string state, typ, label;
+	dyn_string items, item_types, cond_items;
+
+	fwFsm_getLocalStates(state_list);
+	getComponents(state_list);
+	fwFsm_getLocalStateComps(items, item_types);
+	text = $2+\"_valueChanged( string domain, string device\"; 
+
+	for(i = 1; i <= dynlen(items); i++)
+	{
+		text += \",\\n\";
+		strreplace(items[i],\".\",\"_dot_\");
+      		text += \"      \"+item_types[i]+\" \"+items[i]; 
+	}
+   	text += \", string &fwState )\\n{\\n\"; 
+	n = 0;
+	if(dynlen(_GlobalStatesLines[1]))
+	{
+		for(i = 1; i <= dynlen(state_list); i++)
+		{
+		more = 0;
+		state = state_list[i];		
+		if(i == 1)
+			label = \"if\";
+		else if(i == dynlen(state_list))
+			label = \"else\";
+		else
+			label = \"else if\";
+		action_text_in = generate_state_script(i, label);
+		n += dynlen(action_text_in);
+		text1 += \"\\t\"+action_text_in[1]+\" \";
+		if(dynlen(action_text_in) > 3)
+		{
+			more = 1;
+			text1 += \"(\\n\\t\";
+		}
+		if(dynlen(action_text_in) == 1)
+			text1 += \"\\n\";
+		for(j = 2 ; j < dynlen(action_text_in); j++)
+		{
+			cond_items = strsplit(action_text_in[j],\" \");
+			strreplace(cond_items[1],\".\",\"_dot_\");
+			cond = \"\";
+			for(k = 1; k <= dynlen(cond_items); k++)
+			{
+				cond += cond_items[k];
+				if(k != dynlen(cond_items))
+					cond += \" \";
+			}
+			text1 += \"(\"+cond+\")\";
+			if(more)
+			{
+				j++;
+				if(action_text_in[j] != \"then\")
+					text1 += \" \"+action_text_in[j]+\"\\n\\t\";
+				else
+					text1 += \" )\\n\";
+			}
+			else
+				text1 += \"\\n\";
+		}
+		text1 += \"\\t{\\n\\t\\tfwState = \\\"\"+state+\"\\\";\\n\\t}\\n\";
+
+		}
+	}
+  text1 += \"}\\n\\n\";
+	for(i = 1; i <= dynlen(aux_text); i++)
+	{
+		text += aux_text[i];
+	}
+	text += text1;
+//	if(n > 3)
+		fwFsm_setLocalStateScript(text);
+}
+
+getComponents(dyn_string state_list)
+{
+	int i, j;
+	string name, type, op, line;
+	dyn_string comps, types, items;
+
+	for(i = 1; i <= dynlen(state_list); i++)
+	{
+		for(j = 1; j <= dynlen(_GlobalStatesLines[i]); j++)
+		{
+			line = _GlobalStatesLines[i][j];
+			items = strsplit(line,\" \");
+			name = items[1];
+			type = items[2];
+			op = items[3];
+			if((op == \"Inv\") || (op == \"!Inv\"))
+				name += \"_invalid\";
+			if(!dynContains(comps,name))
+			{
+				dynAppend(comps,name);
+				dynAppend(types,type);
+			}
+		}
+	}
+	fwFsm_setLocalStateComps(comps, types);
+}
+
+dyn_string generate_state_script(int n, string if_type)
+{
+string more, name, type, op, limit;
+string s, instr, line;
+dyn_string inst, items, pars;
+int i;
+
+		dynAppend(inst, if_type);
+		instr += if_type+\"\\n\";
+		for(i = 1; i <= dynlen(_GlobalStatesLines[n]) ; i++)
+   	{
+			line = _GlobalStatesLines[n][i];
+			items = strsplit(line,\" \");
+			name = items[1];
+			type = items[2];
+			op = items[3];
+			limit = items[4];
+			more = items[5];	
+			if(strpos(limit,\"Par(\") == 0 )
+			{
+				pars = strsplit(limit,\"()\");
+				s = \"\\tanytype valueOf_\"+pars[2]+\";\\n\";
+        s += \"\\tfwDU_getParameter(domain, device, \\\"\"+pars[2]+\"\\\", valueOf_\"+pars[2]+\");\\n\"; 
+				if(!dynContains(aux_text, s))
+					dynAppend(aux_text, s);
+				limit = \"(\"+type+\")valueOf_\"+pars[2];
+			}
+			if(op == \"bit\")
+			{
+				s = \"getBit(\"+name+\", \"+limit+\") \";
+			}
+			else if(op == \"!bit\")
+			{
+				s = \"!getBit(\"+name+\", \"+limit+\") \";
+			}
+			else if(op == \"Inv\")
+			{
+				s = name+\"_invalid\";
+			}
+			else if(op == \"!Inv\")
+			{
+				s = \"!\"+name+\"_invalid\";
+			}
+			else
+			{
+				s = name+\" \"+op+\" \"+limit;
+			}
+			dynAppend(inst,s);
+			dynAppend(inst,more);
+			instr += s+\"\\n\";
+			instr += more+\"\\n\";
+		}
+	return inst;
+}
+
+decode_script()
+{
+	string state;
+	int i;
+	dyn_string state_list;
+
+	fwFsm_getLocalStates(state_list);
+	for(i = 1; i <= dynlen(state_list); i++)
+	{
+		state = state_list[i];
+		decode_state(i, state);
+	}
+}
+
+decode_state(int n, string state)
+{
+	dyn_string comps, types, mod_comps, code, line, aux;
+	string text;
+	int i, j, k, index, index1, empty_index, pos, found;
+	dyn_string state_list;
+	string name, op, limit, display_line;
+
+	index = 0;
+	dynClear(_GlobalStatesLines[n]);
+	fwFsm_getLocalStateComps(comps, types);
+	fwFsm_getLocalStateScript(text);
+	if(text == \"\")
+		return;
+	mod_comps = comps;
+	for(i = 1; i <= dynlen(mod_comps); i++)
+	{
+		strreplace(mod_comps[i],\".\",\"_dot_\");
+	}
+	code = strsplit(text,\"\\n\");
+	for(i = 1; i <= dynlen(code); i++)
+	{
+		if(strpos(code[i],\"\\\"\"+state+\"\\\"\")>= 0)
+		{
+			index = i;
+			break;
+		}
+	}
+	if(index == 0)
+		return;
+//	index--;
+	for(i = index; i >= 1; i--)
+	{
+		if(strpos(code[i],\"if\") >= 0)
+			break;
+		if(strpos(code[i],\"else\") >= 0)
+			break;
+	}
+	index1 = 1;
+	for(i = i; i <= index; i++)
+	{
+		dynClear(line);
+		line = strsplit(code[i],\"(), \\n\\r\");
+		while(empty_index = dynContains(line,\"\"))
+		{
+			dynRemove(line,empty_index);
+		}
+		for(j = 1; j <= dynlen(line); j++)
+		{
+			for(k = 1; k <= dynlen(mod_comps); k++)
+			{
+				if((line[j] == mod_comps[k]) || (line[j] == \"!\"+mod_comps[k]))
+				{
+					found = 0;
+					name = comps[k];
+					if(j > 1)
+					{
+						if(line[j-1] == \"getBit\")
+						{
+					  	if(line[j-2] == \"!\")
+								op = \"!bit\";
+					  	else
+								op = \"bit\";
+							limit = line[j+1];
+							found = 1;
+						}
+						else if(line[j-1] == \"!getBit\")
+						{
+							op = \"!bit\";
+							limit = line[j+1];
+							found = 1;
+						}
+					}
+					if(!found)
+					{
+						if((pos = strpos(line[j],\"_invalid\")) > 0)
+						{
+							limit = 0;
+							pos = strpos(comps[k],\"_invalid\");
+							name = substr(comps[k],0, pos);
+							op = \"Inv\";
+							if(strpos(name,\"!\") == 0)
+							{
+								name = substr(name,1);
+								op = \"!Inv\";
+							}
+							else if(line[j-1] == \"!\")
+								op = \"!Inv\";
+						}
+						else
+						{
+							if(dynlen(line) >= (j+2))
+							{
+								op = line[j+1];
+								if(dynlen(line) == j+3)
+								{
+								  limit = line[j+3];
+									if(strpos(limit,\"valueOf_\") == 0)
+									{
+										limit = substr(limit, 8);
+										limit = \"Par(\"+limit+\")\";
+									}
+									else
+										limit = line[j+2];
+								}
+								else
+								{
+									limit = line[j+2];
+								}
+							}
+						}
+					}
+					display_line += name +\" \"+types[k]+\" \";
+					display_line += op +\" \"+limit+\" \";
+				}
+			}
+			if((line[j] == \"&&\") || (line[j] == \"||\"))
+			{
+				display_line += line[j];
+				dynAppend(_GlobalStatesLines[n], display_line);
+				display_line = \"\";		
+			}
+		}
+	}
+	if(display_line != \"\")
+	{
+		display_line += \"then\";
+		dynAppend(_GlobalStatesLines[n], display_line);
+	}			
+}
+
+
+
+
+" 0
+ 2
+"CBRef" "0"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 3
+"More"
+""
+1 10 490 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 492 334 509
+0 2 0 "0s" 0 0 0 192 0 0  12 492 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 54 More States Exist... (Please use Edit Script directly)
+13 0
+"Button1"
+""
+1 618 528 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  618 528 708 558
+
+T 
+2
+LANG:1 5 Close
+LANG:0 9 Abbrechen
+"main()
+{
+	fwFsm_deleteTmpDeviceType();
+	PanelOff();
+}" 0
+ E E E
+13 1
+"komplex"
+""
+1 450 528 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  448 528 602 558
+
+T 
+2
+LANG:1 11 Edit Script
+LANG:0 23 Komplexe Parametrierung
+"main()
+{
+string devScript;
+//  ChildPanelOn(\"fwFSM/fsm/device_state_editor.pnl\",\"device_state_editor\",makeDynString($1),0,0);
+		fwFsm_getLocalStateScript(devScript);
+		scriptEditor(devScript);
+		fwFsm_setLocalStateScript(devScript);
+}
+" 0
+ E E E
+13 2
+"Button2"
+""
+1 236 528 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  238 528 432 558
+
+T 
+2
+LANG:1 29 Generate Script (from screen)
+LANG:0 2 OK
+"main()
+{
+	generate_script();
+}
+" 0
+ E E E
+13 5
+"Abort"
+""
+1 138 528 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  138 528 228 558
+
+T 
+2
+LANG:1 5 Abort
+LANG:0 9 Abbrechen
+"main()
+{
+	Abort = 1;
+}" 0
+ E E E
+13 6
+"PUSH_BUTTON1"
+""
+1 7.441860465116282 528 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  8 528 122 558
+
+T 
+2
+LANG:1 15 Dependencies...
+LANG:0 9 Abbrechen
+"main()
+{
+  dyn_string res;
+  dyn_float ret;
+  string dep;
+  dep = get_dependencies();
+  ChildPanelOnReturn(\"fwFSM/fsm/config_device_dependencies.pnl\",\"device_state_dependencies\",
+                     makeDynString($1, dep),0,0, ret, res);
+  if(ret[1])
+    change_dependencies(res);
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

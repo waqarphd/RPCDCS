@@ -1,0 +1,1159 @@
+V 11
+2
+LANG:1 14 ProjectConsole
+LANG:5 15 Project Console
+PANEL,-1 -1 879 768 N "_3DFace" 6
+"$host"
+"$port"
+"$project"
+"$sDpName"
+"$userName"
+"$userPassword"
+"
+main()
+{ 
+  string host = $host;
+  int port = $port;
+  string userName = $userName;
+  string userPassword = $userPassword; 
+  dyn_string ex;
+  
+  manTable.deleteAllLines();
+  manTable.tableMode(TABLE_SELECT_BROWSE);
+  manTable.selectByClick(TABLE_SELECT_LINE);
+  manTable.selectColors(\"darkgrey\", \"white\");
+  manTable.sort(\"shmIndex\");
+  manTable.sortOnClick(false);
+ 
+  txMsg == \"\";
+  txMsg.visible = false;
+  txError.visible = false;
+
+  dyn_string ex;
+  fwAccessControl_setupPanel(\"applyConsoleAcCB\", ex);
+  if(dynlen(ex))
+    fwExceptionHandling_display(ex);
+ 
+
+  //Insert alarm configuration widget:
+  string projectDp;
+  fwSysOverview_getProjectDp($host, $project, projectDp, ex);
+  addSymbol(myModuleName(), 
+            myPanelName(), 
+            \"fwSystemOverview/fwSystemOverview_deviceConfiguration.pnl\", 
+            \"Alarms:\"+projectDp, makeDynString(\"$sDpName:\" + projectDp), 
+            765, 205, 0, 1, 1);
+  
+  
+ while ( true )
+ {
+   showState(host, port, userName, userPassword);
+   delay(10);
+ }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+#uses \"fwFMC/fwFMC.ctl\"
+#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+
+dyn_string alarmList;
+global dyn_anytype gParams; //used in pmon-functions
+const  int  PA_TCP_TIMEOUT = 12; // set new TCP Timeout
+bool error = false;
+
+void applyConsoleAcCB(string s1, string s2)
+ {
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  string domain;
+  dyn_string ex;
+  string projectDp;
+  fwSysOverview_getProjectDp($host, $project, projectDp, ex);
+  fwSysOverview_getACDomain(domain, projectDp);
+  
+  // at first, disable whatever was enabled to this moment
+  disableAllInConsolePanel();
+
+  if(domain == \"\") //AC not yet configured. Enable access 
+  {
+    hasExpertPrivilege = true;
+  }
+  else
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(3);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain + \":\" + expertPrivilege, hasExpertPrivilege, exceptionInfo);
+  
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+  }
+  // enable UI elements, depending on the access rights:
+  if (hasExpertPrivilege)
+  {
+    btAdopt.enabled = true;
+//    btFilter.enabled = true;
+  }
+}
+
+void disableAllInConsolePanel()
+{
+  btAdopt.enabled = false;
+//  btFilter.enabled = false;
+}
+
+//-----------------------------------------------------------------------------
+showState(string host, int port, string userName, string userPassword)
+{
+  int            i, iState, iPID, iTime, err, iErr, iFont, iMode, iEmergency, iLicense, iU, iL, iblocked, iAbnormalStop;
+  bool           bChanged, runnable, bRuns;
+  time           ti;
+  string         color, iStartMode, sMode, sName, otherProject = \"\";
+  dyn_int        diIdx, diFont;
+  dyn_dyn_string ddsResult;
+  dyn_string     ds, dsVer, dsPath;
+
+  int            iPos, iRefresh;
+  string         s, ss, projName, si;
+  dyn_string     exceptionInfo;
+  int started = 0;
+  string projectDpName;
+  
+  bool disabled = false;
+  //string projDp = \"\";
+  fwSysOverview_getProjectDp($host, $project, projectDpName, exceptionInfo);    
+  fwSysOverview_isProjectMonitoringDisabled(projectDpName, disabled);
+
+  if(disabled)
+  {
+    frTitle.text = \"Project: \" + $project + \" - Current State: NOT_MONITORED\";    
+    manTable.deleteAllLines();
+    manTable.updateLine(1, \"descript\",     \"Process Monitor\",
+                            \"startTime\", \"\",
+                            \"pid\", -1,
+                            \"state\", \"0\"
+                        );  
+    txMsg.text = \"WARNING: Project monitoring disabled\";
+    txMsg.visible = true;
+    txError.visible = true;
+    manTable.cellBackColRC(0, \"state\",   \"red\");
+    blockedM.text = 0;
+    tfStopped.text = 0;
+    Nmanagers.text = 0;
+    tfStarted.text = 0;
+    return;
+  }
+  
+  //Check that the name of the project is the one we expect:
+  delay(0,100);
+
+  err = pmon_query(userName+\"#\"+userPassword +\"#PROJECT:\", host, port, ddsResult, false, true);
+ 
+  if (err != 0 || dynlen(ddsResult) <= 0)
+  {
+    DebugN(\"ERROR: Could not verify the name of the project in remote host: \" + host);
+    frTitle.text = \"Project: \" + $project + \" - Current State: PMON_NO_RESPONSE\";
+    manTable.deleteAllLines();
+    txMsg.text = \"ERROR: PMON query failed. Could not verify the name of the project in remote host: \" + host;
+    txMsg.visible = true;
+    txError.visible = true;
+    manTable.updateLine(1, \"descript\",     \"Process Monitor\",
+                            \"startTime\", \"\",
+                            \"pid\", -1,
+                            \"state\", \"0\"
+                        );  
+    manTable.cellBackColRC(0, \"state\",   \"red\");
+    blockedM.text = 0;
+    tfStopped.text = 0;
+    Nmanagers.text = 0;
+    tfStarted.text = 0;
+    return;
+  }
+  else
+  {
+    txMsg.visible = false;
+    txError.visible = false;
+  }
+  
+  string str = ddsResult[1][1];
+  
+  string proj = $project;
+  string host = $host;
+  error = false;
+  
+//  fwSysOverview_getProjectDp(host, proj, projectDpName, exceptionInfo);    
+  string projectState = fwSysOverview_getProjectState(projectDpName);
+  
+  if(str != $project)
+  {
+    error = true;
+    frTitle.text = \"Project: \" + $project + \" - Current State: \" + projectState + \" - Showing project: \" + ddsResult[1][1];
+    frTitle.foreCol = \"<{245,0,0},4,{0,0,0},4>\";
+    txMsg.text = \"ERROR: Project name mismatch.\\nExpecting to find project: \" + $project + \". Found: \" + str + \"\\nDisplaying information for project: \" + str;
+    txMsg.visible = true;
+    txError.visible = true;
+    
+  }
+  else
+  {
+    frTitle.text = \"Project: \" + ddsResult[1][1] + \" - Current State: \" + projectState; //Use the proper name of the project with \".\" if it has them.
+    int state;
+    
+    if(dpExists(projectDpName + fwSysOverview_STATE))
+      dpGet(projectDpName + fwSysOverview_STATE, state);
+    
+    if(state == fwSysOverview_MONITORING_STOPPED)
+    {
+      error = true;
+      txMsg.text = \"Project: \" + proj + \"  is currently NOT MONITORED.\";
+      txMsg.visible = true;
+    }
+      
+    else
+    {  
+      txMsg.visible = false;
+      txError.visible = false;
+    }
+     
+  }
+  
+  
+  delay(0,100);
+  
+  
+  err = pmon_query(userName+\"#\"+userPassword +\"#MGRLIST:STATI\", host, port, ddsResult, false, true);
+
+  manTable.enabled = true;//(cmdLock.visible);//gButtonsEnabled[13];
+
+  if ( dynlen(ddsResult)-1 != manTable.lineCount)
+  {
+    string          ss;
+    dyn_dyn_string  ddssResult;
+    dyn_dyn_anytype ddsLines;
+    
+    err = pmon_query(userName+\"#\"+userPassword +\"#MGRLIST:LIST\", host, port, ddssResult, false, true);
+    if ( dynlen(ddsResult) < 1 ) return;
+
+    for (i = 1; i <= dynlen(ddssResult); i++)
+    {
+      ddsLines[1][i] = i;
+      sName = pmon_getManDescript(ddssResult[i][1]);
+      if ( sName == \"\" ) sName = ddssResult[i][1];
+      if ( !isMotif() ) strreplace(sName, \"&\", \"&&\");
+      ddsLines[2][i] = sName;
+      ddsLines[3][i] = ddssResult[i][1];
+      ss = ( dynlen(ddssResult[i]) > 5)?ddssResult[i][6]:\"\";
+      ddsLines[4][i] = ss;
+      ddsLines[5][i] = pmonStartModeToStr(ddssResult[i][2]);
+      ddsLines[6][i] = ddssResult[i][4];
+      ddsLines[7][i] = ddssResult[i][5];
+      ddsLines[8][i] = ddssResult[i][3];
+    }
+    
+    getValue(\"manTable\", \"lineRangeVisible\", iU, iL);
+    manTable.lineVisible = iU;
+    manTable.updateLines(1, \"shmIndex\",     ddsLines[1],
+                            \"descript\",     ddsLines[2],
+                            \"manager\",      ddsLines[3],
+                            \"options\",      ddsLines[4],
+                            \"startMode\",    ddsLines[5],
+                            \"restartCount\", ddsLines[6],
+                            \"resetMin\",     ddsLines[7],
+                            \"secKill\",      ddsLines[8]
+                        );
+    if ( manTable.lineCount > dynlen(ddssResult) )
+      manTable.deleteLinesN(dynlen(ddssResult), manTable.lineCount - dynlen(ddssResult));
+
+    err = pmon_query(userName+\"#\"+userPassword +\"#MGRLIST:STATI\", host, port, ddsResult, false, true);
+    
+  }
+
+  iblocked = 0;
+  iAbnormalStop = 0;
+  
+  for (i = 1; i < dynlen(ddsResult); i++)
+  {
+    iState = ddsResult[i][1];
+    iPID = ddsResult[i][2];
+    iStartMode = ddsResult[i][3];
+    ti = ddsResult[i][4];
+        
+    switch ( iState )
+    {
+      case PMON_STATE_NOT_RUNNING:
+      {
+        if ( iPID == -1 )
+          color = (iStartMode == PMON_START_MANUAL) ? \"\" : \"red\";
+        else if ( iPID == -2 )   // restarting too rapidly
+        {
+          ++iAbnormalStop;
+          color = \"<[0,0,100],6,[100,100,0],6,[0,0,0],0,[0,0,0],0,[0,0,0],0,[0,0,0],0>\";
+        }
+        else
+          color = \"<[100,100,0],6,[100,0,0],6,[0,0,0],0,[0,0,0],0,[0,0,0],0,[0,0,0],0>\";
+        iFont = 0;
+        break;
+      }
+      
+      case PMON_STATE_INIT   :
+        color = \"yellow\";
+        iFont = 2;
+        break;
+      case PMON_STATE_RUNNING:
+        ++started;
+        color = \"green\";
+        iFont = 0;
+        break;
+      case PMON_STATE_BLOCKED:
+        color = \"violett\";
+        iFont = 0;
+        iblocked++;
+        break;
+      default: DebugN(\"sName\",ddssResult[\"+i+\"],\"iState\",iState,\"iPID\",iPID);
+    }
+    
+    manTable.cellValueRC(i-1, \"state\",     makeDynString(iState, color));
+    manTable.cellBackColRC(i-1, \"state\",   color);
+    manTable.cellValueRC(i-1, \"pid\",       iPID);
+    manTable.cellValueRC(i-1, \"startTime\", ti ? ddsResult[i][4] : \"\");
+    manTable.cellValueRC(i-1, \"num\",       ddsResult[i][5]);
+    
+    diIdx = makeDynInt(i-1);
+    diFont = makeDynInt(iFont);
+    if ( i <= manTable.lineCount() )
+      manTable.rowFontType(diIdx) = diFont;
+  }
+  
+  // display number of current blocked managers
+  blockedM.text = iblocked;
+  tfStopped.text = iAbnormalStop;
+  Nmanagers.text = (dynlen(ddsResult)-1);
+  tfStarted.text = started;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 206
+"PUSH_BUTTON12"
+""
+1 880 773 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  678 221 762 251
+
+T 
+1
+LANG:1 4 Info
+"main()
+{
+  ChildPanelOnCentralModal(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_projectProperties.pnl\", 
+                           $project + \" : Project Info\", makeDynString(\"$project:\" + $project, \"$computer:\" + $host));
+}
+
+" 0
+ E E E
+25 2
+"manTable"
+""
+1 19.99999999999997 357.1428571428568 E E E 1 E 1 E N "_3DText" E N "_Window" E E
+ "main(int row, string column)
+{
+  
+  dyn_string menu;
+  string sysSO, command;
+  int answer;
+  int idx,state,startV;
+  bool err;
+  string host = $host;
+  int port = $port;  
+  dyn_float df;
+  dyn_string ds, exceptionInfo;
+  string proj, options, manager, projDp;
+  dyn_dyn_string ddsResult;
+  string user = $userName;
+  string password = $userPassword;
+                
+  if(user == \"\")
+   user = \"N/A\"; 
+  
+  if(password == \"\")
+   password = \"N/A\"; 
+  
+  idx = this.cellValueRC (row, \"shmIndex\");
+  idx -= 1; //index beginning from 0
+  state = this.cellValueRC (row, \"state\");
+  
+  getValue(\"manTable\", \"cellValueRC\", row, \"options\", options);
+  getValue(\"manTable\", \"cellValueRC\", row, \"manager\", manager);
+  
+  if(state==0)
+     startV =1;
+  else
+     startV =0;
+        
+  sysSO = getSystemName();
+  err=FALSE;
+
+  bool isGranted = false;
+  dyn_string ex;
+  string domain;
+  string projectDp;
+  fwSysOverview_getProjectDp(host, $project, projectDp, ex);
+  fwSysOverview_getACDomain(domain, projectDp);
+  if(domain == \"\")
+    isGranted = true;
+  else
+  {
+    string expertPrivilege = fwSysOverview_getExpertPrivilege(3);
+    // check the current  privilege level 
+    if (expertPrivilege == \"\")
+    {
+      DebugN(\"No expert privilege defined!\");
+      return;
+    }
+    fwAccessControl_isGranted(domain+\":\" + expertPrivilege, isGranted, ex);
+  }
+  if(isGranted)
+  {
+    menu = makeDynString (\"PUSH_BUTTON, Start manager,1,\"+ startV + \",\"
+                          \"PUSH_BUTTON, Stop manager,2,\"+ (1-startV),
+                          \"SEPARATOR\",
+                          \"SEPARATOR\",
+                          \"PUSH_BUTTON, Properties,3,1\",
+                          \"PUSH_BUTTON, Show trend,4,1\"
+                         );
+    
+ 
+    popupMenu(menu,answer); 
+     
+    if(answer == 1)
+    { 
+         command = $userName+\"#\"+$userPassword+\"#SINGLE_MGR:START \"+idx;
+         err = pmon_command(command, host, port, false, true); 
+    }
+    else if(answer == 2)
+    {
+      command = $userName+\"#\"+$userPassword+\"#SINGLE_MGR:STOP \"+idx;
+      err = pmon_command(command, host, port, false, true); 
+    }
+    else if(answer == 3)
+    {
+      ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_managersProperties.pnl\", \"Managers Properties\", 
+                            makeDynString(\"$1:\" + idx, \"$2:\" + user, \"$3:\" + password, \"$4:\" + host, \"$5:\" + port),
+                            df, ds);      
+      delay(1);
+      if(dynlen(ds) > 0)
+        this.updateLine(1, \"shmIndex\", idx + 1, \"options\", ds[1],\"startMode\", ds[2]);
+    }
+    
+    else if(answer == 4)
+    {      
+      string dpquery;
+      dyn_dyn_anytype queryResults;
+      
+      err = pmon_query($userName + \"#\" + $userPassword + \"#PROJECT:\", host, port, ddsResult, false, true);
+      proj = ddsResult[1][1];
+      
+//DebugN(\"Host, Project, Idx, options, manager\", host, proj, idx, options, manager);
+
+      fwSysOverview_getProjectDp(host, proj, projDp, exceptionInfo);
+      
+      dpquery=\"SELECT '_online.._value' FROM '{\" + projDp + \"/Manager*\" + fwSysOverview_STATE + \"}' \"+
+              \"WHERE (_DPT=\\\"FwSystemOverviewManager\\\") \"+
+              \"AND ('\" + fwSysOverview_MANAGER_OPTIONS + \":_online.._value' LIKE \\\"*\"+ options +\"*\\\") \";
+      
+      dpQuery(dpquery, queryResults);
+
+      ChildPanelOnCentral(\"fwSystemOverview/fwSystemOverview_trend.pnl\", manager + \" Status\",
+                               makeDynString(\"$title:\" + manager + \":_\" + options, \"$dpes:\" + queryResults[2][1])); //, \"$curveNames:\" + manager, \"$legends:\" + manager + \":_status\"));
+    }  
+         
+    if(err)
+      DebugN(\"Command not executed\");
+
+  }
+  else
+  {
+    menu = makeDynString (\"PUSH_BUTTON, Start manager,1,\"+ 0+ \",\"
+                          \"PUSH_BUTTON, Stop manager,2,\"+ 0,
+                          \"SEPARATOR\",
+                          \"SEPARATOR\",
+                          \"PUSH_BUTTON, Properties,3,0\",
+                          \"PUSH_BUTTON, Show trend,4,0\"
+                          );
+ 
+    popupMenu(menu,answer); 
+  }
+
+  
+}
+
+
+
+" 0
+ E
+2 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:5 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  18 258 862 602
+EE 1 0 1 12 18 "state" 2 1 0 "s" 2
+LANG:1 2 St
+LANG:5 2 St
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+30 "pid" 3 1 0 "s" 1
+LANG:1 3 PID
+E
+1
+LANG:1 0 
+
+40 "descript" 16 1 0 "s" 2
+LANG:1 11 Description
+LANG:5 11 Description
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+173 "num" 1 1 0 "s" 2
+LANG:1 2 No
+LANG:5 2 No
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+26 "options" 34 1 0 "s" 2
+LANG:1 7 Options
+LANG:5 7 Options
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+351 "startTime" 14 1 0 "s" 2
+LANG:1 10 Start Time
+LANG:5 10 Start Time
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+150 "startMode" 4 1 0 "s" 2
+LANG:1 4 Mode
+LANG:5 4 Mode
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+50 "restartCount" 5 0 0 "s" 2
+LANG:1 8 Restart#
+LANG:5 8 Restart#
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+62 "resetMin" 5 0 0 "s" 2
+LANG:1 8 ResetMin
+LANG:5 8 ResetMin
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+65 "secKill" 4 0 0 "s" 2
+LANG:1 7 SecKill
+LANG:5 7 SecKill
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+52 "manager" 12 0 0 "s" 2
+LANG:1 7 Manager
+LANG:5 7 Manager
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+128 "shmIndex" 0 0 0 "s" 2
+LANG:1 8 shmIndex
+LANG:5 8 shmIndex
+E
+2
+LANG:1 0 
+LANG:5 0 
+
+0 
+16 16 "" 1 2
+LANG:1 3 #18
+LANG:5 3 #18
+"" 1 2
+LANG:1 3 #17
+LANG:5 3 #17
+"" 1 2
+LANG:1 3 #16
+LANG:5 3 #16
+"" 1 2
+LANG:1 3 #15
+LANG:5 3 #15
+"" 1 2
+LANG:1 3 #14
+LANG:5 3 #14
+"" 1 2
+LANG:1 3 #13
+LANG:5 3 #13
+"" 1 2
+LANG:1 3 #12
+LANG:5 3 #12
+"" 1 2
+LANG:1 3 #11
+LANG:5 3 #11
+"" 1 2
+LANG:1 3 #10
+LANG:5 3 #10
+"" 1 2
+LANG:1 2 #9
+LANG:5 2 #9
+"" 1 2
+LANG:1 2 #8
+LANG:5 2 #8
+"" 1 2
+LANG:1 2 #7
+LANG:5 2 #7
+"" 1 2
+LANG:1 2 #6
+LANG:5 2 #6
+"" 1 2
+LANG:1 2 #5
+LANG:5 2 #5
+"" 1 2
+LANG:1 2 #4
+LANG:5 2 #4
+"" 1 2
+LANG:1 2 #3
+LANG:5 2 #3
+"" 1 2
+LANG:1 2 #2
+LANG:5 2 #2
+"" 1 2
+LANG:1 2 #1
+LANG:5 2 #1
+10 56
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 2 2 0 7
+1 0
+2 3
+"PRIMITIVE_TEXT1"
+""
+1 39.99999999999994 617.9999999999999 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 39.99999999999994 617.9999999999999 65 632
+0 2 2 "0s" 0 0 0 192 0 0  39.99999999999994 617.9999999999999 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Total:
+14 4
+"Nmanagers"
+""
+1 79.99999999999994 614.9999999999999 E E E 1 E 1 E N "_WindowText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  78 613 118 636
+3 "0s" 0 0 0 2 0 -1  E "main()
+{
+  Nmanagers.text = \"\";
+}" 0
+ E
+2 5
+"PRIMITIVE_TEXT2"
+""
+1 142 618 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 142 618 185 632
+0 2 2 "0s" 0 0 0 192 0 0  142 618 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Blocked :
+14 6
+"blockedM"
+""
+1 192 614.9999999999999 E E E 1 E 1 E N "_WindowText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  190 613 230 636
+3 "0s" 0 0 0 2 0 -1  E "main()
+{
+  Nmanagers.text = \"\";
+}" 0
+ E
+30 7
+"frTitle"
+""
+1 70 75 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+9 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  //this.text = $sysName ;
+}" 0
+ E 0 0 1 0 1 E 1.845493562231761 0 1.165501165501174 -119.1845493562233 122.5874125874119 0 E 70 75 537 505
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,75,1,0,0,0,0
+0 1
+LANG:1 11 Frame Title
+30 8
+"FRAME2"
+""
+1 100 463 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+10 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 2.023565088339181 0 0.57471264367816 -172.3565088339181 333.9080459770119 0 E 100 463 511 551
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Summary of managers
+14 10
+"tfStopped"
+""
+1 362 614.9999999999999 E E E 1 E 1 E N "_WindowText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  360 613 400 636
+3 "0s" 0 0 0 2 0 -1  E "main()
+{
+  Nmanagers.text = \"\";
+}" 0
+ E
+2 11
+"PRIMITIVE_TEXT4"
+""
+1 262 615 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 262 615 492 635
+0 2 2 "0s" 0 0 0 64 0 0  262 615 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Abnormally stopped:
+29 12
+"txMsg"
+""
+1 30.33831378093669 668 E E E 1 E 0 E N "FwStateAttention3" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  30 668 860 700
+15 PVSS.TextEdit.1
+0
+E2 13
+"txError"
+""
+1 31.99999999999994 650 E E E 1 E 0 E N "FwStateAttention3" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 31.99999999999994 650 162 670
+0 2 2 "0s" 0 0 0 64 0 0  31.99999999999994 650 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Errors:
+14 94
+"tfStarted"
+""
+1 502 614.9999999999999 E E E 1 E 1 E N "_WindowText" E N "_Button" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  500 613 540 636
+3 "0s" 0 0 0 2 0 -1  E "main()
+{
+  Nmanagers.text = \"\";
+}" 0
+ E
+2 95
+"PRIMITIVE_TEXT18"
+""
+1 442 618 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 442 618 485 632
+0 2 2 "0s" 0 0 0 192 0 0  442 618 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Running
+1 207 8 "" 0
+0
+1 208 8 "" 1
+0
+1 209 8 "" 2
+0
+1 210 11 "" 1
+0
+1 211 11 "" 3
+0
+1 212 11 "" 10
+0
+1 213 11 "" 11
+0
+1 214 11 "" 12
+0
+1 215 11 "" 13
+0
+1 216 11 "" 15
+0
+1 217 11 "" 16
+0
+1 218 11 "" 18
+0
+1 219 11 "" 19
+0
+1 221 11 "" 21
+0
+1 220 11 "" 20
+0
+1 222 13 "" 13
+0
+1 223 13 "" 9
+0
+1 224 13 "" 2
+0
+1 225 13 "" 1
+0
+1 226 13 "" 14
+0
+1 227 13 "" 15
+0
+1 228 13 "" 16
+0
+1 229 13 "" 17
+0
+1 230 13 "" 22
+0
+1 231 13 "" 23
+0
+1 232 13 "" 24
+0
+1 233 13 "" 25
+0
+1 234 13 "" 26
+0
+1 235 13 "" 27
+0
+1 236 13 "" 28
+0
+1 237 13 "" 29
+0
+1 238 13 "" 30
+0
+1 239 14 "0" 0
+0
+1 240 14 "0" 2
+0
+1 241 14 "0" 3
+0
+1 243 14 "1" 3
+0
+1 244 14 "1" 4
+0
+1 245 14 "1" 5
+0
+1 246 14 "1" 6
+0
+1 247 14 "1" 9
+0
+1 248 14 "2" 3
+0
+1 249 14 "2" 4
+0
+1 250 14 "2" 5
+0
+1 251 14 "2" 6
+0
+1 252 14 "2" 9
+0
+1 253 14 "3" 2
+0
+1 254 14 "3" 1
+0
+1 255 14 "3" 3
+0
+1 257 14 "" 15
+0
+1 259 14 "4" 0
+0
+1 260 14 "" 19
+0
+1 242 14 "0" 4
+0
+1 256 14 "3" 4
+0
+1 258 14 "" 17
+0
+1 261 14 "" 20
+0
+13 149
+"btAdopt"
+""
+1 680 610 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  678 608 842 642
+
+T 
+1
+LANG:1 28 Adopt Managers Configuration
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  dyn_string ex;
+  string projDp;
+  fwSysOverview_getProjectDp($host, $project, projDp, ex);
+  if(dynlen(ex))
+  {
+    fwExceptionHandling_display(ex);
+    return;
+  }
+  
+
+  ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", projDp + \" : ManagerConfiguration\", makeDynString(\"You are about to adopt the project managers configuration. Do you want to proceed?\", \"Yes\", \"No\"), df, ds);    
+  if(dynlen(df) > 0 && df[1] == 1.)
+  {
+    fwSysOverview_saveProjectManagersStartMode(projDp);
+    string description = myPanelName() + \": Adopting managers configuration. \";
+    fwConfigurationDBSystemInformation_logAction(description);
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 8 "PANEL_REF8" -1
+"fwFMC/fwFMC_allProcessNavigator.pnl" 20 172 T 29 1 0 1 -9.999999999999945 -20
+1
+"$sDpName""$sDpName"
+3 11 "PANEL_REF11" -1
+"fwSystemOverview/fwSystemOverview_systemInfo.pnl" 350 0 T 31 1 0 1 -350 -10
+3
+"$host""$host"
+"$project""$project"
+"$system"""
+3 13 "PANEL_REF13" -1
+"fwFMC/fwFMC_osNavigatorGraphic.pnl" 250 -13 T 35 1 0 1.019108280254777 -66 0
+1
+"$sDpName""$sDpName"
+3 14 "PANEL_REF14" -1
+"fwFMC/fwFMC_nodeSimpleStatus.pnl" 640 0 T 36 1 0 1 -70 -10
+1
+"$sDpName""$sDpName"
+0

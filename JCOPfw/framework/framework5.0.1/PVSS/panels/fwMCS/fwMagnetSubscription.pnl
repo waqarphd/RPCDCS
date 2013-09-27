@@ -1,0 +1,1552 @@
+V 10
+1
+LANG:1 10 Add Device
+PANEL,-1 -1 751 440 N "_3DFace" 0
+"main()
+{
+	addSubscription.enabled(FALSE);
+	delSubscription.enabled(FALSE);
+        magnetSelect.enabled(FALSE);
+}" 0
+ "main()
+{
+;
+}" 0
+ E E E 1 0 0 0  67 20
+""0  1
+E "// compulsory items for the magnet subscription
+const string ramping = \"RampingSts\";
+const string current = \"Current\";
+
+/*
+	this function updates the magnet list when an experiment is selected
+*/
+updateMagnetList(string experiment)
+{
+      string queryAddress = \"dip/\"+experiment+\"/MCS\";
+      //string queryAddress = \"test/itcobe/\"+experiment+\"/MCS\";
+      dyn_string exceptionInfo;
+      string dpConfig = config.selectedText;
+      int queriedNodeType;
+      int timeout;
+      
+      // check if the config dp exists
+      if(!dpExists(dpConfig))
+      {
+      	        DebugN(\"Error: Could not find the config dp:\", dpConfig); 
+        	return; 
+      }     
+      
+      dyn_string childNames, fieldNames;
+      dyn_int childTypes, fieldTypes;
+     
+      // get the query timeout
+      dpGet(dpConfig+\".queryTimeout\", timeout);      
+
+      fwOpenProgressBar(\"Information\", \"Getting publications\", 1);      
+            
+      // query dip 
+      queriedNodeType = fwDIP_DipQuery(dpConfig, queryAddress,
+                                       childNames, childTypes,
+                                       fieldNames, fieldTypes,
+                                       exceptionInfo, timeout);   
+            
+      fwCloseProgressBar(\"Done\");
+      
+      // error handling
+      if (dynlen(exceptionInfo) != 0)
+      {
+		if (strpos(exceptionInfo[2],\"Timeout\") >= 0)
+			ChildPanelOnCentral(\"/fwGeneral/fwMessageInfo1.pnl\", \"\", 
+					makeDynString(\"$1: You must run the DIP manager to make the subscription.\"));
+		else 
+                        ChildPanelOnCentral(\"/fwGeneral/fwMessageInfo1.pnl\", \"\", 
+					makeDynString(\"$1: There are no publications for the selected experiment.\"));
+		return;
+      }   
+      
+      // if the compulsory values don't exist in childNames and fieldNames then the publications
+      // must be spread over more than one magnet
+      if(dynContains(childNames,current)==0 && dynContains(fieldNames,current)==0)
+      {
+        	dyn_string magnets;
+                dynAppend(magnets,\"Select..\");
+                if(dynlen(childNames)>0)
+                {
+                  for(int i=1;i<=dynlen(childNames);i++)
+                    dynAppend(magnets,\"MCS/\"+childNames[i]);
+                }
+                else
+                {
+                  for(int i=1;i<=dynlen(fieldNames);i++)
+                    dynAppend(magnets,\"MCS/\"+fieldNames[i]);                  
+                }
+                
+        	magnetSelect.items(magnets);                
+                magnetSelect.enabled(TRUE);
+                magnetSelect.selectedPos(1);
+      }
+      else // else only one magnet, update the publication table directly
+      {
+                magnetSelect.items(makeDynString(\"Select..\",\"MCS\"));
+                magnetSelect.enabled(FALSE);
+                magnetSelect.selectedPos(1);
+                
+                dyn_string dipTagNames,dipPublications, dipDpeNames;
+                dyn_int dipTagTypes;
+                getPublishedFields(experiment, \"MCS\", dipTagNames, dipTagTypes, dipPublications, dipDpeNames);
+                
+                // dip query found no data..
+                if(dynlen(dipTagNames)==0)
+                {
+                    DebugN(\"No data published under the selected magnet\",expSelect.selectedText,this.selectedText);
+                    addSubscription.enabled(FALSE);
+                    delSubscription.enabled(FALSE); 
+                    return;        
+                }
+                                    
+                dyn_bool dipSubscribed;
+                checkIfDpesAreSubscribed(experiment, dipDpeNames, dipSubscribed);
+                    
+                updatePublicationTable(dipPublications, dipTagNames, dipTagTypes, dipSubscribed);
+                
+                // if no dpes are subscribed with this data make the subscription button visible.
+                if(dynContains(dipSubscribed,0) || dynlen(dipSubscribed)==0)
+                {
+                  addSubscription.enabled(TRUE);
+                  delSubscription.enabled(FALSE);
+                }
+                else
+                {
+                  delSubscription.enabled(TRUE);
+                  addSubscription.enabled(FALSE);
+                }
+      }          
+}
+
+/*
+      get all published fields under selected experiment and magnet
+*/  
+getPublishedFields(string experiment, string magnet, dyn_string &dipTagNames, dyn_int &dipTagTypes, dyn_string &dipPublications, dyn_string &dipDpeNames)
+{
+      string queryAddress = \"dip/\"+experiment+\"/\"+magnet;
+      //string queryAddress = \"test/itcobe/\"+experiment+\"/\"+magnet;
+      dyn_string exceptionInfo;
+      string dpConfig = config.selectedText;
+      int queriedNodeType;
+      int timeout;
+      
+      // check if the config dp exists
+      if(!dpExists(dpConfig))
+      {
+      	        DebugN(\"Error: Could not find the config dp:\", dpConfig); 
+        	return; 
+      }     
+      
+      dyn_string childNames, fieldNames;
+      dyn_int childTypes, fieldTypes;
+
+      fwOpenProgressBar(\"Information\", \"Getting publications\", 1);      
+           
+      // get the query timeout
+      dpGet(dpConfig+\".queryTimeout\", timeout);      
+      
+      // query dip 
+      queriedNodeType = fwDIP_DipQuery(dpConfig, queryAddress,
+                                       childNames, childTypes,
+                                       fieldNames, fieldTypes,
+                                       exceptionInfo, timeout);   
+      
+      // error handling
+      if(dynlen(exceptionInfo) != 0)
+      {
+		if (strpos(exceptionInfo[2],\"Timeout\") >= 0)
+			ChildPanelOnCentral(\"/fwGeneral/fwMessageInfo1.pnl\", \"\", 
+					makeDynString(\"$1: You must run the DIP manager to make the subscription.\"));
+		else 
+                        ChildPanelOnCentral(\"/fwGeneral/fwMessageInfo1.pnl\", \"\", 
+					makeDynString(\"$1: There are no publications for the selected experiment.\"));
+		return;
+      }    
+      
+      // if the query have fieldNames save the pub.data
+      if(dynlen(fieldNames)>0)
+      {
+          for(int i=1; i<=dynlen(fieldNames); i++)
+            dynAppend(dipPublications,queryAddress);
+          dynAppend(dipTagNames, fieldNames);
+          dynAppend(dipTagTypes, fieldTypes);
+      }      
+            
+      // if the query have childNames then we have to query all childNames
+      if(dynlen(childNames)>0)
+      {
+          dyn_string childNames2, fieldNames2;
+          dyn_int childTypes2, fieldTypes2;   
+               
+          for(int i=1; i<=dynlen(childNames); i++)
+          {   
+      
+              // query dip 
+              queriedNodeType = fwDIP_DipQuery(dpConfig, queryAddress+\"/\"+childNames[i],
+                                               childNames2, childTypes2,
+                                               fieldNames2, fieldTypes2,
+                                               exceptionInfo, timeout);   
+      
+              // error handling
+              if(dynlen(exceptionInfo)!=0)
+              {
+      	              DebugN(\"Error: DIP query failed\",queryAddress,exceptionInfo);
+                      fwCloseProgressBar(\"Failed\");
+        	      return;  
+              }   
+ 
+              dynAppend(dipPublications,queryAddress+\"/\"+childNames[i]);
+              dynAppend(dipTagNames, fieldNames2);
+              dynAppend(dipTagTypes, fieldTypes2);                          
+          }  
+         
+      }
+      
+      // find out if we should use the dipPubs names or the dipTagNames as dpe names
+      dyn_string Match;
+      Match = dynPatternMatch(\"*\"+current,dipPublications);
+      if(dynlen(Match)>0)
+      {
+           for(int i=1;i<=dynlen(dipPublications);i++)
+           {
+             dyn_string pubNames;
+             string pubName;
+             pubNames = strsplit(dipPublications[i],\"/\");
+             pubName = pubNames[dynlen(pubNames)];
+             dynAppend(dipDpeNames,\".\"+pubName);
+           } 
+      }
+      else 
+      {
+            for(int i=1;i<=dynlen(dipTagNames);i++)
+              dynAppend(dipDpeNames,\".\"+dipTagNames[i]);
+      }
+      
+      fwCloseProgressBar(\"Done\");
+}
+
+/*
+    Update the DIP publication table
+*/
+updatePublicationTable(dyn_string dipPublications, dyn_string dipNames, dyn_int dipTypes, dyn_bool dipSubscribed)
+{
+      dyn_string exceptionInfo;
+      string dataTypeText;
+      dyn_string dataTypes;
+           
+      // clean the table
+      dipPubDetails.deleteAllLines;
+      
+      // change data type (int) to understandable text
+      for(int i=1;i<=dynlen(dipTypes);i++)
+      {
+           fwConfigs_getDataTypeText(dipTypes[i], dataTypeText, exceptionInfo); 
+           dynAppend(dataTypes,dataTypeText);
+      }
+      
+      dyn_string dipSubs;
+      for(int i=1;i<=dynlen(dipNames);i++)
+      {
+          if(dynlen(dipSubscribed)>=i)
+          {
+             if(dipSubscribed[i])
+               dynAppend(dipSubs,\"Yes\");
+             else
+               dynAppend(dipSubs,\"No\"); 
+          }
+          else
+            dynAppend(dipSubs,\"No\");
+            
+      }
+      
+      // write data to table
+      dipPubDetails.appendLines(dynlen(dipPublications),
+                                \"dipPub\",dipPublications,
+                                \"dipTag\",dipNames,
+                                \"dipType\",dataTypes,
+                                \"dipTypeHidden\",dipTypes,
+                                \"dipSub\",dipSubs);
+                                
+}
+
+/*
+    This function check if dp elements are subscribed.
+*/
+checkIfDpesAreSubscribed(string magnetName, dyn_string dipDpeNames, dyn_bool &isConfigured)
+{
+     string systemName;
+     dyn_string configDps;
+     dyn_string dpes;
+     dyn_string exceptionInfo;
+
+     systemName = getSystemName();	
+     for (int i=1; i<=dynlen(dipDpeNames); i++)
+     {
+       dynAppend(dpes,systemName+\"Magnet/\"+magnetName+dipDpeNames[i]);   
+       
+       if(!dpExists(\"Magnet/\"+magnetName+dipDpeNames[i]))
+       {
+          DebugN(\"DPE doesn't exist. Available for subscription. \",\"Magnet/\"+magnetName+dipDpeNames[i],\"checkIfDpesAreSubscribed\");         
+          return;    
+       }
+     }
+     
+     _fwDIP_checkIsDpeListSubscribed(dpes, isConfigured, configDps, exceptionInfo);
+              
+     // error handling
+     if (dynlen(exceptionInfo) != 0)
+     {
+            ChildPanelOnCentral(\"/fwGeneral/fwMessageInfo1.pnl\", \"_fwDIP_checkIsDpeListSubscribed\", 
+				 makeDynString(\"$1: The check to see if dpes are subscribed failed.\"));
+     }   
+}
+
+/*
+    this function updates the DIP data table and the state of the add and delete buttons  
+*/
+void updateData()
+{
+        string magnetName;
+        dyn_string dipTagNames, dipPublications, dipDpeNames;
+        dyn_int dipTagTypes;
+        dyn_bool dipSubscribed;
+
+        // several magnets under this experiment
+        if(magnetSelect.selectedPos>1 && magnetSelect.enabled==TRUE)
+        {
+            magnetName = expSelect.selectedText+magnetSelect.selectedText;
+            strreplace(magnetName,\"MCS/\",\"\");  
+            getPublishedFields(expSelect.selectedText, magnetSelect.selectedText, dipTagNames, dipTagTypes, dipPublications, dipDpeNames);  
+        }
+        else
+        {
+            magnetName = expSelect.selectedText;
+            getPublishedFields(expSelect.selectedText, \"MCS\", dipTagNames, dipTagTypes, dipPublications, dipDpeNames);
+        }
+
+        // dip query found no data..
+        if(dynlen(dipTagNames)==0)
+        {
+          DebugN(\"No data published under the selected magnet\",magnetName);
+          addSubscription.enabled(FALSE);
+          delSubscription.enabled(FALSE); 
+          return;        
+        }       
+        
+        checkIfDpesAreSubscribed(magnetName, dipDpeNames, dipSubscribed);        
+        
+        updatePublicationTable(dipPublications, dipTagNames, dipTagTypes, dipSubscribed);
+        
+
+        // if no dpes are subscribed with this data make the subscription button visible.
+        if(dynContains(dipSubscribed,0) || dynlen(dipSubscribed)==0)
+        {
+          addSubscription.enabled(TRUE);
+          delSubscription.enabled(FALSE);
+        }
+        else
+        {
+          delSubscription.enabled(TRUE);
+          addSubscription.enabled(FALSE);
+        }
+
+}
+
+getConfigList()
+{
+	dyn_string items;
+	int i;
+	
+	items = dpNames(\"*:*\",\"_FwDipConfig\");
+	config.items = items;
+	config.selectedPos = 1;
+}
+
+
+fwCreateDPT(string dptName, dyn_string fieldNames, dyn_int fieldTypes, string type, dyn_string &exceptionInfo)
+{
+	dyn_dyn_string a;
+	dyn_dyn_int b;
+
+	int length;
+	length = dynlen(fieldNames);
+	
+	// check if there is no name collision
+	if ((type == \"create\") && (DPTExists(dptName)))
+		return;
+
+	// this is the 'root' element	
+	a[1] = makeDynString(dptName, \"\");
+	b[1] = makeDynInt(DPEL_STRUCT);
+
+	// and the underlying flat structure
+	for(int i=2; i<=length+1; i++)
+	{
+		a[i] = makeDynString(\"\", fieldNames[i-1]);
+		b[i] = makeDynInt(0, fieldTypes[i-1]);
+	}
+        
+	int prueba;
+	if (type == \"change\")
+          prueba = dpTypeChange(a,b);
+        else 
+          prueba = dpTypeCreate(a,b);
+}
+
+bool DPTExists(string pattern)
+{
+	if(dynlen(dpTypes(pattern))==1)
+		return true;
+	return false;
+}
+
+/*
+    newDp - name of the new DP where the data should be stored
+    dpeNames - datapoint element names
+    dipTags - datapoing element names or tags
+    magnet - name of the magnet (LHCb, CMS, ATLASToroids..)
+*/
+_setDeviceData(string newDp, dyn_string dpeNames, dyn_string dipTags, string magnet)
+{
+	dyn_string empty, falses, trues, units;
+	dyn_int zeroes;
+        string currentVal;
+	int i;
+	
+        currentVal = \".\"+current;
+        
+	for(i = 1; i <= dynlen(dpeNames); i++)
+	{
+		trues[i] = \"TRUE\";
+		empty[i] = \"EMPTY\";
+		zeroes[i] = 0;
+		falses[i] = \"FALSE\";
+
+		if (dpeNames[i] == currentVal)
+			units[i] = \"A\";
+		else
+			units[i] = \"EMPTY\";
+	}	
+        
+	dpSet(          newDp+\".dpType\", \"FwMagnet\"+magnet,
+			newDp+\".type\", \"Magnet\"+magnet,
+			newDp+\".properties.names\", dipTags,
+			newDp+\".properties.dpes\", dpeNames,
+			newDp+\".properties.userData\", dipTags,
+			newDp+\".properties.defaultValues\", empty,
+			newDp+\".properties.types\", zeroes,				
+			newDp+\".configuration.address.canHave\", trues,
+			newDp+\".configuration.address.direction\", zeroes, 		
+			newDp+\".configuration.address.OPC.items\", empty,
+			newDp+\".configuration.address.OPC.groups\", empty,
+			newDp+\".configuration.address.OPC.types\", empty,
+			newDp+\".configuration.address.OPC.userDefined\", empty,
+			newDp+\".configuration.address.OPC.direction\", zeroes,
+			newDp+\".configuration.address.DIM.items\", empty,
+			newDp+\".configuration.address.DIM.direction\", zeroes,
+			newDp+\".configuration.address.MODBUS.direction\", zeroes, 
+			newDp+\".configuration.address.DIP.direction\", zeroes,
+			newDp+\".configuration.address.DIP.items\", zeroes,
+			newDp+\".configuration.dpFunction.canHave\", falses,
+			newDp+\".configuration.dpFunction.function\", empty, 
+			newDp+\".configuration.dpFunction.params\", empty,
+			newDp+\".configuration.alert.canHave\", trues, 
+			newDp+\".configuration.alert.defaultClasses\", empty,
+			newDp+\".configuration.alert.defaultTexts\", empty,
+			newDp+\".configuration.alert.defaultLimits\", empty,
+			newDp+\".configuration.archive.canHave\", trues,
+			newDp+\".configuration.archive.defaultClass\", empty,
+			newDp+\".configuration.archive.smoothType\", zeroes,
+			newDp+\".configuration.archive.smoothProcedure\", zeroes,
+			newDp+\".configuration.archive.deadband\", zeroes,
+			newDp+\".configuration.archive.timeInterval\", zeroes,
+			newDp+\".configuration.smoothing.canHave\", falses,
+			newDp+\".configuration.smoothing.smoothProcedure\", zeroes,
+			newDp+\".configuration.smoothing.deadband\", zeroes,
+			newDp+\".configuration.smoothing.timeInterval\", zeroes,
+			newDp+\".configuration.pvRange.canHave\", falses,
+			newDp+\".configuration.pvRange.minValue\", zeroes,
+			newDp+\".configuration.pvRange.maxValue\", zeroes,
+			newDp+\".configuration.pvRange.negateRange\", zeroes,
+			newDp+\".configuration.pvRange.ignoreOutside\", zeroes,
+			newDp+\".configuration.pvRange.inclusiveMin\", zeroes,
+			newDp+\".configuration.pvRange.inclusiveMax\", zeroes,
+			newDp+\".configuration.format.canHave\", falses,
+			newDp+\".configuration.format.format\", empty,
+			newDp+\".configuration.unit.canHave\", trues,
+			newDp+\".configuration.unit.unit\", units,
+			newDp+\".configuration.conversion.canHave\", falses,
+			newDp+\".configuration.conversion.type\", empty,
+			newDp+\".configuration.conversion.conversionType\", zeroes,
+			newDp+\".configuration.conversion.order\", zeroes, 
+			newDp+\".configuration.conversion.arguments\", zeroes 
+              );	
+}
+
+getValuesDeviceUnit(string DPT, dyn_dyn_string &names)
+{
+	//dyn_dyn_string names;
+	dyn_dyn_int types;
+	dyn_string nameList, typeList, ds;
+	dyn_float df;
+	string strDpe, currentVal, rampingVal, typeDpe;
+	int pos, i;
+	
+	dpTypeGet(DPT,names,types);
+
+	for(i=2; i<=dynlen(names);i++)
+	{
+		if(dynlen(names[i])==2)
+		{
+			dynAppend(nameList,names[i][2]);
+			dynAppend(typeList,types[i][2]);
+		}
+	}
+
+	pos = dynContains(nameList,\"OldCurrent\");
+	dynRemove(nameList,pos);
+	dynRemove(typeList,pos);
+	
+	pos = dynContains(nameList,\"NameDpe\");
+	dynRemove(nameList,pos);
+	dynRemove(typeList,pos);
+	
+	pos = dynContains(nameList,\"Direction\");
+	dynRemove(nameList,pos);
+	dynRemove(typeList,pos);
+	
+	pos = dynContains(nameList,\"model\");
+	dynRemove(nameList,pos);
+	dynRemove(typeList,pos);
+
+	fwGeneral_dynStringToString(nameList,strDpe);
+        
+        dynClear(names);
+        
+        pos = dynContains(nameList, current);
+	getDataType(typeList[pos],typeDpe);
+	dynAppend(names[1],makeDynString(typeDpe,nameList[pos]));
+		
+	pos = dynContains(nameList, ramping);
+	getDataType(typeList[pos],typeDpe);
+	dynAppend(names[2],makeDynString(typeDpe,nameList[pos]));
+        
+        //ChildPanelOnCentralModalReturn(\"fwMCS/fwMagnetSelectValuesStates.pnl\", \"Select Values\",
+	/*						makeDynString(\"$dpeList:\"+strDpe), df, ds);
+	
+	dynClear(names);
+	
+	if (ds[1] == \"ok\")
+	{
+		current = ds[2];
+		ramping = ds[3];
+                DebugN(\"current: \"+current+\" ---- ramping: \"+ramping);
+                DebugN(\"nameList: \"+nameList);
+		pos = dynContains(nameList, current);
+		getDataType(typeList[pos],typeDpe);
+		dynAppend(names[1],makeDynString(typeDpe,nameList[pos]));
+		
+		pos = dynContains(nameList, ramping);
+		getDataType(typeList[pos],typeDpe);
+		dynAppend(names[2],makeDynString(typeDpe,nameList[pos]));
+		}
+	else
+	{
+		DebugN(\"It is not possible to create the DU\");
+		return;
+	}*/
+}
+
+createDeviceUnit(string fwMagnetDP, dyn_dyn_string values)
+{
+	string nameDp, nameDU;
+	dyn_string components, states;
+	int i, typeCurrent, typeRamping;
+
+	DebugN(\"Adding the device unit...\");
+	
+	nameDp = \"fwOT_\"+fwMagnetDP+\"_DU\";
+	nameDU = fwMagnetDP+\"_DU\";
+	dpCreate(nameDp, \"_FwFsmObjectType\");
+	
+	dynAppend(components,values[1][1]+\" \"+values[1][2]+\"\\nfloat Direction\\n\"+values[2][1]+\" \"+values[2][2]+\"\\n\");
+	dynAppend(components,\"\");
+	dynAppend(components,nameDU+\"_initialize(string domain, string device)\\n{\\n}\");
+	dynAppend(components,nameDU+\"_valueChanged( string domain, string device,\\n\\t\"+values[1][1]+\" \"+values[1][2]+\",\\n\\tfloat Direction,\\n\\t\"+values[2][1]+\" \"+values[2][2]+\", string &fwState )\\n{\\n\\tif (\\n\\t(\"+values[1][2]+\" >= 1) &&\\n\\t(Direction == 0) )\\n\\t{\\n\\t\\tfwState = \\\"ON\\\";\\n\\t}else if (\\n\\t(\"+values[1][2]+\" < 1) &&\\n\\t(Direction == 0) )\\n\\t{\\n\\t\\tfwState = \\\"OFF\\\";\\n\\t}\\n\\telse if (\\n\\t(\"+values[2][2]+\" == TRUE) &&\\n\\t(Direction == 2) &&\\n\\t(\"+values[1][2]+\" >= 1) )\\n\\t{\\n\\t\\tfwState = \\\"RAMPING_UP\\\";\\n\\t}\\n\\telse if (\\n\\t(\"+values[2][2]+\" == TRUE) &&\\n\\t(Direction == 1) &&\\n\\t(\"+values[1][2]+\" >= 1) )\\n\\t{\\n\\t\\tfwState = \\\"RAMPING_DOWN\\\";\\n\\t}\\n\\telse \\n\\t{\\n\\t\\tfwState = \\\"ERROR\\\";\\n\\t}\\n}\\n\");
+	                                                                                                                                                                                                                       
+        dynAppend(components,nameDU+\"_doCommand(string domain, string device, string command)\\n{\\n}\");
+	
+	dynAppend(states,\"ON\");
+	dynAppend(states,\"FwStateOKPhysics\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"OFF\");
+	dynAppend(states,\"FwStateOKNotPhysics\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"RAMPING_UP\");
+	dynAppend(states,\"FwStateAttention1\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"RAMPING_DOWN\");
+	dynAppend(states,\"FwStateAttention1\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"ERROR\");
+	dynAppend(states,\"FwStateAttention3\");
+        dynAppend(states,\"\");
+	dynAppend(states,\"\");
+	dynAppend(states,\"\");
+
+	int i = dpSet(nameDp+\".panel\",fwMagnetDP+\"|\"+fwMagnetDP+\"_DU.pnl\",
+				nameDp+\".components\",components,
+				nameDp+\".states\", states);
+
+	DebugN(\"The device unit has been created.\");
+}
+
+getDataType(int typeIn, string &typeOut)
+{
+	switch (typeIn)
+	{
+		case DPEL_INT:
+			typeOut = \"int\";
+			break;
+		case DPEL_FLOAT:
+			typeOut = \"float\";
+			break;
+		case DPEL_BOOL:
+			typeOut = \"bool\";
+			break;
+		case DPEL_STRING:
+			typeOut = \"string\";
+			break;
+		default:
+			DebugN(\"Unknow type for Dpe: \" + dpe);
+			typeOut=\"\";
+			break;
+	}
+}
+
+bool isSameStructure(dyn_string ds1, dyn_string ds2)
+{
+	dynSortAsc(ds1);
+	dynSortAsc(ds2);
+	if (dynlen(ds1) == dynlen(ds2))
+	{
+		for (int i = 1; i <= dynlen(ds1); i++)
+			if (ds1[i] != ds2[i])
+				return false;
+		return true;
+	}
+	else return false;
+}
+
+
+/** Function to get the field names and types of DIP compatible DPT
+@param DPT						input, the name of the DPT
+@param dfn						output, field names
+@param dft						output, field types
+*/ 
+getDptFieldData(string DPT, dyn_string &dfn, dyn_int &dft)
+{
+	dynClear(dfn);
+	dynClear(dft);
+
+	dyn_dyn_string names;
+	dyn_dyn_int types;
+	dpTypeGet(DPT,names,types);
+	for(int i=2; i<=dynlen(names);i++)
+	{
+		if(dynlen(names[i])==2)
+		{
+			dynAppend(dfn,names[i][2]);
+			dynAppend(dft,types[i][2]);
+		}
+	}	
+}
+
+configureAdditionalDpe(string curDpe, string ramDpe, string magnetSel)
+{
+  float valueDpe;
+  string currentVal, rampingVal;
+  dyn_string ds, exceptionInfo;
+  dyn_float df;
+  
+  currentVal = \"Magnet/\"+magnetSel+\".\"+curDpe;
+  rampingVal = \"Magnet/\"+magnetSel+\".\"+ramDpe;
+  
+  dpGet(currentVal, valueDpe);
+  dpSet(\"Magnet/\"+magnetSel+\".OldCurrent\",valueDpe,
+        \"Magnet/\"+magnetSel+\".NameDpe\",\"Magnet/\"+magnetSel+\".OldCurrent\",
+        \"Magnet/\"+magnetSel+\".Direction\",0,
+        \"Magnet/\"+magnetSel+\".model\",magnetSel);
+  
+  fwDpFunction_setDpeConnection(\"Magnet/\"+magnetSel+\".Direction\",
+                                makeDynString(currentVal+\":_original.._value\",
+                                              rampingVal+\":_original.._value\"),
+                                makeDynString(\"Magnet/\"+magnetSel+\".NameDpe:_original.._value\"),
+                                \"changeValue(p1,p2,g1)\",
+                                exceptionInfo);  
+}
+
+
+/*
+  This functions search for all DIP publications under a chosen start address in the DIP hierarchy
+  - Created by Erik Morset
+  
+  dipQueryStartAddress - a start address in the DIP hierarchy (ex. \"/dip/ATLAS/MCS\")
+  publications - return all the publicatins which was found
+  dp - (ex. \"dist_1:DIPConfig_1\")
+  
+*/  
+searchForDipPublications(string dipQueryStartAddress, dyn_string &publications, string dp, dyn_string &exceptionInfo)
+{
+        string lastQueriedAddress;
+        int iterations; // bug search
+        bool stop = false;
+        const int maxIterations = 100; // bug search: just to be sure that this loop ends.. can be removed
+        string lastQueriedFolder;    
+        string startAddress = dipQueryStartAddress;          
+        string qAddress = startAddress;   
+        int resultType;
+        bool oneLevelUp = false;
+        int timeout;
+        dpGet(dp+\".queryTimeout\", timeout);
+        
+        fwOpenProgressBar(\"Information\", \"Getting publications\", 1);
+        while(!stop)
+        {            
+            iterations++;
+            dyn_string childNames, childTypes, fieldNames, fieldTypes;
+            dyn_string tmp;
+            
+            strreplace(qAddress,\"//\",\"/\");
+            
+            // query dip 
+            resultType = fwDIP_DipQuery(dp, qAddress,
+                                        childNames, childTypes,
+                                        fieldNames, fieldTypes,
+                                        exceptionInfo, timeout);
+            
+            // save publications
+            dyn_string folders;
+            for(int i=1; i<=dynlen(childNames); i++)
+            {
+                if(childTypes[i]==1) //folder/branch (wrong in the fwDIP_DipQuery() documentation)
+                  dynAppend(folders,childNames[i]);
+                else                 // items/leaf
+                {
+                  if(!dynContains(publications,qAddress+\"/\"+childNames[i]))
+                     dynAppend(publications,qAddress+\"/\"+childNames[i]);
+                }
+            }   
+                   
+            // if this level in the tree has folders find a folder to query
+            if(dynlen(folders)!=0)
+            {                 
+                  // get the last queried folder 
+                  if(strlen(lastQueriedAddress)==0)
+                     tmp = strsplit(qAddress,\"/\");
+                  else 
+                     tmp = strsplit(lastQueriedAddress,\"/\");                   
+                  if(tmp[dynlen(tmp)]==\"/\")
+                     lastQueriedFolder = tmp[dynlen(tmp)-1];
+                  else
+                     lastQueriedFolder = tmp[dynlen(tmp)];
+
+                  if(dynContains(folders,lastQueriedFolder)==0 || strlen(lastQueriedFolder)==0) // query the first folder
+                      qAddress = qAddress+\"/\"+folders[1];
+                  else if(dynContains(folders,lastQueriedFolder)!=0 && lastQueriedFolder!=folders[dynlen(folders)]) // query rest of the folders
+                      qAddress = qAddress+\"/\"+folders[dynContains(folders,lastQueriedFolder)+1];
+                  else  // move one level up
+                  {
+                          lastQueriedAddress = qAddress;
+                          tmp = strsplit(qAddress,\"/\"); 
+                          if(tmp[dynlen(tmp)]==\"/\")
+                             lastQueriedFolder = tmp[dynlen(tmp)-1];
+                          else
+                             lastQueriedFolder = tmp[dynlen(tmp)];  
+                          if(strlen(lastQueriedFolder)!=0)     
+                              qAddress = strrtrim(qAddress, lastQueriedFolder);    
+                          qAddress = strrtrim(qAddress, \"/\");   
+                  }
+            // move one level up
+            } else {
+                  lastQueriedAddress = qAddress;
+                  tmp = strsplit(qAddress,\"/\"); 
+                  if(tmp[dynlen(tmp)]==\"/\")
+                     lastQueriedFolder = tmp[dynlen(tmp)-1];
+                  else
+                     lastQueriedFolder = tmp[dynlen(tmp)];  
+                  if(strlen(lastQueriedFolder)!=0)     
+                      qAddress = strrtrim(qAddress, lastQueriedFolder);    
+                  qAddress = strrtrim(qAddress, \"/\");         
+            }              
+            
+            // if query address is shorter than the start address stop the loop
+            if(strlen(qAddress)<strlen(strltrim(strrtrim(startAddress,\"/\"))))
+            {
+              if(dynlen(publications)==0 && oneLevelUp==false)
+              {
+                   oneLevelUp = true;
+                   startAddress = strltrim(strrtrim(startAddress,\"/\"),\"/\");
+                   tmp = strsplit(startAddress,\"/\");
+                   startAddress = strrtrim(startAddress,tmp[dynlen(tmp)]);
+              }  
+              else
+                   stop = true;     
+            }
+              
+            if(iterations>=maxIterations)
+            {
+              stop = true;
+              DebugN(\"Stopped because the loop reached the max iteration limit.. something is wrong\");
+            }
+        } 
+        fwCloseProgressBar(\"Finish\");
+        return;
+}" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+;
+}" 0
+
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 0
+"Text1"
+""
+1 10 70 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 72 121 89
+0 2 0 "0s" 0 0 0 192 0 0  12 72 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 18 Select experiment:
+2 1
+"Text4"
+""
+1 10 130 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 132 118 151
+0 2 0 "0s" 0 0 0 64 0 0  12 132 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Select magnet:
+2 2
+"Text5"
+""
+1 170 70 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 172 72 368 91
+0 2 0 "0s" 0 0 0 64 0 0  172 72 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 29 DIP Item publication details:
+2 3
+"textPublications"
+""
+1 250 15 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 252 17 345 34
+0 2 0 "0s" 0 0 0 192 0 0  252 17 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 16 Publications on:
+2 4
+"Text2"
+""
+1 12 12 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 14 14 186 37
+0 2 0 "0s" 0 0 0 192 0 0  14 14 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 Magnet Subscription
+4 5
+"Line1"
+""
+1 366 197 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E  366 197 386 217
+22 7
+"expSelect"
+""
+1 12 92 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 10 90 154 117
+0
+
+"main()
+{
+        this.appendItem(\"Select..\");
+	this.appendItem(\"LHCb\");
+	this.appendItem(\"ALICE\");
+	this.appendItem(\"CMS\");
+	this.appendItem(\"ATLAS\");
+}" 0
+
+"main()
+{
+	// update magnet list if an experiment is selected
+        if(this.selectedPos>1)
+          updateMagnetList(this.selectedText);
+        else
+          magnetSelect.enabled(FALSE);
+}" 0
+
+E
+ 0 0
+25 10
+"dipPubDetails"
+""
+1 -660.972222222222 -1181 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 158 88 737 382
+EE 1 0 1 5 1 "dipPub" 22 1 0 "s" 1
+LANG:1 15 DIP publication
+E
+1
+LANG:1 15 DIP publication
+
+250 "dipTag" 10 1 0 "s" 1
+LANG:1 7 DIP Tag
+E
+1
+LANG:1 28 Tag name for DIP publication
+
+120 "dipType" 7 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 29 Data type for DIP publication
+
+90 "dipTypeHidden" 0 0 0 "s" 1
+LANG:1 10 TypeHidden
+E
+1
+LANG:1 29 Data type for DIP publication
+
+10 "dipSub" 7 1 0 "s" 1
+LANG:1 11 Subscribed?
+E
+1
+LANG:1 38 Is the DIP data already subscribed to?
+
+88 
+26 26 "" 1 1
+LANG:1 2 #1
+8 64
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+13 11
+"close"
+""
+1 650 390 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 648 388 732 422
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+22 12
+"config"
+""
+1 360 15 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 358 13 547 40
+0
+
+"main()
+{
+	getConfigList();
+}" 0
+
+E
+E
+ 0 0
+13 13
+"delSubscription"
+""
+1 330 390 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 328 388 462 422
+
+T 
+1
+LANG:1 19 Delete Subscription
+"main()
+{
+	dyn_dyn_string currentSubscriptionInfo;
+	dyn_string dpes, exceptionInfo;
+	string magnet;
+
+	fwOpenProgressBar(\"Information\", \"Deleting subscription\", 1);
+	
+        if(magnetSelect.enabled==TRUE)
+          magnet = expSelect.selectedText+magnetSelect.selectedText;
+        else
+          magnet = expSelect.selectedText;
+        strreplace(magnet,\"MCS/\",\"\");
+
+	fwDIP_getAllSubscriptions(config.selectedText, currentSubscriptionInfo, exceptionInfo); 
+	
+	for(int j=1; j<=dynlen(currentSubscriptionInfo[1]); j++)
+		if (strpos(currentSubscriptionInfo[1][j],magnet)>=0)
+			dynAppend(dpes,currentSubscriptionInfo[1][j]);
+
+    
+	//fwDIP_unsubscribeMany(dpes, exceptionInfo);
+        /*
+          This may be a bug.. 
+          Sometimes when I 
+        */
+        for(int i=1; i<=dynlen(dpes);i++)
+        {
+           fwDIP_unsubscribe(dpes[i],exceptionInfo);
+           delay(0,100);
+        }
+
+        
+       
+        if(dynlen(exceptionInfo)==0)
+        {
+            fwCloseProgressBar(\"Success\");
+            DebugN(\"The subscription \"+magnet+\" has been deleted\"); 
+            // update table and buttons
+            updateData();
+        }
+        else
+        {
+          DebugN(exceptionInfo,dpes);
+          fwCloseProgressBar(\"Failed\");
+          DebugN(\"The subscription \"+magnet+\" has NOT been deleted\");
+        }
+}" 0
+ E E E
+1 20 0 "" 0
+1 "message" 1 1 "main()
+{
+	time rootPanelPathTime, childPanelPathTime;
+	unsigned managerNumber = myManNum();
+	string rootPanelPath, childPanelPath, rootPanelName, childPanelName, panelName;
+	
+	
+	if(isDollarDefined(\"$sPanelRelativePath\"))
+	{
+		panelPath = $sPanelRelativePath;
+	}
+	
+	if(panelPath == \"\")
+	{
+		dpGet(	\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName\", rootPanelPath,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName:_original.._stime\", rootPanelPathTime,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.PanelName\", rootPanelName,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName\", childPanelPath,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName:_original.._stime\", childPanelPathTime,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.PanelName\", childPanelName);
+	
+
+		//	DebugN(rootPanelPath, rootPanelPathTime, childPanelPath, childPanelPathTime);
+	
+		if(rootPanelPathTime > childPanelPathTime)
+		{
+			panelPath = rootPanelPath;
+			panelName = rootPanelName;
+		}
+		else
+		{
+			panelPath = childPanelPath;
+			panelName = childPanelName;
+		}
+	
+		if(myPanelName() == panelName)
+		{
+			goodPanelName = TRUE;
+//			DebugN(\"Correct panel name\");
+		}
+		else
+		{
+			goodPanelName = FALSE;
+//			DebugN(\"Wrong panel name\");
+		}	
+	}
+//	DebugN(\"The good path is \" + panelPath);
+}" 0
+ 
+1 "leftClick" 1 1 "main()
+{
+	int replaced;
+	string 	componentName, path, tempPanelPath, helpFile, browserCommand;
+	dyn_string aux, exceptionInfo;
+	
+//	DebugN(\"The good path is \" + panelPath);
+	
+	if(!goodPanelName)
+	{
+		fwException_raise(	exceptionInfo,
+							\"ERROR\",
+							\"Open panel name doesn't match with PVSS database. Try opening the panel again.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Get component name. We assume panels are inside a directory
+	// named after the component name
+	strreplace(panelPath, \"\\\\\", \"/\");
+	aux = strsplit(panelPath, \"/\");
+	componentName = aux[1];
+//	DebugN(panelPath, componentName);
+	
+	// Remove extension if given
+	if(strpos(panelPath, \".pnl\") >= 0)
+	{
+		tempPanelPath = substr(panelPath, 0, strpos(panelPath, \".pnl\"));
+	}
+	else
+	{
+		tempPanelPath = panelPath;
+	}
+	
+	// try to find the help file associated with the panel
+	helpFile = tempPanelPath + \".html\";
+//	DebugN(\"helpFile \" + helpFile + \" tempPanelPath \" + tempPanelPath + \" componentName \" + componentName);
+	path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+	if(path == \"\")
+	{		
+		helpFile = tempPanelPath + \".htm\";
+//		DebugN(\"helpFile \" + helpFile);
+		path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+//	DebugN(componentName + \"/panels/\" + helpFile);
+		if(path == \"\")
+		{
+			fwException_raise(	exceptionInfo,
+								\"ERROR\",
+								\"Could not find the help file associated with the current panel\",
+								\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	
+//	DebugN(\"Final help path \" + path);
+	
+	fwOpenProgressBar(\"Help\", \"Opening help file...\", 1);
+	// If there were no exceptions, then display the help
+	if(_WIN32)
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandWindows\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+//		system(\"start iexplore \" + path + \" &\");
+		system(browserCommand);
+	}
+	else
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandLinux\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+		system(browserCommand);
+//		system(\"start iexplore \" + path + \" &\");
+	}
+	fwCloseProgressBar();
+}	" 0
+ 
+0
+13 16
+"addSubscription"
+""
+1 160 390 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 158 388 302 422
+
+T 
+1
+LANG:1 16 Add Subscription
+"main()
+{	
+	dyn_dyn_string values;
+	dyn_string exceptionInfo;
+	dyn_string fieldNameSub, fieldNameDevice, ds, newValues;
+	dyn_float df;
+        string magnet, dipTag, systemName;
+	string configDp, address;
+	int err;
+	bool confDpe = FALSE, isConfigured;
+
+	// create a magnet name from the selected experiment and magnet
+        if(magnetSelect.enabled==TRUE)
+        {
+          magnet = expSelect.selectedText+magnetSelect.selectedText;    
+          strreplace(magnet,\"MCS/\",\"\");
+        }  
+        else
+          magnet = expSelect.text;  
+         	
+	// no magnet selected
+	if (magnet == \"\")
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"You have to select a experiment and a magnet\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}      
+                                            
+        
+	// get the DP where the publications are
+	configDp = config.selectedText;
+
+        // get data from the DIP publications table
+        dyn_string dipTagNames;
+        dyn_string dipTagTypes;
+        dyn_string dipPubs;
+        getValue(\"dipPubDetails\",\"getColumnN\",0,dipPubs);
+        getValue(\"dipPubDetails\",\"getColumnN\",1,dipTagNames);
+        getValue(\"dipPubDetails\",\"getColumnN\",3,dipTagTypes);
+        
+	// no \"Current\" tag
+        dyn_string Match;
+        Match = dynPatternMatch(\"*\"+current,dipPubs);
+	if(dynlen(Match)==0 && dynContains(dipTagNames,current)==0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"It was not possible to find the current value in the publication\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	// no \"Ramping\" tag
+        Match = dynPatternMatch(\"*\"+ramping,dipPubs);
+	if(dynlen(Match)==0 && dynContains(dipTagNames,ramping)==0)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"It was not possible to find the ramping value in the publication\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+        
+        /*
+          Sometimes all tag names are equal. When this is the case we have to look in the 
+          publication name for a more appropiate name
+        */
+        dyn_string dipNames;
+        if(dynlen(Match)>0)
+        {
+           for(int i=1;i<=dynlen(dipPubs);i++)
+           {
+             dyn_string pubNames;
+             string pubName;
+             pubNames = strsplit(dipPubs[i],\"/\");
+             pubName = pubNames[dynlen(pubNames)];
+             dynAppend(dipNames,pubName);
+           } 
+        }
+        else 
+            dipNames = dipTagNames;
+       
+	// create a device definition and a datapoint for the magnet
+        string dpGenericDevice, dpNewDevice;
+        dpGenericDevice = \"FwMagnetGenericInfo\";
+	dpNewDevice = \"FwMagnet\"+magnet+\"Info\";
+
+	// check if it is a legal dp name
+	if(!dpIsLegalName(\"Magnet/\"+magnet))
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", \"Name \" + \"Magnet/\"+magnet + \" is not a legal DP name.\", \"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}        	
+	// check if the magnet already exist
+	if(dpExists(\"Magnet/\"+magnet))
+	{
+		ChildPanelOnCentralModalReturn(\"fwGeneral/fwOkCancel.pnl\",\"Updating Device\", 
+						makeDynString(\"$text:The magnet already exist (Magnet/\"+magnet+\").\\nDo you want to proceed in update mode?\"), 
+						df, ds);
+		if (ds[1] == \"cancel\")
+			return;
+	}
+	
+        
+	// create the new device defintions under the DPT _FwDeviceDefinition
+	dpCreate(dpNewDevice, \"_FwDeviceDefinition\");
+        
+	// copy all the contents from the generic device def. to the new magnet device
+	dpCopyOriginal(dpGenericDevice, dpNewDevice, err);
+        
+	if (err != 0)
+	{
+		DebugN(\"An error ocurred when copying data from the generic device: \"+err);
+        	return;
+	}
+       	
+	// for the subscriptions
+	fieldNameSub = dipNames;
+	// dpe names for the device definition
+	fieldNameDevice = dipNames;
+	
+	// create dpe names for the deivce definition
+	for(int i=1; i <= dynlen(fieldNameDevice); i++)
+		fieldNameDevice[i] = \".\"+fieldNameDevice[i];
+
+	// saves device definition data
+	_setDeviceData(dpNewDevice, fieldNameDevice, dipNames, magnet);
+	
+        // additional dpes which will be added to the new DPT/DP for the magnet
+	dynAppend(dipNames,\"OldCurrent\");
+	dynAppend(dipTagTypes,22);	
+	dynAppend(dipNames,\"NameDpe\");
+	dynAppend(dipTagTypes,25);	
+	dynAppend(dipNames,\"Direction\");
+	dynAppend(dipTagTypes,22);	
+	dynAppend(dipNames,\"model\");  
+	dynAppend(dipTagTypes,25);
+        
+	// creates a new DPT for the magnet
+	dpNewDevice = \"FwMagnet\"+magnet;
+        fwCreateDPT(dpNewDevice, dipNames, dipTagTypes, \"create\", exceptionInfo);
+        
+	if(dynlen(exceptionInfo) != 0)
+		fwExceptionHandling_display(exceptionInfo);
+		
+	
+	// creating DP Magnet/MagnetName under DPT FwMagnetExperimentName
+	err = dpCreate(\"Magnet/\"+magnet, dpNewDevice);
+
+	systemName = getSystemName();	
+	for (int i=1; i<=dynlen(fieldNameSub); i++)
+		fieldNameSub[i] = systemName+\"Magnet/\"+magnet+\".\"+fieldNameSub[i];
+
+	fwOpenProgressBar(\"Information\", \"Adding subscription\", 1);
+        fwDIP_subscribeMany(fieldNameSub, configDp, dipPubs, dipTagNames, exceptionInfo);
+        if ((dynlen(exceptionInfo) != 0) || (dynlen(fieldNameSub) == 0))
+	{
+		fwCloseProgressBar(\"Error\");
+		fwExceptionHandling_display(exceptionInfo);
+		fwDIP_unsubscribeMany(fieldNameSub,exceptionInfo);
+		return;
+	}
+	fwCloseProgressBar(\"Success\");
+	DebugN(\"New subscription made: \"+magnet);
+			
+	if (!dpExists(\"fwOT_\"+dpNewDevice+\"_DU\"))
+	{
+		ChildPanelOnCentralModalReturn(\"fwMCS/fwMagnetInfoDU.pnl\", \"DU Values\",
+						makeDynString(\"$nameDU: \"+dpNewDevice+\"_DU\",\"$value1: \"+current,\"$value2: \"+ramping),
+                                               df,ds);
+		getValuesDeviceUnit(dpNewDevice,values);
+		createDeviceUnit(dpNewDevice, values);
+	}
+	
+        // configuring the current and ramping dpes
+        configureAdditionalDpe(current, ramping, magnet);
+        
+        // update publication table and the state for add/del buttons
+	updateData();
+}
+" 0
+ E E E
+22 19
+"magnetSelect"
+""
+1 12 152 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 10 150 154 177
+0
+
+"main()
+{
+	this.appendItem(\"Select..\");
+}" 0
+
+"main()
+{
+  updateData();
+}" 0
+
+E
+ 0 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group2"
+"objects\\fwGeneral\\fwHelpButton.pnl" 584 7 T 21 1 0 1 126 3
+1
+"$sPanelRelativePath""fwMCS/fwMagnetSubscription"
+0

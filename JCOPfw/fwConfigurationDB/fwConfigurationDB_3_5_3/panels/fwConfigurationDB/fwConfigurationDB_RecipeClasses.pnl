@@ -1,0 +1,360 @@
+V 11
+1
+LANG:1 13 RecipeClasses
+PANEL,-1 -1 646 97 N "_3DFace" 0
+"main()
+{
+  PopulatePanel();
+}" 0
+ E E E E 1 -1 -1 0  20 3
+""0  1
+E "dyn_string recipeClassNames,recipeClassComments;
+
+
+void PopulatePanel()
+{
+	RefreshRCList();
+}
+
+RefreshRCList()
+{
+	dyn_string exceptionInfo;
+	dynClear(recipeClassNames);
+	dynClear(recipeClassComments);
+	RecipeClasses.deleteAllItems();
+	fwConfigurationDB_getRecipeClasses(recipeClassNames, recipeClassComments, exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	setValue(\"RecipeClasses\",\"items\",recipeClassNames);
+	RCSelected();
+}
+
+
+
+void EditRecipeClass(string recipeClass)
+{
+	dyn_string ds,exceptionInfo;
+	dyn_float df;
+  string recipeType;
+  
+	if (recipeClass==\"\") return;
+  
+  dyn_mixed recipeClassInfo;
+  fwConfigurationDB_getRecipeClassInfo(recipeClass,recipeClassInfo,exceptionInfo);
+  if (dynlen(exceptionInfo))  return;
+  recipeType=recipeClassInfo[fwConfigurationDB_RCL_RECIPETYPE];
+  
+	ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_RecipeClassEdit.pnl\",
+			\"Edit Recipe Class:\"+recipeClass,
+			makeDynString(\"$recipeClass:\"+recipeClass, \"$recipeType:\"+recipeType),
+			df,ds);
+
+	RefreshRCList();
+}
+
+
+// called when item was selected, so buttons can be enabled
+EnableSelect()
+{
+	setValue(\"EditRC\",\"enabled\",TRUE);
+	setValue(\"DeleteRC\",\"enabled\",TRUE);
+}
+
+// called when item was not yet selected, so buttons can be disabled
+DisableUnselect()
+{
+	setValue(\"EditRC\",\"enabled\",FALSE);
+	setValue(\"DeleteRC\",\"enabled\",FALSE);
+	//setValue(\"RCDescription\",\"text\",\"\");
+}
+
+
+
+void RCSelected()
+{
+  string description,recipeClass;
+  dyn_string exceptionInfo;
+  RCDescription.text=\"\";
+  getValue(\"RecipeClasses\",\"selectedText\",recipeClass);
+  if (recipeClass==\"\") {
+    DisableUnselect();
+    return;
+  }
+  
+  // Get the value to know if the recipe can be edited
+  dyn_mixed recipeClassInfo;
+  fwConfigurationDB_getRecipeClassInfo(recipeClass,recipeClassInfo,exceptionInfo);
+  if (dynlen(exceptionInfo)){
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }
+
+
+  // update the comment field
+  string description=recipeClassInfo[fwConfigurationDB_RCL_DESCRIPTION];
+  RCDescription.text=description;  
+  
+  bool editable=recipeClassInfo[fwConfigurationDB_RCL_EDITABLE];
+  if (editable)
+    EnableSelect();
+  else 
+    DisableUnselect();
+}
+
+
+void CreateRecipeClass()
+{
+  dyn_string ds,exceptionInfo;
+  dyn_float df;
+
+  ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_NewRecipeClass.pnl\",
+			\"Create Recipe Class\",
+			makeDynString(\"$sTitle:Create Recipe Class\",
+				      \"$sDescription: Input the name for the new recipe class\"),
+			df,ds);
+
+  if (df!=makeDynFloat(\"1\")) return;
+
+  string rcname=ds[1];
+  string rctype=ds[2];
+
+  if (!dpNameCheck(rcname)) {
+    fwException_raise(exceptionInfo,\"ERROR\",	\"Recipe Class name cannot contain spaces or special characters\",\"\");
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }
+
+  string recipeClassComment=\"\";
+
+  fwConfigurationDB_createRecipeClass(rcname, rctype, recipeClassComment, true, makeDynString(), exceptionInfo);
+  if (dynlen(exceptionInfo)) {
+  	fwExceptionHandling_display(exceptionInfo);
+  	return;
+  }
+  EditRecipeClass(rcname);
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 0
+"FRAME1"
+""
+1 20 3 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+0 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 3.04212338074101 0 1.154401154401155 -50.84246761482019 -3.463203463203464 0 E 20 3 211 81
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Recipe Classes
+22 1
+"RecipeClasses"
+""
+1 32 22 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  30 20 230 49
+0
+
+E
+"main()
+{
+  RCSelected();
+}" 0
+
+E
+ 0 0
+2 2
+"RCDescription"
+""
+1 50 54 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 19 Recipe Type comment
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	setValue(\"\",\"text\",\"\");
+}" 0
+ E 0 0 0 0 1 E U  1 E 32.00400801603206 60 527.6208154012944 76
+1 2 2 "0s" 0 0 0 64 0 0  32.00400801603206 60 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 11 Description
+13 3
+"EditRC"
+""
+1 310 20 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  308 18 368 49
+
+T 
+1
+LANG:1 4 Edit
+"main()
+{
+	dyn_string ds,exceptionInfo;
+	dyn_float df;
+	string recipeClass;
+
+	getValue(\"RecipeClasses\",\"selectedText\",recipeClass);
+	if (recipeClass==\"\") return;
+
+	EditRecipeClass(recipeClass);
+	setValue(\"RecipeClasses\",\"text\",recipeClass);
+	
+	RCSelected();
+}" 0
+ E E E
+13 4
+"CreateRC"
+""
+1 400 30 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  388 18 448 49
+
+T 
+1
+LANG:1 6 Create
+"main()
+{
+  CreateRecipeClass();
+}" 0
+ E E E
+13 5
+"DeleteRC"
+""
+1 480 30 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  468 18 528 49
+
+T 
+1
+LANG:1 6 Delete
+"main()
+{
+	dyn_string ds,exceptionInfo;
+	dyn_float df;
+
+	string rcname;
+	getValue(\"RecipeClasses\",\"selectedText\",rcname);
+
+	if (rcname==\"\") return;
+
+
+	ChildPanelOnCentralReturn(\"fwGeneral/fwOkCancel.pnl\",
+			\"Delete Recipe Class?\",
+			makeDynString(\"$text:Do you want to delete recipe class: \"+rcname+
+					\"? \\n(All the recipe instances will be removed!)\"),
+			df,ds);
+
+	if (dynlen(ds)==0) return;
+	if (df[1]!=1) return;
+
+  bool deleteRecipes=true;
+	fwConfigurationDB_deleteRecipeClass(rcname,deleteRecipes,exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	RefreshRCList();
+}" 0
+ E E E
+1 6 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "" -1
+"objects/fwGeneral/fwHelpButton.pnl" 270 20 T 6 1 0 1 282 2
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_ConfDBManager_RecipeClasses"
+0

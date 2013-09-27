@@ -1,0 +1,829 @@
+V 12
+2
+LANG:10001 0 
+LANG:1 0 
+PANEL,-1 -1 269 586 N "_3DFace" 9
+"$aliasFilter"
+"$explainSelected"
+"$localSystemOnly"
+"$resetButton"
+"$selectionMode"
+"$showFilter"
+"$showInternal"
+"$showNonFw"
+"$varName"
+"main()
+{
+  Initialize();
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "mapping g_AliasToDp;
+dyn_string g_expandedSystems;
+
+dyn_string g_initiallySelectedItems; // initial selection
+dyn_string g_selectedItems; // current selection
+dyn_string g_maskedItems; // contains those in the g_selectedItems that are not visible now
+
+const string SYSTEM_ICON = \"dptree/system.png\";
+const string NODE_ICON = \"dptree/struct.png\";
+const string DEVICE_ICON = \"dptree/dp.png\";
+const string SYS_PREFIX=\"SYSTEM:\";
+const string NONFWDP_PREFIX=\"/OTHERS\";
+const string INTERNAL_PREFIX=\"/INTERNAL\";
+
+
+/**
+  Various initialization tasks...
+  We want to react on the fact that systems connect/disconnect.
+  We will make use of _unDistributedControl to track these
+*/
+void Initialize()
+{
+
+  
+  AliasesTree.addColumn(\"ALIAS\");
+  AliasesTree.showHeader(FALSE);  
+  
+  dyn_string exceptionInfo;
+    
+  
+     if (isDollarDefined(\"$explainSelected\")) {
+     if ($explainSelected) {
+       SelectedAlias.visible=TRUE;
+       SelectedDp.visible=TRUE;
+       NumSelected.visible=TRUE;
+     } else {
+       SelectedAlias.visible=FALSE;
+       SelectedDp.visible=FALSE;
+       NumSelected.visible=FALSE;       
+       // move the items that are below a bit up...
+       dyn_string shapesToMove=makeDynString(\"AliasFilter\",\"FilterText\",\"PressEnter\",
+                                             \"ShowNonFw\",\"ShowInternal\",\"ResetSelectionButton\");
+       for (int i=1;i<=dynlen(shapesToMove);i++) {
+         int x,y;
+         getValue(shapesToMove[i],\"position\",x,y);
+         setValue(shapesToMove[i],\"position\",x,y-65);
+       }  
+     }
+   }
+
+          
+    //AliasesTree.selectionMode(\"Extended\");
+    AliasesTree.selectionMode(\"Multi\"); // default is multi-selection
+
+     if (isDollarDefined(\"$selectionMode\")){
+       if ($selectionMode==0) {
+         // no selection should be done at all
+         AliasesTree.selectionMode(\"NoSelection\");
+         NumSelected.visible=FALSE;
+       } else if ($selectionMode==1) {
+          // single item selection
+         AliasesTree.selectionMode(\"Single\");
+         NumSelected.visible=FALSE;
+       } else {
+             // multi-selection 
+         AliasesTree.selectionMode(\"Multi\");
+       }
+     }
+     
+     
+   if (isDollarDefined(\"$resetButton\")) {
+    if ($resetButton) ResetSelectionButton.visible=TRUE; else ResetSelectionButton.visible=FALSE;;
+   }
+
+     
+   if (isDollarDefined(\"$showFilter\")) {
+     if ($showFilter) {
+       AliasFilter.visible=TRUE;
+       ShowNonFw.visible=TRUE;
+       ShowInternal.visible=TRUE;
+       FilterText.visible=TRUE;
+       PressEnter.visible=TRUE;
+     } else {
+       AliasFilter.visible=FALSE;
+       ShowNonFw.visible=FALSE;
+       ShowInternal.visible=FALSE;
+       FilterText.visible=FALSE;
+       PressEnter.visible=FALSE;
+       int x,y;       
+       getValue(\"ResetSelectionButton\",\"position\",x,y);
+       setValue(\"ResetSelectionButton\",\"position\",x,y-85);
+     }
+   }
+
+   if (isDollarDefined(\"$showNonFw\")) {
+    if ($showNonFw) ShowNonFw.state(0,TRUE); else ShowNonFw.state(0,FALSE);
+   }
+   
+   if (isDollarDefined(\"$showInternal\")) {
+    if ($showInternal) ShowInternal.state(0,TRUE); else ShowInternal.state(0,FALSE);
+   }
+
+   if (isDollarDefined(\"$aliasFilter\")) {
+     AliasFilter.text=$aliasFilter;
+   }
+  
+  
+  if (isDollarDefined(\"$varName\")) {
+   // ie. this comes from an embeded panel, and needs to
+   // communicate data via a global variable which name is
+   // passed in this dollarParameter 
+
+    if (!globalExists($varName)){
+       fwException_raise(exceptionInfo,\"ERROR\",
+			\"Global variable \"+$varName+\" passed in $varName\"+
+			\" is not defined\",\"\");	
+      fwExceptionHandling_display(exceptionInfo); 
+      return;
+    }
+        
+   // check the type for the variable 
+   if(getGlobalType($varName) != DYN_STRING_VAR) {
+      fwException_raise(exceptionInfo,\"ERROR\",
+			\"Global variable \"+$varName+\" passed in $varName\"+
+			\" has a wrong type:\"+getGlobalType($varName),\"\");	
+      fwExceptionHandling_display(exceptionInfo); 
+      return;
+    }
+   
+    fwGeneral_getGlobalValue($varName, g_initiallySelectedItems, exceptionInfo);
+    if (dynlen(exceptionInfo)) {
+       fwExceptionHandling_display(exceptionInfo);
+       return; 
+    }
+
+    
+     if (isDollarDefined(\"$selectionMode\")){
+       // if we have selectionMode disabled...
+       if ($selectionMode==0) dynClear(g_initiallySelectedItems);
+     }
+
+    
+    // bring aliases to canonical form, with system and \"@\"
+    string mySys=getSystemName();
+    for (int i=1;i<=dynlen(g_initiallySelectedItems);i++) {
+      if (!patternMatch(\"*:@*\",g_initiallySelectedItems[i])) 
+          g_initiallySelectedItems[i]=mySys+\"@\"+g_initiallySelectedItems[i];
+    }
+
+        
+    g_selectedItems=g_initiallySelectedItems;
+    NumSelected.text=\"Selected: \"+dynlen(g_selectedItems)+\" devices\";
+  }
+  
+  
+  if (isDollarDefined(\"$localSystemOnly\") && $localSystemOnly) {
+    string sys=strrtrim(getSystemName(),\":\");
+    string node=SYS_PREFIX+sys;
+      AliasesTree.insertItem(\"\",node,sys);
+      AliasesTree.setExpandable(node,TRUE);
+      AliasesTree.setIcon(node,0,SYSTEM_ICON);
+      SystemExpanded(node);
+  } else {
+    
+   string query=\"SELECT '_original.._value' FROM '*.connected' \" +
+        \"WHERE _DPT=\\\"_UnDistributedControl\\\" \";
+          
+   dpQueryConnectSingle(\"DistSystemConnectionChanged\",true,
+                        \"DIST_SYSTEM_CONNECTION\",
+                       query);
+ }
+}
+
+/** Called when a new system connects,
+  and also once per every already-connected
+  system when the panel initialized
+*/
+void DistSystemConnectionChanged(string what, dyn_dyn_mixed data)
+{
+  for (int i=2;i<=dynlen(data);i++) {
+    // we start at 2, because the first line is the legend
+    string sys=data[i][1];
+    // extract system name
+    sys=dpSubStr(sys,DPSUB_DP);
+    sys=substr(sys,22);
+    bool connected=data[i][2];
+    string node=SYS_PREFIX+sys;
+    if (connected) {       
+      AliasesTree.insertItem(\"\",node,sys);
+      AliasesTree.setExpandable(node,TRUE);
+      AliasesTree.setIcon(node,0,SYSTEM_ICON);
+      
+      // we need to move the item so that it is in order
+      dyn_string allTopItems=AliasesTree.children(\"\");
+      dynSortAsc(allTopItems);
+      int idx=dynContains(allTopItems,node);
+      if (idx>1) AliasesTree.moveItem(node,allTopItems[idx-1]);
+
+    } else {
+      AliasesTree.removeItem(node);
+      dyn_string mkeys=mappingKeys(g_AliasToDp);
+      dyn_string toRemove=dynPatternMatch(sys+\":@*\",mkeys);
+      for (int i=1;i<=dynlen(toRemove);i++) mappingRemove(g_AliasToDp,toRemove[i]);
+      int idx=dynContains(g_expandedSystems,sys);
+      if (idx>0) dynRemove(g_expandedSystems,idx);
+    }
+  }
+}
+
+
+
+
+/** When the system-node is expanded,
+  we get all aliases for it and populate the sub-tree
+ */
+void SystemExpanded(string id)
+{
+ string sysName=substr(id,7);
+ if (dynContains(g_expandedSystems,sysName)){
+//  DebugN(\"Already expanded...\",sysName);
+  return; 
+ }
+ dyn_string datapoints, aliases;    
+ int num=dpGetAllAliases (datapoints, aliases,\"*\",sysName+\":*.**\");
+
+if (num<0) {
+	fwException_raise(exceptionInfo,\"ERROR\",
+		\"Cannot retrieve the list of aliases for system \"+sysName,\"\");
+	fwExceptionHandling_display(exceptionInfo);
+}
+
+ // Store all the aliases in the global variable,
+ // prefixing the aliases with system name...
+for (int i=1;i<=dynlen(aliases);i++) {
+  g_AliasToDp[sysName+\":@\"+aliases[i]]=datapoints[i];
+}
+
+dynAppend(g_expandedSystems,sysName);
+RepaintTree(sysName);
+AliasesTree.setOpen(SYS_PREFIX+sysName,TRUE);
+}
+
+/** Repaints the tree
+  if sysid parameter is specified,
+  only the subtree for this system is repainted
+  */
+void RepaintTree(string sysid=\"\")
+{
+
+  // remember which is the current item
+ string curItem=AliasesTree.currentItem;
+ // but only if this is not the toplevel item
+ if (AliasesTree.parent(curItem)==\"\") curItem=\"\";
+      
+ bool showInternal=ShowInternal.state(0);
+ bool showNonFw=ShowNonFw.state(0);
+ string aliasFilter=AliasFilter.text;
+ dyn_string allTopNodes=AliasesTree.children(\"\");
+ dynSortAsc(allTopNodes);
+ 
+    // remove the children, but leave all top-level ones!
+  dyn_string topNodes;
+  if (sysid!=\"\") {
+    topNodes=makeDynString(SYS_PREFIX+sysid);
+  } else {
+    topNodes=allTopNodes;
+  }
+  
+  for (int i=1;i<=dynlen(topNodes);i++) {
+    string sysName=AliasesTree.getText(topNodes[i],0);
+    AliasesTree.removeItem(topNodes[i]);
+    // and recreate it at once
+      AliasesTree.insertItem(\"\",topNodes[i],sysName);
+      AliasesTree.setExpandable(topNodes[i],TRUE);
+      AliasesTree.setIcon(topNodes[i],0,SYSTEM_ICON);
+    // then recreate \"special\" sub-nodes
+  if (showNonFw) {      
+    AliasesTree.appendItem(topNodes[i],topNodes[i]+NONFWDP_PREFIX,\"OTHER ALIASES\"); 
+  }
+  if (showInternal) {
+    AliasesTree.appendItem(topNodes[i],topNodes[i]+INTERNAL_PREFIX,\"INTERNAL ALIASES\"); 
+  }
+  }
+  
+  if (sysid!=\"\") {
+   // we need to place the system item in the appropriate place,
+   // so the list is sorted 
+   int idx=dynContains(allTopNodes,topNodes[1]);
+   if (idx>1) AliasesTree.moveItem(topNodes[1],allTopNodes[idx-1]);
+//   else AliasesTree.moveItem(topNodes[1],\"\");
+  }
+  
+
+  // now process the list
+  dyn_string allAliases=mappingKeys(g_AliasToDp); 
+
+  // do initial processing, so that only the
+  // items that are needed are left.
+  // this is important for filtering, where
+  // the parent devices needs to be included
+  // if a child matches the pattern.
+  // we also already create list of parent nodes to use
+  dynSortAsc(allAliases);
+  dyn_string aliases,parents,texts,icons;
+  for (int i=1;i<=dynlen(allAliases);i++) {
+    string nodeName=allAliases[i];
+    string dpName=g_AliasToDp[nodeName];
+    string dpT=dpTypeName(dpName);
+    // extract sys name
+    dyn_string ds=strsplit(nodeName,\":\");
+    string sys=ds[1];
+    bool isInternal=FALSE;
+    if (dpT[0]==\"_\") isInternal=TRUE;
+    string text=substr(nodeName,strlen(sys)+2);
+    
+    if (aliasFilter!=\"\" && patternMatch(\"*\"+aliasFilter+\"*\",nodeName)==FALSE) continue;
+    if (showInternal==FALSE && isInternal) continue;
+    if (sysid!=\"\" && sys!=sysid) continue;
+    
+    dynAppend(aliases,nodeName);
+    dynAppend(texts,text);
+    dynAppend(icons,DEVICE_ICON);
+    // set the default parent...
+    if (isInternal) {
+      dynAppend(parents,SYS_PREFIX+sys+INTERNAL_PREFIX);
+    } else {
+      dynAppend(parents,SYS_PREFIX+sys+NONFWDP_PREFIX);
+    }
+  }
+  // for FW-devices, we might need to add parent devices that match the filter
+    dyn_string parentsToAdd, grandParents,parentTexts,parentIcons;
+    for (int i=1;i<=dynlen(aliases);i++) {
+      // extract FW parents and check/add them...
+      dyn_string ds=strsplit(aliases[i],\"/\");
+      if (dynlen(ds)<2) continue; // definitely not a Fw-device
+      // reconstruct all parents, and check if they exist. Only if
+      // they all exist, we add them
+      dyn_string parlist,ptexts,picons;
+      string parent=\"\"; 
+      bool allParentsOK=TRUE;
+      for (int j=1;j<dynlen(ds);j++) {
+        parent+=ds[j];
+        string ptext=ds[j];
+        if (j==1) {
+         // to get the text we need to cut-away the system pfx
+          dyn_string dq=strsplit(ptext,\"@\");
+          if (dynlen(dq)>=2) ptext=dq[2];
+        }
+        if (dynContains(allAliases,parent)) {
+          dynAppend(parlist,parent);
+          dynAppend(ptexts,ptext);
+          dynAppend(picons,NODE_ICON);
+        } else {
+          allParentsOK=FALSE;
+          break;
+        }
+        parent+=\"/\";
+      }
+      if (allParentsOK) {
+        // reset the parent of this item
+        parents[i]=parlist[dynlen(parlist)];
+        texts[i]=ds[dynlen(ds)];
+        for (int j=1;j<=dynlen(parlist);j++) {
+          if (!dynContains(parentsToAdd,parlist[j])) {
+            dynAppend(parentsToAdd,parlist[j]);
+            dynAppend(parentTexts,ptexts[j]);
+            dynAppend(parentIcons,picons[j]);
+
+            if (j>1) {
+              dynAppend(grandParents,parlist[j-1]);
+            } else {
+              // this is more complicated: we need to
+              // find out the root node
+              dyn_string dq=strsplit(parlist[1],\":\");
+              dynAppend(grandParents,SYS_PREFIX+dq[1]);
+            }  
+          }
+        }
+
+      }
+    }
+  
+  if (dynlen(parentsToAdd)!=0) {
+  for (int i=dynlen(parentsToAdd);i>=1;i--){
+    int idx=dynContains(aliases,parentsToAdd[i]);
+    if (idx>=1) {
+      texts[idx]=parentTexts[i];
+      parents[idx]=grandParents[i];
+      icons[idx]=parentIcons[i];
+    } else {
+      dynInsertAt(aliases,parentsToAdd[i],1);
+      dynInsertAt(texts,parentTexts[i],1);
+      dynInsertAt(parents,grandParents[i],1);
+      dynInsertAt(icons,parentIcons[i],1);
+    }
+  }
+}
+
+
+  if (showNonFw==FALSE) {
+   // remove all the ones that are in the NONFW subtree
+    for (int i=1;i<=dynlen(parents);i++) {
+      if (patternMatch(SYS_PREFIX+\"*\"+NONFWDP_PREFIX,parents[i])) {
+        dynRemove(aliases,i);
+        dynRemove(texts,i);
+        dynRemove(parents,i);
+        dynRemove(icons,i);
+        i--;// reset the iterator!
+      }
+    } 
+  }
+
+
+    // find the selected and the masked devices!
+  dyn_string toSelect=dynIntersect(g_selectedItems,aliases);  
+  dynClear(g_maskedItems);
+  for (int i=1;i<=dynlen(g_selectedItems);i++) {
+    if (!dynContains(toSelect,g_selectedItems[i])) dynAppend(g_maskedItems,g_selectedItems[i]);
+ }
+
+  
+  
+  
+//  DebugN(aliases,texts,parents);
+  
+for (int i=1;i<=dynlen(aliases);i++) {
+    
+    AliasesTree.appendItem(parents[i],aliases[i],texts[i]);
+    if (icons[i]!=\"\") AliasesTree.setIcon(aliases[i],0,icons[i]);
+}
+
+// set the selection
+  AliasesTree.setSelectedItems(toSelect,TRUE);
+
+  // make sure that all nodes that have something selected below them
+  // are open
+  for (int i=1;i<=dynlen(toSelect);i++) {
+    AliasesTree.ensureItemVisible(toSelect[i]);
+  }
+  
+  
+  // restore the currentItem  
+  if (curItem!=\"\" && dynContains(aliases,curItem)){ 
+    AliasesTree.ensureItemVisible(curItem);
+    AliasesTree.currentItem(curItem);
+ }
+
+  
+  }
+
+
+
+void ResetSelection()
+{
+   g_selectedItems=g_initiallySelectedItems;
+   NumSelected.text=\"Selected: \"+dynlen(g_selectedItems)+\" devices\";
+ 
+   if (isDollarDefined(\"$varName\")) {
+     dyn_string exceptionInfo;
+     fwGeneral_setGlobalValue($varName, g_selectedItems, exceptionInfo);
+     if (dynlen(exceptionInfo)){
+       fwExceptionHandling_display(exceptionInfo);
+       return;
+     }
+   } 
+      
+  RepaintTree();
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:10001 0 
+14 15
+"AliasFilter"
+""
+1 18.47471369210501 453 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,50,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  43 428 237 455
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+  RepaintTree();
+}" 0
+
+6 20
+"PressEnter"
+""
+1 320 140 E E E 1 E 1 E N "lightgrey" E N "lightgrey" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 57 Remember to press ENTER after you type-in the description
+LANG:1 57 Remember to press ENTER after you type-in the description
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -150 20 2  1 1  "pictures/returnIndicator.gif" 13421772 E 385 410 408 433
+29 22
+"AliasesTree"
+""
+1 0 0 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+3
+"defaultRenameAction" "enum 1"
+"showSortIndicator" "bool TRUE"
+"selectionMode" "enum 2"
+1
+LANG:10001 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  10 10 259 359
+10 TreeWidget
+3
+0 "expanded" "(string id)"
+"  if(this.parent(id)==\"\") { // i.e. this is one of the toplevel nodes
+    SystemExpanded(id); 
+  }"
+0 "selectionChanged" "(string id)"
+"
+ // if this is system node, remove it from selection:
+   dyn_string selItems=this.selectedItems;
+   dyn_string sysItems=dynPatternMatch(\"SYSTEM:*\",selItems);
+  
+   if (dynlen(sysItems)) {
+     this.setSelectedItems(sysItems,FALSE);
+   }
+   
+   
+   dyn_string selItems=this.selectedItems;
+   dyn_string masked=g_maskedItems;// make a local copy! dynAppend() clears it!!!
+   dynAppend(selItems,masked);
+   dynUnique(selItems);
+   g_selectedItems=selItems;
+   
+   NumSelected.text=\"Selected: \"+dynlen(g_selectedItems)+\" devices\";
+   
+   if (isDollarDefined(\"$varName\")) {
+     dyn_string exceptionInfo;
+     fwGeneral_setGlobalValue($varName, g_selectedItems, exceptionInfo);
+     if (dynlen(exceptionInfo)){
+       fwExceptionHandling_display(exceptionInfo);
+       return;
+     }
+   }
+"
+0 "clicked" "(string id, int column)"
+" 
+ string aliastext=\"\";
+ string dptext=\"\"; 
+ if (id!=\"\" && mappingHasKey(g_AliasToDp,id)) {
+   aliastext=\"Alias: \"+id;
+   dptext=\"Points to: \"+g_AliasToDp[id];
+}
+SelectedAlias.text=aliastext;
+SelectedDp.text=dptext;
+
+"
+E20 24
+"ShowNonFw"
+""
+1 10 460 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,50,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  8 458 232 487
+1
+T 
+2
+LANG:10001 26 Show non-Framework devices
+LANG:1 26 Show non-Framework devices
+
+0 
+1
+LANG:10001 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  RepaintTree();
+}" 0
+20 25
+"ShowInternal"
+""
+1 10 485 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,50,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  8 483 147 512
+1
+T 
+2
+LANG:10001 17 Show internal DPs
+LANG:1 17 Show internal DPs
+
+0 
+1
+LANG:10001 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  RepaintTree();
+}" 0
+13 31
+"ResetSelectionButton"
+""
+1 7.499999999999999 513 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,50,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  8 513 107 543
+
+T 
+2
+LANG:10001 15 Reset Selection
+LANG:1 15 Reset Selection
+"main()
+{
+  
+ResetSelection();
+}" 0
+ E E E
+29 33
+"SelectedAlias"
+""
+1 15 565 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+9
+"frameShape" "enum 0"
+"vScrollBarMode" "enum 1"
+"wrapPolicy" "enum 1"
+"wordWrap" "enum 1"
+"undoRedoEnabled" "bool FALSE"
+"textFormat" "enum 0"
+"tabChangesFocus" "bool TRUE"
+"readOnly" "bool TRUE"
+"autoFormatting" "enum 0"
+1
+LANG:10001 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  10 365 259 384
+15 PVSS.TextEdit.1
+0
+E29 34
+"SelectedDp"
+""
+1 15 560 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+9
+"frameShape" "enum 0"
+"vScrollBarMode" "enum 1"
+"wrapPolicy" "enum 1"
+"wordWrap" "enum 1"
+"undoRedoEnabled" "bool FALSE"
+"textFormat" "enum 0"
+"tabChangesFocus" "bool TRUE"
+"readOnly" "bool TRUE"
+"autoFormatting" "enum 0"
+1
+LANG:10001 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  10 385 259 404
+15 PVSS.TextEdit.1
+0
+E29 35
+"NumSelected"
+""
+1 15 580 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+9
+"frameShape" "enum 0"
+"vScrollBarMode" "enum 1"
+"wrapPolicy" "enum 1"
+"wordWrap" "enum 1"
+"undoRedoEnabled" "bool FALSE"
+"textFormat" "enum 0"
+"tabChangesFocus" "bool TRUE"
+"readOnly" "bool TRUE"
+"autoFormatting" "enum 0"
+1
+LANG:10001 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  10 405 259 424
+15 PVSS.TextEdit.1
+0
+E14 38
+"FilterText"
+""
+1 5 0 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,50,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0  8 428 46 455
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text=\"Filter:\";
+}" 0
+ E
+0
+LAYER, 1 
+1
+LANG:10001 0 
+0
+LAYER, 2 
+1
+LANG:10001 0 
+0
+LAYER, 3 
+1
+LANG:10001 0 
+0
+LAYER, 4 
+1
+LANG:10001 0 
+0
+LAYER, 5 
+1
+LANG:10001 0 
+0
+LAYER, 6 
+1
+LANG:10001 0 
+0
+LAYER, 7 
+1
+LANG:10001 0 
+0
+0

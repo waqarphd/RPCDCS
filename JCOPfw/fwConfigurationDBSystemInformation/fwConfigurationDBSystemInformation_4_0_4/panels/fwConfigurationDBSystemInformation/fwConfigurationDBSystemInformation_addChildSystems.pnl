@@ -1,0 +1,507 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 913 428 N "_3DFace" 1
+"$parent"
+"main()
+{
+  if($parent == \"\"){//Root system
+    tblSelectedSystems.visible = false;
+    tfRootSystem.visible = true;
+    txRootSystem.visible = true;
+    tfRootSystemNr.visible = true;
+    txRootSystemNr.visible = true;
+  }else{
+    tblSelectedSystems.visible = true;
+    tfRootSystem.visible = false;
+    txRootSystem.visible = false;
+    tfRootSystemNr.visible = false;
+    txRootSystemNr.visible = false;
+  }
+}" 0
+ E E E E 1 -1 -1 0  26 88
+""0  1
+E "#uses \"fwInstallationDB.ctl\"
+    
+int exportToDB(string name = \"\", string number = \"\")
+{
+  int error = 0;
+
+  if(name == \"\" || number == \"\")  
+  {
+    int lines = tblSelectedSystems.lineCount();
+    if(lines < 1){
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR: No systems selected\", makeDynString(\"$1:Please select the systems to be added first\"));
+      return -1; 
+    }
+
+    //DebugN(lines);  
+
+    for(int i = lines-1; i >= 0; i--){
+      getMultiValue(\"tblSelectedSystems\", \"cellValueRC\", i, \"name\", name,
+                    \"tblSelectedSystems\", \"cellValueRC\", i, \"number\", number);
+    
+      //DebugN(\"Adding \" + name + \" to parent: \" + $parent);
+      
+      if(fwConfigurationDBSystemInformation_addChildSystem($parent, name) != 0){ 
+        ++error;
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", \"$1:Could not add child system:\" + name + \"\\nProceeding with next systems...\"); 
+        }else{
+          setValue(\"tblSelectedSystems\", \"deleteLineN\", i); 
+        }
+    }
+    }else{
+      DebugN(\"Adding root system: \", name);
+      if(fwConfigurationDBSystemInformation_addChildSystem(\"\", name) != 0){  //Adding root system
+        ++error;
+        ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", \"$1:Could not add root system:\" + name); 
+      }
+    }
+    
+    if(error) return -1;
+    
+  return 0;
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 3
+"tblSelectedSystems"
+""
+1 494 82 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 101 -*-MS Shell Dlg-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,758,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 492 80 830 352
+"main()
+{
+    this.tableMode(TABLE_SELECT_MULTIPLE);
+    this.selectByClick(TABLE_SELECT_LINE);
+
+}" 0
+E 1 0 1 2 0 "name" 24 1 0 "s" 1
+LANG:1 11 PVSS System
+E
+1
+LANG:1 0 
+
+256 "number" 5 1 0 "s" 1
+LANG:1 6 Number
+E
+1
+LANG:1 0 
+
+60 
+14 14 10 10
+1
+LANG:1 101 -*-MS Shell Dlg-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,758,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+2 1
+"PRIMITIVE_TEXT2"
+""
+1 40 44 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"Adding child systems to \" + $parent;
+}" 0
+ E 0 1 1 2 1 E U  1 E 40 44 426 72
+0 2 2 "0s" 0 0 0 64 0 0  40 44 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 24 xxxxxxxxxxxxxxxxxxxxxxxx
+25 2
+"tblSystems"
+""
+1 34 82 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 101 -*-MS Shell Dlg-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,758,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 32 80 370 352
+"main()
+{
+  dyn_dyn_mixed allSystemsInfo;
+  dyn_dyn_mixed hierarchyInfo;
+  
+  dyn_string allSystems;
+  dyn_string hierarchySystems;
+  
+  dyn_string allSystemsNr;
+  dyn_string hierarchySystemsNr;
+  
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  
+  
+  tblSystems.deleteAllLines();
+  if(fwInstallationDB_connect() != 0){
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not connect to DB.\\nCheck connection parameters\"));
+    return;
+  }
+  
+  if(fwInstallationDB_getPvssSystems(allSystemsInfo) != 0 || fwConfigurationDBSystemInformation_getSystemHierarchy(hierarchyInfo) != 0){
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB ERROR\", makeDynString(\"$1:Could not connect retrieve the list\\nof PVSS systems from the DB\"));
+    return;
+  }
+  for(int i = 1; i <= dynlen(hierarchyInfo); i++)
+  {
+    hierarchySystems[i] = hierarchyInfo[i][FW_CONFDB_SYSSTAT_SYSTEM_NAME_IDX];
+    hierarchySystemsNr[i] = hierarchyInfo[i][FW_CONFDB_SYSSTAT_SYSTEM_NUMBER_IDX];
+  }  
+  
+  for(int i = 1; i <= dynlen(allSystemsInfo); i++)
+  {
+    allSystems[i] = allSystemsInfo[i][FW_CONFDB_SYSSTAT_SYSTEM_NAME_IDX];
+    allSystemsNr[i] = allSystemsInfo[i][FW_CONFDB_SYSSTAT_SYSTEM_NUMBER_IDX];
+  }    
+
+ 
+  for(int i = 1; i <= dynlen(allSystems); i++){
+    if(dynContains(hierarchySystems, allSystems[i]) <= 0 && allSystems[i] != $parent){
+      tblSystems.appendLine(\"name\", allSystems[i], \"number\", allSystemsNr[i]);
+    }
+  }
+  
+}" 0
+E 1 0 1 2 0 "name" 24 1 0 "s" 1
+LANG:1 11 PVSS System
+E
+1
+LANG:1 0 
+
+256 "number" 5 1 0 "s" 1
+LANG:1 6 Number
+E
+1
+LANG:1 0 
+
+60 
+14 14 10 10
+1
+LANG:1 101 -*-MS Shell Dlg-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,758,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+13 4
+"PUSH_BUTTON1"
+""
+1 392 160 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 101 -*-MS Shell Dlg-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,758,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 390 158 466 182
+
+P 
+4294967295
+"pictures/arrow_right.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  string name;
+  string number;
+  dyn_int lines = tblSystems.getSelectedLines();
+ 
+  if($parent != \"\"){ 
+    for(int i = dynlen(lines); i > 0; i--){
+      getMultiValue(\"tblSystems\", \"cellValueRC\", lines[i], \"name\", name,
+                    \"tblSystems\", \"cellValueRC\", lines[i], \"number\", number);
+      tblSelectedSystems.appendLine(\"name\", name, \"number\", number);
+      setValue(\"tblSystems\", \"deleteLineN\", lines[i]);
+    }  
+  }else{
+      getMultiValue(\"tblSystems\", \"cellValueRC\", lines[1], \"name\", name,
+                    \"tblSystems\", \"cellValueRC\", lines[1], \"number\", number);
+      tfRootSystem.text = name;
+      tfRootSystemNr.text = number;
+      //setValue(\"tblSystems\", \"deleteLineN\", lines[1]);
+  }
+}" 0
+ E E E
+13 5
+"PUSH_BUTTON2"
+""
+1 392 198 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 101 -*-MS Shell Dlg-bold-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,758,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 390 196 466 220
+
+P 
+4294967295
+"pictures/arrow_left.xpm"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  string name;
+  string number;
+  
+  dyn_int lines = tblSelectedSystems.getSelectedLines();
+  
+  if($parent != \"\"){
+    for(int i = dynlen(lines); i > 0; i--){
+      getMultiValue(\"tblSelectedSystems\", \"cellValueRC\", lines[i], \"name\", name,
+                  \"tblSelectedSystems\", \"cellValueRC\", lines[i], \"number\", number);
+      tblSystems.appendLine(\"name\", name, \"number\", number);
+      setValue(\"tblSelectedSystems\", \"deleteLineN\", lines[i]);   
+    }
+  }else{
+      //tblSystems.appendLine(\"name\", tfRootSystem.text, \"number\", tfRootSystemNr.text);
+      tfRootSystem.text = \"\";
+      tfRootSystemNr.text = \"\";
+  }
+ 
+}" 0
+ E E E
+13 6
+"PUSH_BUTTON3"
+""
+1 480 376 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 478 374 590 402
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+  int error;
+  dyn_float df;
+  dyn_string ds;
+  
+  if($parent != \"\")
+  {
+    exportToDB();
+  }
+  else if(tfRootSystem.text == \"\")
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"INFO\", makeDynString(\"$1:You must select a root system first\"));         
+  } else
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"INFO\", makeDynString(\"$1:Info will be saved to DB only when first\\nchild system is added\"));           
+  }   
+
+  PanelOffReturn(makeDynFloat(1.), makeDynString(tfRootSystem.text, tfRootSystemNr.text));
+}" 0
+ E E E
+13 7
+"PUSH_BUTTON4"
+""
+1 720 376 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 718 374 830 402
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOffReturn(makeDynFloat(0.), makeDynString(\"Cancel\"));
+}" 0
+ E E E
+13 8
+"PUSH_BUTTON5"
+""
+1 598 376 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 596 374 708 402
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  int error;
+  
+  if($parent != \"\")
+    exportToDB();
+  else
+  {
+   ChildPanelOnCentral(\"vision/MessageInfo1\", \"INFO\", makeDynString(\"$1:Info will only be saved to the DB when\\nfirst child system will be added\")); 
+  }   
+}" 0
+ E E E
+14 9
+"tfRootSystem"
+""
+1 482 172 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 480 170 658 191
+3 "0s" 0 0 0 0 0 -1  E E E
+2 10
+"txRootSystem"
+""
+1 484 166 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 484 156 544 170
+0 2 2 "0s" 0 0 0 192 0 0  484 156 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 11 Root System
+14 13
+"tfRootSystemNr"
+""
+1 660 172 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 658 170 708 191
+3 "0s" 0 0 0 0 0 -1  E E E
+2 14
+"txRootSystemNr"
+""
+1 484 166 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 662 156 699 170
+0 2 2 "0s" 0 0 0 192 0 0  662 156 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 6 Number
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

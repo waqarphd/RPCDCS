@@ -1,0 +1,474 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 300 585 N "_3DFace" 0
+"main()
+{
+  dyn_string exceptionInfo;
+
+  init();
+  setMode(fwDEN_MODE_NAVIGATOR, TRUE, exceptionInfo);
+  changeModeButton.enabled(TRUE);
+}" 0
+ E E E E 1 -1 -1 0  130 50
+""0  1
+E "
+dyn_int tabMapEditorToNavigator;
+dyn_int tabMapNavigatorToEditor;
+
+init()
+{
+  string dp = fwDEN_COMMAND_DP + myManNum();
+	
+  // check if internal dp exist, if not create it
+  if(!dpExists(dp))
+    dpCreate(dp, \"_FwDeviceEditorNavigator\");
+  
+  //DebugN(\"dp \" + dp + \" \" + dpExists(dp));
+  // connect the callback function
+  dpConnect(\"fwDeviceEditorNavigator_executeCommand\", FALSE,
+            dp + \".command\", dp + \".selectedNode\");
+  
+  tabMapEditorToNavigator = makeDynString(1, 2, 4, 0);
+  tabMapNavigatorToEditor = makeDynString(1, 2, 0, 3);
+}
+
+setMode(string newMode, bool changePossible, dyn_string &exceptionInfo)
+{
+  int newActiveTab, activeTab;
+  
+  //	DebugN(\"fwDeviceEditorNavigator_setMode(): newMode \" + newMode + \" \" + \" changePossible \" + changePossible);
+  activeTab = treeTab.activeRegister();
+  switch(newMode)
+  {
+    case fwDEN_MODE_EDITOR:
+      g_fwDEN_mode = fwDEN_MODE_EDITOR;
+      changeModeButton.text = \"Go to Navigator\";
+      modeTextField.text= \"Editor mode\";
+      treeTab.namedRegisterVisible(\"fsmEditor\") = TRUE;
+      treeTab.namedRegisterVisible(\"fsmNavigator\") = FALSE;
+      treeTab.activeRegister(tabMapNavigatorToEditor[activeTab + 1] - 1);
+      newActiveTab = tabMapNavigatorToEditor[activeTab + 1] - 1;
+      //DebugN(\"Setting active tab to \" + \" \" + newActiveTab + \" \" + activeTab + \" \" + selectedTabIndex);
+      break;
+   case fwDEN_MODE_NAVIGATOR:
+      g_fwDEN_mode = fwDEN_MODE_NAVIGATOR;
+      changeModeButton.text = \"Go to Editor\";
+      modeTextField.text= \"Navigator mode\";
+      treeTab.namedRegisterVisible(\"fsmEditor\") = FALSE;
+      treeTab.namedRegisterVisible(\"fsmNavigator\") = TRUE;
+      treeTab.activeRegister(tabMapEditorToNavigator[activeTab + 1] - 1);
+      newActiveTab = tabMapEditorToNavigator[activeTab + 1] - 1;
+      //DebugN(\"Setting active tab to \" + \" \" + newActiveTab + \" \" + activeTab + \" \" + selectedTabIndex);
+      break;
+   case fwDEN_MODE_SWITCH:
+      if (g_fwDEN_mode == fwDEN_MODE_NAVIGATOR)
+      {
+         setMode(fwDEN_MODE_EDITOR, changePossible, exceptionInfo);
+      }
+      else
+      {
+         if(g_fwDEN_mode == fwDEN_MODE_EDITOR)
+         {
+            setMode(fwDEN_MODE_NAVIGATOR, changePossible, exceptionInfo);
+         }
+      }	
+      return;
+      break;
+   case fwDEN_MODE_SAME:
+      break;
+   default:
+      break;
+   }
+
+  // set accesibility of button to change mode
+  if(changePossible)
+    changeModeButton.enabled(TRUE);
+  else
+    changeModeButton.enabled(FALSE);
+
+  //DebugN(\"g_fwDEN_selectedDevice \" + g_fwDEN_selectedDevice + \" dpSubStr(g_fwDEN_selectedDevice, DPSUB_SYS) \" + dpSubStr(g_fwDEN_selectedDevice, DPSUB_SYS));
+  if(g_fwDEN_selectedDevice != \"\" && dpSubStr(g_fwDEN_selectedDevice, DPSUB_SYS) != g_fwDEN_selectedDevice)
+  {
+        _fwDeviceEditorNavigator_displayAssociatedDevicePanel(g_fwDEN_selectedDevice, g_fwDEN_currentHierarchyType, g_fwDEN_mode, exceptionInfo); 
+  }
+}
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+28 0
+"treeTab"
+""
+1 0 0 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 58 292 462
+E4 "Hardware" 1
+LANG:1 8 Hardware
+1 "fwDeviceEditorNavigator/fwDeviceEditorNavigatorTree.pnl" 1
+LANG:1 0 
+1
+"$sTreeType""HARDWARE"
+
+"Logical" 1
+LANG:1 7 Logical
+1 "fwDeviceEditorNavigator/fwDeviceEditorNavigatorTree.pnl" 1
+LANG:1 0 
+1
+"$sTreeType""LOGICAL"
+
+"fsmEditor" 1
+LANG:1 3 FSM
+1 "fwFSM/ui/fwFsmDomains.pnl" 1
+LANG:1 0 
+0
+
+"fsmNavigator" 1
+LANG:1 3 FSM
+1 "fwFSM/ui/fwFsmOperation.pnl" 1
+LANG:1 0 
+0
+
+
+2 2
+"Text2"
+""
+1 10 0 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 2 228 25
+0 2 0 "0s" 0 0 0 192 0 0  12 2 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,374,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 25 Device Editor & Navigator
+2 3
+"Text3"
+""
+1 48 32 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 50 34 119 51
+0 2 0 "0s" 0 0 0 192 0 0  50 34 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,374,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 Running on:
+14 4
+"TextField2"
+""
+1 119 31 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,374,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 117 29 251 56
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+	string systemName;
+	
+	systemName = getSystemName();
+	systemName = substr(systemName, 0, strpos(systemName, \":\"));
+	this.text = systemName;
+}" 0
+ E
+13 5
+"changeModeButton"
+""
+1 164 474 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,374,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 162 472 266 502
+
+T 
+1
+LANG:1 12 Go to Editor
+"main()
+{
+	dyn_string exceptionInfo;
+	setMode(fwDEN_MODE_SWITCH, TRUE, exceptionInfo);
+}" 0
+ E E E
+13 6
+"PUSH_BUTTON1"
+""
+1 220 610 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,374,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 218 608 289 638
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	ModuleOff(fwDEN_DEVICE_MODULE);
+	PanelOff();
+}" 0
+ E E E
+14 7
+"modeTextField"
+""
+1 44 475 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,374,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 42 473 153 500
+3 "0s" 0 0 0 0 0 -1  E E E
+1 10 0 "" 0
+1 "message" 1 1 "main()
+{
+	time rootPanelPathTime, childPanelPathTime;
+	unsigned managerNumber = myManNum();
+	string rootPanelPath, childPanelPath, rootPanelName, childPanelName, panelName;
+	
+	
+	if(isDollarDefined(\"$sPanelRelativePath\"))
+	{
+		panelPath = $sPanelRelativePath;
+	}
+	
+	if(panelPath == \"\")
+	{
+		dpGet(	\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName\", rootPanelPath,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.FileName:_original.._stime\", rootPanelPathTime,
+				\"_Ui_\" + managerNumber + \".RootPanelOrigOn.PanelName\", rootPanelName,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName\", childPanelPath,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.FileName:_original.._stime\", childPanelPathTime,
+				\"_Ui_\" + managerNumber + \".ChildPanelOn.PanelName\", childPanelName);
+	
+
+		//	DebugN(rootPanelPath, rootPanelPathTime, childPanelPath, childPanelPathTime);
+	
+		if(rootPanelPathTime > childPanelPathTime)
+		{
+			panelPath = rootPanelPath;
+			panelName = rootPanelName;
+		}
+		else
+		{
+			panelPath = childPanelPath;
+			panelName = childPanelName;
+		}
+	
+		if(myPanelName() == panelName)
+		{
+			goodPanelName = TRUE;
+//			DebugN(\"Correct panel name\");
+		}
+		else
+		{
+			goodPanelName = FALSE;
+//			DebugN(\"Wrong panel name\");
+		}	
+	}
+//	DebugN(\"The good path is \" + panelPath);
+}" 0
+ 
+1 "leftClick" 1 1 "main()
+{
+	int replaced;
+	string 	componentName, path, tempPanelPath, helpFile, browserCommand;
+	dyn_string aux, exceptionInfo;
+	
+//	DebugN(\"The good path is \" + panelPath);
+	
+	if(!goodPanelName)
+	{
+		fwException_raise(	exceptionInfo,
+							\"ERROR\",
+							\"Open panel name doesn't match with PVSS database. Try opening the panel again.\",
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	// Get component name. We assume panels are inside a directory
+	// named after the component name
+	strreplace(panelPath, \"\\\\\", \"/\");
+	aux = strsplit(panelPath, \"/\");
+	componentName = aux[1];
+//	DebugN(panelPath, componentName);
+	
+	// Remove extension if given
+	if(strpos(panelPath, \".pnl\") >= 0)
+	{
+		tempPanelPath = substr(panelPath, 0, strpos(panelPath, \".pnl\"));
+	}
+	else
+	{
+		tempPanelPath = panelPath;
+	}
+	
+	// try to find the help file associated with the panel
+	helpFile = tempPanelPath + \".html\";
+//	DebugN(\"helpFile \" + helpFile + \" tempPanelPath \" + tempPanelPath + \" componentName \" + componentName);
+	path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+	if(path == \"\")
+	{		
+		helpFile = tempPanelPath + \".htm\";
+//		DebugN(\"helpFile \" + helpFile);
+		path = getPath(HELP_REL_PATH, componentName + \"/panels/\" + helpFile);
+//	DebugN(componentName + \"/panels/\" + helpFile);
+		if(path == \"\")
+		{
+			fwException_raise(	exceptionInfo,
+								\"ERROR\",
+								\"Could not find the help file associated with the current panel\",
+								\"\");
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	}
+	
+//	DebugN(\"Final help path \" + path);
+	
+	fwOpenProgressBar(\"Help\", \"Opening help file...\", 1);
+	// If there were no exceptions, then display the help
+	if(_WIN32)
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandWindows\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+//		system(\"start iexplore \" + path + \" &\");
+		system(browserCommand);
+	}
+	else
+	{
+		dpGet(\"fwGeneral.help.helpBrowserCommandLinux\", browserCommand);
+		replaced = strreplace(browserCommand, \"$1\", path);
+		if(replaced == 0)
+			browserCommand = browserCommand + \" \" + path;
+		system(browserCommand);
+//		system(\"start iexplore \" + path + \" &\");
+	}
+	fwCloseProgressBar();
+}	" 0
+ 
+0
+13 9
+"PUSH_BUTTON2"
+""
+1 223 550 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 221 548 292 578
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	ModuleOff(fwDEN_DEVICE_MODULE);
+	PanelOff();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 ""
+"objects\\fwGeneral\\fwHelpButton.pnl" 270 20 T 13 1 0 1 -4 -16
+1
+"$sPanelRelativePath""fwDeviceEditorNavigator/fwDeviceEditorNavigator"
+0

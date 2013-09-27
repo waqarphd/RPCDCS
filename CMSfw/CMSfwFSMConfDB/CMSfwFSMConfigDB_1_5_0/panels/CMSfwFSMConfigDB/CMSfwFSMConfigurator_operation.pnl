@@ -1,0 +1,957 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 665 854 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  dpConnect(\"enableDebugButton\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG);
+  dpConnect(\"enableForceButton\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_UPDATE_CACHE);
+}
+
+enableDebugButton(string dp, bool debugMode)
+{
+  enableDebug.enabled = !debugMode;
+  disableDebug.enabled = debugMode;
+  settingsTable.enabled = debugMode;
+  settingsTable.backCol = debugMode?\"_Window\":\"_3DFace\";
+  settingsTable.foreCol = debugMode?\"_WindowText\":\"_ButtonShadow\";
+  readbacksTable.enabled = debugMode;
+  readbacksTable.backCol = debugMode?\"_Window\":\"_3DFace\";
+  readbacksTable.foreCol = debugMode?\"_WindowText\":\"_ButtonShadow\";
+  failedTable.enabled = debugMode;
+  failedTable.backCol = debugMode?\"_Window\":\"_3DFace\";
+  failedTable.foreCol = debugMode?\"_WindowText\":\"_ButtonShadow\";
+}
+
+enableForceButton(string dp, bool force)
+{
+  forceButton.enabled = !force;
+  
+  if(force)
+    forceButton.toolTipText = \"Force update already requested\";
+  else
+    forceButton.toolTipText = \"\";
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"CMSfwFSMConfigDB/CMSfwFSMConfigDB.ctl\"
+
+showValue(string dp, string mode)
+{
+  this.text = mode;
+}
+
+showDpesValues(string dp1, dyn_string dpes, string dp2, dyn_mixed values)
+{
+  this.deleteAllLines();
+  if(dynlen(dpes) == 0)
+    return;
+  this.appendLines(dynlen(dpes), \"dpes\", dpes, \"names\", getNames(dpes), \"values\", values);
+}
+
+showDpes(string dp1, dyn_string dpes)
+{
+  this.deleteAllLines();
+  if(dynlen(dpes) == 0)
+    return;
+  this.appendLines(dynlen(dpes), \"dpes\", dpes, \"names\", getNames(dpes));
+}
+
+void showState(string dp, string state) {
+    currentState.text = state;
+    string col;
+    getStateColor(state, col);
+    currentState.backCol = col;
+    
+}
+
+void getStateColor(string state, string& color) {
+   if (state == \"NOT_READY\") color = \"FwEquipmentDisabled\";
+   else if ((state == \"MODIFIED\")  || (state == \"CHANGED\")) color = \"FwStateAttention2\";
+   else if (state == \"LOADED\") color = \"FwStateOKPhysics\";
+   else if (state == \"CONFIGURING\") color = \"FwStateAttention1\";
+   else if (state == \"VERIFYING\") color = \"FwStateOKNotPhysics\";
+   else color = \"_3DFace\";   
+}
+
+void showCommand(string dp, string command) {
+    string parameter; time t;
+    dpGet($sDpName +CMSfwFSMConfigDB_CONFIGURATOR_COMMAND  + \":_online.._stime\", t,
+          $sDpName +CMSfwFSMConfigDB_CONFIGURATOR_PARAMETER, parameter);
+    txtCommand.text = command + \" \" + parameter;
+    txtCommandTime.text = t;
+}
+
+showFailedDpes(string dp1, dyn_string dpes)
+{
+  this.deleteAllLines();
+  if(dynlen(dpes) == 0)
+    return;
+  dyn_string settingDpes,settingValues, readbackDpes, readbackValues;
+  dpGet($sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG_SETTING_DPES, settingDpes,
+         $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG_SETTING_VALUES, settingValues,
+         $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG_READBACK_DPES, readbackDpes,
+         $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG_READBACK_VALUES, readbackValues);
+  
+  dyn_string recipeValues, currentValues, users, times;
+  int idx; time tTime; unsigned iUser;
+  dyn_string spl;
+  for (int i=1; i<= dynlen(dpes); i++) {
+    idx = dynContains(readbackDpes, dpes[i]);
+    if (idx == 0) {
+      recipeValues[i] = \"???\"; currentValues[i] = \"???\";  users[i] = \"\"; times[i] = \"\";
+    } else {
+      recipeValues[i] = settingValues[idx]; currentValues[i] = readbackValues[idx];
+      spl = strsplit(settingDpes[idx],\" \");
+      if ((dynlen(spl) == 2) && (spl[2] == \"alert\")) {
+          times[i] = \"\"; users[i] = \"\";
+      } else {
+        dpGet(settingDpes[idx]+\":_original.._stime\",tTime,settingDpes[idx]+\":_original.._user\",iUser);
+        times[i] = tTime; users[i] = getUserName(iUser);
+      }
+    }
+  }  
+  
+  this.appendLines(dynlen(dpes), \"dpes\", dpes, \"names\", getNames(dpes), \"recipeValues\", recipeValues, \"currValues\", currentValues, \"users\", users, \"time\", times);
+}
+
+dyn_string getNames(dyn_string dpes) {
+    dyn_string names;
+    for (int i=1; i<= dynlen(dpes); i++ ) {
+        names[i] = getName(dpes[i]);
+    }
+    return names;
+}
+string getName(string dpe) {
+  string add;
+  dyn_string spl = strsplit(dpe, \" \");
+  if (dynlen(spl) == 2) {
+      add = \" \" + spl[2];
+      dpe = spl[1];
+   } else {
+     add = \"\";     
+   }
+  string dp = dpSubStr(dpe, DPSUB_SYS_DP);
+  string element = dpe;
+  strreplace(element, dp,\"\");
+  element = element + add;
+  
+  string descr = dpGetDescription(dp + \".\");
+  if (descr != dp + \".\") {
+     return descr + \" \" + element; 
+  }
+
+  descr = dpGetAlias(dp + \".\");
+  if (descr != \"\") {
+    return descr + \" \" + element;
+  }  
+  
+  return dpe + add;
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+14 6
+"recipeName"
+""
+1 120 60 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  118 58 242 92
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  dpConnect(\"showValue\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_MODE);
+}" 0
+ E
+2 7
+"PRIMITIVE_TEXT2"
+""
+1 -168 66 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 66 104 83
+0 2 2 "0s" 0 0 0 192 0 0  22 66 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Current Mode:
+14 8
+"dpName"
+""
+1 120.0000000000001 20 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  118 18 532 44
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = $sDpName;
+}" 0
+ E
+2 9
+"PRIMITIVE_TEXT19"
+""
+1 -168 26 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 26 95 43
+0 2 2 "0s" 0 0 0 192 0 0  22 26 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Configurator:
+14 10
+"TEXT_FIELD2"
+""
+1 422 60 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  420 58 652 84
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  dpConnect(\"showValue\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_STATUS_LATEST);
+}
+" 0
+ E
+2 11
+"PRIMITIVE_TEXT4"
+""
+1 164 66 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 354 66 396 83
+0 2 2 "0s" 0 0 0 192 0 0  354 66 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Status:
+2 12
+"PRIMITIVE_TEXT7"
+""
+1 162 158 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 352 158 531 194
+0 2 2 "0s" 0 0 0 192 0 0  352 158 2
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 31 Force refresh of cached recipe:
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+13 13
+"forceButton"
+""
+1 550 150 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 30 Force update already requested
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  548 148 652 182
+
+T 
+1
+LANG:1 5 FORCE
+"main()
+{
+  dpSet($sDpName + CMSfwFSMConfigDB_CONFIGURATOR_UPDATE_CACHE, TRUE);
+}" 0
+ E E E
+2 14
+"PRIMITIVE_TEXT5"
+""
+1 -168 212 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 212 99 229
+0 2 2 "0s" 0 0 0 192 0 0  22 212 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Debug mode:
+13 15
+"enableDebug"
+""
+1 120 211 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  118 209 212 233
+
+T 
+1
+LANG:1 6 Enable
+"main()
+{
+  dpSet($sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG, TRUE);
+}" 0
+ E E E
+13 16
+"disableDebug"
+""
+1 220 211 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  218 209 312 233
+
+T 
+1
+LANG:1 7 Disable
+"main()
+{
+  dpSet($sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG, FALSE);
+}" 0
+ E E E
+25 17
+"settingsTable"
+""
+1 20 253 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,9,-1,5,50,0,0,0,0,0
+0  18 251 652 405
+"main()
+{
+  dpConnect(\"showDpesValues\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG_SETTING_DPES, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG_SETTING_VALUES);
+}
+" 0
+E 1 0 1 3 0 "dpes" 54 0 0 "s" 1
+LANG:1 11 DP Elements
+E
+1
+LANG:1 0 
+
+500 "names" 54 1 0 "s" 1
+LANG:1 23 Dp Elements Description
+E
+1
+LANG:1 0 
+
+500 "values" 10 1 0 "s" 1
+LANG:1 9 DP Values
+E
+1
+LANG:1 0 
+
+100 
+20 20 10 10
+1
+LANG:1 25 Arial,9,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 19
+"PUSH_BUTTON4"
+""
+1 560 800 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  558 798 652 832
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+    PanelOff();
+}" 0
+ E E E
+25 22
+"readbacksTable"
+""
+1 20 432 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,9,-1,5,50,0,0,0,0,0
+0  18 430 652 584
+"main()
+{
+  dpConnect(\"showDpesValues\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG_READBACK_DPES, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG_READBACK_VALUES);
+}
+" 0
+E 1 0 1 3 0 "dpes" 54 0 0 "s" 1
+LANG:1 11 DP Elements
+E
+1
+LANG:1 0 
+
+500 "names" 54 1 0 "s" 1
+LANG:1 23 Dp Elements Description
+E
+1
+LANG:1 0 
+
+500 "values" 10 1 0 "s" 1
+LANG:1 9 DP Values
+E
+1
+LANG:1 0 
+
+100 
+20 20 10 10
+1
+LANG:1 25 Arial,9,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+25 23
+"failedTable"
+""
+1 20 322 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,9,-1,5,50,0,0,0,0,0
+0  18 610 662 764
+"main()
+{
+  dpConnect(\"showFailedDpes\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_DEBUG_FAILED_DPES);
+}
+" 0
+E 1 0 1 6 0 "dpes" 43 0 0 "s" 1
+LANG:1 11 DP Elements
+E
+1
+LANG:1 0 
+
+300 "names" 43 1 0 "s" 1
+LANG:1 23 Dp Elements Description
+E
+1
+LANG:1 0 
+
+300 "recipeValues" 10 1 0 "s" 1
+LANG:1 6 Recipe
+E
+1
+LANG:1 0 
+
+93 "currValues" 10 1 0 "s" 1
+LANG:1 13 Current Value
+E
+1
+LANG:1 0 
+
+93 "users" 6 1 0 "s" 1
+LANG:1 6 Set by
+E
+1
+LANG:1 0 
+
+50 "time" 6 1 0 "s" 1
+LANG:1 4 Time
+E
+1
+LANG:1 0 
+
+100 
+20 20 10 10
+1
+LANG:1 25 Arial,9,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 24
+"PRIMITIVE_TEXT7"
+""
+1 -168 232 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 232 222 249
+0 2 2 "0s" 0 0 0 192 0 0  22 232 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 33 DEBUG: Settings applied in recipe
+2 25
+"PRIMITIVE_TEXT8"
+""
+1 -168 412 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 412 254 429
+0 2 2 "0s" 0 0 0 192 0 0  22 412 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 37 DEBUG: Readback values used to verify
+2 26
+"PRIMITIVE_TEXT9"
+""
+1 -168 592 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 592 579 609
+0 2 2 "0s" 0 0 0 192 0 0  22 592 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 91 DEBUG: DP elements that did not have expected readback values (caused verification FAILURE)
+2 27
+"PRIMITIVE_TEXT10"
+""
+1 163 96 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 353 96 420 113
+0 2 2 "0s" 0 0 0 192 0 0  353 96 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Updated at:
+14 28
+"statusTime"
+""
+1 421.9999999999999 90 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  420 88 652 114
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  dpConnect(\"showValue\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_STATUS_LATEST + \":_online.._stime\");
+}
+" 0
+ E
+14 29
+"appliedRecipe"
+""
+1 120 120 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  118 118 312 144
+2 "0s" 0 0 0 0 0 -1  "main()
+{
+  string recipeName; dyn_dyn_mixed recipeObject; dyn_string exceptionInfo;
+  string sDeviceDp; string systemName;
+  
+/*  fwGeneral_getNameWithoutSN($sDpName, sDeviceDp, exceptionInfo);
+  fwGeneral_getSystemName($sDpName, systemName, exceptionInfo);
+  */
+  
+  recipeName = $sDpName + \"/\" + this.text;
+  
+  fwOpenProgressBar(\"Recipe view\",\"Loading recipe data, please wait\",0);  
+  
+ fwConfigurationDB_loadRecipeFromCache(recipeName, makeDynString(),
+        \"\", recipeObject, exceptionInfo);
+
+  fwCloseProgressBar();
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;}
+
+  fwConfigurationDB_editRecipe(recipeObject, TRUE, \"View recipe \"+recipeName);
+
+}" 0
+ "main()
+{
+  dpConnect(\"showValue\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_STATUS_APPLIED_RECIPE);
+}" 0
+ E
+2 30
+"PRIMITIVE_TEXT20"
+""
+1 -168 126 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 126 113 143
+0 2 2 "0s" 0 0 0 192 0 0  22 126 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 15 Applied Recipe:
+4 31
+"LINE1"
+""
+1 330 60 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E  330 60 330 220
+2 32
+"PRIMITIVE_TEXT21"
+""
+1 162 126 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 352 126 541 143
+0 2 2 "0s" 0 0 0 192 0 0  352 126 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 30 Recipe Cache - DB consistency:
+14 33
+"consistency"
+""
+1 550 120 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  548 118 652 144
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  dpConnect(\"showValue\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_STATUS_CACHE_VALIDITY);
+}
+" 0
+ E
+14 34
+"currentState"
+""
+1 120 90 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  118 88 242 114
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  dpConnect(\"showState\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_STATE);
+}" 0
+ E
+2 35
+"PRIMITIVE_TEXT22"
+""
+1 -168 96 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 22 96 103 113
+0 2 2 "0s" 0 0 0 192 0 0  22 96 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Current State:
+14 40
+"txtCommand"
+""
+1 123 149 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  121 147 312 175
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  dpConnect(\"showCommand\", TRUE, $sDpName +CMSfwFSMConfigDB_CONFIGURATOR_COMMAND);
+}" 0
+ E
+2 41
+"PRIMITIVE_TEXT25"
+""
+1 -165 155 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 25 155 117 172
+0 2 2 "0s" 0 0 0 192 0 0  25 155 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Last Command:
+14 42
+"txtCommandTime"
+""
+1 123 179 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  121 177 312 203
+2 "0s" 0 0 0 0 0 -1  E "main()
+{
+  dpConnect(\"showState\", TRUE, $sDpName + CMSfwFSMConfigDB_CONFIGURATOR_STATE);
+}" 0
+ E
+2 43
+"PRIMITIVE_TEXT26"
+""
+1 -165 185 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 25 185 76 202
+0 2 2 "0s" 0 0 0 192 0 0  25 185 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Given at:
+13 44
+"PUSH_BUTTON56"
+""
+1 20 780 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"isToggle" ""
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 778 112 812
+
+T 
+1
+LANG:1 11 Show DpName
+"main()
+{
+  
+    settingsTable.namedColumnVisibility(\"dpes\",this.toggleState());
+    settingsTable.namedColumnVisibility(\"names\",!this.toggleState());
+
+    readbacksTable.namedColumnVisibility(\"dpes\",this.toggleState());
+    readbacksTable.namedColumnVisibility(\"names\",!this.toggleState());
+   
+    failedTable.namedColumnVisibility(\"dpes\",this.toggleState());
+    failedTable.namedColumnVisibility(\"names\",!this.toggleState());
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

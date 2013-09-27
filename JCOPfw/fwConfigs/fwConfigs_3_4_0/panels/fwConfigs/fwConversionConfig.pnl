@@ -1,0 +1,1777 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 641 391 N "_3DFace" 4
+"$bHierarchyBrowser"
+"$configType"
+"$sDpe"
+"$sDpeConfigObjectVarName"
+"main()
+{
+	bool singleDpe, firstCheck = TRUE;
+	int length, i;
+	string dpe, errorString;
+	dyn_string systems, exceptionInfo;
+	
+	bool convExists;
+	int conversionType, order;
+	dyn_float arguments;
+		
+	if(isDollarDefined(\"$sDpe\"))
+	{
+		dpe = $sDpe;
+		strreplace(dpe, \" \", \"\");
+	    DPE_LIST = strsplit(dpe, \"|\");
+	}
+    
+	elementNameField.editable(FALSE);
+
+	length = dynlen(DPE_LIST);
+	switch(length)
+	{
+			case 0:
+				if(isDollarDefined(\"$sDpeConfigObjectVarName\"))	// object passed to the panel
+				{
+					if(getGlobalType($sDpeConfigObjectVarName) != DYN_DYN_ANYTYPE_VAR)
+					{
+						elementNameField.text(\"Wrong config object name\");
+						conversionOnOff.enabled = FALSE;
+						applyButton.enabled = FALSE;
+						okButton.enabled = FALSE;
+						fwException_raise(exceptionInfo, 
+															\"WARNING\", \"The config object \" + $sDpeConfigObjectVarName + 
+															\" doesn't exists or hasn't got the proper format.\", 
+															\"\");
+						fwExceptionHandling_display(exceptionInfo);					
+						return;
+					}					
+					
+					panelMode = OBJECT;					
+					fwGeneral_getGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//					DebugN(\" Config Panel: \", dpeConfigObject);
+					
+					DPE_LIST[1] = dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_NAME][1];						
+					DPE_TYPE	= dpeConfigObject[fwConfigs_DPE_OBJECT_DPE_TYPE][1];					
+					// config type in this case is special, not the standard PVSS one
+//					configType	= dpeConfigObject[fwConfigs_DPE_OBJECT_TYPE][1];
+					convExists	= (bool)dpeConfigObject[fwConversion_DPE_OBJECT_CONV_TYPE][1];
+					
+					fwConfigType	= dpeConfigObject[fwConversion_DPE_OBJECT_TYPE][1];
+					conversionType	= dpeConfigObject[fwConversion_DPE_OBJECT_CONV_TYPE][1];
+					order		= dpeConfigObject[fwConversion_DPE_OBJECT_ORDER][1];
+					fwGeneral_stringToDynString(dpeConfigObject[fwConversion_DPE_OBJECT_ARGUMENTS], arguments);
+					if(dynlen(arguments) < 10) //set arguments dyn_string to maximum required length (10)
+                                          arguments[10] = \"\";
+					DPES_OK			= TRUE;
+					elementNameField.text(DPE_LIST[1]);
+				}
+				else // neither dpes nor object passed, nothing to do in the panel
+				{
+					elementNameField.text(\"No Data Point Elements\");
+					conversionOnOff.enabled = FALSE;
+					applyButton.enabled = FALSE;
+					okButton.enabled = FALSE;
+					fwException_raise(exceptionInfo, \"WARNING\", getCatStr(\"fwConfigs\", \"PANEL_NODATAPOINTSTOCONFIG\"), \"\");
+					fwExceptionHandling_display(exceptionInfo);					
+					return;
+				}
+				break;				
+				
+			case 1:		// single dpe passed to the panel
+				panelMode = SINGLE_DPE;
+				elementNameField.text(DPE_LIST[1]);
+				break;
+			default:	// multiple dpes passed to the panel
+				panelMode = MULTIPLE_DPES;
+
+				_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+
+				if(dynlen(systems) == 1)
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+
+				dpeDetails.visible = TRUE;
+				convExists = FALSE;
+				break;
+	}
+
+	if(isDollarDefined(\"$configType\"))
+		fwConfigType = strtolower($configType);
+	
+	switch(fwConfigType) 
+    {    	
+    	case (\"msg\"):  //  message conversion
+	   	case (\"msg_conv\"):
+    	 	configType = DPCONFIG_CONVERSION_RAW_TO_ENG_MAIN;
+    	 	title.text = \"Message Conversion Configuration\";
+    		break;
+	   	case (\"cmd\"):  // command conversion
+    	case (\"cmd_conv\"):
+    		configType = DPCONFIG_CONVERSION_ING_TO_RAW_MAIN;
+			title.text = \"Command Conversion Configuration\";
+    		break;
+	   	default:
+	    	fwException_raise(exceptionInfo, 
+    						  \"ERROR\", 
+    						  \"Did not select a proper conversion config type.\", 
+    						  \"\");
+	   		return;
+    }    
+
+	if(panelMode != OBJECT)
+	{
+		if(configType == DPCONFIG_CONVERSION_RAW_TO_ENG_MAIN)
+			DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_MSG_CONV, DPE_TYPE, exceptionInfo, errorString);
+		else
+			DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, fwConfigs_PVSS_CMD_CONV, DPE_TYPE, exceptionInfo, errorString);
+	
+		if(!DPES_OK)
+			fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+	}
+	
+	fwSetPolynomialFieldsFormat(exceptionInfo);
+	fwSetBaseCurveFieldsFormat(exceptionInfo);
+
+	okButton.enabled = DPES_OK;
+	applyButton.enabled = DPES_OK;
+
+	if(dynlen(exceptionInfo)>0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	if(panelMode == SINGLE_DPE)
+	{	
+		fwConfigConversion_get(DPE_LIST[1], convExists, configType, conversionType, order, arguments, exceptionInfo);
+		if(dynlen(exceptionInfo)>0)
+		{
+			if(exceptionInfo[dynlen(exceptionInfo)] != \"\")
+			{
+				driverProblem.text = \"The current state of this config is unknown.\\nThe config can not be modified.\\nThe config can not be accessed because\\ndriver number \"
+									+ exceptionInfo[dynlen(exceptionInfo)] + \" is not running.\";
+				driverProblem.visible = TRUE;
+				conversionOnOff.enabled = FALSE;
+				okButton.enabled = FALSE;
+				applyButton.enabled = FALSE;
+				exceptionInfo = makeDynString();
+			}
+		}
+	}
+		
+	if(convExists)
+	{
+		fromRawToTreated(DPDETAIL_CONV_LIN_INT, 5, makeDynFloat(0,0,0,0,0,0,0,0,0,0), exceptionInfo);
+		fromRawToTreated(DPDETAIL_CONV_POLY, 5, makeDynFloat(0,0,0,0,0), exceptionInfo);
+		fromRawToTreated(conversionType, order, arguments, exceptionInfo);
+		if(conversionType == DPDETAIL_CONV_POLY)
+			_fwShowConversionItems(0);
+		else if(conversionType == DPDETAIL_CONV_LIN_INT)
+			_fwShowConversionItems(1);
+                else if(conversionType == DPDETAIL_CONV_INVERT)
+                        _fwShowConversionItems(2);
+		
+		conversionOnOff.state(0) = TRUE;	
+	}
+	else
+	{
+		conversionOnOff.state(0) = FALSE;
+		fromRawToTreated(DPDETAIL_CONV_LIN_INT, 5, makeDynFloat(0,0,0,0,0,0,0,0,0,0), exceptionInfo);
+		fromRawToTreated(DPDETAIL_CONV_POLY, 5, makeDynFloat(0,0,0,0,0), exceptionInfo);
+		_fwHideConversionItems();
+		convSelector.visible = FALSE;	
+	}
+	
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}
+
+
+fromRawToTreated(int convType, int order, dyn_float arguments, dyn_string exceptionInfo)
+{	
+	if(convType == DPDETAIL_CONV_POLY )
+	{
+		convSelector.number = 0;
+		coeff1.text = arguments[1];
+		coeff2.text = arguments[2];
+		coeff3.text = arguments[3];
+		coeff4.text = arguments[4];
+		coeff5.text = arguments[5];
+		o.selectedPos(order);	
+	}
+	else if(convType == DPDETAIL_CONV_LIN_INT)
+	{
+		convSelector.number = 1;
+		x1.text = arguments[1];
+		y1.text = arguments[2];
+		x2.text = arguments[3];
+		y2.text = arguments[4];
+		x3.text = arguments[5];
+		y3.text = arguments[6];
+		x4.text = arguments[7];
+		y4.text = arguments[8];
+		x5.text = arguments[9];
+		y5.text = arguments[10];
+		nrOfPoints.selectedPos(order-1);
+	}
+}" 0
+ E E E E 1 -1 -1 0  337 220
+""0  1
+E "dyn_string DPE_LIST;
+int DPE_TYPE;
+bool DPES_OK;
+
+// mode in which the panel is used
+int panelMode;
+const int OBJECT	= 1;
+const int SINGLE_DPE		= 2;
+const int MULTIPLE_DPES	= 3;
+
+dyn_dyn_anytype dpeConfigObject;
+
+int configType;
+string fwConfigType;
+
+fwSetPolynomialFieldsFormat(dyn_string &exceptionInfo)
+{
+	string formatString;
+
+	fwConfigs_getBestFormatForDpeType(DPEL_FLOAT, formatString, exceptionInfo);
+	fwConfigs_setTextFieldsFormat(makeDynString(\"coeff1\", \"coeff2\", \"coeff3\", \"coeff4\", \"coeff5\"), formatString,
+									makeDynBool(FALSE), exceptionInfo);
+}
+
+fwSetBaseCurveFieldsFormat(dyn_string &exceptionInfo)
+{
+	string formatString;
+
+	if(panelMode != OBJECT)
+	{
+		fwConfigs_getBestFormatForDpeList(DPE_LIST, formatString, exceptionInfo);
+		fwConfigs_setTextFieldsFormat(makeDynString(\"x1\", \"x2\", \"x3\", \"x4\", \"x5\", \"y1\", \"y2\", \"y3\", \"y4\", \"y5\"), formatString,
+										makeDynBool(FALSE), exceptionInfo);
+	}
+}
+
+_fwHideConversionItems()
+{
+	_fwTogglePolynomialItems(FALSE);
+	_fwToggleBaseCurveItems(FALSE);
+        _fwToggleInvertItems(FALSE);
+}
+
+_fwShowConversionItems(int conversionType)
+{
+	driverProblem.visible = FALSE;
+	switch(conversionType)
+	{
+		case 0:
+			_fwToggleBaseCurveItems(FALSE);	
+			_fwToggleInvertItems(FALSE);	
+			_fwTogglePolynomialItems(TRUE);			
+			break;
+		case 1:
+			_fwTogglePolynomialItems(FALSE);			
+			_fwToggleInvertItems(FALSE);	
+			_fwToggleBaseCurveItems(TRUE);	
+			break;
+		case 2:
+			_fwToggleBaseCurveItems(FALSE);	
+			_fwTogglePolynomialItems(FALSE);			
+			_fwToggleInvertItems(TRUE);	
+			break;
+		default:
+			_fwToggleBaseCurveItems(FALSE);	
+			_fwTogglePolynomialItems(FALSE);			
+			_fwToggleInvertItems(FALSE);	
+			break;
+	}
+}
+
+_fwToggleInvertItems(bool shouldShow)
+{
+  invertSelector.visible = shouldShow;
+  invertTitle.visible = shouldShow;
+}
+    
+_fwTogglePolynomialItems(bool shouldShow)
+{
+	int i, order;
+	shape valueField, titleField;
+
+	convSelector.visible = shouldShow;
+	oText.visible = shouldShow;
+	o.visible = shouldShow;
+	p3.visible = shouldShow;
+	p2.visible = shouldShow;
+	p4.visible = shouldShow;
+	polyText.visible = shouldShow;	
+	
+	if(shouldShow)
+	{
+		order = o.text;
+		for(i=1; i <= order+1; i++)
+		{
+			valueField = getShape(\"coeff\" + i);
+			titleField = getShape(\"coeffTitle\" + i);
+			
+			valueField.visible = TRUE;
+			titleField.visible = TRUE;			
+		}
+	}
+	else
+	{
+		coeff1.visible = shouldShow;
+		coeff2.visible = shouldShow;
+		coeff3.visible = shouldShow;
+		coeff4.visible = shouldShow;
+		coeff5.visible = shouldShow;
+		coeffTitle1.visible = shouldShow;
+		coeffTitle2.visible = shouldShow;
+		coeffTitle3.visible = shouldShow;
+		coeffTitle4.visible = shouldShow;
+		coeffTitle5.visible = shouldShow;
+	}
+}
+
+_fwToggleBaseCurveItems(bool shouldShow)
+{
+	int i, points;
+	shape valueXField, valueYField, titleXField, titleYField;
+
+	convSelector.visible = shouldShow;
+	nrText.visible = shouldShow;
+	nrOfPoints.visible = shouldShow;
+	
+	if(shouldShow)
+	{
+		points = nrOfPoints.text;
+		for(i=1; i <= points; i++)
+		{
+			valueXField = getShape(\"x\" + i);
+			valueYField = getShape(\"y\" + i);
+			titleXField = getShape(\"t\" + i);
+			titleYField = getShape(\"t\" + (i+5));
+			
+			valueXField.visible = TRUE;
+			titleXField.visible = TRUE;			
+			valueYField.visible = TRUE;
+			titleYField.visible = TRUE;			
+		}
+	}
+	else
+	{
+		x1.visible = shouldShow;
+		y1.visible = shouldShow;
+		x2.visible = shouldShow;
+		y2.visible = shouldShow;
+		x3.visible = shouldShow;
+		y3.visible = shouldShow;
+		x4.visible = shouldShow;
+		y4.visible = shouldShow;
+		x5.visible = shouldShow;
+		y5.visible = shouldShow;
+		t1.visible = shouldShow;
+		t2.visible = shouldShow;
+		t3.visible = shouldShow;
+		t4.visible = shouldShow;
+		t5.visible = shouldShow;
+		t6.visible = shouldShow;
+		t7.visible = shouldShow;
+		t8.visible = shouldShow;
+		t9.visible = shouldShow;
+		t10.visible = shouldShow;	
+	}
+}
+
+saveSettings(dyn_string &exceptionInfo)
+{
+	bool isGood;
+	int i, order, conversionType, elementType;
+	string temp;
+	shape valueShape;
+	dyn_float arguments;
+	
+ 	if(!DPES_OK)
+	{
+		fwException_raise(exceptionInfo, \"ERROR\", getCatStr(\"fwConfigs\", \"PANEL_MIXEDORBADDPETYPES\"), \"\");
+		return;		
+	}
+		
+	okButton.enabled = FALSE;
+	applyButton.enabled = FALSE;
+	closeButton.enabled = FALSE;
+	if(panelMode == MULTIPLE_DPES)
+		fwOpenProgressBar(\"Configuration panel\", \"Saving configuration...\", 1);
+
+	if(conversionOnOff.state(0))
+	{
+                if(configType == DPCONFIG_CONVERSION_ENG_TO_RAW_MAIN)
+		  _fwConfigs_getConfigOptionsForDpeType(DPE_TYPE, fwConfigs_PVSS_CMD_CONV, elementType, exceptionInfo);		
+                else
+		  _fwConfigs_getConfigOptionsForDpeType(DPE_TYPE, fwConfigs_PVSS_MSG_CONV, elementType, exceptionInfo);		
+          
+		if(elementType == fwConfigs_ANALOG_OPTIONS)
+                {
+		  switch(convSelector.number())
+		  {
+      			// polinomial conversion
+      			case 0:
+      	 	 		order = o.text;
+	 	 		
+      	 	 		for(i=1; i<=(order+1); i++)
+      	 	 		{
+      	 	 			valueShape = getShape(\"coeff\" + i);
+      	 	 			temp = valueShape.text;
+      					fwConfigs_checkStringFormat(temp, DPEL_FLOAT, isGood, exceptionInfo);
+      					if(isGood)
+      		 	 			arguments[i] = temp;
+      					else
+      						fwException_raise(exceptionInfo, \"ERROR\", \"Polynomial coefficient \" + i + \" is not valid\", \"\");
+      	 	 		}
+						
+      				conversionType = DPDETAIL_CONV_POLY;
+      				break;	
+      			// base curve conversion	
+      			case 1:
+      				order = nrOfPoints.text;
+      	 	 		for(i=1; i<=(order); i++)
+      	 	 		{
+      	 	 			valueShape = getShape(\"x\" + i);
+      	 	 			temp = valueShape.text;
+      					fwConfigs_checkStringFormat(temp, DPE_TYPE, isGood, exceptionInfo);
+      					if(isGood)
+      		 	 			arguments[(i*2)-1] = temp;
+      					else
+      						fwException_raise(exceptionInfo, \"ERROR\", \"Base Curve point x\" + i + \" is not valid\", \"\");
+
+      	 	 			valueShape = getShape(\"y\" + i);
+      	 	 			temp = valueShape.text;
+      					fwConfigs_checkStringFormat(temp, DPE_TYPE, isGood, exceptionInfo);
+      					if(isGood)
+      		 	 			arguments[i*2] = temp;
+      					else
+      						fwException_raise(exceptionInfo, \"ERROR\", \"Base Curve point y\" + i + \" is not valid\", \"\");
+      	 	 		}
+	
+      				conversionType = DPDETAIL_CONV_LIN_INT;
+      				break;	
+      		  }                  
+                }
+                else if(elementType == fwConfigs_BINARY_OPTIONS)
+                {
+      			conversionType = DPDETAIL_CONV_INVERT;
+                }
+
+		if(dynlen(exceptionInfo)>0)
+		{
+			okButton.enabled = TRUE;
+			applyButton.enabled = TRUE;
+			closeButton.enabled = TRUE;
+			if(panelMode == MULTIPLE_DPES)
+				fwCloseProgressBar(\"Configuration failed\");
+			return;	
+		}
+
+		if(panelMode != OBJECT)
+		{
+			fwConfigConversion_setMultiple(DPE_LIST, configType, conversionType, order, arguments, exceptionInfo, TRUE);
+		}
+		else
+		{
+			dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1] = TRUE;
+					
+			dpeConfigObject[fwConversion_DPE_OBJECT_TYPE][1] 		= fwConfigType;
+			dpeConfigObject[fwConversion_DPE_OBJECT_CONV_TYPE][1]	= conversionType;
+			dpeConfigObject[fwConversion_DPE_OBJECT_ORDER][1]		= order ;
+			dpeConfigObject[fwConversion_DPE_OBJECT_ARGUMENTS]		= arguments;
+			
+			fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//			DebugN(\"Modified \", dpeConfigObject);	
+		}
+	}
+	else
+	{
+		if(panelMode != OBJECT)
+		{
+			fwConfigConversion_deleteMultiple(DPE_LIST, configType, exceptionInfo);	
+		}
+		else
+		{
+			dpeConfigObject[fwConfigs_DPE_OBJECT_ACTIVE][1] = FALSE;
+					
+			dpeConfigObject[fwConversion_DPE_OBJECT_TYPE][1] 		= fwConfigType;
+			dpeConfigObject[fwConversion_DPE_OBJECT_CONV_TYPE][1]	= DPCONFIG_NONE;
+			dpeConfigObject[fwConversion_DPE_OBJECT_ORDER][1]		= 0;
+			dpeConfigObject[fwConversion_DPE_OBJECT_ARGUMENTS]		= makeDynFloat();
+			
+			fwGeneral_setGlobalValue($sDpeConfigObjectVarName, dpeConfigObject, exceptionInfo);
+//			DebugN(\"Modified \", dpeConfigObject);
+		}
+	}
+	
+	okButton.enabled = TRUE;
+	applyButton.enabled = TRUE;
+	closeButton.enabled = TRUE;
+	if(panelMode == MULTIPLE_DPES)
+		fwCloseProgressBar(\"Configuration complete\");
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 13
+"t3"
+""
+1 311 384 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 295 223 313 240
+0 2 2 "0s" 0 0 0 192 0 0  295 223 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 x3:
+2 14
+"t8"
+""
+1 532 384 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 424 223 442 240
+0 2 2 "0s" 0 0 0 192 0 0  424 223 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 y3:
+2 15
+"t1"
+""
+1 311 270 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 295 163 313 180
+0 2 2 "0s" 0 0 0 192 0 0  295 163 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 x1:
+2 16
+"t6"
+""
+1 532 270 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 424 163 442 180
+0 2 2 "0s" 0 0 0 192 0 0  424 163 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 y1:
+2 17
+"t4"
+""
+1 311 441 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 295 253 313 270
+0 2 2 "0s" 0 0 0 192 0 0  295 253 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 x4:
+2 18
+"t9"
+""
+1 532 441 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 424 253 442 270
+0 2 2 "0s" 0 0 0 192 0 0  424 253 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 y4:
+2 19
+"t2"
+""
+1 311 327 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 295 193 313 210
+0 2 2 "0s" 0 0 0 192 0 0  295 193 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 x2:
+2 20
+"t7"
+""
+1 532 327 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 424 193 442 210
+0 2 2 "0s" 0 0 0 192 0 0  424 193 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 y2:
+2 21
+"t5"
+""
+1 311 499 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 295 283 313 300
+0 2 2 "0s" 0 0 0 192 0 0  295 283 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 x5:
+2 22
+"t10"
+""
+1 532 499 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 424 283 442 300
+0 2 2 "0s" 0 0 0 192 0 0  424 283 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 3 y5:
+2 23
+"nrText"
+""
+1 316 191 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 293 121 397 138
+0 2 0 "0s" 0 0 0 192 0 0  293 121 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Number of Points:
+2 1
+"coeffTitle1"
+""
+1 350 282 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 312 163 323 180
+0 0 0 "0s" 0 0 0 192 0 0  312 163 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+2
+LANG:1 2 a:
+LANG:0 2 a:
+2 2
+"coeffTitle2"
+""
+1 350 347 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 312 193 323 210
+0 0 0 "0s" 0 0 0 192 0 0  312 193 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+2
+LANG:1 2 b:
+LANG:0 2 b:
+2 3
+"coeffTitle3"
+""
+1 354 413 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 312 223 323 240
+0 0 0 "0s" 0 0 0 192 0 0  312 223 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+2
+LANG:1 2 c:
+LANG:0 2 c:
+2 4
+"coeffTitle4"
+""
+1 350 478 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 312 253 323 270
+0 0 0 "0s" 0 0 0 192 0 0  312 253 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+2
+LANG:1 2 d:
+LANG:0 2 d:
+2 5
+"coeffTitle5"
+""
+1 350 544 E E E 1 E 0 E N "_3DText" E N "_Transparent" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 312 283 323 300
+0 0 0 "0s" 0 0 0 192 0 0  312 283 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+2
+LANG:1 2 e:
+LANG:0 2 e:
+2 6
+"polyText"
+""
+1 355 152 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 302 95 440 112
+0 0 0 "0s" 0 0 0 192 0 0  302 95 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22  (y=a+bx+cx +dx +ex ) 
+2 7
+"p4"
+""
+1 560 146 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 427 90 433 105
+0 0 0 "0s" 0 0 0 192 0 0  427 90 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+2
+LANG:1 1 4
+LANG:0 1 4
+2 8
+"p3"
+""
+1 519 146 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 402 90 408 105
+0 0 0 "0s" 0 0 0 192 0 0  402 90 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+2
+LANG:1 1 3
+LANG:0 1 3
+2 9
+"p2"
+""
+1 476 146 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 377 90 383 105
+0 0 0 "0s" 0 0 0 192 0 0  377 90 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+2
+LANG:1 1 2
+LANG:0 1 2
+2 10
+"oText"
+""
+1 332 201 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 292 122 396 139
+0 2 0 "0s" 0 0 0 192 0 0  292 122 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Polynomial Order:
+2 49
+"title"
+""
+1 10 10 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 12 225 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 24 Conversion Configuration
+2 52
+"Text3"
+""
+1 161 74 E E E 1 E 1 E N {0,0,0} E N "_Transparent" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 55 86 72
+0 2 0 "0s" 0 0 0 192 0 0  12 55 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 11 DP Element:
+2 59
+"driverProblem"
+""
+1 140 130 E E E 1 E 0 E N {255,0,0} E N "_Window" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 146 136 424 204
+1 6 0 "0s" 0 0 0 65 0 0  146 136 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Driver problem
+14 54
+"elementNameField"
+""
+1 348 103 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 88 48 632 75
+3 "0s" 0 0 0 0 0 -1  E E E
+13 57
+"dpeDetails"
+""
+1 460 10 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 8 582 42
+
+T 
+1
+LANG:1 15 Select Elements
+"main()
+{
+	dyn_string returnedDpeList, systems, exceptionInfo;
+	dyn_float cancelOrOk;
+	int configType;
+	string configName, errorString;
+
+	switch(strtolower($configType)) 
+    {    	
+    	case (\"msg\"):  //  message conversion
+    	case (\"msg_conv\"):
+    	 	configType = DPCONFIG_CONVERSION_RAW_TO_ENG_MAIN;
+    	 	configName = fwConfigs_PVSS_MSG_CONV;
+    		break;
+    	case (\"cmd\"):  // command conversion
+    	case (\"cmd_conv\"):
+    		configType = DPCONFIG_CONVERSION_ING_TO_RAW_MAIN;
+    	 	configName = fwConfigs_PVSS_CMD_CONV;
+    		break;
+    	default:
+	    	fwException_raise(exceptionInfo, 
+       						  \"ERROR\", 
+       						  \"Did not select a proper conversion config type.\", 
+       						  \"\");
+       	fwExceptionHandling_display(exceptionInfo);
+    		return;
+    }    
+
+	ChildPanelOnCentralModalReturn(\"fwConfigs/fwDpeSelector.pnl\", \"Choose Data Point Elements\",
+									makeDynString(\"$dsAllDpes:\"+$sDpe, \"$dsIncludedDpes:\"+DPE_LIST, \"$sConfigType:\"+configName),
+									cancelOrOk, returnedDpeList);
+
+	if(cancelOrOk[1] > 0.5)
+	{
+		if(DPE_LIST != returnedDpeList)
+		{
+			DPE_LIST = returnedDpeList;
+		
+			DPES_OK = _fwConfigs_checkDpeList(DPE_LIST, configName, DPE_TYPE, exceptionInfo, errorString);
+			if(!DPES_OK)
+				fwException_raise(exceptionInfo, \"ERROR\", errorString, \"\");
+				
+			fwSetBaseCurveFieldsFormat(exceptionInfo);
+
+			_fwConfigs_getSystemsInDpeList(DPE_LIST, systems, exceptionInfo);
+			if(dynlen(DPE_LIST)== 1)
+				elementNameField.text(DPE_LIST[1]);
+			else
+			{
+				if(dynlen(systems) == 1)
+					elementNameField.text(\"Multiple Data Point Elements (from \" + systems[1] + \")\");
+				else
+					elementNameField.text(\"Multiple Data Point Elements (from multiple systems)\");
+			}
+
+			okButton.enabled = DPES_OK;
+			applyButton.enabled = DPES_OK;
+
+			conversionOnOff.state(0) = FALSE;
+			_fwHideConversionItems();
+			convSelector.visible = FALSE;
+		}
+	}	
+}" 0
+ E E E
+20 56
+"conversionOnOff"
+""
+1 10 90 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 88 167 117
+1
+T 
+1
+LANG:1 17 Conversion ON/OFF
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main()
+
+{
+	int conversionType, elementType;
+	bool status;
+	dyn_string exceptionInfo;
+	
+    status = this.state(0);
+	
+	if(!DPES_OK)
+	{
+		this.state(0) = FALSE;
+		
+		fwException_raise(exceptionInfo, \"ERROR\", getCatStr(\"fwConfigs\", \"PANEL_MIXEDORBADDPETYPES\"), \"\");
+		if(dynlen(exceptionInfo)>0)
+			fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	if(status==TRUE)
+	{
+                if(configType == DPCONFIG_CONVERSION_ENG_TO_RAW_MAIN)
+		  _fwConfigs_getConfigOptionsForDpeType(DPE_TYPE, fwConfigs_PVSS_CMD_CONV, elementType, exceptionInfo);		
+                else
+		  _fwConfigs_getConfigOptionsForDpeType(DPE_TYPE, fwConfigs_PVSS_MSG_CONV, elementType, exceptionInfo);		
+                  
+		conversionType = convSelector.number;
+                
+                if(elementType == fwConfigs_ANALOG_OPTIONS)
+		  _fwShowConversionItems(conversionType);
+                else if(elementType == fwConfigs_BINARY_OPTIONS)
+                  _fwShowConversionItems(2);
+	}
+	else
+	{	
+		_fwHideConversionItems();
+	}
+}" 0
+19 33
+"convSelector"
+""
+1 374 108 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 88 262 152
+2
+T 
+1
+LANG:1 10 Polynomial
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 Base Curve
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E "main()
+{
+	int conversionType;
+	
+	conversionType = this.number;
+	_fwShowConversionItems(conversionType);
+}" 0
+
+22 44
+"nrOfPoints"
+""
+1 511 181 E E E 1 E 0 E N {0,0,0} E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 419 115 469 142
+4
+1
+LANG:1 1 2
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+0
+1
+LANG:1 1 5
+
+1
+
+E
+"main()
+{
+	_fwToggleBaseCurveItems(FALSE);
+	_fwToggleBaseCurveItems(TRUE);
+}" 0
+
+E
+ 0 0
+22 47
+"o"
+""
+1 421 117 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 419 115 473 142
+4
+1
+LANG:1 1 1
+
+0
+1
+LANG:1 1 2
+
+0
+1
+LANG:1 1 3
+
+0
+1
+LANG:1 1 4
+
+1
+
+E
+"main()
+{
+	_fwTogglePolynomialItems(FALSE);
+	_fwTogglePolynomialItems(TRUE);
+}" 0
+
+E
+ 0 0
+14 30
+"coeff1"
+""
+1 395 269 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 327 153 443 180
+3 "15.5f" 21 0 0 2 0 -1  E E E
+14 29
+"coeff2"
+""
+1 395 335 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 327 183 443 210
+3 "15.5f" 21 0 0 2 0 -1  E E E
+14 28
+"coeff3"
+""
+1 395 402 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 327 213 443 240
+3 "15.5f" 21 0 0 2 0 -1  E E E
+14 27
+"coeff4"
+""
+1 395 469 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 327 243 443 270
+3 "15.5f" 21 0 0 2 0 -1  E E E
+14 26
+"coeff5"
+""
+1 395 536 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 327 273 443 300
+3 "15.5f" 21 0 0 2 0 -1  E E E
+14 34
+"x1"
+""
+1 362 256 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 320 153 413 180
+3 "0s" 0 0 0 2 0 -1  E E E
+14 35
+"y1"
+""
+1 591 256 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 449 153 543 180
+3 "0s" 0 0 0 2 0 -1  E E E
+14 36
+"x2"
+""
+1 362 313 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 320 183 413 210
+3 "0s" 0 0 0 2 0 -1  E E E
+14 37
+"y2"
+""
+1 591 313 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 449 183 543 210
+3 "0s" 0 0 0 2 0 -1  E E E
+14 38
+"x3"
+""
+1 362 371 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 320 213 413 240
+3 "0s" 0 0 0 2 0 -1  E E E
+14 39
+"y3"
+""
+1 591 371 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 449 213 543 240
+3 "0s" 0 0 0 2 0 -1  E E E
+14 40
+"x4"
+""
+1 362 429 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 320 243 413 270
+3 "0s" 0 0 0 2 0 -1  E E E
+14 41
+"y4"
+""
+1 591 429 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 449 243 543 270
+3 "0s" 0 0 0 2 0 -1  E E E
+14 42
+"x5"
+""
+1 362 486 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 320 273 413 300
+3 "0s" 0 0 0 2 0 -1  E E E
+14 43
+"y5"
+""
+1 591 486 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 449 273 543 300
+3 "0s" 0 0 0 2 0 -1  E E E
+13 51
+"applyButton"
+""
+1 0 0 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 458 348 542 382
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+}" 0
+ E E "main()
+{
+	int x, y;
+
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			closeButton.visible = TRUE;
+		else
+		{
+			getValue(\"\", \"position\", x, y);
+			this.position(x + 90,y);	
+		}
+	}
+	else
+		closeButton.visible = TRUE;
+		
+	this.visible = TRUE;	
+}
+" 0
+
+13 58
+"closeButton"
+""
+1 1492 929 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 548 348 632 382
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+13 60
+"okButton"
+""
+1 0 0 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 368 348 452 382
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+	dyn_string exceptionInfo;
+
+	saveSettings(exceptionInfo);
+	if(dynlen(exceptionInfo) > 0)
+		fwExceptionHandling_display(exceptionInfo);
+	else
+		PanelOff();
+}" 0
+ E E "main()
+{
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if(!$bHierarchyBrowser)
+			this.visible = TRUE;
+	}
+	else
+		this.visible = TRUE;	
+}" 0
+
+1 67 0 "" 0
+0
+2 65
+"invertTitle"
+""
+1 190 97 E E E 1 E 0 E N "_WindowText" E N "_3DFace" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 190 97 298 114
+0 2 2 "0s" 0 0 0 192 0 0  190 97 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 19 Invert Binary Value
+19 66
+"invertSelector"
+""
+1 170 95 E E E 1 E 0 E N "_3DText" E N "_3DFace" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 93 184.596273291926 117
+2
+T 
+1
+LANG:1 3 ???
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 3 ???
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "Group4"
+"objects\\fwGeneral\\fwHelpButton.pnl" 604 10 T 47 U 
+1
+"$sPanelRelativePath""fwConfigs/fwConversionConfig"
+0

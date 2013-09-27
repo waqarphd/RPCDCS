@@ -1,0 +1,322 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 749 185 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+  if(!fwFMC_isEnabled())
+    return;
+ 
+  node = fwFMC_getNodeName($sDpName);
+  string systemName = dpSubStr($sDpName, DPSUB_SYS);
+
+  string powerStatus = fwFMC_getNodePowerStatus(node, systemName);
+  if(fwFMCTaskManager_exists(node, systemName))
+  {
+    btHalt.enabled = true;
+    btReboot.enabled = true;
+  }  
+  
+  if(dpTypeName($sDpName) == \"FwFMCNode\")
+  {
+    ipmiDp = fwFMCIpmi_getDp(node, systemName);
+  }
+  else if(dpTypeName($sDpName) == \"FwFMCIpmi\")
+    ipmiDp = $sDpName;
+  
+  if(!dpExists(ipmiDp + \".readings.power_status\"))
+  {
+    ledIpmiStatus.backCol = \"FwDead\";
+    txIpmiStatus.text = \"N/A\";
+  }
+  else if(strtoupper(powerStatus) == \"ON\")
+  {
+    ledIpmiStatus.backCol = \"FwStateOKPhysics\";
+  }
+  else if(strtoupper(powerStatus) == \"OFF\")
+  {
+    ledIpmiStatus.backCol = \"FwStateOKNotPhysics\";
+  }
+  else
+  {
+    ledIpmiStatus.backCol = \"FwStateAttention3\";
+  }
+  
+  txIpmiStatus.text = powerStatus;
+  time t;
+  dpGet(ipmiDp + \".readings.power_status:_online.._stime\", t);
+  txTs.text = t;
+}
+/*
+void commStatus(string ipmiDp)
+{
+  int val;
+  time ts;
+  
+  string dp1 = ipmiDp + \".readings.power_status\";
+  string dp2 = ipmiDp + \".readings.power_status_timestamp\";
+
+  while(1)
+  {
+    dpGet(dp1, val, 
+          dp2, ts);  
+    
+    txTs.text = ts;  
+    if(val == 0 || val == 1)
+    {
+      ledIpmiStatus.backCol = \"FwStateOKNotPhysics\";
+      txIpmiStatus.text = \"OFF\";
+    else
+    {
+      ledIpmiStatus.backCol = \"FwStateAttention3\";
+      txIpmiStatus.text = \"ERROR\";    
+    }
+    delay(5);
+  }
+}
+*/
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwFMC/fwFMC.ctl\"
+#uses \"fwFMC/fwFMCTaskManager.ctl\"
+#uses \"fwFMC/fwFMC.ctl\"
+    
+    
+string node;
+string ipmiDp;
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+7 1
+"ledIpmiStatus"
+""
+1 111.237 49.1842 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.95 0 1.05291666666667 7.825 7.198125 1 E 115.5 52.5 9 9
+2 14
+"Text7"
+""
+1 29 13 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 44 55 100 71
+0 2 0 "0s" 0 0 0 64 0 0  44 55 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Status
+30 15
+"Frame6"
+""
+1 20 70 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+31 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 4.874477418723789 0 1.948717948717949 -77.4895483744759 -28.46153846153847 0 E 20 30 140 70
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Status
+4 19
+"Line5"
+""
+1 110 60 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E  110 60 129 60
+14 21
+"txTs"
+""
+1 310.0000000000003 72 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  308 70 462 93
+3 "0s" 0 0 0 0 0 -1  E E E
+2 22
+"txIpmiStatus"
+""
+1 29 13 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 139 54 195 70
+0 2 0 "0s" 0 0 0 64 0 0  139 54 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Status
+2 23
+"PRIMITIVE_TEXT2"
+""
+1 23.00000000000033 35 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 236.0000000000004 74 292.0000000000004 90
+0 2 0 "0s" 0 0 0 64 0 0  236.0000000000004 74 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Last update:
+30 25
+"FRAME1"
+""
+1 10 33 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+50 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.27083333333333 0 1.019108280254776 -2.7083333333333 -23.63057324840762 0 E 10 33 491 191
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Power
+13 26
+"PUSH_BUTTON1"
+""
+1 191.538461538461 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Sans,-1,13,5,50,0,0,0,0,0
+0  178 48 212 80
+
+P 
+4294967295
+"pictures/trend_enabled_32.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+E E "main()
+{
+  ChildPanelOnCentral(\"fwFMC/fwFMC_trendDigitals.pnl\", \"Power Status Trend\", makeDynString(\"$dpes:\" + $sDpName + \".readings.power_status\", \"$title: Power Status Trend\"));
+}" 0
+ E
+1 27 1 "" 0
+0
+1 28 1 "" 5
+0
+1 29 1 "" 6
+0
+1 30 2 "" 2
+0
+1 31 2 "" 3
+0
+1 32 2 "" 4
+0
+1 33 2 "" 5
+0
+1 34 2 "" 6
+0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 1 "PANEL_REF1" -1
+"objects\\fwFMC\\fwFMC_monitoringStatusRef.pnl" 254 32 T 53 1 0 1 -18 0
+2
+"$sDpName""$sDpName"
+"$server""ipmi"
+3 2 "PANEL_REF2" -1
+"fwFMC\\fwFMC_nodeNavigatorCmd.pnl" 10 110 T 54 1 0 1 606 -109
+1
+"$sDpName""$sDpName"
+0

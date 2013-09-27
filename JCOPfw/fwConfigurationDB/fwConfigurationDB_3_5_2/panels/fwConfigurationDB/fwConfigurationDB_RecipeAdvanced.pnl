@@ -1,0 +1,2082 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 758 703 N "_3DFace" 4
+"$dsDeviceList"
+"$hierarchy"
+"$system"
+"$topDevice"
+"main()
+{
+	dyn_string exceptionInfo;
+
+	EnableAll(FALSE);
+/*        
+	if (!isDollarDefined(\"$topDevice\")) {
+		fwException_raise(exceptionInfo,\"ERROR\",
+			\"Dollar parameter $topDevice not specified.\",\"\");
+	};
+
+	if (!isDollarDefined(\"$hierarchy\")) {
+		fwException_raise(exceptionInfo,\"ERROR\",
+			\"Dollar parameter $hierarchy not specified.\",\"\");
+	};
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+*/
+	if (PopulatePanel()) EnableAll(TRUE);
+}" 0
+ E E E E 1 -1 -1 0  500 550
+""0  1
+E "dyn_dyn_mixed recipeObject;
+string topDevice=\"\";
+string system=\"\";
+dyn_string deviceList,allDeviceList;
+
+bool PopulatePanel()
+{
+dyn_string exceptionInfo;
+
+if (isDollarDefined(\"$topDevice\")) topDevice=$topDevice;
+
+if (isDollarDefined(\"$system\")) { system=$system;}
+
+RecipesInDB.enabled=FALSE;
+RecipesInCache.enabled=FALSE;
+
+fwConfigurationDB_checkInit(exceptionInfo);
+if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return FALSE;}	
+
+// Modified by FVR on 25 of Nov 2005
+// Added handling of user-defined device list
+if (isDollarDefined(\"$dsDeviceList\") && $dsDeviceList != \"\"){
+	allDeviceList=strsplit($dsDeviceList,\"|\");
+ for (int i=1;i<=dynlen(allDeviceList);i++) {
+  allDeviceList[i]=strrtrim(strltrim(allDeviceList[i]));
+ }
+} else{
+
+    if ( (isDollarDefined(\"$hierarchy\")) && ($hierarchy!=\"\")) {
+      fwConfigurationDB_getHierarchyFromPVSS(topDevice, $hierarchy,
+                                          allDeviceList,exceptionInfo);
+     }
+  
+
+  if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return FALSE;}	
+}
+
+deviceList=allDeviceList;
+if (dynlen(allDeviceList)>0) {
+  Devices.text=topDevice+\"/\\n [SELECTED \"+dynlen(deviceList)+\"/\"+dynlen(allDeviceList)+\"]\";
+} else {
+    Devices.text=\"No devices selected\";
+}
+
+RecipeCache_Remote.state(0,FALSE);
+RecipeCache_RemoteSysSelector.enabled=FALSE;
+
+
+dyn_string recipeTypes, recipeTypeComments;
+fwConfigurationDB_getRecipeTypes(recipeTypes, recipeTypeComments,exceptionInfo);
+if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return FALSE;}
+RecipeTypes.items=recipeTypes;
+RecipeTypes.text=GfwConfigurationDB_currentRecipeType;
+
+_fwConfigurationDB_ClearRecipeObject(recipeObject);
+RepaintRecipeObjectInfo();
+
+
+if (RefreshRecipeCacheList()==FALSE) return FALSE;
+if (RefreshRecipesInDBList()==FALSE) return FALSE;
+
+return TRUE;
+}
+
+
+void RepaintRecipeObjectInfo()
+{
+dyn_string exceptionInfo;
+string desc=dynlen(recipeObject[fwConfigurationDB_RO_DPE_NAME])+\" properties\";
+string recipeType, recipeComment,recipeOrigName;
+int rc;
+rc=_fwConfigurationDB_getRecipeOriginalRecipeType(recipeObject, recipeType, exceptionInfo);
+if (!rc) desc+=\"\\n Recipe Type:\"+recipeType;
+rc=_fwConfigurationDB_getRecipeOriginalName(recipeObject, recipeOrigName, exceptionInfo);
+if (!rc) desc+=\"\\n Original name:\"+recipeOrigName;
+rc=_fwConfigurationDB_getRecipeComment(recipeObject, recipeComment, exceptionInfo);
+if (!rc) desc+=\"\\n Comment:\\n\"+recipeComment;
+if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+}
+RecipeObjectDesc2.text=desc;
+}
+
+bool RefreshRecipeCacheList()
+{
+RecipesInCache.text=\"\";
+RecipeCacheComment.text=\"\";
+RecipesInCache.enabled=FALSE;
+RecipesInCache.deleteAllItems();
+
+EnableCacheOperations(FALSE);
+
+dyn_string recipeCacheNames, recipeCacheDPs,exceptionInfo;
+
+string sys=RecipeCache_RemoteSysSelector.selectedText;
+
+fwConfigurationDB_getRecipesInCache(recipeCacheNames,exceptionInfo,\"\",sys);
+if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return FALSE;}	
+
+RecipesInCache.items=recipeCacheNames;
+RecipesInCache.enabled=TRUE;
+return TRUE;
+}
+
+bool RefreshRecipesInDBList()
+{
+RecipesInDB.text=\"\";
+DBRecipeComment.text=\"\";
+EnableDBOperations(FALSE);
+RecipesInDB.enabled=FALSE;
+ManageDBRecipes.enabled=FALSE;
+if (!fwConfigurationDB_hasDBConnectivity) {
+    DBRecipeComment.text=\"Database not available\";
+	return TRUE;
+} 
+
+dyn_string recipeTags,exceptionInfo;
+fwConfigurationDB_getRecipesInDB(recipeTags,exceptionInfo);
+if (dynlen(exceptionInfo)){fwExceptionHandling_display(exceptionInfo); return FALSE;}	
+RecipesInDB.items=recipeTags;
+RecipesInDB.enabled=TRUE;
+ManageDBRecipes.enabled=TRUE;
+return TRUE;
+}
+
+void EnableDBOperations(bool enabled)
+{
+if (RecipesInDB.text==\"\") enabled=FALSE;
+
+StoreInDB.enabled=enabled;
+DBRecipeComment.enabled=enabled;
+DBRecipeValidAt.enabled=enabled;
+DBRecipeValidAt.state(0,FALSE);
+DBRecipeValidAt.visible(FALSE);
+DBRecipeDate.text=\"\";
+DBRecipeDate.visible(FALSE);
+DBRecipeDateSelector.visible(FALSE);
+DBRecipeDateSelector.enabled=FALSE;
+DBRecipeDate.enabled=FALSE;
+if (enabled) {
+	DBRecipeComment.backCol=\"FwBackgroundInputText\";
+} else {
+	DBRecipeComment.backCol=\"FwBackground\";
+}
+
+bool LoadActions=FALSE;
+
+if (enabled) {
+	if (dynContains(RecipesInDB.items,RecipesInDB.text)) {
+		LoadActions=TRUE;
+		StoreInDB.text=\"Update\";
+	} else {
+		LoadActions=FALSE;
+		StoreInDB.text=\"Store\";
+	}
+}
+	DropDBRecipe.enabled=LoadActions;
+	LoadFromDB.enabled=LoadActions;
+        DBRecipeValidAt.visible=LoadActions;
+        DBRecipeDate.visible=LoadActions;
+        DBRecipeDateSelector.visible=LoadActions;
+	DiffDB.enabled=LoadActions;
+	PreviewDBRecipe.enabled=LoadActions;
+
+
+}
+
+void EnableCacheOperations(bool enabled)
+{
+if (RecipesInCache.text==\"\") enabled=FALSE;
+
+StoreInCache.enabled=enabled;
+RecipeCacheComment.enabled=enabled;
+
+if (enabled) {
+	RecipeCacheComment.backCol=\"FwBackgroundInputText\";
+} else {
+	RecipeCacheComment.backCol=\"FwBackground\";
+}
+
+bool LoadActions=FALSE;
+
+if (enabled) {
+	if (dynContains(RecipesInCache.items,RecipesInCache.text)) {
+		LoadActions=TRUE;
+		StoreInCache.text=\"Update\";
+	} else {
+		LoadActions=FALSE;
+		StoreInCache.text=\"Store\";
+	}
+}
+	LoadFromCache.enabled=LoadActions;
+	DiffCache.enabled=LoadActions;
+	PreviewCacheRecipe.enabled=LoadActions;
+	DropCacheRecipe.enabled=LoadActions;
+
+}
+
+
+void EnableAll(bool enabled)
+{
+	
+	GetRecipe.enabled=enabled;
+	ApplyRecipe.enabled=enabled;
+        RecipeCache_Remote.enabled=enabled;
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+4 0
+"LINE8"
+""
+1 100 285 E E E 1 E 1 E N {102,0,0} E N "lightgrey" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E  100 285 100 365
+4 1
+"LINE9"
+""
+1 100 365 E E E 1 E 1 E N {102,0,0} E N "lightgrey" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E  100 365 240 365
+4 2
+"LINE3"
+""
+1 185 350 E E E 1 E 1 E N {102,0,0} E N "lightgrey" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E  185 350 220 350
+10 3
+"POLYGON1"
+""
+1 150 270 E E E 1 E 1 E N {102,0,0} E N "lightgrey" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E 1 0 1 65 70 1 E 5 150 270
+150 280
+150 290
+170 280
+150 270
+ 1
+4 4
+"LINE10"
+""
+1 490 320 E E E 1 E 1 E N {0,102,0} E N "lightgrey" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E  490 320 620 320
+4 5
+"LINE11"
+""
+1 610 400 E E E 1 E 1 E N {0,102,0} E N "lightgrey" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E  610 400 480 400
+4 6
+"LINE5"
+""
+1 185 420 E E E 1 E 1 E N {0,0,102} E N "lightgrey" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E  185 420 240 420
+4 7
+"LINE6"
+""
+1 240 405 E E E 1 E 1 E N {0,0,102} E N "lightgrey" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E  240 405 100 405
+4 8
+"LINE2"
+""
+1 185 265 E E E 1 E 1 E N {102,0,0} E N "lightgrey" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E  185 265 185 350
+6 10
+"RECTANGLE1"
+""
+1 20 71 E E E 1 E 1 E N {102,0,0} E N {255,196,196} E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.57894736842105 0 1.6 -11.578947368421 -38.6 1 E 20 71 210 171
+7 11
+"ELLIPSE2"
+""
+1 40 40 E E E 1 E 1 E N {102,0,0} E N {255,196,196} E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 3.75 0 1.61826923076923 20 8.26923076923079 1 E 40 40 40 20
+2 12
+"PRIMITIVE_TEXT1"
+""
+1 52 54 E E E 1 E 1 E N {102,0,0} E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 115 65 229 85
+1 2 2 "0s" 0 0 0 192 0 0  115 65 1
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 15 ConfigurationDB
+6 13
+"RECTANGLE2"
+""
+1 20 471 E E E 1 E 1 E N {0,0,102} E N {196,196,255} E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.57894736842105 0 1.512605042016801 -11.5789473684211 -202.436974789916 1 E 20 471 210 590
+2 14
+"PRIMITIVE_TEXT2"
+""
+1 60 434 E E E 1 E 1 E N {0,0,102} E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 120 519 220 539
+1 2 2 "0s" 0 0 0 192 0 0  120 519 1
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Recipe Cache
+7 15
+"ELLIPSE3"
+""
+1 260.55665 260.55665 E E E 1 E 1 E N {80,80,0} E N {220,220,0} E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.19855168180566 0 1.14560361554115 52.8765627305297 76.3966963229379 1 E 260 260 113 113
+6 16
+"RECTANGLE3"
+""
+1 500 250 E E E 1 E 1 E N {0,102,0} E N {196,255,196} E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.09090909090909 0 1 74.5454545454546 50 1 E 500 250 610 370
+2 17
+"PRIMITIVE_TEXT3"
+""
+1 485 206 E E E 1 E 1 E N {0,102,0} E N "_3DFace" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 655 350 708 370
+1 2 2 "0s" 0 0 0 192 0 0  655 350 1
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 6 System
+4 18
+"LINE4"
+""
+1 185 510 E E E 1 E 1 E N {0,0,102} E N "lightgrey" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E  185 510 185 420
+4 19
+"LINE7"
+""
+1 100 405 E E E 1 E 1 E N {0,0,102} E N "lightgrey" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E  100 405 100 490
+2 20
+"PRIMITIVE_TEXT4"
+""
+1 247 175 E E E 1 E 1 E N {80,80,0} E N "_3DFace" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 340 260 390 302
+1 2 2 "0s" 0 0 0 192 0 0  340 260 2
+1
+LANG:1 26 Arial,-1,16,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Recipe
+1
+LANG:1 26 Arial,-1,16,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Object
+7 29
+"Ellipse1"
+""
+1 40 40 E E E 1 E 1 E N {102,0,0} E N {255,196,196} E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 3.75 0 1.61826923076923 20 170.269230769231 1 E 40 40 40 20
+10 30
+"Polyline1"
+""
+1 480 341 E E E 1 E 1 E N {0,102,0} E N "lightgrey" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E 1 0 1 120 49 1 E 5 480 341
+480 351
+480 361
+500 351
+480 341
+ 1
+10 31
+"Polyline2"
+""
+1 170 370 E E E 1 E 1 E N {0,0,102} E N "lightgrey" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E 1 0 1 50 40 1 E 5 170 370
+170 380
+170 390
+190 380
+170 370
+ 1
+10 32
+"Polyline3"
+""
+1 380 281 E E E 1 E 1 E N {0,102,0} E N "lightgrey" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E 1 0 1 130 49 1 E 5 380 281
+380 271
+380 261
+360 271
+380 281
+ 1
+10 33
+"Polyline4"
+""
+1 50 451 E E E 1 E 1 E N {0,0,102} E N "lightgrey" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E 1 0 1 60 39 1 E 5 50 451
+40 451
+30 451
+40 471
+50 451
+ 1
+10 34
+"Polyline5"
+""
+1 30 201 E E E 1 E 1 E N {102,0,0} E N "lightgrey" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 2 1 0 1 E 1 0 1 60 84 1 E 5 30 201
+40 201
+50 201
+40 181
+30 201
+ 1
+2 35
+"Text1"
+""
+1 20 10 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 22 12 435 32
+0 2 0 "0s" 0 0 0 192 0 0  22 12 1
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 55 Configuration Database Tool: Advanced Recipe Operations
+2 43
+"RecipeObjectDesc2"
+""
+1 218.260869565217 274 E E E 1 E 1 E N "_3DText" E N {220,220,0} E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 242.201704545455 325.22375 487.798295454545 424.41375
+0 2 2 "0s" 0 0 0 65 0 0  242.201704545455 325.22375 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 12 0 properties
+6 44
+"Border1"
+""
+1 300 60 E E E 1 E 1 E N "black" E N "_Transparent" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.07142857142857 120 -4.28571428571428 1 E 300 60 620 200
+2 45
+"Text2"
+""
+1 360 64 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 430 70 552 90
+1 2 2 "0s" 0 0 0 192 0 0  430 70 1
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Selected Devices
+2 48
+"Devices"
+""
+1 220 84 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 430 100 480 116
+0 2 2 "0s" 0 0 0 192 0 0  430 100 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Devices:
+13 9
+"CloseButton"
+""
+1 663 658 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  663 658 743 688
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+PanelOff();
+}" 0
+ E E E
+13 21
+"LoadFromDB"
+""
+1 153 290.951492537313 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  153 291 213 322
+
+T 
+1
+LANG:1 4 Load
+"main()
+{
+dyn_string exceptionInfo;
+
+fwConfigurationDB_openProgressDialog(
+		makeDynInt( fwConfigurationDB_OPER_LoadRecipeFromDB),
+		makeDynString(\"Loading recipe from DB\"));
+time validAt=0;
+string sValidAt=DBRecipeDate.text;
+if (sValidAt!=\"\"){
+ validAt=sValidAt; 
+}
+
+if (DBRecipeValidAt.state(0)) {
+
+  if (validAt>0) {
+   DBRecipeDate.text=validAt; 
+ } else {
+   DBRecipeDate.text=\"\";
+ }
+}
+
+fwConfigurationDB_getRecipeFromDB(topDevice, deviceList, \"\", RecipesInDB.text, recipeObject, exceptionInfo,system,validAt);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+
+fwConfigurationDB_closeProgressDialog();
+
+RepaintRecipeObjectInfo();
+}" 0
+ E E E
+13 22
+"StoreInDB"
+""
+1 68 290.951492537313 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  68 291 128 321
+
+T 
+1
+LANG:1 5 Store
+"main()
+{
+
+
+dyn_string exceptionInfo;
+
+string recipeTag=RecipesInDB.text;
+dyn_string existingDBRecipes=RecipesInDB.items;
+if(recipeTag==\"\") {
+	fwException_raise(exceptionInfo,\"ERROR\",
+		\"Please type-in recipe name first\",\"\");
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+}
+
+string action;
+
+if (dynContains(existingDBRecipes,recipeTag)) {
+	action=\"Saving recipe in DB:\"+recipeTag;
+} else {
+	action=\"Saving new recipe in DB:\"+recipeTag;
+}
+string description=\"\";
+
+
+fwConfigurationDB_openProgressDialog(
+		makeDynInt( fwConfigurationDB_OPER_SaveRecipeToDB),
+		makeDynString(action));
+
+fwConfigurationDB_storeRecipeInDB(recipeObject, \"\", description ,exceptionInfo, recipeTag);
+
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+
+
+// if this is a new recipe, and we have the recipe name specified,
+//store the recipe description as well...
+string recipeComment=DBRecipeComment.text;
+if ( (!dynContains(existingDBRecipes,recipeTag)) &&(recipeComment!=\"\")) {
+	
+	fwConfigurationDB_setRecipeDescriptionInDB (recipeTag, recipeComment, exceptionInfo);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+}
+fwConfigurationDB_closeProgressDialog();
+
+RefreshRecipesInDBList();
+
+}" 0
+ E E E
+13 23
+"LoadFromCache"
+""
+1 153 444.216417910448 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  153 444 213 475
+
+T 
+1
+LANG:1 4 Load
+"main()
+{
+
+dyn_string exceptionInfo;
+
+fwConfigurationDB_openProgressDialog(
+		makeDynInt(  fwConfigurationDB_OPER_LoadRecipeFromCache),
+		makeDynString(\"Loading recipe from Cache\"));
+
+fwConfigurationDB_getRecipeFromCache(RecipesInCache.text, deviceList, \"\",
+			recipeObject, exceptionInfo,system);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+
+fwConfigurationDB_closeProgressDialog();
+
+RepaintRecipeObjectInfo();
+
+}" 0
+ E E E
+13 24
+"StoreInCache"
+""
+1 73 444.216417910448 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  73 444 133 474
+
+T 
+1
+LANG:1 5 Store
+"main()
+{
+dyn_string exceptionInfo;
+
+string cacheName=RecipesInCache.text;
+dyn_string existingCaches=RecipesInCache.items;
+if(cacheName==\"\") {
+	fwException_raise(exceptionInfo,\"ERROR\",
+		\"Please type-in recipe cache name first\",\"\");
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+}
+
+string action;
+
+if (dynContains(existingCaches,cacheName)) {
+	action=\"Saving recipe in cache:\"+cacheName;
+} else {
+	action=\"Saving new recipe in cache:\"+cacheName;
+}
+string description=\"\";
+
+
+fwConfigurationDB_openProgressDialog(
+		makeDynInt( fwConfigurationDB_OPER_SaveRecipeToCache),
+		makeDynString(action));
+
+fwConfigurationDB_storeRecipeInCache(recipeObject, cacheName, \"\", exceptionInfo);
+
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+// if this is a new recipe, and we have the recipe name specified,
+//store the recipe description as well...
+string recipeComment=RecipeCacheComment.text;
+if ( (!dynContains(existingCaches,cacheName)) &&(recipeComment!=\"\")) {
+	
+	fwConfigurationDB_setRecipeDescriptionInCache (cacheName, recipeComment, exceptionInfo);
+	if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+}
+fwConfigurationDB_closeProgressDialog();
+
+RefreshRecipeCacheList();
+}" 0
+ E E E
+13 25
+"GetRecipe"
+""
+1 528 303 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  528 303 588 333
+
+T 
+1
+LANG:1 3 Get
+"main()
+{
+dyn_string exceptionInfo;
+
+dyn_string devList=deviceList;
+if (dynlen(devList)==0) devList=allDeviceList;
+
+fwConfigurationDB_openProgressDialog(
+		makeDynInt( fwConfigurationDB_OPER_GetRecipeFromSystem),
+		makeDynString(\"Extracting recipe from PVSS\"));
+
+fwConfigurationDB_GetRecipeFromSystem(recipeObject,
+                                     devList,
+				     \"\",
+                                     exceptionInfo,system);
+
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+
+fwConfigurationDB_closeProgressDialog();
+RepaintRecipeObjectInfo();
+}" 0
+ E E E
+13 26
+"ApplyRecipe"
+""
+1 528 383 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  528 383 588 413
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+dyn_string exceptionInfo;
+
+
+fwConfigurationDB_openProgressDialog(
+		makeDynInt(  fwConfigurationDB_OPER_ApplyRecipeToSystem),
+		makeDynString(\"Apply recipe to system\"));
+
+fwConfigurationDB_ApplyRecipe(recipeObject, \"\", exceptionInfo);
+
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+
+fwConfigurationDB_closeProgressDialog();
+
+}" 0
+ E E E
+13 27
+"ClearButton"
+""
+1 368 453 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  368 453 428 483
+
+T 
+1
+LANG:1 5 Clear
+"main()
+{
+_fwConfigurationDB_ClearRecipeObject(recipeObject);
+RepaintRecipeObjectInfo();
+}" 0
+ E E E
+13 28
+"EditButton"
+""
+1 298 453 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  298 453 358 483
+
+T 
+1
+LANG:1 4 Edit
+"main()
+{
+	fwConfigurationDB_editRecipe(recipeObject, FALSE, \"Edit recipe\");
+}" 0
+ E E E
+22 36
+"RecipesInDB"
+""
+1 27.9347826086956 108.022388059702 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  28 108 317 135
+0
+
+E
+"main()
+{
+DBRecipeComment.text=\"\";
+if (this.text!=\"\") {
+	string recipeDescription;
+	dyn_string exceptionInfo;
+
+	if (dynContains(this.items,this.text)) {
+		fwConfigurationDB_getRecipeDescriptionInDB(this.text, recipeDescription, exceptionInfo);
+
+		if (dynlen(exceptionInfo)) {
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+		DBRecipeComment.text=recipeDescription;
+	}
+	EnableDBOperations(TRUE);
+	
+} else {
+	EnableDBOperations(FALSE);
+}
+
+}" 0
+
+E
+ 1 0
+22 37
+"RecipesInCache"
+""
+1 27.9855072463768 543.0970149253729 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  28 543 310 570
+0
+
+E
+"main()
+{
+RecipeCacheComment.text=\"\";
+if (this.text!=\"\") {
+	string recipeDescription;
+	dyn_string exceptionInfo;
+
+	if (dynContains(this.items,this.text)) {
+		fwConfigurationDB_getRecipeDescriptionInCache(this.text, recipeDescription, exceptionInfo);
+
+		if (dynlen(exceptionInfo)) {
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+		RecipeCacheComment.text=recipeDescription;
+	}
+	EnableCacheOperations(TRUE);
+	
+} else {
+	EnableCacheOperations(FALSE);
+}
+
+}" 0
+
+E
+ 1 0
+13 46
+"DeviceListButton"
+""
+1 598 138 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+72 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  598 138 728 168
+
+T 
+1
+LANG:1 18 Select Devices ...
+"main()
+{
+
+	dyn_float df;
+	dyn_string ds;
+
+	ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_SelectionList.pnl\",
+			\"Advanced Recipe: device list\",
+			makeDynString(\"$text:Devices in recipe\",
+				\"$DPSelector:TRUE\",
+				\"$AliasSelector:TRUE\",
+				\"$items:\"+allDeviceList,
+				\"$selectMultiple:\"+TRUE,
+				\"$selectedItems:\"+deviceList),
+			df,ds);
+	if (df[1]>0.0) {
+		deviceList=ds;
+                
+                dyn_string allDevs=allDeviceList;
+                dynAppend(allDevs,ds);
+                dynUnique(allDevs);
+                allDeviceList=allDevs;
+		Devices.text=topDevice+\"/\\n [SELECTED \"+dynlen(deviceList)+\"/\"+dynlen(allDeviceList)+\"]\";
+	};
+
+}" 0
+ E E E
+13 50
+"ManageCaches"
+""
+1 128 648 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  128 648 208 678
+
+T 
+1
+LANG:1 10 Manage ...
+"main()
+{
+dyn_float df;
+dyn_string ds;
+ChildPanelOnCentralModalReturn(\"fwConfigurationDB/fwConfigurationDB_RecipeManage.pnl\",
+	\"Manage recipe caches\", makeDynString(\"$source:CACHE\")
+			,df,ds);
+RefreshRecipesInDBList();
+RefreshRecipeCacheList();
+}" 0
+ E E E
+26 51
+"PreviewDBRecipe"
+""
+1 58 218.022388059702 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+96 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  58 218 148 248
+ 0 1
+LANG:1 10 Preview...
+"" 0 0 0 0 0
+ 3 1 1
+LANG:1 19 ... for all devices
+"All" 0 0 0 0 0
+ 1 1
+LANG:1 17 ... for hierarchy
+"Hierarchy" 0 0 0 0 0
+ 1 1
+LANG:1 28 ... for selected device list
+"Selected" 0 0 0 0 0
+ E "main(string id)
+{
+    dyn_string exceptionInfo;
+    dyn_float df;
+    dyn_string ds;
+    dyn_dyn_mixed previewRecipeObject;
+    string recipeName=RecipesInDB.text;
+    if (recipeName==\"\") return;
+    string previewName=\"Preview DB recipe\";
+
+	dyn_string devList;
+	string topDev;
+	if (id==\"Selected\"){
+		devList=deviceList;
+		topDev=topDevice;
+		previewName=previewName+\" (selected devs)\";
+	} else if (id==\"Hierarchy\"){
+		topDev=topDevice;
+		previewName=previewName+\" (hierarchy)\";
+
+	} else {
+		previewName=previewName+\" (all devs)\";
+	}
+
+
+
+dyn_string exceptionInfo;
+
+fwConfigurationDB_openProgressDialog(
+		makeDynInt( fwConfigurationDB_OPER_LoadRecipeFromDB),
+		makeDynString(\"Loading recipe from DB for preview\"));
+	fwConfigurationDB_getRecipeFromDB(topDev, devList, \"\", 
+			recipeName, previewRecipeObject, exceptionInfo);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+
+fwConfigurationDB_closeProgressDialog();
+
+
+fwConfigurationDB_editRecipe(previewRecipeObject, TRUE, previewName);
+}" 0
+0 
+26 52
+"PreviewCacheRecipe"
+""
+1 38 648.022388059701 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  38 648 118 678
+ 0 1
+LANG:1 10 Preview...
+"" 0 0 0 0 0
+ 2 1 1
+LANG:1 19 ... for all devices
+"All" 0 0 0 0 0
+ 1 1
+LANG:1 24 ... for selected devices
+"Selected" 0 0 0 0 0
+ E "main(string id)
+{
+
+    dyn_string exceptionInfo;
+    dyn_float df;
+    dyn_string ds;
+    dyn_dyn_mixed previewRecipeObject;
+    string previewName=\"Preview Recipe Cache\";
+
+    string cacheName=RecipesInCache.text;
+    if (cacheName==\"\") return;
+
+
+	dyn_string devList;
+	if (id==\"Selected\"){
+	   devList=deviceList;
+	    previewName=previewName+\" (selected devs)\";
+	} else {
+	    previewName=previewName+\" (all devs)\";
+	}
+
+
+    fwConfigurationDB_getRecipeFromCache(cacheName, devList,\"\" ,
+					previewRecipeObject, exceptionInfo);
+
+    if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+    }
+	
+	fwConfigurationDB_editRecipe(previewRecipeObject, TRUE, previewName);
+	
+
+}" 0
+0 
+13 54
+"DiffSys"
+""
+1 528 343 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+91 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  528 343 588 373
+
+T 
+1
+LANG:1 4 Diff
+"main()
+{
+ dyn_string exceptionInfo;
+ dyn_dyn_mixed sysRecipeObject,diffRecipeObject;
+
+fwConfigurationDB_openProgressDialog(
+		makeDynInt( fwConfigurationDB_OPER_GetRecipeFromSystem),
+		makeDynString(\"Extracting recipe from PVSS for diff\"));
+
+
+  dyn_string devListToExtract=deviceList;
+  if (dynlen(devListToExtract)==0) {
+      // this means: \"all devices\" was selected; extract the list from recipeObject
+    devListToExtract=recipeObject[fwConfigurationDB_RO_DP_NAME];
+    dynUnique(devListToExtract);
+  }
+  
+fwConfigurationDB_extractRecipe(devListToExtract,\"\",
+                                sysRecipeObject,
+                                exceptionInfo);
+
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+
+bool differ=fwConfigurationDB_compareRecipes( recipeObject, sysRecipeObject,
+	diffRecipeObject, \"\", exceptionInfo);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+fwConfigurationDB_closeProgressDialog();
+if (differ) {
+	fwConfigurationDB_editRecipe(diffRecipeObject,TRUE,\"Recipe Diff with system\");
+} else {
+	ChildPanelOnCentral(\"fwGeneral/fwMessageInfo1.pnl\",\"Recipe Difference\",
+					makeDynString(\"$1:Recipes are the same\"));
+}
+}" 0
+ E E E
+13 55
+"DiffDB"
+""
+1 113 325.559701492537 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  113 326 173 355
+
+T 
+1
+LANG:1 4 Diff
+"main()
+{
+ dyn_string exceptionInfo;
+ dyn_dyn_mixed cdbRecipeObject,diffRecipeObject;
+
+
+
+dyn_string exceptionInfo;
+
+fwConfigurationDB_openProgressDialog(
+		makeDynInt( fwConfigurationDB_OPER_LoadRecipeFromDB),
+		makeDynString(\"Loading recipe from DB for diff\"));
+
+fwConfigurationDB_getRecipeFromDB(topDevice, deviceList, \"\", 
+		RecipesInDB.text, cdbRecipeObject, exceptionInfo,system);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+
+bool differ=fwConfigurationDB_compareRecipes( cdbRecipeObject, recipeObject,
+	diffRecipeObject, \"\", exceptionInfo);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+
+fwConfigurationDB_closeProgressDialog();
+
+if (differ) {
+	fwConfigurationDB_editRecipe(diffRecipeObject,TRUE,\"Recipe Diff with database\");
+} else {
+	ChildPanelOnCentral(\"fwGeneral/fwMessageInfo1.pnl\",\"Recipe Difference\",
+					makeDynString(\"$1:Recipes are the same\"));
+}
+
+}" 0
+ E E E
+13 56
+"DiffCache"
+""
+1 113 409.608208955224 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+95 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  113 410 173 439
+
+T 
+1
+LANG:1 4 Diff
+"main()
+{
+ dyn_string exceptionInfo;
+ dyn_dyn_mixed cacheRecipeObject,diffRecipeObject;
+
+
+fwConfigurationDB_openProgressDialog(
+		makeDynInt( fwConfigurationDB_OPER_LoadRecipeFromCache),
+		makeDynString(\"Loading recipe from Cache for diff\"));
+fwConfigurationDB_getRecipeFromCache(RecipesInCache.text, deviceList, \"\",
+			cacheRecipeObject, exceptionInfo,system);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+bool differ=fwConfigurationDB_compareRecipes( cacheRecipeObject, recipeObject,
+	diffRecipeObject, \"\", exceptionInfo);
+if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+
+fwConfigurationDB_closeProgressDialog();
+
+if (differ) {
+	fwConfigurationDB_editRecipe(diffRecipeObject,TRUE,\"Recipe Diff with cache\");
+} else {
+	ChildPanelOnCentral(\"fwGeneral/fwMessageInfo1.pnl\",\"Recipe Difference\",
+					makeDynString(\"$1:Recipes are the same\"));
+}
+
+
+
+
+
+}" 0
+ E E E
+20 57
+"WholeHierarchy"
+""
+1 428 143 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+98 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  428 143 561 171
+1
+T 
+1
+LANG:1 11 All Devices
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+if (state) {
+	deviceList=makeDynString();
+	DeviceListButton.enabled=FALSE;
+        topDevice=\"\";
+	Devices.text=topDevice+\"[All Devices]\";
+
+} else {
+	deviceList=allDeviceList;
+	DeviceListButton.enabled=TRUE;
+        if (isDollarDefined(\"$topDevice\")) topDevice=$topDevice;
+        Devices.text=topDevice+\"/\\n [SELECTED \"+dynlen(deviceList)+\"/\"+dynlen(allDeviceList)+\"]\";
+}
+
+}" 0
+1 85 0 "" 0
+0
+13 59
+"DropDBRecipe"
+""
+1 258 218.022388059702 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+100 0 0 0 0 0
+E E E
+0
+1
+LANG:1 32 Drop selected recipe in Database
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  258 218 288 248
+
+P 
+12632256
+"pictures/trashcan.gif"
+1
+LANG:1 3 ???
+"main()
+{
+dyn_string exceptionInfo;
+string recipeName=RecipesInDB.text;
+if (recipeName==\"\") return;
+
+dyn_float df;
+dyn_string ds;
+ChildPanelOnCentralReturn(\"fwGeneral/fwOkCancel.pnl\",
+			\"Delete recipe?\",
+			makeDynString(\"$text:Are you sure you want to delete recipe \"+recipeName+\" in the database?\"),
+			df,ds);
+
+if (df[1]) {
+
+	fwConfigurationDB_dropRecipeInDB(recipeName,\"\", exceptionInfo);
+	if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+	RefreshRecipesInDBList();
+
+}
+
+}" 0
+ E E E
+13 61
+"DropCacheRecipe"
+""
+1 258 648 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+103 0 0 0 0 0
+E E E
+0
+1
+LANG:1 26 Drop selected recipe cache
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  258 648 288 678
+
+P 
+12632256
+"pictures/trashcan.gif"
+1
+LANG:1 3 ???
+"main()
+{
+dyn_string exceptionInfo;
+string recipeName=RecipesInCache.text;
+if (recipeName==\"\") return;
+
+dyn_float df;
+dyn_string ds;
+ChildPanelOnCentralReturn(\"fwGeneral/fwOkCancel.pnl\",
+			\"Delete recipe?\",
+			makeDynString(\"$text:Are you sure you want to delete recipe \"+recipeName+\" in cache?\"),
+			df,ds);
+
+if (df[1]) {
+
+	fwConfigurationDB_dropRecipeInCache(recipeName,\"\", exceptionInfo);
+	if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+	RefreshRecipeCacheList();
+
+}
+
+}" 0
+ E E E
+22 65
+"RecipeTypes"
+""
+1 518 173 E E E 1 E 1 E N {0,0,0} E N "_Window" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  518 173 728 200
+0
+
+E
+"main()
+{
+string recipeType=this.text;
+dyn_string exceptionInfo;
+fwConfigurationDB_setRecipeType(recipeType, exceptionInfo);
+this.text=GfwConfigurationDB_currentRecipeType;
+if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+}
+
+}" 0
+
+E
+ 1 0
+2 66
+"Text000"
+""
+1 220 74 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+110 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 430 180 507 196
+0 2 2 "0s" 0 0 0 192 0 0  430 180 1
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Recipe Type:
+14 67
+"DBRecipeComment"
+""
+1 27.96875 137.686567164179 E E E 0 E 1 E N "_WindowText" E N "FwBackground" E E
+ E E
+114 0 0 0 0 0
+E E E
+0
+1
+LANG:1 14 Recipe Comment
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  28 138 292 165
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+string newComment=this.text;
+string recipeName=RecipesInDB.text;
+if (recipeName==\"\") return;
+
+if (!dynContains(RecipesInDB.items,recipeName)) return;
+
+EnableDBOperations(FALSE);
+
+dyn_string exceptionInfo;
+fwConfigurationDB_setRecipeDescriptionInDB(recipeName, newComment, exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		retutn;
+	}
+EnableDBOperations(TRUE);
+}" 0
+
+6 70
+"PressEnter"
+""
+1 320 140 E E E 1 E 1 E N "lightgrey" E N "lightgrey" E E
+ E E
+118 0 0 0 0 0
+E E E
+0
+1
+LANG:1 57 Remember to press ENTER after you type-in the description
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E U  2  0 1  "pictures/Enter.gif" 13421772 E 290 140 313 163
+6 71
+"PressEnter"
+""
+1 320 140 E E E 1 E 1 E N "lightgrey" E N "lightgrey" E E
+ E E
+120 0 0 0 0 0
+E E E
+0
+1
+LANG:1 57 Remember to press ENTER after you type-in the description
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1 0 -5 2  0 1  "pictures/Enter.gif" 13421772 E 290 585 313 608
+14 73
+"RecipeCacheComment"
+""
+1 27.96875 578.022388059701 E E E 1 E 1 E N "_WindowText" E N "FwBackground" E E
+ E E
+134 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  28 578 292 605
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+string newComment=this.text;
+string recipeName=RecipesInCache.text;
+if (recipeName==\"\") return;
+
+if (!dynContains(RecipesInCache.items,recipeName)) return;
+
+EnableCacheOperations(FALSE);
+
+dyn_string exceptionInfo;
+fwConfigurationDB_setRecipeDescriptionInCache(recipeName, newComment, exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		retutn;
+	}
+EnableCacheOperations(TRUE);
+}" 0
+
+13 75
+"ManageDBRecipes"
+""
+1 158 218.022388059702 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+136 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  158 218 238 248
+
+T 
+1
+LANG:1 10 Manage ...
+"main()
+{
+dyn_float df;
+dyn_string ds;
+ChildPanelOnCentralModalReturn(\"fwConfigurationDB/fwConfigurationDB_RecipeManage.pnl\",
+	\"Manage recipes in DB\", makeDynString(\"$source:DB\")
+			,df,ds);
+RefreshRecipesInDBList();
+RefreshRecipeCacheList();
+}" 0
+ E E E
+14 77
+"DBRecipeDate"
+""
+1 105 170 E E E 0 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+137 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  103 168 277 195
+3 "0s" 0 0 0 0 0 -1  E E E
+20 79
+"DBRecipeValidAt"
+""
+1 30 169.328358208955 E E E 0 E 0 E N "_3DText" E N {255,196,196} E E
+ E E
+140 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  28 167 102 196
+1
+T 
+1
+LANG:1 8 Valid at
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  if (state) {
+   DBRecipeDate.enabled(TRUE);
+   DBRecipeDate.text=getCurrentTime(); 
+   DBRecipeDateSelector.enabled(TRUE);
+   } else {
+     DBRecipeDate.enabled(FALSE);
+     DBRecipeDateSelector.enabled(FALSE);
+     DBRecipeDate.text=\"\"; 
+   }
+}" 0
+13 81
+"DBRecipeDateSelector"
+""
+1 280 170 E E E 0 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+141 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  278 168 312 195
+
+P 
+4294967295
+"pictures/calender_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  ChildPanelOnCentralModalReturn(\"fwConfigurationDB/fwConfigurationDB_DateTimeSelector.pnl\",
+                                 \"Select Recipe Date/Time\",makeDynString(),df,ds);
+  if (dynlen(df) && df[1]==1.0) {
+   time t=ds[1];
+   if (t==0)
+     DBRecipeDate.text=\"\";
+   else
+     DBRecipeDate.text=t; 
+  }
+}" 0
+ E E E
+22 83
+"RecipeCache_RemoteSysSelector"
+""
+1 100 615 E E E 0 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+142 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  98 613 312 640
+0
+
+E
+"main()
+{
+  RefreshRecipeCacheList();
+}" 0
+
+E
+ 0 0
+20 84
+"RecipeCache_Remote"
+""
+1 30 615 E E E 1 E 1 E N "_3DText" E N {196,196,255} E E
+ E E
+143 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  28 613 97 642
+1
+T 
+1
+LANG:1 7 Remote:
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+
+
+  RecipeCache_RemoteSysSelector.deleteAllItems();
+  
+  if (state) {
+    RecipeCache_RemoteSysSelector.enabled=TRUE;
+    dyn_string systems;
+    dyn_uint sysids;
+    getSystemNames(systems,sysids);
+    // append colons to system names;
+    for (int i=1;i<=dynlen(systems);i++) { systems[i]+=\":\";};
+    //append empty entry for local system
+    dynInsertAt(systems,\"\",1);
+    RecipeCache_RemoteSysSelector.items(systems);
+    RecipeCache_RemoteSysSelector.selectedPos(0);
+   } else {
+      RecipeCache_RemoteSysSelector.enabled=FALSE;
+   }
+    RefreshRecipeCacheList();
+}" 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+3 0 "" -1
+"objects/fwGeneral/fwHelpButton.pnl" 270 20 T 100 1 0 1 442 -18
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_RecipeAdvanced"
+0

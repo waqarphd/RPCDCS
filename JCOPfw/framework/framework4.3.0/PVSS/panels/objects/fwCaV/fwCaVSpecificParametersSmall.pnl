@@ -1,0 +1,424 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 359 328 N "_3DFace" 1
+"$sDpName"
+"main()
+{
+	dyn_string exceptionInfo;
+	
+        // The Access Control component have to be installed and the checkbox to enable CaV AC have to be checked for AC to work. 
+	if(isFunctionDefined(\"fwAccessControl_selectPrivileges\") && fwCaV_ACEnabled($sDpName))
+	{
+		fwAccessControl_setupPanel(\"fwCaV_applyPanelAccessControl\", exceptionInfo);
+		if (dynlen(exceptionInfo))
+		{
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}	
+	}
+	else {
+                // if not AC is installed or if the AC is not enabled in the CaV AC setup panel the user will have expert priviliges 
+                isExpert = TRUE;            
+	}
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "const int LABEL_INDEX 	= 1;
+const int OUTPUT_INDEX	= 2;
+const int INPUT_INDEX	= 3;
+dyn_dyn_string settings, values;
+
+bool settingsInitialized = FALSE;
+
+bool isExpert = FALSE;
+bool isOperator = FALSE;
+
+fwCaV_applyPanelAccessControl(string s1, string s2)
+{
+	dyn_string exceptionInfo, items;
+	string accessc;
+        // no access
+        shape table = getShape(\"settingsTable\");
+        for(int i=0; i<=table.lineCount; i++)
+        {
+          table.cellBackColRC(i, \"settings\",\"_3DFace\");
+        }     
+	
+	items[1] = \"\";
+	dpGet($sDpName + \".privileges\", accessc);
+	if(accessc != \"\")
+	{
+		items = strsplit(accessc,\"|\");
+		if (items[1] != \"!\")
+		{               
+                        fwAccessControl_isGranted(items[2],isOperator, exceptionInfo);          
+                                        
+                        // if an expert user have the same rights as an operator then there will only be one item in this dyn                        
+			if(dynlen(items)>=3)
+                           fwAccessControl_isGranted(items[3],isExpert, exceptionInfo);
+                        else
+                           fwAccessControl_isGranted(items[2],isExpert, exceptionInfo);
+		
+			if (dynlen(exceptionInfo))
+			{
+				fwExceptionHandling_display(exceptionInfo);
+				return;
+			}
+			
+			if (isExpert)
+			{
+                                fwCaV_fullAccess();
+			}
+		}
+	}
+}
+
+fwCaV_fullAccess()
+{
+        shape table = getShape(\"settingsTable\");
+        for(int i=0; i<=table.lineCount; i++)
+        {
+          table.cellBackColRC(i, \"settings\",\"white\");
+        }
+}
+
+initDpeListForValuesTable(dyn_string &exceptionInfo)
+{
+	int i, j = 1;
+	string deviceModel, deviceDpType;
+	dyn_dyn_string elements;
+
+
+	// check that all the elements are available in the device
+	deviceDpType = dpTypeName($sDpName);
+	fwDevice_getModel(makeDynString($sDpName), deviceModel, exceptionInfo);
+	fwDevice_getConfigElements(deviceDpType, fwDevice_ALL, elements, exceptionInfo, deviceModel, $sDpName);
+	
+	for(i = 1; i <= dynlen(elements[1]); i++)
+	{
+		if((strpos(elements[1][i], \".Actual.Measurements\") == 0) || (strpos(elements[1][i], \".Actual.Parameters\") == 0) /*&& (dynContains(notToDisplayDpes, elements[1][i]) < 1)*/  )
+		{			
+			values[j++] = makeDynString(elements[2][i], \"\", elements[1][i]);
+		}
+	}
+        
+	settingsInitialized = TRUE;
+}
+
+
+initDpeListForSettingsTable(dyn_string &exceptionInfo)
+{
+	int i, j = 1;
+	string deviceModel, deviceDpType;
+
+	dyn_dyn_string elements;
+
+	// check that all the elements are available in the device
+	deviceDpType = dpTypeName($sDpName);
+	fwDevice_getModel(makeDynString($sDpName), deviceModel, exceptionInfo);
+	fwDevice_getConfigElements(deviceDpType, fwDevice_ALL, elements, exceptionInfo, deviceModel, $sDpName);
+
+	
+	for(i = 1; i <= dynlen(elements[1]); i++)
+	{
+		if((strpos(elements[1][i], \".Settings.Parameters\") == 0) /*&& (dynContains(notToDisplayDpes, elements[1][i]) < 1)*/  )
+		{			
+			string readBack = elements[1][i];
+			strreplace(readBack, \".Settings\", \".ReadBackSettings\");
+			settings[j++] = makeDynString(elements[2][i], elements[1][i], readBack);
+		}
+	}
+	settingsInitialized = TRUE;
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"PUSH_BUTTON1"
+""
+1 171 300 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 169 298 355 325
+
+T 
+1
+LANG:1 27 Load settings from hardware
+"main()
+{
+	float value;
+		
+	for(int i = 1; i <= dynlen(settings); i++)
+	{
+		dpGet($sDpName + settings[i][INPUT_INDEX], value);
+		dpSet($sDpName + settings[i][OUTPUT_INDEX], value);
+	}
+}
+" 0
+ E E E
+25 1
+"settingsTable"
+""
+1 -26.1029411764706 -83.7407407407407 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ -2 -2 357 135
+"dyn_string gListOfDpElementToConnect, gListOfSettingsDpElement;
+
+main()
+{
+	int i, columns;
+	string dpe, unit, value;
+	dyn_string exceptionInfo;
+	
+	settingsTable.sortOnClick = FALSE;
+	settingsTable.deleteAllLines;
+	
+	initDpeListForSettingsTable(exceptionInfo);
+	for(i = 1; i <= dynlen(settings); i++ ) 
+	{
+		gListOfSettingsDpElement[i] = $sDpName + settings[i][OUTPUT_INDEX];
+		if(!dpExists(gListOfSettingsDpElement[i]))
+		{
+			fwException_raise(	exception,
+								\"ERROR\", 
+								\"The data point element\" + gListOfSettingsDpElement[i] + \" does not exist.\", 
+								\"\");
+			this.cellBackColRC(i - 1, \"settings\", \"DpDoesNotExist\");
+		}
+		else 
+		{
+			dpe = gListOfSettingsDpElement[i];
+			gListOfSettingsDpElement[i] = dpSubStr(gListOfSettingsDpElement[i], DPSUB_SYS_DP_EL);
+
+			if(dpConnect(\"_fwSettingsDataCB\", dpe) == -1) 
+  			{
+  				fwException_raise(	exceptionInfo, 
+  									\"INFO\", 
+  									\"Connecting to the data point element\" + dpe + \" was unsuccessful.\", 
+  									\"\");
+				this.cellBackColRC(i - 1, \"settings\", \"DpDoesNotExist\");
+			}
+		}
+
+		gListOfDpElementToConnect[i] = $sDpName + settings[i][INPUT_INDEX];
+		unit = dpGetUnit(gListOfDpElementToConnect[i]);
+		dpGet(gListOfSettingsDpElement[i], value);
+		
+		settingsTable.appendLine(\"element\", settings[i][LABEL_INDEX], \"settings\", value, \"unit\", unit);
+
+		//DebugN(\"element\", settings[i][LABEL_INDEX], \"settings\", value, \"unit\",  unit);
+	}
+	
+//	DebugN(\"settingsTable \"  + gListOfDpElementToConnect);
+	fwColourTable_connectCellBackColToValueStatus(exceptionInfo);
+	settingsTable.lineVisible(0);
+        
+        if(isExpert)
+          fwCaV_fullAccess();
+}
+
+_fwSettingsDataCB(string dpe, string value)
+{
+	int cellPos;
+	string dpName;
+	
+	dpName = dpSubStr(dpe, DPSUB_SYS_DP_EL);
+	cellPos = dynContains(gListOfSettingsDpElement, dpName);
+
+	if(cellPos >= 1)
+	{
+		this.cellValueRC(cellPos - 1, \"settings\", value);
+	}
+}" 0
+"main(int xpos,string columnName,string value)
+{
+	dyn_string exceptionInfo;
+               
+	if((columnName == \"settings\"))
+	{
+		if(isExpert)
+		{
+			ChildPanelOnCentral(\"fwGeneral/fwChangeSetting.pnl\", \"Settings\", makeDynString(\"$sDpName:\" + $sDpName,\"$dpSetName:\" + settings[xpos + 1][OUTPUT_INDEX])); 
+		}
+	}
+	else if(isExpert || isOperator)
+	{
+		fwGeneral_openDetailsPanel($sDpName + settings[xpos + 1][INPUT_INDEX], exceptionInfo);
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+	}
+}" 0
+ 1 0 1 4 1 "element" 11 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+133 "settings" 6 1 0 "s" 1
+LANG:1 7 Setting
+E
+1
+LANG:1 0 
+
+80 "status" 6 1 0 "s" 1
+LANG:1 8 ReadBack
+E
+1
+LANG:1 0 
+
+80 "unit" 3 1 0 "s" 1
+LANG:1 5 Units
+E
+1
+LANG:1 0 
+
+42 
+18 18 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 1 1 7
+1 0
+25 2
+"valuesTable"
+""
+1 -134.469696969697 90.669144981413 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ -2 148 357 285
+"dyn_string gListOfDpElementToConnect;
+
+main()
+{
+	string unit;
+	dyn_string exceptionInfo;
+	
+	valuesTable.sortOnClick = FALSE;
+	valuesTable.deleteAllLines;
+	
+	initDpeListForValuesTable(exceptionInfo);
+		
+	for(int i = 1; i <= dynlen(values); i++) 
+	{
+		gListOfDpElementToConnect[i] = $sDpName + values[i][INPUT_INDEX]; 
+		unit = dpGetUnit(gListOfDpElementToConnect[i]);
+		valuesTable.appendLine(\"parameter\", values[i][LABEL_INDEX], \"units\", unit);
+	}
+
+//	DebugN(\"settingsTable \"  + gListOfDpElementToConnect);
+	fwCaV_connectCellBackColToValueStatus(exceptionInfo);
+	valuesTable.lineVisible(0);
+}" 0
+"main(int xpos,string columnName,string value)
+{
+	dyn_string exceptionInfo;
+        		
+	if (columnName == \"status\") 
+	{
+		if (isExpert)
+		{
+			ChildPanelOnCentralModal(	\"fwConfigs/fwAlarmOperationPopupPanel.pnl\",
+									\"AlarmOp\", 
+									makeDynString(\"$sDpe:\" + $sDpName + values[xpos + 1][INPUT_INDEX]));
+		}
+	}
+	else if (isExpert || isOperator)
+	{
+		fwGeneral_openDetailsPanel($sDpName + values[xpos + 1][INPUT_INDEX], exceptionInfo);
+		if(dynlen(exceptionInfo) > 0)
+			fwExceptionHandling_display(exceptionInfo);
+	}
+}" 0
+ 1 0 1 3 1 "parameter" 16 1 0 "s" 1
+LANG:1 9 Parameter
+E
+1
+LANG:1 0 
+
+193 "status" 8 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+100 "units" 3 1 0 "s" 1
+LANG:1 5 Units
+E
+1
+LANG:1 0 
+
+42 
+18 18 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 1 1 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

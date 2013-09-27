@@ -1,0 +1,658 @@
+V 11
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 681 453 N "_3DFace" 2
+"$bHierarchyBrowser"
+"$sDpName"
+E E E E E 1 0 0 0  40 30
+""0  1
+E "
+
+configureAddresses(string addressType)
+{
+	bool driverOk;
+	int i, count, opcChannelCount;
+	string model, parentDevice, itemPrefix, crateName, channelItem, basePrefix;
+	dyn_string line, device, addressParameters, exceptionInfo;
+	dyn_dyn_string deviceHierarchy, devices;
+	
+	
+	// first of all check if driver is running
+	// we take the driver number of the branch controller
+	device = makeDynString($sDpName, dpTypeName($sDpName));
+	fwDevice_getModel(device, device[fwDevice_MODEL], exceptionInfo);
+	fwDevice_checkAddress(device, makeDynString(fwDevice_ADDRESS_DEFAULT), driverOk, exceptionInfo);
+	
+	if(!driverOk)
+	{
+		fwDevice_getAddressDefaultParams(device[fwDevice_DP_TYPE], addressParameters, exceptionInfo, device[fwDevice_MODEL]);
+//			DebugN(\"addressParameters \" + addressParameters);
+		fwException_raise(	exceptionInfo, 
+							\"ERROR\", 
+							\"Cannot set addresses because the driver is not running (number \" + addressParameters[fwDevice_ADDRESS_DRIVER_NUMBER] + \")\", 
+							\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	addressParameters[fwDevice_ADDRESS_TYPE] = addressType;
+	
+	fwOpenProgressBar(\"Setting addresses for devices\", \"Setting addresses for devices...\", 1, 0);
+	
+	// get common parts: crate name and branch controller slot
+	fwDevice_getHierarchy($sDpName, deviceHierarchy, exceptionInfo);
+	fwDevice_getName(deviceHierarchy[2][1], crateName, exceptionInfo);
+	basePrefix = crateName + \".Board\" + deviceHierarchy[1][2];
+
+	// go through the list of devices in the table
+	for(0; i < Table1.lineCount; i++)
+	{
+		line = Table1.getLineN(i);
+		device = makeDynString();
+		strreplace(line[4], \" | \", \"|\");
+		fwGeneral_stringToDynString(line[4], device, \"|\", FALSE);
+
+		if(device[fwDevice_DP_TYPE] != \"FwCaenCrateEasy\")
+		{
+			fwShowProgressBar(\"Setting addresses for device \" + opcChannelCount);
+			parentDevice = line[5];
+			if(device[fwDevice_DP_NAME] != \"\")
+			{ 
+				sprintf(channelItem, \".Chan%03d\", opcChannelCount);
+				itemPrefix = basePrefix + channelItem;
+//				DebugN(\"Item prefix for \" + parentDevice + fwDevice_HIERARCHY_SEPARATOR + device[fwDevice_DP_NAME] + \" is \" + itemPrefix);
+				fwDevice_setAddress(parentDevice + fwDevice_HIERARCHY_SEPARATOR + device[fwDevice_DP_NAME],
+									addressParameters, exceptionInfo, itemPrefix); 
+			}
+			opcChannelCount++;
+		}
+	}
+	
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwCloseProgressBar(\"There were errors while setting the addresses.\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	
+	fwCloseProgressBar(\"The addresses where set successfully.\");
+}
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 2
+"Text1"
+""
+1 10 11 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 12 384 35
+0 2 2 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 26 Arial,-1,19,5,40,0,0,0,0,0
+0 1
+LANG:1 40 CAEN Easy Branch Controller A1676 Import
+2 3
+"deviceNameLabel"
+""
+1 21 53 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 23 54 148 71
+0 2 2 "0s" 0 0 0 192 0 0  23 54 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 23 XML configuration file:
+13 0
+"Button1"
+""
+1 18 416 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  16 414 170 444
+
+T 
+1
+LANG:1 23 Create devices in table
+"main()
+{
+	string parentDevice;
+	dyn_string line, device, exceptionInfo;
+
+	fwOpenProgressBar(\"Creating devices\", \"Creating devices...\", 1, 0);
+
+	for(int i = 0; i < Table1.lineCount; i++)
+	{
+		fwShowProgressBar(\"Creating device \" + i);
+		line = Table1.getLineN(i);
+		device = makeDynString();
+		strreplace(line[4], \" | \", \"|\");
+		fwGeneral_stringToDynString(line[4], device, \"|\", FALSE);
+		parentDevice = line[5];
+//		DebugN(\"line \" + line[4]);
+//		DebugN(\"device \" + device + \" \"  + parentDevice);
+		if(device[fwDevice_DP_NAME] != \"\")
+		{ 
+			fwDevice_create(device, parentDevice, exceptionInfo);
+//			DebugN(\"Created device \" + device);
+		}
+	}
+	if(dynlen(exceptionInfo) > 0)
+	{
+		fwCloseProgressBar(\"There were errors while creating the devices.\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	fwCloseProgressBar(\"Devices created successfully.\");
+}" 0
+ E E E
+13 1
+"Button2"
+""
+1 590 50 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  588 48 677 78
+
+T 
+1
+LANG:1 10 Parse file
+"#uses \"fwCaen/fwCaen.ctl\"
+
+const string BOARD_PREFIX = \"   \";
+const string CHANNEL_PREFIX = \"      \";
+
+const string XML_TAG_EASY_CRATE = \"EASY_Crate\";
+const string XML_TAG_EASY_BOARD = \"EASY_Board\";
+
+main()
+{
+   int result, i, j, k, slot, numberOfSlots, count = 1, pos, len, slotInc, slotOffset;
+   string xmlTagDeviceType, model, defaultName, crateDeviceDpName, boardDeviceDpName,
+          boardDeviceName, boardDeviceName2, aux, deviceType, channelModel, channelDeviceType;
+   dyn_string device, boardDevice, exceptionInfo;
+   dyn_dyn_string devices, devicesToBeCreated;
+   mapping deviceDpTypes;
+   
+   fwOpenProgressBar(\"Parsing branch controller config file.\", \"Parsing branch controller config file...\", 1, 0);
+   
+   // Map of XML tags to Framework datapoint types
+   deviceDpTypes[XML_TAG_EASY_CRATE] = \"FwCaenCrateEasy\";
+   deviceDpTypes[XML_TAG_EASY_BOARD] = \"FwCaenBoardEasy\";
+   
+	_fwCaen_parseXmlFile(fileName.text, devices, exceptionInfo);
+	//DebugN(devices);
+
+	if(dynlen(exceptionInfo) > 0)
+   {
+      fwException_raise(exceptionInfo, \"ERROR\", \"Could not parse xml file\", \"\");
+      fwExceptionHandling_display(exceptionInfo);
+      return;
+    }
+  
+   // iterate through the list returned by the parser   
+   for(i = 1; i <= dynlen(devices); i++)
+   {
+//    DebugN(\"devices[i] \" + devices[i]);
+      xmlTagDeviceType = devices[i][1];
+      model = devices[i][2];
+      slot = devices[i][3];
+      
+      if(strtoupper(model) != \"EMPTY\")
+      {
+         device = makeDynString(\"\", deviceDpTypes[xmlTagDeviceType], \"\", model);
+         
+         switch(xmlTagDeviceType)
+         {
+            case XML_TAG_EASY_CRATE:
+               switch(model)
+               {
+                  case \"EASY4000\":
+                     slotInc = 2;
+                     slotOffset = 0;
+                     break;
+                  case \"EASY3000\":
+                     slotInc = 1;
+                     slotOffset = 0;
+                     break;
+                  default:
+                     fwException_raise(exceptionInfo,
+                                    \"ERROR\",
+                                    \"Not supported Easy crate model \" + model,
+                                    \"\");
+                     fwExceptionHandling_display(exceptionInfo);
+                     return;                                                              
+                     break;
+               }
+               fwDevice_getDefaultName(device, slot, device[fwDevice_DP_NAME], exceptionInfo);
+               crateDeviceDpName = $sDpName + fwDevice_HIERARCHY_SEPARATOR + device[fwDevice_DP_NAME];
+               fwDevice_getType(device[fwDevice_DP_TYPE], deviceType, exceptionInfo);
+               fwGeneral_dynStringToString(device, aux);
+//             DebugN(device, aux);
+               devicesToBeCreated[count++] = makeDynString(device[fwDevice_DP_NAME], deviceType, device[fwDevice_MODEL],   aux, $sDpName);                                                
+               break;
+            case XML_TAG_EASY_BOARD:
+               slot = (slot - slotOffset) * slotInc;
+               fwDevice_getDefaultName(device, slot, device[fwDevice_DP_NAME], exceptionInfo);
+               boardDeviceDpName = crateDeviceDpName + fwDevice_HIERARCHY_SEPARATOR + device[fwDevice_DP_NAME];               
+               boardDeviceName = device[fwDevice_DP_NAME];
+               fwDevice_getType(device[fwDevice_DP_TYPE], deviceType, exceptionInfo);
+               fwGeneral_dynStringToString(device, aux);
+//             DebugN(device, aux);
+//             aux = device;
+               devicesToBeCreated[count++] = makeDynString(BOARD_PREFIX + device[fwDevice_DP_NAME], deviceType, device[fwDevice_MODEL], aux, crateDeviceDpName);              
+               // Initialize the device type for channels to the default
+               channelDeviceType = \"FwCaenChannel\";
+                              
+               switch(model)
+               {
+                  // CMS Tracker & Forward Pixel boards are special, treat them separately
+                  case \"A4601F\":
+                  case \"A4601H\":
+                  case \"A4603\":
+                     channelModel = substr(model, 0, 5);
+                     pos = 0;
+                     device[fwDevice_DP_NAME] = \"\";
+                     fwDevice_getDefaultName(device, slot + 1 , boardDeviceName2, exceptionInfo);
+                  
+                     // LV1 channel
+                     device = makeDynString(\"\", channelDeviceType, \"\", \"CAEN Easy Channel \" + channelModel + \" LV1\");
+                     fwDevice_getDefaultName(device, pos++, device[fwDevice_DP_NAME], exceptionInfo);
+                     fwDevice_getType(device[fwDevice_DP_TYPE], deviceType, exceptionInfo);
+                     fwGeneral_dynStringToString(device, aux);
+                     devicesToBeCreated[count++] = makeDynString(CHANNEL_PREFIX + device[fwDevice_DP_NAME], deviceType,
+                                                   device[fwDevice_MODEL], aux, boardDeviceDpName);
+                     // LV2 channel
+                     device = makeDynString(\"\", channelDeviceType, \"\", \"CAEN Easy Channel \" + channelModel + \" LV2\");
+                     fwDevice_getDefaultName(device, pos++, device[fwDevice_DP_NAME], exceptionInfo);
+                     fwDevice_getType(device[fwDevice_DP_TYPE], deviceType, exceptionInfo);
+                     fwGeneral_dynStringToString(device, aux);
+                     devicesToBeCreated[count++] = makeDynString(CHANNEL_PREFIX + device[fwDevice_DP_NAME], deviceType,
+                                                   device[fwDevice_MODEL], aux, boardDeviceDpName);
+                     // First HV channel
+                     device = makeDynString(\"\", channelDeviceType, \"\", \"CAEN Easy Channel \" + channelModel + \" HV\");
+                     fwDevice_getDefaultName(device, pos++, device[fwDevice_DP_NAME], exceptionInfo);
+                     fwDevice_getType(device[fwDevice_DP_TYPE], deviceType, exceptionInfo);
+                     fwGeneral_dynStringToString(device, aux);
+                     devicesToBeCreated[count++] = makeDynString(CHANNEL_PREFIX + device[fwDevice_DP_NAME], deviceType,
+                                                   device[fwDevice_MODEL], aux, boardDeviceDpName);
+                     // Second HV channel
+                     device = makeDynString(\"\", channelDeviceType, \"\", \"CAEN Easy Channel \" + channelModel + \" HV\");
+                     fwDevice_getDefaultName(device, pos++, device[fwDevice_DP_NAME], exceptionInfo);
+                     fwDevice_getType(device[fwDevice_DP_TYPE], deviceType, exceptionInfo);
+                     fwGeneral_dynStringToString(device, aux);
+                     devicesToBeCreated[count++] = makeDynString(CHANNEL_PREFIX + device[fwDevice_DP_NAME], deviceType,
+                                                   device[fwDevice_MODEL], aux, boardDeviceDpName);
+                  
+                     // One of these special boards is seen in the Framework as two boards, so duplicate it
+                     len = dynlen(devicesToBeCreated);
+                     for(j = 4; j >= 0; j--)
+                     {
+                        devicesToBeCreated[count] = devicesToBeCreated[len - j];
+                        for(k = 1; k <= dynlen(devicesToBeCreated[count]); k++)
+                        {
+                           strreplace(devicesToBeCreated[count][k], boardDeviceName, boardDeviceName2);
+                        }
+                        count++;
+                     }
+                     break;
+                  case \"A3802\":
+                     channelModel = \"CAEN Easy Channel \" + model;
+                     channelDeviceType = \"FwCaenChannelDAC\";
+                     pos = 0;
+                     device[fwDevice_DP_NAME] = \"\";
+                     fwDevice_getDefaultName(device, slot + 1 , boardDeviceName2, exceptionInfo);
+                  
+                     // Iterate through the channels
+                     for(j = 0; j <= 127; j++)
+                     {
+                        // check if it is a channel group or a normal channel
+                        if(fmod(j, 8) == 0)
+                           device = makeDynString(\"\", channelDeviceType, \"\", channelModel + \" Group\");
+                        else
+                           device = makeDynString(\"\", channelDeviceType, \"\", channelModel);
+                                          
+                        fwDevice_getDefaultName(device, pos++, device[fwDevice_DP_NAME], exceptionInfo);
+                        fwDevice_getType(device[fwDevice_DP_TYPE], deviceType, exceptionInfo);
+                        fwGeneral_dynStringToString(device, aux);
+                        devicesToBeCreated[count++] = makeDynString(CHANNEL_PREFIX + device[fwDevice_DP_NAME], deviceType,
+                                                   device[fwDevice_MODEL], aux, boardDeviceDpName);
+                     }
+                     break;
+                  case \"A3801\":
+                  case \"A3801A\":
+                     channelDeviceType = \"FwCaenChannelADC\";                     
+                     // after setting the dp type continue as with a standard board
+                  default:
+                     boardDevice = device;
+                     fwDevice_getModelSlots(makeDynString(\"\", deviceDpTypes[xmlTagDeviceType], \"\", model), numberOfSlots, exceptionInfo);
+                     for(j = 1; j <= numberOfSlots; j++)
+                     {
+                        device = makeDynString(\"\", channelDeviceType, \"\", \"CAEN Easy Channel \" + model);
+                        fwDevice_getDefaultName(device, j - 1, defaultName, exceptionInfo);
+//                      DebugN(\"default name = \" + defaultName);
+                        device[fwDevice_DP_NAME] = defaultName;
+                     
+                        fwDevice_getType(device[fwDevice_DP_TYPE], deviceType, exceptionInfo);
+                        fwGeneral_dynStringToString(device, aux);
+//                      DebugN(device, aux);
+//                      aux = device;
+                        devicesToBeCreated[count++] = makeDynString(CHANNEL_PREFIX + device[fwDevice_DP_NAME], deviceType, device[fwDevice_MODEL], aux, boardDeviceDpName);
+                     }
+                     break;               
+               }
+               
+               // if it was an A1396, it contains 2 power supplies so it has to be duplicated   
+               if(model == \"A1396\")
+               {
+                  boardDevice[fwDevice_DP_NAME] = \"\";
+                  fwDevice_getDefaultName(boardDevice, slot + 1 , boardDeviceName2, exceptionInfo);
+                  DebugN(\"A1396 \" + device + \" / \" + slot + \" / \" + boardDeviceName + \" / \" + boardDeviceName2 + \" / \" + exceptionInfo);
+   
+                  len = dynlen(devicesToBeCreated);
+                  for(j = numberOfSlots; j >= 0; j--)
+                  {
+                     DebugN(\"boardDeviceName \" + boardDeviceName + \" boardDeviceName2 \" + boardDeviceName2);
+                     devicesToBeCreated[count] = devicesToBeCreated[len - j];
+                     for(k = 1; k <= dynlen(devicesToBeCreated[count]); k++)
+                     {
+                        strreplace(devicesToBeCreated[count][k], boardDeviceName, boardDeviceName2);
+                     }
+                     count++;
+                  }
+
+               }           
+               break;
+            default:
+               break;
+         }
+      }
+   }
+   
+   if(dynlen(exceptionInfo) > 0)
+   {
+      fwCloseProgressBar(\"There were errors while parsing the file.\");
+      fwExceptionHandling_display(exceptionInfo);
+      return;
+   }
+   
+   Table1.deleteAllLines();
+   Table1.appendLines(dynlen(getDynString(devicesToBeCreated, 1)), 
+                      \"#1\", getDynString(devicesToBeCreated, 1),
+                      \"#2\", getDynString(devicesToBeCreated, 2),
+                      \"#3\", getDynString(devicesToBeCreated, 3),
+                      \"#4\", getDynString(devicesToBeCreated, 4),
+                      \"#5\", getDynString(devicesToBeCreated, 5));
+   Table1.lineVisible(0);
+
+   fwCloseProgressBar(\"File parsed successfully.\");
+   //DebugN(\"devicesToBeCreated \", devicesToBeCreated);
+}" 0
+ E E E
+14 4
+"fileName"
+""
+1 150 50 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  148 48 542 75
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+//	this.text = \"C:/users/manuel/Work/PVSSProjects/3.0.1SP1-2004-11-04-Development/bin/easy.xml\";
+}" 0
+ E
+13 6
+"closeButton"
+""
+1 610 416 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  608 414 672 444
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E "main()
+{
+	if(isDollarDefined(\"$bHierarchyBrowser\"))
+	{
+		if($bHierarchyBrowser)
+		{
+			this.visible = FALSE;
+		}
+		else
+		{
+			this.visible = TRUE;
+		}
+	}
+}" 0
+
+25 7
+"Table1"
+""
+1 20 90 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  18 88 672 412
+"main()
+{
+	Table1.selectByClick(TABLE_SELECT_NOTHING);
+	Table1.tableMode(TABLE_SELECT_NOTHING);
+	Table1.sortOnClick(FALSE);
+}" 0
+E 1 0 1 5 1 "#1" 12 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+140 "#2" 12 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+140 "#3" 21 1 0 "s" 1
+LANG:1 5 Model
+E
+1
+LANG:1 0 
+
+240 "#4" 10 0 0 "s" 1
+LANG:1 13 Device object
+E
+1
+LANG:1 0 
+
+128 "#5" 10 0 0 "s" 1
+LANG:1 13 Parent device
+E
+1
+LANG:1 0 
+
+128 
+20 20 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 8
+"FileSelect"
+""
+1 542 47 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+2
+LANG:1 0 
+LANG:0 0 
+
+0
+2
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  542 47 582 77
+
+P 
+4294967295
+"pictures/file_opened_en.gif"
+1
+LANG:1 0 
+"main()
+{
+	string sFileName, ext;
+
+	fileSelector(sFileName, getPath(CONFIG_REL_PATH), FALSE);
+	if(sFileName != \"\")
+		fileName.text =	sFileName;
+}" 0
+ E E E
+13 10
+"Button4"
+""
+1 272 415 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  270 413 384 444
+
+T 
+1
+LANG:1 13 Set addresses
+"main()
+{
+	configureAddresses(fwDevice_ADDRESS_DEFAULT);
+}" 0
+ E E E
+13 12
+"Button5"
+""
+1 392 415 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  390 413 504 444
+
+T 
+1
+LANG:1 15 Clear addresses
+"main()
+{
+	configureAddresses(fwDevice_ADDRESS_NONE);
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

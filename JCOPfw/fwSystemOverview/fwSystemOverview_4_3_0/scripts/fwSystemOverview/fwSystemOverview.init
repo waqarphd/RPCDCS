@@ -1,0 +1,58 @@
+#uses "fwInstallation.ctl"
+main()
+{
+  string installationVersion;
+  int result;
+
+  fwInstallation_getToolVersion(installationVersion);
+  result = _fwInstallation_CompareVersions(installationVersion, "5.0.0");
+
+  if (!result) {
+    fwInstallation_popup( "You need version >= 5.0.0 of fwInstallation tool\n" +
+                    	    "to run this release of the System Overview.\n"+
+  	                      "Please download the latest fwInstallation tool from the web page\n" +
+                          "and install it.");
+    return -1;
+	}
+  DebugN("FW System Overview Installation -> Init script::Version of the Installation Tool OK: " + installationVersion + ". Proceeding with the installation...");
+  dyn_mixed managerInfo;
+  string host = fwInstallation_getHostname(), user, pwd;
+  int port = pmonPort();
+  string cmd = "fwSystemOverview/fwSystemOverview.ctl";
+  string newOptions = "fwSystemOverview/fwSystemOverview.ctl -num 27";
+  
+  fwInstallation_getPmonInfo(user, pwd);    
+  string manType = "PVSS00ctrl";
+  if (fwInstallation_checkToolVersion("6.2.0") > 0)
+  {
+    manType = fwInstallation_getWCCOAExecutable("ctrl");
+  }
+  fwInstallationManager_getProperties(manType, 
+                                      cmd,
+                                      managerInfo,
+                                      host, port, 
+                                      user, pwd);  
+  
+  if(managerInfo[FW_INSTALLATION_MANAGER_PMON_IDX] == -1)
+  {
+    DebugN("FW System Overview Installation -> Appending FW System Overview Tool Ctrl Manager to the project console for first time");
+    fwInstallationManager_append(true, 
+                                 "System Overview Ctrl Script",
+                                 manType, 
+                                 "manual", 30, 10, 60, 
+                                 newOptions,
+                                 host, port, user, pwd);
+  }
+  else
+  {
+    DebugN("FW System Overview Installation -> Modifying of the properties of the FW System Overview Tool Ctrl Manager");
+    managerInfo[FW_INSTALLATION_MANAGER_OPTIONS] = newOptions;
+    managerInfo[FW_INSTALLATION_MANAGER_RESTART_COUNT] = 10;
+    managerInfo[FW_INSTALLATION_MANAGER_START_MODE] = 1;
+    fwInstallationManager_setProperties(manType, cmd, managerInfo, host, port, user, pwd);
+    fwInstallationManager_command("KILL", manType, newOptions, host, port, user, pwd, true);
+  }
+  DebugN("FW System Overview Installation -> Execution of init script: Success!!");
+  return 0;
+}
+

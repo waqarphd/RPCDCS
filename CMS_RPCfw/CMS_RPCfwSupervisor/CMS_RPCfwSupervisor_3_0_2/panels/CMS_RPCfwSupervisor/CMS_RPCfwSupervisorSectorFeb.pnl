@@ -1,0 +1,281 @@
+V 11
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 723 416 N "_3DFace" 1
+"$2"
+E E E E E 1 -1 -1 0  10 10
+""0  1
+E "dyn_string array;
+dyn_string dpes;
+dyn_dyn_string channelsName;
+string COMPONENT;
+#uses \"CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl\"
+//getLeafChannels(string pos, dyn_string & channels)
+//{
+//	dyn_string children, exceptionInfo,devices;
+//	string device, type;
+//	fwTree_getChildren(HARDWARE_COMPONENT+pos, children, exceptionInfo);
+	//dyn_string LBBnames = makeDynString(\"25_1_LV\",\"33_1_LV\",\"25_11_LV\",\"33_11_LV\");
+//	for(int i=1; i<=dynlen(children); i++)
+//	{
+//		
+//		fwCU_getType(children[i],type);
+//		if(type == \"ChamberNode\")
+//		{
+//			fwTree_getChildren(HARDWARE_COMPONENT+children[i]+\"_HV\", devices, exceptionInfo);
+//			dynAppend(channels, devices);
+//			fwTree_getChildren(HARDWARE_COMPONENT+children[i]+\"_LV\", devices, exceptionInfo);
+//			dynAppend(channels, devices);
+//		}	
+//		else if(type == \"LinkBoardsBoxNode\")
+//		{
+//		children[i]=strltrim(children[i],\"&0001\");
+//		
+//			fwTree_getChildren (HARDWARE_COMPONENT+children[i], devices, exceptionInfo);
+//			dynAppend(channels, devices);
+			//DebugN(devices,children[i]);
+//		}
+//		else 
+//		{
+//			getLeafChannels(children[i], channels);
+//		}
+	//DebugN(channels);	
+//	}
+//}
+//
+//getChannelsName(dyn_string &logicName,dyn_string &channels)
+//{
+//string name;
+//for (int i=1;i<=dynlen(logicName);i++)
+//	{
+//	if(logicName[i][0] !=\"&\")
+//	{
+//	name = fwDU_getPhysicalName(HARDWARE_COMPONENT+logicName[i]);
+//	dynAppend(channels,HARDWARE_COMPONENT+name);
+//	}
+//	else
+//		dynRemove(logicName,i);
+//	}
+//
+//}
+
+DisableAllInPanel()
+{
+//Table1.enabled = FALSE;
+ }
+enableControl(){
+
+   }
+enableDebug(){
+Table1.enabled = TRUE;
+ 
+  }
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+if (hasControl) enableControl();
+if (hasDebug) enableDebug();
+}
+
+waitForPanel()
+{
+	int i;
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+25 6
+"TABLE1"
+""
+1 20 20 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  18 18 654 322
+"main()
+{
+  dyn_string systemNumber;
+  dyn_string channels,febId,temp,chid;
+  dyn_string param = makeDynString(\".vth1\",\".vth2\",\".vmon1\",\".vmon2\",\".temperature1\",\".vth1:_original.._stime\"); 
+  fwInstallation_getApplicationSystem(\"CMS_RPCfwHardwareBarrelPSX\",systemNumber);
+   //DebugN(\"ss\",$2,systemNumber);
+  int pos = strpos($2,\"_W\");
+  this.deleteAllLines();
+  if(dynlen(systemNumber)>0)
+  {
+  string search =systemNumber[1]+\"Feb\"+ substr($2,pos);
+  channels = dpNames(search+\"*\");
+  //DebugN(\"ss\",$2,channels);
+  for(int i = 1; i <=dynlen(channels);i++)
+    {
+    dpGet(channels[i]+\".febIds\",search);
+    temp = strsplit(search,\";\");
+    if(dynlen(temp)>0) 
+      for(int g = 1 ;g<=dynlen(temp);g++)
+      {
+        dynAppend(chid,channels[i]+\"_\"+g);
+        dynAppend(febId,systemNumber[1]+\"Feb\"+temp[g]);
+      }
+    }
+   string chamb,pos;
+   int point;
+  dyn_string value;
+    //DebugN(dynlen(febId));
+  for(int i = 1; i<=dynlen(febId);i++)
+  {
+    dynAppend(array,febId[i]);
+      
+    for(int j= 1; j<=dynlen(param);j++)
+    {
+      dpGet(febId[i]+param[j],value[j]);
+      dpConnect(\"refresh\",febId[i]+param[j]);
+      //refresh(febId[i]+param[j],value[j]);
+      //DebugN(febId[i]+param[j],chid[j],value[j]);
+      }
+    for(int k = 1; k<dynlen(value);k++)
+    {
+      point = strpos(value[k],\".\");
+      if(point>0)
+        value[k] = substr(value[k],0,point+2); 
+      }
+    channels = strsplit(chid[i],\"_\");
+    chamb = channels[dynlen(channels)-1];
+    pos = channels[dynlen(channels)];
+    this.appendLine(\"chamber\",chamb,\"febpos\",pos,\"temperature1\",value[5],\"vmon1\",value[3],\"vmon2\",value[4],\"vth1\",value[1],\"vth2\",value[2],\"timestamp\",value[6]);
+    if(value[5]>34) this.cellBackColRC(i-1,\"temperature1\",\"FwAlarmErrorAck\"); 
+     else   this.cellBackColRC(i-1,\"temperature1\",\"FwStateOKPhysics\");
+    }
+   }else
+  {
+    DebugN(\"PSX component not found\");
+    this.appendLine(\"chamber\",\"Component\",\"febpos\",\"not found\" );
+    this.enabled = false;
+    }
+ }
+refresh(string dpe, string value)
+{
+  
+  string dp = dpSubStr(dpe,DPSUB_SYS_DP);
+  int pos = dynContains(array,dp);
+  
+  string elem  = dpSubStr(dpe,DPSUB_DP_EL);
+  int point = strpos(elem,\".\");
+  
+  elem = substr(elem,point+1);
+  if(strpos(dpe,\"temper\")>0)
+     if(value>34) this.cellBackColRC(pos-1,\"temperature1\",\"FwAlarmErrorAck\"); 
+     else   this.cellBackColRC(pos-1,\"temperature1\",\"FwStateOKPhysics\");  
+  
+  if(strpos(dpe,\"stime\")<0) 
+  this.cellValueRC(pos-1,elem,value);
+  else
+    this.cellValueRC(pos-1,\"timestamp\",value);
+  
+  //DebugN(\"Refresh\",dpe,value,pos,elem);
+  }" 0
+E 1 0 1 8 0 "chamber" 8 1 0 "s" 1
+LANG:1 7 Chamber
+E
+1
+LANG:1 0 
+
+100 "febpos" 3 1 0 "s" 1
+LANG:1 4 Feb 
+E
+1
+LANG:1 0 
+
+50 "temperature1" 6 1 0 "s" 1
+LANG:1 11 Temperature
+E
+1
+LANG:1 0 
+
+80 "vth1" 4 1 0 "s" 1
+LANG:1 4 VTH1
+E
+1
+LANG:1 0 
+
+60 "vth2" 4 1 0 "s" 1
+LANG:1 4 VTH2
+E
+1
+LANG:1 0 
+
+60 "vmon1" 4 1 0 "s" 1
+LANG:1 5 VMon1
+E
+1
+LANG:1 0 
+
+60 "vmon2" 4 1 0 "s" 1
+LANG:1 5 VMon2
+E
+1
+LANG:1 0 
+
+60 "timestamp" 12 1 0 "s" 1
+LANG:1 9 Timestamp
+E
+1
+LANG:1 0 
+
+150 
+26 26 10 10
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

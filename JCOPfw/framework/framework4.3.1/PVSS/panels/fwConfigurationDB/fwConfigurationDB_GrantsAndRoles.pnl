@@ -1,0 +1,692 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 470 328 N "_3DFace" 0
+"main()
+{
+  PopulatePanel();
+}" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "void PopulatePanel()
+{
+  dyn_string exceptionInfo;
+  
+  EnableAll(false);  
+  CreateRoles.enabled=false;
+  DropRoles.enabled=false;
+  
+  fwConfigurationDB_checkInit(exceptionInfo);
+  fwConfigurationDB_updateDBStatusIndicator();
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+
+  
+  CurrentDBUser.text=\"\";
+  ReaderRole.text=\"\";
+  WriterRole.text=\"\";  
+  Users.items=makeDynString();
+
+  if (!fwConfigurationDB_hasDBConnectivity) {
+    fwException_raise(exceptionInfo,\"ERROR\",\"Connection with ConfigurationDB not functional\",\"\");
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }  
+
+  if (fwConfigurationDB_SchemaPrivs !=\"OWNER\") {
+    fwException_raise(exceptionInfo,\"ERROR\",\"Privilege management only possible for DB Schema owner\",\"\");
+    fwExceptionHandling_display(exceptionInfo);
+    return;
+  }
+  
+  dyn_mixed aRecords;
+  dyn_string exceptionInfo2;
+
+  string sql=\"SELECT USER, SYS_CONTEXT('USERENV','CURRENT_SCHEMA') FROM DUAL\";
+  _fwConfigurationDB_executeDBQuery(sql,g_fwConfigurationDB_DBConnection, aRecords, exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+  CurrentDBUser.text=aRecords[1][1];
+  ReaderRole.text=\"r_fwConfR_\"+aRecords[1][1];
+  WriterRole.text=\"r_fwConfW_\"+aRecords[1][1];  
+  
+  dynClear(aRecords);
+  sql=\"select USERNAME from sys.all_users order by 1 asc\";
+  _fwConfigurationDB_executeDBQuery(sql,g_fwConfigurationDB_DBConnection, aRecords, exceptionInfo,1,true);
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+  dyn_string users=aRecords[1];
+  Users.items=users;
+  //string sql=\"SELECT COUNT(*) FROM USER_TAB_PRIVS WHERE TABLE_NAME='ITEMS' AND OWNER=SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AND PRIVILEGE='SELECT'\";
+  
+  //UseRoles.enabled=enable;
+  dynClear(aRecords);
+  sql=\"SELECT count(*) from SYS.ROLE_SYS_PRIVS where PRIVILEGE='CREATE ROLE'\";
+  _fwConfigurationDB_executeDBQuery(sql,g_fwConfigurationDB_DBConnection, aRecords, exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+  
+  if (aRecords[1][1]!=0) {
+    UseRoles.enabled=true;
+    UseRoles.state(0,true);
+    CreateRoles.enabled=true;
+    DropRoles.enabled=true;
+    NoRoleRights.visible=false;
+  } else {
+    NoRoleRights.visible=true;
+    UseRoles.enabled=false;
+    UseRoles.state(0,false);      
+    CreateRoles.enabled=false;
+    DropRoles.enabled=false;
+  }
+  
+  EnableAll(true);
+}
+
+void EnableAll(bool enable)
+{
+  GrantReader.enabled=enable;
+  GrantWriter.enabled=enable;
+  RevokeReader.enabled=enable;
+  RevokeWriter.enabled=enable;
+  Users.enabled=enable;
+}
+
+void Grant(string role, bool revoke=false)
+{
+  dyn_string exceptionInfo;
+  bool useRoles;
+  getValue(\"UseRoles\",\"state\",0,useRoles);
+
+  string user=Users.selectedText;
+  
+  if (user==\"\") fwException_raise(exceptionInfo,\"ERROR\",\"Please select the user to whom to grant the rights\",\"\");
+  if (user==CurrentDBUser.text) fwException_raise(exceptionInfo,\"ERROR\",\"Cannot grant rights to yourself\",\"\");
+
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+
+  mapping params;
+  string sql;
+  
+  if (useRoles) {
+
+    if (role==\"READER\")      sql=\" \"+ReaderRole.text+\" \";
+    else if (role==\"WRITER\") sql=\" \"+ReaderRole.text+\" \";
+    
+    if (!revoke) sql=\"GRANT\"+sql+\"TO \"+user;
+    else sql=\"REVOKE \"+sql+\" FROM \"+user;
+    
+    sql=\"DECLARE \"+
+        \" already_granted exception;\"+
+        \" not_granted exception;\"+
+        \" PRAGMA EXCEPTION_INIT(already_granted,-1927);\"+
+        \" PRAGMA EXCEPTION_INIT(not_granted,-1951); \"+
+        \"BEGIN\" +
+        \" execute immediate '\"+sql+\"'; \"+
+        \"EXCEPTION \"+
+        \" when already_granted then null; \"+ // simply accept it
+        \" when not_granted then null; \"+ // simply accept it
+        \"END;\";
+  } else {
+    sql=\"DECLARE \"+
+        \" rc NUMBER; \"+
+        \"BEGIN \"+
+        \" rc:=fwConfigurationDB_grant(:userOrRole,:what,:revoke); \"+
+        \"END;\";
+    
+    params[\":userOrRole\"]=user;
+    params[\":what\"]=role;
+    params[\":revoke\"]=(int)revoke;
+  }
+
+  _fwConfigurationDB_executeDBCmd(sql,g_fwConfigurationDB_DBConnection,params,exceptionInfo);
+    if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+
+//  DebugTN(\"OK\",sql);
+    string what=\"Grant\";
+    if (revoke) what=\"Revoke\";
+  ChildPanelOnCentralModal(\"fwGeneral/fwMessageInfo1.pnl\",\"Grant OK\",
+                           makeDynString(\"$1:\"+what+\" operation on database OK\"));
+}
+
+void CreateRoles()
+{
+  dyn_string exceptionInfo;
+  
+  mapping params;  
+  string sql=\"DECLARE \"+
+        \" role_exists exception;\"+
+        \" PRAGMA EXCEPTION_INIT(role_exists,-1921);\"+
+        \" rc NUMBER; \"+
+        \"BEGIN \"+
+        \" execute immediate 'CREATE ROLE '||:roleReader1;\"+
+//        \" execute immediate 'CREATE ROLE \"+ReaderRole.text+\"';\"+
+        \" execute immediate 'CREATE ROLE '||:roleWriter1;\"+        
+//        \" execute immediate 'CREATE ROLE \"+WriterRole.text+\"';\"+
+        \" rc:=fwConfigurationDB_grant(:roleReader2,'READER',0); \"+
+        \" rc:=fwConfigurationDB_grant(:roleWriter2,'WRITER',0); \"+
+        \"EXCEPTION \"+
+        \" when role_exists then null;\"+
+        \"END;\";
+
+  
+  params[\":roleReader1\"]=ReaderRole.text;
+  params[\":roleWriter1\"]=WriterRole.text;
+  params[\":roleReader2\"]=ReaderRole.text;
+  params[\":roleWriter2\"]=WriterRole.text;
+  
+  _fwConfigurationDB_executeDBCmd(sql,g_fwConfigurationDB_DBConnection,params,exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+
+ChildPanelOnCentralModal(\"fwGeneral/fwMessageInfo1.pnl\",\"Roles Created OK\",
+                           makeDynString(\"$1:Reader and writer roles created OK\"));  
+
+}
+
+void DropRoles()
+{
+  dyn_string exceptionInfo;
+  
+  mapping params;  
+  string sql=\"BEGIN \"+
+        \" execute immediate 'DROP ROLE '||:roleReader;\"+
+        \" execute immediate 'DROP ROLE '||:roleWriter;\"+        
+        \"EXCEPTION \"+
+        \" when others then \"+
+        \"  if    sqlcode = -01919 then null; \"+  // role does not exist\"+
+        \"  elsif sqlcode = -01031 then null; \"+  // insufficient privileges
+        \"  else raise;\"+
+        \"  end if;  \"+
+        \"END;\";
+
+  
+  params[\":roleReader\"]=ReaderRole.text;
+  params[\":roleWriter\"]=WriterRole.text;
+  
+  _fwConfigurationDB_executeDBCmd(sql,g_fwConfigurationDB_DBConnection,params,exceptionInfo);
+  if (dynlen(exceptionInfo)) {fwExceptionHandling_display(exceptionInfo);return;};
+
+ChildPanelOnCentralModal(\"fwGeneral/fwMessageInfo1.pnl\",\"Roles Dropped OK\",
+                           makeDynString(\"$1:Reader and writer roles dropped OK\"));  
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"Text1"
+""
+1 8 8 E E E 1 E 1 E N {0,0,0} E N "_3DFace" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 10 10 207 30
+0 2 0 "0s" 0 0 0 192 0 0  10 10 1
+1
+LANG:1 26 Arial,-1,16,5,50,0,0,0,0,0
+0 1
+LANG:1 27 Configuration Database Tool
+13 2
+"CreateRoles"
+""
+1 340 230 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  338 228 442 257
+
+T 
+1
+LANG:1 12 Create Roles
+"main()
+{
+  CreateRoles();
+}" 0
+ E E E
+13 3
+"DropRoles"
+""
+1 340 260 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  338 258 442 287
+
+T 
+1
+LANG:1 10 Drop Roles
+"main()
+{
+  DropRoles();
+}" 0
+ E E E
+13 5
+"GrantReader"
+""
+1 30 110 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  28 108 132 137
+
+T 
+1
+LANG:1 12 Grant READER
+"main()
+{
+  Grant(\"READER\",false);
+}" 0
+ E E E
+13 6
+"GrantWriter"
+""
+1 30 138 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  28 136 132 165
+
+T 
+1
+LANG:1 12 Grant WRITER
+"main()
+{
+  Grant(\"WRITER\",false);
+}" 0
+ E E E
+30 8
+"FRAME1"
+""
+1 10 172 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+8 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.859375 0 -57.8125 0 E 10 172 461 301
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Schema Rights Management
+13 9
+"RevokeReader"
+""
+1 140 108 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  138 106 242 135
+
+T 
+1
+LANG:1 13 Revoke READER
+"main()
+{
+  Grant(\"READER\",true);
+}" 0
+ E E E
+13 10
+"RevokeWriter"
+""
+1 140 138 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  138 136 242 165
+
+T 
+1
+LANG:1 13 Revoke WRITER
+"main()
+{
+  Grant(\"WRITER\",true);
+}" 0
+ E E E
+2 13
+"PRIMITIVE_TEXT1"
+""
+1 260 128 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 260 128 275 144
+0 2 2 "0s" 0 0 0 192 0 0  260 128 1
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 3 to:
+22 14
+"Users"
+""
+1 280 128 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  278 126 452 150
+0
+
+E
+E
+E
+ 1 0
+20 15
+"UseRoles"
+""
+1 30 170 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  28 168 242 192
+1
+T 
+1
+LANG:1 9 Use roles
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+EE30 16
+"FRAME2"
+""
+1 10 172 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+16 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.703125 0 89.0625 0 E 10 172 461 301
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 27 ConfigurationDB roles in DB
+2 17
+"PRIMITIVE_TEXT2"
+""
+1 30 243 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 30 243 143 259
+0 2 2 "0s" 0 0 0 192 0 0  30 243 1
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 READER role name:
+2 18
+"PRIMITIVE_TEXT3"
+""
+1 30 263 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 30 263 141 279
+0 2 2 "0s" 0 0 0 192 0 0  30 263 1
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 WRITER role name:
+13 19
+"CloseButton"
+""
+1 380 300 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  378 298 458 328
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+1 36 0 "" 0
+0
+30 21
+"FRAME3"
+""
+1 10 172 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+21 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.390625 0 -27.1875 0 E 10 172 461 301
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 DB Connection
+14 22
+"CurrentDBUser"
+""
+1 90 60 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 29 Monospace,9,-1,5,50,0,0,0,0,0
+0  88 58 262 82
+2 "0s" 0 0 0 0 0 -1  E E E
+1 37 1 "" 6
+0
+1 38 1 "" 7
+0
+1 39 1 "" 8
+0
+2 26
+"PRIMITIVE_TEXT4"
+""
+1 20 62 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 20 62 85 78
+0 2 2 "0s" 0 0 0 192 0 0  20 62 1
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 9 Username:
+14 31
+"ReaderRole"
+""
+1 150 240 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 29 Monospace,9,-1,5,50,0,0,0,0,0
+0  148 238 322 262
+2 "0s" 0 0 0 0 0 -1  E E E
+14 32
+"WriterRole"
+""
+1 150 260 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 29 Monospace,9,-1,5,50,0,0,0,0,0
+0  148 258 322 282
+2 "0s" 0 0 0 0 0 -1  E E E
+14 35
+"NoRoleRights"
+""
+1 15.99999999999999 225.0000000000001 E E E 1 E 0 E N "FwAlarmFatalUnack" E N {0,0,0,82} E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 31 Sans Serif,12,-1,5,75,0,0,0,0,0
+0  14 223 453 295
+2 "0s" 0 0 0 1 0 -1  E "main()
+{
+  this.text=\"NO RIGHTS TO CREATE ROLES\";
+}" 0
+ E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "" -1
+"objects/fwGeneral/fwHelpButton.pnl" 270 20 T 20 1 0 1 160 -10
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_GrantsAndRoles"
+3 1 "PANEL_REF1" -1
+"objects/fwConfigurationDB/fwConfigurationDB_CDBStatusIndicator.pnl" 290 60 T 23 1 0 1 60 -8
+0
+0

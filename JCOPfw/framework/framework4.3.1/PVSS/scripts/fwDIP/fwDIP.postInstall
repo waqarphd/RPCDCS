@@ -1,0 +1,190 @@
+string proj_path, dip_path, pvss_path, pvss_version;
+
+main()
+{
+        dyn_string exceptionInfo;
+	string conf_path;
+	int pos, ok;
+
+	addGlobal("os",STRING_VAR);
+	if(_UNIX)
+		os = "Linux";
+
+	conf_path = getPath(CONFIG_REL_PATH, "config");
+	pos = strpos(conf_path, "/config/config");
+	proj_path = substr(conf_path, 0, pos);
+	DebugN("fwDIP.postInstall: Project: " + proj_path);
+	if(get_paths(conf_path) == 3)
+	{
+		DebugN("fwDIP.postInstall: " + dip_path);
+		install_version();
+	}
+	dpSet("DIPConfig_1.publishName",getHostname()+"_"+rand());
+	dpSet("DIPConfig_1.queryTimeout",15);
+	deleteOldPanels();
+	deleteOldBinaries();
+        
+        fwDIP_migrateAllToNewDelimeter(exceptionInfo, TRUE);
+}
+
+deleteOldPanels()
+{
+	if(access(dip_path+"/panels/fwDIP/fwDipClient.pnl",F_OK)==0)
+		remove(dip_path+"/panels/fwDIP/fwDipClient.pnl");
+
+	if(access(dip_path+"/panels/fwDIP/fwDipItemPublish.pnl",F_OK)==0)
+		remove(dip_path+"/panels/fwDIP/fwDipItemPublish.pnl");
+
+	if(access(dip_path+"/panels/fwDIP/fwDipManageClient.pnl",F_OK)==0)
+		remove(dip_path+"/panels/fwDIP/fwDipManageClient.pnl");
+
+	if(access(dip_path+"/panels/fwDIP/fwDipManageConfigDps.pnl",F_OK)==0)
+		remove(dip_path+"/panels/fwDIP/fwDipManageConfigDps.pnl");
+
+	if(access(dip_path+"/panels/fwDIP/fwDipManageServer.pnl",F_OK)==0)
+		remove(dip_path+"/panels/fwDIP/fwDipManageServer.pnl");
+
+	if(access(dip_path+"/panels/fwDIP/fwDipPublish.pnl",F_OK)==0)
+		remove(dip_path+"/panels/fwDIP/fwDipPublish.pnl");
+
+	if(access(dip_path+"/panels/fwDIP/fwDipServer.pnl",F_OK)==0)
+		remove(dip_path+"/panels/fwDIP/fwDipServer.pnl");
+
+	if(access(dip_path+"/panels/fwDIP/fwDipSubscribe.pnl",F_OK)==0)
+		remove(dip_path+"/panels/fwDIP/fwDipSubscribe.pnl");
+
+	if(access(dip_path+"/panels/objects/fwDIP/fwDipConfigDpList.pnl",F_OK)==0)
+		remove(dip_path+"/panels/objects/fwDIP/fwDipConfigDpList.pnl");
+
+}
+
+deleteOldBinaries()
+{
+	if(access(dip_path+"/bin/Dip.dll",F_OK)==0)
+		remove(dip_path+"/bin/Dip.dll");
+
+	if(access(dip_path+"/bin/PVSS00dip3.6",F_OK)==0)
+		remove(dip_path+"/bin/PVSS00dip3.6");
+
+	if(access(dip_path+"/bin/PVSS00dip3.6.exe",F_OK)==0)
+		remove(dip_path+"/bin/PVSS00dip3.6.exe");
+
+	if(access(dip_path+"/bin/libdip3.6.so",F_OK)==0)
+		remove(dip_path+"/bin/libdip3.6.so");
+
+	if(access(dip_path+"/bin/PVSS00dip.sh",F_OK)==0)
+		remove(dip_path+"/bin/PVSS00dip.sh");
+}
+
+install_version()
+{
+	int ok = false, result;
+        
+	if (os == "Linux")
+	{
+                if(!isfile(dip_path + "/bin/fwDIP/PVSS00dip" + VERSION))
+		  DebugN("fwDIP.postInstall: Linux PVSS " + VERSION + " executable was not found");
+                else
+                {
+		  DebugN("fwDIP.postInstall: Installing Linux PVSS " + VERSION + " executable");
+                  copyFile(dip_path + "/bin/fwDIP/liblog4cxx.so.10", proj_path + "/bin/liblog4cxx.so.10");
+                  copyFile(dip_path + "/bin/fwDIP/libapr-1.so.0", proj_path + "/bin/libapr-1.so.0");
+                  copyFile(dip_path + "/bin/fwDIP/libaprutil-1.so.0", proj_path + "/bin/libaprutil-1.so.0");
+                  copyFile(dip_path + "/bin/fwDIP/libexpat.so.0", proj_path + "/bin/libexpat.so.0");
+
+		  ok = copyFile(dip_path + "/bin/fwDIP/PVSS00dip" + VERSION, proj_path + "/bin/PVSS00dip_api");
+		  if(ok)
+		  {
+			system("chmod a+x " + proj_path + "/bin/PVSS00dip_api");
+			ok = copyFile(dip_path + "/bin/fwDIP/libdip" + VERSION + ".so", proj_path + "/bin/libdip.so");
+			if(ok)
+			{
+				ok = copyFile(dip_path + "/bin/fwDIP/PVSS00dip.sh", proj_path + "/bin/PVSS00dip");
+				if(ok)
+					system("chmod a+x " + proj_path + "/bin/PVSS00dip");
+			}
+		  }
+                }
+
+	}
+	else
+	{
+                if(!isfile(dip_path + "/bin/fwDIP/PVSS00dip" + VERSION + ".exe"))
+		  DebugN("fwDIP.postInstall: Windows PVSS " + VERSION + " executable was not found");
+                else
+                {
+		  DebugN("fwDIP.postInstall: Installing Windows PVSS " + VERSION + " executable");
+                  copyFile(dip_path + "/bin/fwDIP/log4cxx.dll", proj_path + "/bin/log4cxx.dll");
+                  ok = copyFile(dip_path + "/bin/fwDIP/PVSS00dip" + VERSION + ".exe", proj_path + "/bin/PVSS00dip.exe");
+		  if(ok)
+			ok = copyFile(dip_path + "/bin/fwDIP/Dip" + VERSION + ".dll", proj_path + "/bin/Dip.dll");
+                }
+	}
+
+	if(ok)
+	{
+		DebugN("fwDIP.postInstall: PVSS00dip installed");
+        result = fwInstallationManager_append(TRUE, "DIP API Manager", "PVSS00dip", "manual", 30, 2, 2, "");
+		if(result)
+			DebugN("fwDIP.postInstall: PVSS00dip manager added");
+		else
+			DebugN("fwDIP.postInstall: Failed adding PVSS00dip manager");
+	}
+	else
+		DebugN("fwDIP.postInstall: Failed installing PVSS00dip");
+}
+
+int get_paths(string conf_path)
+{
+	file fin;
+	string s;
+	int pos;
+	int ok;
+	int found = 0;
+	dyn_anytype componentInfo;
+
+	fin = fopen(conf_path, "r");
+	if(fin == 0)
+	{
+		err = ferror(fin);
+		DebugN("fwDIP.postInstall: Could not open " + conf_path + " - Error No. " + err);
+		return 0;
+	} 	
+	
+	ok = fwInstallation_getComponentInfo("fwDIP", "installationdirectory", componentInfo);
+	if(ok == 0)
+	{
+		dip_path = componentInfo[1];
+		DebugN("fwDIP.postInstall: got installation directory for fwDIP " + dip_path);
+		found++;
+	}
+	else
+	{
+		DebugN("fwDIP.postInstall: could not get installation directory for fwDIP");
+	}
+	
+	while(!feof(fin))
+	{
+		fgets(s, 2000, fin);
+		if(strpos(s, "proj_version") >= 0)
+		{
+			pos = strpos(s, "\"");
+			pvss_version = substr(s, pos + 1);
+			pos = strpos(pvss_version, "\"");
+			pvss_version = substr(pvss_version, 0, pos);
+			found++;
+		}
+		if(strpos(s, "pvss_path") >= 0)
+		{
+			pos = strpos(s, "\"");
+			pvss_path = substr(s, pos + 1);
+			pos = strpos(pvss_path, "\"");
+			pvss_path = substr(pvss_path, 0, pos);
+			found++;
+		}
+		if(found == 3)
+			break;
+	}
+	fclose(fin);
+	return found;
+}

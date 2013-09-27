@@ -1,0 +1,354 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 488 263 N "_3DFace" 1
+"$application"
+"main()
+{
+  application = $application;
+  txApplication.text = application;
+}" 0
+ E E E E 1 -1 -1 0  30 20
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverviewNotifications.ctl\"
+string application;
+dyn_string getDpesByAlias(string aliasPattern)
+{
+  dyn_string dpePatterns, dps, aliases;
+  dpGetAllAliases(dps, aliases);
+  for (int i= 1; i<=dynlen(aliases); i++)
+  {
+    if (patternMatch(aliasPattern, aliases[i]) 
+      && alarmConfigured(dps[i]))
+      {
+      string app;
+      fwSysOverviewNotifications_getApplication(dps[i], app);
+      if (application == app)
+      {
+        dynAppend(dpePatterns, dpSubStr(dps[i], DPSUB_DP_EL));
+      }
+    }
+  }
+  return dpePatterns;
+}
+dyn_string getDpesByDescription(string descriptionPattern)
+{
+  dyn_string dpePatterns, dps, descriptions;
+  dpGetAllDescriptions(dps, descriptions);
+  for (int i= 1; i<=dynlen(descriptions); i++)
+  {
+    if (patternMatch(descriptionPattern, descriptions[i]) 
+      && alarmConfigured(dps[i])
+      && application == fwSysOverviewNotifications_getApplication(dps[i]))
+      dynAppend(dpePatterns, dpSubStr(dps[i], DPSUB_DP_EL));
+  }
+  return dpePatterns;
+}
+bool alarmConfigured(string dpe)
+{
+  bool configured = false;
+  dyn_mixed alertConfigObject;
+  dyn_string ex;
+  fwAlertConfig_objectGet(dpe, alertConfigObject, ex);
+  if (dynlen(ex) == 0)
+  {
+    int configType;
+    configured = fwAlertConfig_objectConfigExists(alertConfigObject, configType, ex);
+    configured &= dynlen(ex)==0 && configType != DPCONFIG_SUM_ALERT;
+  }
+  return configured;
+}
+displayData(dyn_string patterns)
+{
+  tblPreview.updateLines(1, \"dpe\", patterns);
+}    " 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+22 0
+"cbFilterBy"
+""
+1 11.99999999999997 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  10 28 454 52
+3
+1
+LANG:1 3 DPE
+
+0
+1
+LANG:1 5 Alias
+
+0
+1
+LANG:1 11 Description
+
+0
+
+E
+E
+E
+ 0 0
+14 1
+"txPattern"
+""
+1 62 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  60 58 314 81
+3 "0s" 0 0 0 0 0 -1  E E E
+2 2
+"PRIMITIVE_TEXT17"
+""
+1 12 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 12 60 46 74
+0 2 2 "0s" 0 0 0 192 0 0  12 60 1
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 7 Pattern
+13 3
+"btnPreview"
+""
+1 332 60 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  330 58 454 87
+
+T 
+1
+LANG:1 7 Preview
+"main()
+{
+  tblPreview.deleteAllLines();
+  dyn_string dpePatterns;
+  string pattern = \"*\" + txPattern.text + \"*\";
+  int filterBy = cbFilterBy.selectedPos();
+  switch (filterBy)
+  {
+      case 1:
+        dpePatterns = makeDynString(pattern);
+        displayData(dpePatterns);
+        break;
+      case 2:
+        dpePatterns = getDpesByAlias(pattern);        
+        displayData(dpePatterns);
+        break;
+      case 3:
+        dpePatterns = getDpesByDescription(pattern);                
+        displayData(dpePatterns);
+        break;
+  } 
+  
+  btnApply.enabled = dynlen(dpePatterns) > 0;
+}" 0
+ E E E
+25 4
+"tblPreview"
+""
+1 11.99999999999999 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  10 88 454 212
+"main()
+{
+  setValue(\"tblPreview\", \"tableMode\", 2);
+  setValue(\"tblPreview\", \"selectByClick\", TABLE_SELECT_LINE);
+}" 0
+E 1 0 1 1 0 "dpe" 39 1 1 "s" 1
+LANG:1 3 DPE
+E
+1
+LANG:1 0 
+
+406 
+16 16 10 10
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 5
+"btnApply"
+""
+1 332 220 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  330 218 454 247
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+  int linesCount = tblPreview.lineCount();
+  dyn_string patterns;
+  string cellVal;
+  for(int i=0; i<linesCount; i++)
+  {
+    getValue(\"tblPreview\", \"cellValueRC\", i, \"dpe\", cellVal);
+    dynAppend(patterns,  cellVal);
+  }
+  dpSet(\"_Ui_\" + myManNum() + \".ReturnValue.Text:_original.._value\", patterns);
+  PanelOff();
+}" 0
+ E E E
+13 6
+"PUSH_BUTTON2"
+""
+1 422 90 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 16 Delete selection
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  420 88 454 122
+
+P 
+4294967295
+"pictures/del_en.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+E E "main()
+{
+  dyn_int lines;
+  getValue(\"tblPreview\", \"getSelectedLines\", lines);
+  for (int i=1; i<=dynlen(lines); i++)
+  {
+    tblPreview.deleteLineN(lines[1]);
+  }
+
+
+}
+
+
+
+" 0
+ E
+2 7
+"PRIMITIVE_TEXT18"
+""
+1 12 7 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 12 7 74 21
+0 2 2 "0s" 0 0 0 192 0 0  12 7 1
+1
+LANG:1 25 Arial,8,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 12 Application:
+2 8
+"txApplication"
+""
+1 82 7 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 82 7 83 21
+0 2 2 "0s" 0 0 0 192 0 0  82 7 1
+1
+LANG:1 25 Arial,8,-1,5,75,0,0,0,0,0
+0 1
+LANG:1 0 
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

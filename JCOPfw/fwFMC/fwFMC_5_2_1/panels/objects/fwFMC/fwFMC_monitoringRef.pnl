@@ -1,0 +1,544 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 552 179 N "_3DFace" 1
+"$sDpName"
+"main(string moduleName, string panelName)
+{
+  if(!fwFMC_isEnabled())
+    return;
+
+  string node = fwFMC_getNodeName($sDpName);
+  dyn_string statusDps;
+  int update = 5;
+  dyn_int val;
+  
+  if(fwFMCMonitoring_exists(node)){
+    if(dpExists($sDpName + \"/Monitoring/Cpus.readings.total\")) 
+      dpConnect(\"showCpuCB\", $sDpName + \"/Monitoring/Cpus.readings.total\");
+    else 
+    {
+      tfTotalCpu.text = \"N/A\";
+    }
+    
+    if(dpExists($sDpName + \"/Monitoring/Memory.readings.MemTotal\"))
+      dpConnect(\"showMemoryCB\", $sDpName + \"/Monitoring/Memory.readings.MemTotal\",
+                                $sDpName + \"/Monitoring/Memory.readings.MemUsed\",
+                                $sDpName + \"/Monitoring/Memory.readings.MemFree\",
+                                $sDpName + \"/Monitoring/Memory.readings.SwapTotal\",
+                                $sDpName + \"/Monitoring/Memory.readings.SwapUsed\",
+                                $sDpName + \"/Monitoring/Memory.readings.SwapFree\");
+    else
+    {
+      tfTotalMemory.text = \"N/A\";
+      tfMemoryUsed.text = \"N/A\";
+      tfMemoryFree.text = \"N/A\";
+      tfTotalSwap.text = \"N/A\";
+      tfSwapUsed.text = \"N/A\";
+      tfSwapFree.text = \"N/A\";
+    }
+      
+    if(dpExists($sDpName + \"/Monitoring/RunLevel.readings.rl\"))
+      dpConnect(\"showRunLevelCB\", $sDpName + \"/Monitoring/RunLevel.readings.rl\");
+    else
+    {
+      tfRunLevel.text = \"N/A\";
+    }
+  }
+  
+ while(1)
+ {
+    statusDps = dpNames(fwFMCMonitoring_getDp(node) + \"/*.readings.success\");  
+    for(int i = 1; i <= dynlen(statusDps); i++)
+    {
+      dpGet(statusDps[i], val[i]);
+    }
+    
+    //DebugN(statusDps, val);
+    
+    if(dynlen(val) == dynSum(val))
+    {
+      ledMonitoringStatus.backCol = \"FwStateOKPhysics\";
+      txMonitoringStatus.text = \"OK\";
+    }
+    else
+    {      
+      ledMonitoringStatus.backCol = \"FwStateAttention3\";
+      txMonitoringStatus.text = \"ERROR\";
+    } 
+    delay(update); 
+ } 
+  
+} 
+
+void showCpuCB(string dp1, float cpuTotal)
+{
+    tfTotalCpu.text = floor(100.*cpuTotal)/100.;
+}
+
+
+void showMemoryCB(string dp2, int memTotal,
+                  string dp3, int memUsed,
+                  string dp4, int memFree,
+                  string dp5, int swapTotal,
+                  string dp6, int swapUsed,
+                  string dp7, int swapFree)
+{
+  tfTotalMemory.text = memTotal;
+  tfMemoryUsed.text = memUsed;
+  tfMemoryFree.text = memFree;
+  tfTotalSwap.text = swapTotal;
+  tfSwapUsed.text = swapUsed;
+  tfSwapFree.text = swapFree;
+}
+
+
+void showRunLevelCB(string dp8, int rl)
+{
+  tfRunLevel.text = rl;  
+}
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+"
+
+" 0
+ "#uses \"fwFMC/fwFMC.ctl\"
+    " 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 0
+"FRAME1"
+""
+1 10 223 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+1 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.1063829787234 0 0.675105485232067 -1.06382978723404 -140.548523206751 0 E 10 223 481 461
+1
+LANG:1 33 MS Shell Dlg,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Monitoring
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 29.23111969674886 114 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.973684210526316 0 1 0.526315789473691 32 1 E 22 52 132 72
+0 2 2 "0s" 0 0 0 64 0 0  22 52 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Total CPU:
+14 2
+"tfTotalCpu"
+""
+1 90 82 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  88 80 172 101
+3 "0s" 0 0 0 0 0 -1  E E E
+2 4
+"PRIMITIVE_TEXT2"
+""
+1 29.23111969674886 204 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.973684210526316 0 1 0.526315789473691 62 1 E 22 52 132 72
+0 2 2 "0s" 0 0 0 64 0 0  22 52 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Total Memory:
+14 5
+"tfTotalMemory"
+""
+1 90 112 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  88 110 172 131
+3 "0s" 0 0 0 0 0 -1  E E E
+2 6
+"PRIMITIVE_TEXT3"
+""
+1 496.7103440734804 204 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.973684210526316 0 1 160.526315789474 62 1 E 22 52 132 72
+0 2 2 "0s" 0 0 0 64 0 0  22 52 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Memory Used:
+14 7
+"tfMemoryUsed"
+""
+1 250 112 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  248 110 332 131
+3 "0s" 0 0 0 0 0 -1  E E E
+2 8
+"PRIMITIVE_TEXT4"
+""
+1 29.23111969674875 294 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.973684210526316 0 1 0.526315789473678 92 1 E 22 52 132 72
+0 2 2 "0s" 0 0 0 64 0 0  22 52 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Total Swap:
+14 9
+"tfTotalSwap"
+""
+1 90 142 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  88 140 172 161
+3 "0s" 0 0 0 0 0 -1  E E E
+2 10
+"PRIMITIVE_TEXT5"
+""
+1 496.7103440734804 294 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.973684210526316 0 1 160.526315789474 92 1 E 22 52 132 72
+0 2 2 "0s" 0 0 0 64 0 0  22 52 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Swap Used:
+14 11
+"tfSwapUsed"
+""
+1 250 142 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  248 140 332 161
+3 "0s" 0 0 0 0 0 -1  E E E
+2 12
+"PRIMITIVE_TEXT6"
+""
+1 964.1895684502123 204 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.973684210526316 0 1 320.526315789474 62 1 E 22 52 132 72
+0 2 2 "0s" 0 0 0 64 0 0  22 52 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Free:
+14 13
+"tfMemoryFree"
+""
+1 400 112 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  398 110 482 131
+3 "0s" 0 0 0 0 0 -1  E E E
+2 14
+"PRIMITIVE_TEXT7"
+""
+1 964.1895684502123 294 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.973684210526316 0 1 320.526315789474 92 1 E 22 52 132 72
+0 2 2 "0s" 0 0 0 64 0 0  22 52 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Swap Free:
+14 15
+"tfSwapFree"
+""
+1 400 142 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  398 140 482 161
+3 "0s" 0 0 0 0 0 -1  E E E
+2 16
+"PRIMITIVE_TEXT8"
+""
+1 958.499854206153 78 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.973684210526316 0 1 318.578947368421 20 1 E 22 52 132 72
+0 2 2 "0s" 0 0 0 64 0 0  22 52 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Run Level:
+14 17
+"tfRunLevel"
+""
+1 400 72 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  398 70 482 91
+3 "0s" 0 0 0 0 0 -1  E E E
+13 20
+"PUSH_BUTTON3"
+""
+1 180 82 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  178 80 212 104
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  ChildPanelOnCentral(\"fwFMC/fwFMC_cpuTrend.pnl\", \"Total CPU\", makeDynString(\"$sDpName:\"+ $sDpName));
+}" 0
+ E E E
+13 21
+"PUSH_BUTTON4"
+""
+1 490 122 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  488 120 522 144
+
+T 
+1
+LANG:1 3 ...
+"main()
+{
+  ChildPanelOnCentral(\"fwFMC/fwFMC_memoryTrend.pnl\", \"Memory\", makeDynString(\"$sDpName:\"+ $sDpName));
+}" 0
+ E E E
+7 22
+"ledMonitoringStatus"
+""
+1 111.237 49.1842 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.95 0 1.05291666666667 -4.175 -4.801875 1 E 115.5 52.5 9 9
+2 23
+"Text7"
+""
+1 39 43 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 32 43 88 59
+0 2 0 "0s" 0 0 0 64 0 0  32 43 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Status
+2 24
+"txMonitoringStatus"
+""
+1 39 43 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 127 43 183 59
+0 2 0 "0s" 0 0 0 64 0 0  127 43 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Status
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

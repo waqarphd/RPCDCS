@@ -1,0 +1,269 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 711 371 N "_3DFace" 1
+"$id"
+E E E E E 1 -1 -1 0  42 48
+""0  1
+E "#uses \"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation.ctl\"
+    
+updatePanel(string computerName)
+{
+
+  dyn_string projectNames;
+  bool onlyActive = true;
+  dyn_mixed projectInfo;
+  string mode = \"\";
+  dyn_int states;
+  string integrity = \"\";
+  string color = \"\";
+  int row = 0;
+  int id;
+    
+  if(fwInstallationDB_getPvssProjects(projectNames, computerName, onlyActive) != 0)
+    DebugN(\"Cannot access the DB. Please check the connection...\");
+  else{
+    tblProjects.deleteAllLines();
+    for(int i = 1; i <= dynlen(projectNames); i++){
+      fwInstallationDB_getProjectProperties(projectNames[i], computerName, projectInfo, id);
+      if(projectInfo[FW_INSTALLATION_DB_PROJECT_CENTRALLY_MANAGED] == 1)
+        mode = \"Central\";
+      else
+        mode = \"Local\";
+      
+      states = makeDynString(projectInfo[FW_INSTALLATION_DB_PROJECT_PROJECT_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_PVSS_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_HOST_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_PATH_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_MANAGER_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_GROUP_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_COMPONENT_OK], projectInfo[FW_INSTALLATION_DB_PROJECT_EXT_PROCESS_OK]);
+      
+      if(dynSum(states) == dynlen(states))
+      {
+        integrity = \"OK\";
+        color = \"green\";
+      }
+      else
+      {
+        integrity = \"NOT OK\";
+        color = \"red\";
+      }
+      
+      setValue(\"tblProjects\", \"appendLine\", \"project\", projectInfo[FW_INSTALLATION_DB_PROJECT_NAME], \"mode\", mode, \"integrity\", integrity, \"time\", projectInfo[FW_INSTALLATION_DB_PROJECT_LAST_CHECK]);
+      setValue(\"tblProjects\", \"cellBackColRC\", row, \"integrity\", color);
+      ++row; 
+    }
+  }
+
+
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 1
+"PUSH_BUTTON1"
+""
+1 500 330 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 498 328 598 358
+
+T 
+1
+LANG:1 7 Add new
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  
+  string tagId = $id;
+  string hostname = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  string item = treeEditor.currentItem();
+  
+  ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_projectProperties.pnl\", \"Add a new project\", makeDynString(\"$hostname:\" + hostname), df, ds);
+  
+  if(dynlen(df) >0 && df[1] == 1.){
+    updatePanel(hostname);
+    fwConfigurationDBSystemInformation_refreshSetupTree();
+    treeEditor.ensureItemVisible(item);
+  }
+}" 0
+ E E E
+13 2
+"PUSH_BUTTON2"
+""
+1 602 330 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 600 328 700 358
+
+T 
+1
+LANG:1 10 Unregister
+E E "main()
+{
+  dyn_int lines;
+  string project;
+  string host;
+  string tagId = $id;
+  string computerName = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  string item = treeEditor.currentItem();
+  
+  getValue(\"tblProjects\",\"getSelectedLines\", lines);
+  for(int i = 1; i <= dynlen(lines); i++){
+    getValue(\"tblProjects\", \"cellValueRC\", lines[i], \"project\", project);
+    //DebugN(\"Unregistering project: \", project, computerName);
+    if(fwInstallationDB_unregisterProject(project, computerName) != 0){
+      ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", \"$1:Could not unregister project: \" + project + \"in computer: \"+ computerName +\" from DB\");  
+    }
+  }
+  updatePanel(computerName);
+  
+  fwConfigurationDBSystemInformation_refreshSetupTree();
+  treeEditor.ensureItemVisible(item);
+  
+}" 0
+ E
+25 0
+"tblProjects"
+""
+1 8 26 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  anytype line;
+  dyn_float df;
+  dyn_string ds;
+  string tagId = $id;
+  string hostname = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  
+  getValue(\"\", \"getLineN\", row, line);
+  if(line[1] != \"\"){
+    ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_projectProperties.pnl\", \"Computer Info\", makeDynString(\"$project:\" + line[1], \"$hostname:\" + hostname), df, ds);
+  }    
+}" 0
+
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+ 6 24 702 328
+"main()
+{
+  string tagId = $id;
+  string computerName = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  
+  while(1)
+  {
+    updatePanel(computerName);
+    delay(30);
+  }
+}" 0
+E 1 0 1 4 0 "project" 28 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 20 Double-click to edit
+
+264 "mode" 13 1 0 "s" 1
+LANG:1 15 Management Mode
+E
+1
+LANG:1 20 Double-click to edit
+
+128 "integrity" 13 1 0 "s" 1
+LANG:1 19 PVSS-DB Consistency
+E
+1
+LANG:1 20 Double-click to edit
+
+128 "time" 16 1 0 "s" 1
+LANG:1 13 Last check at
+E
+1
+LANG:1 20 Double-click to edit
+
+153 
+16 16 10 10
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+0 2 1 1 7
+1 0
+2 3
+"PRIMITIVE_TEXT1"
+""
+1 20 340 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 340 320 360
+0 2 2 "0s" 0 0 0 64 0 0  20 340 1
+1
+LANG:1 98 -*-MS Shell Dlg-*-r-normal-*-11-*-100-100-*-*-iso8859-1|-11,0,0,0,505,0,0,0,0,0,0,0,0,MS Shell Dlg
+0 ""
+1
+LANG:1 30 Values are updated every 30 s.
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

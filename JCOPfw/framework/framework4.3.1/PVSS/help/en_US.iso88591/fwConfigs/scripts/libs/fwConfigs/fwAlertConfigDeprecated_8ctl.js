@@ -1,0 +1,27 @@
+var fwAlertConfigDeprecated_8ctl =
+[
+    [ "fwAlertConfig_createAnalog", "fwAlertConfigDeprecated_8ctl.html#a77e0a779f6f90976d582df4401596f63", null ],
+    [ "fwAlertConfig_createDigital", "fwAlertConfigDeprecated_8ctl.html#acccb9808361a58c51432361976cda423", null ],
+    [ "fwAlertConfig_createSummary", "fwAlertConfigDeprecated_8ctl.html#a6db96766a947be4aecff1c6127b3e7ec", null ],
+    [ "fwAlertConfig_deleteAnalog", "fwAlertConfigDeprecated_8ctl.html#a7762e7c7f03327f39fa617e0923f259f", null ],
+    [ "fwAlertConfig_deleteDigital", "fwAlertConfigDeprecated_8ctl.html#ab3de809efcba1081f6b0de27428599cb", null ],
+    [ "fwAlertConfig_deleteSummary", "fwAlertConfigDeprecated_8ctl.html#a548960f385024e4b43231f1b0c1abca4", null ],
+    [ "fwAlertConfig_get", "fwAlertConfigDeprecated_8ctl.html#a0a5732832fb8ea01ba7de9b201449221", null ],
+    [ "fwAlertConfig_getDiscrete", "fwAlertConfigDeprecated_8ctl.html#accdc8f8545b57a851c8fe4c1b8a6f7b0", null ],
+    [ "fwAlertConfig_getLimits", "fwAlertConfigDeprecated_8ctl.html#a6face8062c32f6850cd2fd02816ef70f", null ],
+    [ "fwAlertConfig_getMany", "fwAlertConfigDeprecated_8ctl.html#a5d54f167ef938f9c573d0724df6827ff", null ],
+    [ "fwAlertConfig_getSummary", "fwAlertConfigDeprecated_8ctl.html#afdf8154e4a8b19c5b4507cc78c63fafc", null ],
+    [ "fwAlertConfig_modifyAnalog", "fwAlertConfigDeprecated_8ctl.html#a26ea3d82da95f81f302626b9b7944f76", null ],
+    [ "fwAlertConfig_modifyDigital", "fwAlertConfigDeprecated_8ctl.html#a9bebadc1d73bc376d66126eff55462e5", null ],
+    [ "fwAlertConfig_modifySummary", "fwAlertConfigDeprecated_8ctl.html#ae7885b07b51a88b23bed73ed70ffe0b0", null ],
+    [ "fwAlertConfig_set", "fwAlertConfigDeprecated_8ctl.html#ab25b0ac3d7b5cbf042f83eb14918d96a", null ],
+    [ "fwAlertConfig_setAnalog", "fwAlertConfigDeprecated_8ctl.html#a0c538fa01981f4e45a2ab602b9c48907", null ],
+    [ "fwAlertConfig_setDigital", "fwAlertConfigDeprecated_8ctl.html#a509729b0a627ac4556b4d3c24bb2a0e3", null ],
+    [ "fwAlertConfig_setDiscrete", "fwAlertConfigDeprecated_8ctl.html#a53f5d4922f2ca552a04b55de7d78c3ca", null ],
+    [ "fwAlertConfig_setGeneral", "fwAlertConfigDeprecated_8ctl.html#ae40d8e5943bcc05f560ed8baedb9ff2e", null ],
+    [ "fwAlertConfig_setLimits", "fwAlertConfigDeprecated_8ctl.html#ad5e1bb14f6f50e22bdd7452e920f9475", null ],
+    [ "fwAlertConfig_setMany", "fwAlertConfigDeprecated_8ctl.html#afcc3a65cb646dc86296b957f269ffa95", null ],
+    [ "fwAlertConfig_setManyDiscrete", "fwAlertConfigDeprecated_8ctl.html#a75ab2c572a1e15ee1c846e14d248bbdd", null ],
+    [ "fwAlertConfig_setMultiple", "fwAlertConfigDeprecated_8ctl.html#ae7ef9d11eb1dbf1527db0dfc9fb4918b", null ],
+    [ "fwAlertConfig_setSummary", "fwAlertConfigDeprecated_8ctl.html#aebaa55c1c5dff47e486da28b405465ca", null ]
+];

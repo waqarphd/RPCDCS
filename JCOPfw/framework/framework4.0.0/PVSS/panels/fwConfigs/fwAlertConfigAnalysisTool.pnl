@@ -1,0 +1,1079 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 732 589 N "_3DFace" 0
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "mapping g_dataIndexes;
+dyn_dyn_string g_alertData;
+
+analyzeData(string systemName, dyn_dyn_string alertData)
+{
+  int binaryAlerts, analogAlerts, summaryAlerts, totalAlerts;
+  int twoRanges, threeRanges, fourRanges, fiveRanges, moreRanges, zeroRanges;
+  int none, cameNotAck, cameAck, wentNotAck, cameWentNotAck;
+  int summaryLists, summaryPatterns, active, position;
+  dyn_string systemsInTable;
+  
+  binaryAlerts  = dynCount(alertData[fwAlertConfig_ALERT_TYPE], DPCONFIG_ALERT_BINARYSIGNAL);
+  analogAlerts  = dynCount(alertData[fwAlertConfig_ALERT_TYPE], DPCONFIG_ALERT_NONBINARYSIGNAL);
+  summaryAlerts = dynCount(alertData[fwAlertConfig_ALERT_TYPE], DPCONFIG_SUM_ALERT);
+  totalAlerts   = dynlen(alertData[fwAlertConfig_ALERT_TYPE]);
+    
+  zeroRanges   = dynCount(alertData[fwAlertConfig_ALERT_RANGES], 0);
+  twoRanges   = dynCount(alertData[fwAlertConfig_ALERT_RANGES], 2);
+  threeRanges = dynCount(alertData[fwAlertConfig_ALERT_RANGES], 3);
+  fourRanges  = dynCount(alertData[fwAlertConfig_ALERT_RANGES], 4);
+  fiveRanges  = dynCount(alertData[fwAlertConfig_ALERT_RANGES], 5);
+  moreRanges  = analogAlerts - (twoRanges + threeRanges + fourRanges + fiveRanges + zeroRanges);
+    
+  none           = dynCount(alertData[fwAlertConfig_ALERT_STATE], DPATTR_ALERTSTATE_NONE);
+  cameNotAck     = dynCount(alertData[fwAlertConfig_ALERT_STATE], DPATTR_ALERTSTATE_APP_NOT_ACK);
+  cameAck        = dynCount(alertData[fwAlertConfig_ALERT_STATE], DPATTR_ALERTSTATE_APP_ACK);
+  wentNotAck     = dynCount(alertData[fwAlertConfig_ALERT_STATE], DPATTR_ALERTSTATE_DISAPP_NOT_ACK);
+  cameWentNotAck = dynCount(alertData[fwAlertConfig_ALERT_STATE], DPATTR_ALERTSTATE_APP_DISAPP_NOT_ACK);
+  
+  active          = dynCount(alertData[fwAlertConfig_ALERT_ACTIVE], TRUE);
+  summaryLists    = dynlen(dynPatternMatch(\"*?\", alertData[fwAlertConfig_ALERT_SUM_DP_LIST]));
+  summaryPatterns = dynlen(dynPatternMatch(\"*?\", alertData[fwAlertConfig_ALERT_SUM_DP_PATTERN]));
+
+  systemsInTable = analysisTable.getColumnN(0);
+  position = dynContains(systemsInTable, systemName);
+  if(position <= 0)
+    analysisTable.appendLine(\"systemName\", systemName, \"total\", totalAlerts, \"binary\", binaryAlerts,
+                            \"analog\", analogAlerts, \"summary\", summaryAlerts, \"active\", active,
+                            \"twoRanges\", twoRanges, \"threeRanges\", threeRanges, \"fourRanges\", fourRanges,
+                            \"fiveRanges\", fiveRanges, \"moreRanges\", moreRanges,
+                            \"summaryList\", summaryLists, \"summaryPattern\", summaryPatterns,
+                            \"came\", cameAck, \"cameAck\", cameNotAck, \"wentAck\", wentNotAck, \"cameWentAck\", cameWentNotAck);
+  else
+  {
+    analysisTable.cellValueRC(position - 1, \"total\", totalAlerts);
+    analysisTable.cellValueRC(position - 1, \"binary\", binaryAlerts);
+    analysisTable.cellValueRC(position - 1, \"analog\", analogAlerts);
+    analysisTable.cellValueRC(position - 1, \"summary\", summaryAlerts);
+    analysisTable.cellValueRC(position - 1, \"active\", active);
+    analysisTable.cellValueRC(position - 1, \"twoRanges\", twoRanges);
+    analysisTable.cellValueRC(position - 1, \"threeRanges\", threeRanges);
+    analysisTable.cellValueRC(position - 1, \"fourRanges\", fourRanges);
+    analysisTable.cellValueRC(position - 1, \"fiveRanges\", fiveRanges);
+    analysisTable.cellValueRC(position - 1, \"moreRanges\", moreRanges);
+    analysisTable.cellValueRC(position - 1, \"summaryList\", summaryLists);
+    analysisTable.cellValueRC(position - 1, \"summaryPattern\", summaryPatterns);
+    analysisTable.cellValueRC(position - 1, \"came\", cameAck);
+    analysisTable.cellValueRC(position - 1, \"cameAck\", cameNotAck);
+    analysisTable.cellValueRC(position - 1, \"wentAck\", wentNotAck);
+    analysisTable.cellValueRC(position - 1, \"cameWentAck\", cameWentNotAck);
+  }
+  
+//  DebugN(systemName, \"Total: \" + totalAlerts, \"Binary: \" + binaryAlerts, \"Analog: \" + analogAlerts, \"Summary: \" + summaryAlerts);
+//  DebugN(\"Active: \" + active, \"Summary with lists: \" + summaryLists, \"Summary with patterns: \" + summaryPatterns);
+//  DebugN(\"Not in alert: \" + none, \"CAME (needing ack): \" + cameNotAck, \"CAME: \" + cameAck, \"WENT (needing ack): \" + wentNotAck, \"CAME/WENT (needing ack): \" + cameWentNotAck);
+}
+
+storeData(string systemName, dyn_dyn_string alertData)
+{
+  int length;
+  
+  length = dynlen(g_alertData);
+  if(length == 0)
+  {
+    g_alertData[fwAlertConfig_ALERT_DP_NAME] = makeDynString();
+    g_alertData[fwAlertConfig_ALERT_TYPE] = makeDynString();
+    g_alertData[fwAlertConfig_ALERT_ACTIVE] = makeDynString();
+    g_alertData[fwAlertConfig_ALERT_STATE] = makeDynString();
+    g_alertData[fwAlertConfig_ALERT_RANGES] = makeDynString();
+    g_alertData[fwAlertConfig_ALERT_SUM_DP_LIST] = makeDynString();
+    g_alertData[fwAlertConfig_ALERT_SUM_DP_PATTERN] = makeDynString();
+  }
+
+  length = dynlen(g_alertData[fwAlertConfig_ALERT_DP_NAME]);
+  g_dataIndexes[systemName] = length + 1;
+  
+  for(int i=1; i<=dynlen(alertData[fwAlertConfig_ALERT_DP_NAME]); i++)
+  {
+    g_alertData[fwAlertConfig_ALERT_DP_NAME][length + i]         = alertData[fwAlertConfig_ALERT_DP_NAME][i];
+    g_alertData[fwAlertConfig_ALERT_TYPE][length + i]            = alertData[fwAlertConfig_ALERT_TYPE][i];
+    g_alertData[fwAlertConfig_ALERT_ACTIVE][length + i]          = alertData[fwAlertConfig_ALERT_ACTIVE][i];
+    g_alertData[fwAlertConfig_ALERT_STATE][length + i]           = alertData[fwAlertConfig_ALERT_STATE][i];
+    g_alertData[fwAlertConfig_ALERT_RANGES][length + i]          = alertData[fwAlertConfig_ALERT_RANGES][i];
+    g_alertData[fwAlertConfig_ALERT_SUM_DP_LIST][length + i]     = alertData[fwAlertConfig_ALERT_SUM_DP_LIST][i];
+    g_alertData[fwAlertConfig_ALERT_SUM_DP_PATTERN][length + i]  = alertData[fwAlertConfig_ALERT_SUM_DP_PATTERN][i];
+  }
+}
+
+showDetail(int row)
+{
+  string colName;
+  dyn_string rowInfo;
+  
+  rowInfo = analysisTable.getLineN(row);
+  for(int i=1; i<=dynlen(rowInfo); i++)
+  {
+    colName = analysisTable.columnName(i-1);
+    if(shapeExists(colName + \"Text\"))
+      setValue(colName + \"Text\", \"text\", rowInfo[i]); 
+  }  
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"title"
+""
+1 21 26 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 12 286 35
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 33 Alert Configuration Analysis Tool
+25 5
+"systemsTable"
+""
+1 10 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 78 131 262
+"main()
+{
+  dyn_uint ids;
+  dyn_string names;
+  
+  getSystemNames(names, ids);
+  systemsTable.selectByClick(TABLE_SELECT_LINE);
+  systemsTable.tableMode(TABLE_SELECT_MULTIPLE);
+  systemsTable.deleteAllLines();
+  systemsTable.appendLines(dynlen(names), \"systemName\", names);
+}" 0
+E 0 0 1 1 0 "systemName" 8 1 0 "s" 1
+LANG:1 6 System
+E
+1
+LANG:1 0 
+
+100 
+16 16 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 0 7
+1 0
+13 6
+"analyze"
+""
+1 10 270 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 8 268 132 302
+
+T 
+1
+LANG:1 16 Analyze and View
+"main()
+{
+  dyn_int lines;
+  dyn_dyn_string systemData;
+  dyn_string exceptionInfo;
+    
+  fwOpenProgressBar(\"Analysing systems\", \"Starting...\", 2);
+
+  lines = systemsTable.getSelectedLines();
+  for(int i=1; i<=dynlen(lines); i++)
+  {
+    string systemName;
+    
+    systemName = systemsTable.cellValueRC(lines[i], \"systemName\");    
+    fwShowProgressBar(\"Checking system \" + systemName, (i-0.5)*100/dynlen(lines));
+    delay(0,200);
+    fwAlertConfig_queryAlertsOnSystem(systemName, systemData, exceptionInfo);
+    if(dynlen(exceptionInfo)>0)
+    {
+      fwExceptionHandling_display(exceptionInfo);
+      continue;
+    }
+
+    analyzeData(systemName, systemData);
+//    storeData(systemName, systemData);
+  }
+
+  lines = systemsTable.getSelectedLines();
+  if(dynlen(lines) > 0)
+    showDetail(lines[1]);
+  
+  fwCloseProgressBar(\"Analysis Complete\");
+}" 0
+ E E E
+30 7
+"FRAME1"
+""
+1 140 43 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+10 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.497098646034816 0 21.6247582205029 0 E 140 43 721 561
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Analysis Overview
+2 10
+"PRIMITIVE_TEXT1"
+""
+1 10 50 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 12 52 119 69
+0 2 0 "0s" 0 0 0 192 0 0  12 52 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 17 Available Systems
+25 11
+"analysisTable"
+""
+1 150 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  string systemName;
+  
+  systemName = analysisTable.cellValueRC(row, \"systemName\");
+  
+  ChildPanelOnCentral(\"fwConfigs/fwAlertConfigAnalysisDetails.pnl\",
+      \"System Details\",
+      makeDynString(\"$sSystemName:\" + systemName));
+}" 0
+
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 148 68 702 282
+"main()
+{
+  analysisTable.selectByClick(TABLE_SELECT_LINE);
+  analysisTable.tableMode(TABLE_SELECT_BROWSE);
+}" 0
+"main(int row, string column, string value)
+{
+  showDetail(row);
+}" 0
+ 1 0 1 17 0 "systemName" 7 1 0 "s" 1
+LANG:1 6 System
+E
+1
+LANG:1 0 
+
+85 "total" 7 1 0 "s" 1
+LANG:1 12 Total Alerts
+E
+1
+LANG:1 0 
+
+90 "binary" 7 1 0 "s" 1
+LANG:1 12 Digital Type
+E
+1
+LANG:1 0 
+
+90 "analog" 7 1 0 "s" 1
+LANG:1 11 Analog Type
+E
+1
+LANG:1 0 
+
+90 "summary" 7 1 0 "s" 1
+LANG:1 9 Summaries
+E
+1
+LANG:1 0 
+
+90 "active" 6 1 0 "s" 1
+LANG:1 10 Activated?
+E
+1
+LANG:1 0 
+
+80 "cameAck" 0 0 0 "s" 1
+LANG:1 16 CAME (needs ack)
+E
+1
+LANG:1 0 
+
+0 "came" 0 0 0 "s" 1
+LANG:1 4 CAME
+E
+1
+LANG:1 0 
+
+0 "wentAck" 0 0 0 "s" 1
+LANG:1 16 WENT (needs ack)
+E
+1
+LANG:1 0 
+
+0 "cameWentAck" 0 0 0 "s" 1
+LANG:1 21 CAME/WENT (needs ack)
+E
+1
+LANG:1 0 
+
+0 "twoRanges" 6 0 0 "s" 1
+LANG:1 8 2 Ranges
+E
+1
+LANG:1 0 
+
+80 "threeRanges" 6 0 0 "s" 1
+LANG:1 8 3 Ranges
+E
+1
+LANG:1 0 
+
+80 "fourRanges" 6 0 0 "s" 1
+LANG:1 8 4 Ranges
+E
+1
+LANG:1 0 
+
+80 "fiveRanges" 6 0 0 "s" 1
+LANG:1 8 5 Ranges
+E
+1
+LANG:1 0 
+
+80 "moreRanges" 0 0 0 "s" 1
+LANG:1 9 >5 Ranges
+E
+1
+LANG:1 0 
+
+0 "summaryList" 6 0 0 "s" 1
+LANG:1 13 Summary Lists
+E
+1
+LANG:1 0 
+
+80 "summaryPattern" 6 0 0 "s" 1
+LANG:1 15 Summary Pattern
+E
+1
+LANG:1 0 
+
+80 
+18 18 10 10
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+30 12
+"FRAME2"
+""
+1 140 43 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+20 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 0.425531914893617 0 301.702127659574 0 E 140 43 721 561
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 System Details
+14 14
+"cameAckText"
+""
+1 423.616885702907 417 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 280 380 373.876543209877 407
+2 "0s" 0 0 0 0 0 -1  E E E
+2 15
+"PRIMITIVE_TEXT2"
+""
+1 1443 613 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 172 385 260 402
+0 2 2 "0s" 0 0 0 192 0 0  172 385 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Current States:
+14 16
+"cameText"
+""
+1 518.054590570719 417 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 390 380 474 407
+2 "0s" 0 0 0 0 0 -1  E E E
+14 17
+"wentAckText"
+""
+1 618.054590570719 417 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 490 380 574 407
+2 "0s" 0 0 0 0 0 -1  E E E
+14 18
+"cameWentAckText"
+""
+1 718.054590570719 417 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 590 380 674 407
+2 "0s" 0 0 0 0 0 -1  E E E
+2 20
+"PRIMITIVE_TEXT4"
+""
+1 327 342 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 291 342 363 378
+0 2 2 "0s" 0 0 0 193 0 0  327 342 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 CAME
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 (needs ack.)
+2 21
+"PRIMITIVE_TEXT5"
+""
+1 432 342 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 407 342 457 378
+0 2 2 "0s" 0 0 0 193 0 0  432 342 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 CAME
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 (no ack.)
+2 22
+"PRIMITIVE_TEXT6"
+""
+1 532 342 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 496 342 568 378
+0 2 2 "0s" 0 0 0 193 0 0  532 342 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 4 WENT
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 (needs ack.)
+2 23
+"PRIMITIVE_TEXT7"
+""
+1 632 342 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 592 342 672 378
+0 2 2 "0s" 0 0 0 193 0 0  632 342 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 CAME/WENT
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 (needs ack.)
+2 24
+"PRIMITIVE_TEXT8"
+""
+1 1443 675 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 172 447 254 464
+0 2 2 "0s" 0 0 0 192 0 0  172 447 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 14 Analog Alerts:
+14 25
+"twoRangesText"
+""
+1 392.146466657817 477 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 280 440 353.903978052126 467
+2 "0s" 0 0 0 0 0 -1  E E E
+14 26
+"threeRangesText"
+""
+1 472.29776674938 477 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 360 440 434 467
+2 "0s" 0 0 0 0 0 -1  E E E
+14 27
+"fourRangesText"
+""
+1 552.29776674938 477 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 440 440 514 467
+2 "0s" 0 0 0 0 0 -1  E E E
+14 28
+"fiveRangesText"
+""
+1 632.29776674938 477 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+51 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 520 440 594 467
+2 "0s" 0 0 0 0 0 -1  E E E
+14 29
+"moreRangesText"
+""
+1 712.29776674938 477 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 600 440 674 467
+2 "0s" 0 0 0 0 0 -1  E E E
+2 30
+"PRIMITIVE_TEXT9"
+""
+1 312 422 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 285 422 339 458
+0 2 2 "0s" 0 0 0 193 0 0  312 422 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 2 Ranges
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 31
+"PRIMITIVE_TEXT10"
+""
+1 392 422 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 365 422 419 458
+0 2 2 "0s" 0 0 0 193 0 0  392 422 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 3 Ranges
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 32
+"PRIMITIVE_TEXT11"
+""
+1 471 424 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 444 424 498 460
+0 2 2 "0s" 0 0 0 193 0 0  471 424 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 4 Ranges
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 33
+"PRIMITIVE_TEXT12"
+""
+1 551 424 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 524 424 578 460
+0 2 2 "0s" 0 0 0 193 0 0  551 424 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 8 5 Ranges
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 34
+"PRIMITIVE_TEXT13"
+""
+1 631 424 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 600 424 662 460
+0 2 2 "0s" 0 0 0 193 0 0  631 424 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 9 >5 Ranges
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 35
+"PRIMITIVE_TEXT14"
+""
+1 1443 735 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 172 507 270 524
+0 2 2 "0s" 0 0 0 192 0 0  172 507 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 Summary Alerts:
+14 36
+"summaryListText"
+""
+1 423.616885702907 537 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 280 500 373.876543209877 527
+2 "0s" 0 0 0 0 0 -1  E E E
+14 37
+"summaryPatternText"
+""
+1 518.054590570719 537 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 390 500 474 527
+2 "0s" 0 0 0 0 0 -1  E E E
+2 38
+"PRIMITIVE_TEXT15"
+""
+1 322 482 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 287 482 357 518
+0 2 2 "0s" 0 0 0 193 0 0  322 482 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 With DP list
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+2 39
+"PRIMITIVE_TEXT16"
+""
+1 432 482 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 386 482 478 518
+0 2 2 "0s" 0 0 0 193 0 0  432 482 2
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 15 With DP pattern
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 0 
+13 40
+"PUSH_BUTTON2"
+""
+1 640 550 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 638 548 722 582
+
+T 
+1
+LANG:1 5 Close
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+13 42
+"PUSH_BUTTON4"
+""
+1 570 496 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 568 494 712 528
+
+T 
+1
+LANG:1 15 More details...
+"main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentral(\"fwConfigs/fwAlertConfigAnalysisDetails.pnl\",
+      \"System Details\",
+      makeDynString(\"$sSystemName:\" + systemNameText.text));
+}
+
+// SimpleCtrlScript {EP_childPanelOn}
+// Function {ChildPanelOnModule}
+// File {fwConfigs/fwAlertConfigAnalysisDetails.pnl}
+// Panel {System Details}
+// Parent {}
+// Module {this}
+// OffsetX {0}
+// OffsetY {0}
+// PanelPara1 {$sSystemName:system}
+// SimpleCtrlScriptEnd {EP_childPanelOn}
+" 0
+ E E E
+14 43
+"systemNameText"
+""
+1 311.616885702907 385 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 168 348 261.876543209877 375
+2 "0s" 0 0 0 0 0 -1  E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

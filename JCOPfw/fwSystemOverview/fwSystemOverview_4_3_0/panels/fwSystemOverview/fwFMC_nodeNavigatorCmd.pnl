@@ -1,0 +1,352 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 502 81 N "_3DFace" 0
+"main()
+{
+  
+  sys = fwSysOverview_getFmcSystem(); 
+      
+  if(isFunctionDefined(\"fwFMC_getNodes\") && fwFMC_isEnabled())
+  {
+    fwFMC_getNodes(nodes, sys);
+    
+    if(dynlen(dpNames(sys + \"FMC/*/TaskManager.\")))
+    {
+      btHalt.enabled = true;
+      btReboot.enabled = true;
+    }
+    else
+    {
+      btHalt.enabled = false;
+      btReboot.enabled = false;
+    }
+  
+    //Check if hardware actions have to be enabled:
+    if(dynlen(dpNames(sys + \"FMC/*/Ipmi.\")))
+    {
+      btOn.enabled = true;
+      btOff.enabled = true;
+    }
+    else
+    {
+      btOn.enabled = false;
+      btOff.enabled = false;
+    }
+  }
+
+  else
+  {
+    btOn.enabled = false;
+    btOff.enabled = false;
+    btHalt.enabled = false;
+    btReboot.enabled = false;
+  }
+   
+}
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "//#uses \"fwFMC/fwFMC.ctl\"
+//#uses \"fwFMC/fwFMCTaskManager.ctl\"
+
+    
+dyn_string nodes;
+string ipmiDp;
+string sys;
+
+dyn_string getNodes()
+{
+  dyn_string selectedNodes;
+/*  
+  if(dpTypeName($sDpName) == \"FwFMCNode\")
+  {
+    if(isFunctionDefined(\"fwFMC_getNodeName\"))
+      selectedNodes = makeDynString(fwFMC_getNodeName($sDpName));
+  }
+  
+  else
+  {
+*/  
+    dyn_int lines;
+  
+    lines = tblNodes.getSelectedLines();
+    if(dynlen(lines) <= 0)
+      return makeDynString();
+    
+    for(int i = 1; i <= dynlen(lines); i++)
+      getValue(\"tblNodes\", \"cellValueRC\", lines[i], \"node\", selectedNodes[i]);
+//  }  
+  
+  return selectedNodes;  
+}  
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+13 0
+"btHalt"
+""
+1 250 30 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  248 28 340 58
+
+T 
+1
+LANG:1 4 Halt
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  int error;
+  
+  nodes = getNodes();
+  
+  if(isFunctionDefined(\"fwFMCTaskManager_haltNode\"))
+  {
+    ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", \"Confirmation required\", makeDynString(\"Are you sure you want to halt this/these computer?\", \"Yes\", \"Cancel\"), df, ds);
+    if(dynlen(df) && df[1] > 0.)
+    {
+      openProgressBar(\"Halting selected nodes\", \"config_site_24.bmp\", \"Halting...\", \"Proceeding with first node\", \"Please wait!\", 2);
+      for(int i = 1; i <= dynlen(nodes); i++)
+      {
+        showProgressBar(\"\", \"\", \"Halting node: \" + nodes[i], i/dynlen(nodes)*100.);
+        error += fwFMCTaskManager_haltNode(nodes[i], sys);
+      } 
+      closeProgressBar();
+    }
+    if(error)
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors halting some nodes\", \"$2:Yes\", \"$3:No\"));
+  }
+  else
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR: FMC not Installed.\", makeDynString(\"FMC component is not installed\"));
+}" 0
+ E E E
+30 1
+"Frame1"
+""
+1 20 180 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+3 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.952327753190192 0 0.719101123595506 215.025608431615 -64.71910112359549 0 E 20 90 290 180
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Software command
+30 2
+"Frame2"
+""
+1 310 180 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+5 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.7947664493348891 0 0.741573033707865 -236.377599293816 -66.74157303370789 0 E 310 90 580 180
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Hardware command
+13 3
+"btOff"
+""
+1 33.3059244325231 29.9999999999999 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  31 28 123 58
+
+T 
+1
+LANG:1 3 OFF
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  dyn_int lines;
+  int error;  
+  
+  nodes = getNodes();
+
+  if(isFunctionDefined(\"fwFMCIpmi_switchOff\"))
+  {
+    ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", \"Confirmation required\", makeDynString(\"Are you sure you want to switch off this/these computer?\", \"Yes\", \"Cancel\"), df, ds);
+    if(dynlen(df) && df[1] > 0.)
+    {
+      openProgressBar(\"Switch off selected nodes\", \"config_site_24.bmp\", \"Switching off...\", \"Proceeding with first node\", \"Please wait!\", 2);
+      for(int i = 1; i <= dynlen(nodes); i++)
+      {
+          showProgressBar(\"\", \"\", \"Switching off node: \" + nodes[i], i/dynlen(nodes)*100.);
+          error += fwFMCIpmi_switchOff(nodes[i], sys);
+        }
+      closeProgressBar();
+    }
+    if(error)
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors switching off some nodes\", \"$2:Yes\", \"$3:No\"));
+  }
+  else
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR: FMC component is not Installed.\", makeDynString(\"FMC component is not installed.\"));
+}
+    " 0
+ E E E
+13 4
+"btOn"
+""
+1 128.795408180133 29.9999999999999 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  127 28 219 58
+
+T 
+1
+LANG:1 2 ON
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  dyn_int lines;
+  int error;
+  
+  nodes = getNodes();
+  
+  if(isFunctionDefined(\"fwFMCIpmi_switchOn\"))
+  {
+    ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", \"Confirmation required\", makeDynString(\"Are you sure you want to switch on this computer?\", \"Yes\", \"Cancel\"), df, ds);
+    if(dynlen(df) && df[1] > 0.)
+    {
+      openProgressBar(\"Switch on selected nodes\", \"config_site_24.bmp\", \"Switching on...\", \"Proceeding with first node\", \"Please wait!\", 2);
+      for(int i = 1; i <= dynlen(nodes); i++)
+      {
+         showProgressBar(\"\", \"\", \"Switching on node: \" + nodes[i], i/dynlen(nodes)*100.);      
+         error += fwFMCIpmi_switchOn(nodes[i], sys);
+       }
+      closeProgressBar();
+    }
+    if(error)
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors switching on some nodes\", \"$2:Yes\", \"$3:No\"));
+  }
+  else
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR: FMC not installed.\", makeDynString(\"FMC component is not installed\"));
+}" 0
+ E E E
+13 5
+"btReboot"
+""
+1 350 30 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  348 28 440 58
+
+T 
+1
+LANG:1 6 Reboot
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  dyn_int lines;
+  int error;
+  
+  nodes = getNodes();
+  
+  if(isFunctionDefined(\"fwFMCTaskManager_rebootNode\"))
+  {
+    ChildPanelOnCentralModalReturn(\"vision/MessageWarning2\", \"Confirmation required\", makeDynString(\"Are you sure you want to reboot this computer?\", \"Yes\", \"Cancel\"), df, ds);
+    if(dynlen(df) && df[1] > 0.)
+    {
+      openProgressBar(\"Rebooting selected nodes\", \"config_site_24.bmp\", \"Rebooting...\", \"Proceeding with first node\", \"Please wait!\", 2);
+      for(int i = 1; i <= dynlen(nodes); i++)
+      {
+        showProgressBar(\"\", \"\", \"Rebooting node: \" + nodes[i], i/dynlen(nodes)*100.);      
+        error += fwFMCTaskManager_rebootNode(nodes[i], sys);
+      }
+      closeProgressBar();
+    }
+    if(error)
+      ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors rebooting some nodes\", \"$2:Yes\", \"$3:No\"));
+  }
+  else
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR: FMC not Installed.\", makeDynString(\"FMC component is not installed\"));
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

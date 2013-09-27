@@ -1,0 +1,1791 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 819 768 N "_3DFace" 3
+"$computer"
+"$id"
+"$project"
+"main()
+{ 
+  computerName = strtoupper($computer);
+  project = $project;
+
+  fwInstallationDB_connect();  
+  
+  /*
+  string tagId = $id;
+  string computerId = treeEditor.parent(tagId);
+  computerName = treeEditor.getText(computerId, FW_INST_TAG_COL);
+  project = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  */
+  
+  if(isFunctionDefined(\"fwAccessControl_setupPanel\"))
+  {
+    //Access Control:
+    dyn_string ex;
+    fwAccessControl_setupPanel(\"applyProjectAcCB\", ex);
+    if(dynlen(ex))
+      fwExceptionHandling_display(ex);
+  }
+  
+  while(1)
+  {
+    if(cbAutoRefresh.state(0))
+      updatePanel(project, computerName);
+    
+    delay(10);
+  }
+}
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  42 48
+""0  1
+E "#uses \"fwSystemOverview/fwSystemOverview.ctl\"
+string project;
+string computerName;
+
+void applyProjectAcCB(string s1, string s2)
+ {
+  dyn_string exceptionInfo;
+  bool hasExpertPrivilege=FALSE;
+  if (!fwInstallation_checkInstalledComponent(\"fwSystemOverview\"))
+  {
+    string domain;
+    string projectDp;
+    fwSysOverview_getProjectDp(computerName, project, projectDp, exceptionInfo);
+    if (projectDp == 0 || dynlen(exceptionInfo) > 0 || !dpExists(projectDp))
+    {
+      fwSysOverview_getACDomain(domain);
+    }
+    else
+      fwSysOverview_getACDomain(domain, projectDp);
+  
+    // at first, disable whatever was enabled to this moment
+    disableAllInProjectPanel();
+    if(domain == \"\") //AC not yet configured. Enable access 
+    {
+      hasExpertPrivilege = true;
+    }
+    else
+    {
+      string expertPrivilege = fwSysOverview_getExpertPrivilege(2);
+      // check the current  privilege level 
+      if (expertPrivilege == \"\")
+      {
+        DebugN(\"No expert privilege defined!\");
+        return;
+      }
+      fwAccessControl_isGranted(domain + \":\" +expertPrivilege, hasExpertPrivilege, exceptionInfo);
+    
+  
+      // check and handle exceptions that might have been thrown by the function above
+      if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;};
+    }
+  }
+  else
+    hasExpertPrivilege = true;
+  
+  // enable UI elements, depending on the access rights:
+  if (hasExpertPrivilege)
+  {
+    btnAdopt.enabled = true;
+    btnReinstalls.enabled = true;
+    btnSetMode.enabled = true;
+    BT_clearLogs.enabled = true;
+  }
+}
+
+void disableAllInProjectPanel()
+{
+  btnAdopt.enabled = false;
+  btnReinstalls.enabled = false;
+  btnSetMode.enabled = false;
+  BT_clearLogs.enabled = false;
+}
+
+updatePanel(string project, string computerName)
+{
+  dyn_string groups;
+  dyn_int groupsIds;
+  dyn_dyn_mixed reqComponents;
+  dyn_dyn_mixed instComponents;
+  dyn_mixed projectInfo;
+  bool summaryStatus = true, summaryDependencies = true, summaryPostInstalls = false;
+  dyn_string reqComponentsNames, reqComponentsVersions;
+  dyn_string instComponentsNames, instComponentsVersions;
+  int row = 0;
+  
+  dyn_dyn_mixed reinstallationsInfo;
+  
+  bool onlyActive = true;
+  int id;
+  string reinstall, overwrite, restart;
+  
+  string temp;
+  
+  dynClear(reqComponentsNames);
+  dynClear(reqComponentsVersions);
+  dynClear(instComponentsNames);
+  dynClear(instComponentsVersions);
+  
+  tblProjectGroups.deleteAllLines();
+  tblReqComponents.deleteAllLines();
+  tblInstComponents.deleteAllLines();
+  
+  if(fwInstallationDB_getProjectGroups(groups, groupsIds, onlyActive, project, computerName) != 0)
+    DebugN(\"Cannot access the DB. Please check the connection...\");
+  else{
+     for(int i = 1; i <= dynlen(groups); i++){
+       setValue(\"tblProjectGroups\", \"appendLine\", \"group\", groups[i]); 
+    }
+  }
+  
+  fwInstallationDB_getProjectComponents(reqComponents, project, computerName);
+  fwInstallationDB_getCurrentProjectComponents(instComponents, project, computerName);
+
+  fwInstallationDB_getProjectPendingReinstallations(computerName, project, reinstallationsInfo);
+    
+  for(int i = 1; i <= dynlen(reqComponents); i++)
+  {
+    reinstall = \"\";
+    restart = \"\";
+    overwrite = \"\";
+    
+    for(int k = 1; k <= dynlen(reinstallationsInfo); k++)
+    {
+      if(reinstallationsInfo[k][FW_INSTALLATION_DB_REINSTALL_COMPONENT_NAME_IDX] == reqComponents[i][FW_INSTALLATION_DB_COMPONENT_NAME_IDX] &&
+         reinstallationsInfo[k][FW_INSTALLATION_DB_REINSTALL_COMPONENT_VERSION_IDX] == reqComponents[i][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX])
+      {
+        reinstall = \"PENDING\";
+        
+        if(reinstallationsInfo[k][FW_INSTALLATION_DB_REINSTALL_RESTART_PROJECT_IDX])
+          restart = \"YES\";
+        else
+          restart = \"NO\";
+        
+        if(reinstallationsInfo[k][FW_INSTALLATION_DB_REINSTALL_OVERWRITE_FILES_IDX])
+          overwrite = \"YES\";
+        else
+          overwrite = \"NO\";
+        
+        break;
+      }
+    }
+        
+    if(cbSubcomponents.state(0) == 0 && reqComponents[i][FW_INSTALLATION_DB_COMPONENT_SUBCOMP_IDX])
+      continue;
+
+    string name = reqComponents[i][FW_INSTALLATION_DB_COMPONENT_NAME_IDX];
+    if(reqComponents[i][FW_INSTALLATION_DB_COMPONENT_SUBCOMP_IDX])
+      name = \"_\" + name;
+    
+    setValue(\"tblReqComponents\", \"appendLine\", \"component\", name,
+                                               \"version\", reqComponents[i][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX],
+                                               \"subcomponent\", reqComponents[i][FW_INSTALLATION_DB_COMPONENT_SUBCOMP_IDX],
+                                               \"descFile\", reqComponents[i][FW_INSTALLATION_DB_COMPONENT_DESC_FILE_IDX],
+                                               \"reinstall\", reinstall,
+                                               \"restart\", restart,
+                                               \"overwrite\", overwrite); 
+    ++row;
+    bool found = false;
+    for(int j = 1; j <= dynlen(instComponents);  j++)
+      if(reqComponents[i][FW_INSTALLATION_DB_COMPONENT_NAME_IDX] == instComponents[j][FW_INSTALLATION_DB_COMPONENT_NAME_IDX] &&
+         reqComponents[i][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX] == instComponents[j][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX])
+      {
+        found = true;
+        break;
+      }
+    
+    if(!found)
+    {
+      setValue(\"tblReqComponents\", \"cellBackColRC\", row-1, \"component\", \"red\",
+                                   \"cellBackColRC\", row-1, \"version\",\"red\",
+                                   \"cellBackColRC\", row-1, \"subcomponent\", \"red\",
+                                   \"cellBackColRC\", row-1, \"descFile\", \"red\"); 
+    }
+  }
+  
+  //DebugN(\"panel: project current components: \", instComponents);
+  row = 0;
+  for(int i = 1; i <= dynlen(instComponents); i++)
+  {
+    if(cbSubcomponents.state(0) == 0 && instComponents[i][FW_INSTALLATION_DB_COMPONENT_SUBCOMP_IDX])
+      continue;
+    
+    string name = instComponents[i][FW_INSTALLATION_DB_COMPONENT_NAME_IDX];
+    if(instComponents[i][FW_INSTALLATION_DB_COMPONENT_SUBCOMP_IDX])
+      name = \"_\" + name;
+    
+    setValue(\"tblInstComponents\", \"appendLine\", \"component\", name,
+                                               \"version\", instComponents[i][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX],
+                                               \"subcomponent\", instComponents[i][FW_INSTALLATION_DB_COMPONENT_SUBCOMP_IDX],
+                                               \"descFile\", instComponents[i][FW_INSTALLATION_DB_COMPONENT_DESC_FILE_IDX],
+                                               \"pendingPostInstalls\", instComponents[i][FW_INSTALLATION_DB_COMPONENT_PENDING_POSTINSTALLS_IDX]); 
+    ++row;
+
+
+    if(instComponents[i][FW_INSTALLATION_DB_COMPONENT_PENDING_POSTINSTALLS_IDX] != \"\")
+    {
+     setValue(\"tblInstComponents\", \"cellBackColRC\", row-1, \"component\", \"cyan\",
+                                    \"cellBackColRC\", row-1, \"version\", \"cyan\",
+                                    \"cellBackColRC\", row-1, \"subcomponent\", \"cyan\",
+                                    \"cellBackColRC\", row-1, \"descFile\", \"cyan\");
+     summaryPostInstalls = true;
+    } 
+    
+    
+    if(instComponents[i][FW_INSTALLATION_DB_COMPONENT_INSTALLATION_NOT_OK_IDX] == \"1\")
+    {
+      setValue(\"tblInstComponents\", \"cellBackColRC\", row-1, \"component\", \"STD_value_light\",
+                                    \"cellBackColRC\", row-1, \"version\", \"STD_value_light\",
+                                    \"cellBackColRC\", row-1, \"subcomponent\", \"STD_value_light\",
+                                    \"cellBackColRC\", row-1, \"descFile\", \"STD_value_light\");
+      summaryStatus = false;
+    }
+                                    
+    if(instComponents[i][FW_INSTALLATION_DB_COMPONENT_DEPENDENCIES_OK_IDX] == \"0\")
+    {
+      setValue(\"tblInstComponents\", \"cellBackColRC\", row-1, \"component\", \"STD_dp_not_existing\",
+                                    \"cellBackColRC\", row-1, \"version\", \"STD_dp_not_existing\",
+                                    \"cellBackColRC\", row-1, \"subcomponent\", \"STD_dp_not_existing\",
+                                    \"cellBackColRC\", row-1, \"descFile\", \"STD_dp_not_existing\");
+      summaryDependencies = false;
+    }
+    
+    bool found = false;
+    //DebugN(reqComponents);
+    for(int j = 1; j <= dynlen(reqComponents);  j++)
+    {
+      if(reqComponents[j][FW_INSTALLATION_DB_COMPONENT_NAME_IDX] == instComponents[i][FW_INSTALLATION_DB_COMPONENT_NAME_IDX] &&
+         reqComponents[j][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX] == instComponents[i][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX])
+      {
+        found = true;
+        break;
+      }
+    }
+    if(!found)
+    {
+//DebugN(\"inst component not found:\", name, i);      
+      setValue(\"tblInstComponents\", \"cellBackColRC\", row-1, \"component\", \"red\",
+                                    \"cellBackColRC\", row-1, \"version\", \"red\",
+                                    \"cellBackColRC\", row-1, \"subcomponent\", \"red\",
+                                    \"cellBackColRC\", row-1, \"descFile\", \"red\"); 
+    }
+  }
+    
+
+  if(fwInstallationDB_getProjectProperties(project, computerName, projectInfo, id) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"Could not retrieve project properties from DB\"));
+    return;
+  }
+    
+  if(projectInfo[FW_INSTALLATION_DB_PROJECT_CENTRALLY_MANAGED] == 1)
+  {
+    txMode.text = \"Central\";
+    btnAdopt.enabled = false;
+    btnSetMode.text = \"Set to Local\";
+  }
+  else
+  {
+    txMode.text = \"Local\";
+    btnAdopt.enabled = true;
+    btnSetMode.text = \"Set to Central\";
+  }
+
+  //Check that list of components are equal:
+  if(dynlen(reqComponents) != dynlen(instComponents))
+  {
+    //DebugN(\"Distinct length\");
+    txConsistency.text = \"PVSS-DB Consistency NOT OK\";
+    bdrConsistency.backCol = \"red\";
+//    return;
+  }
+  else
+  {
+    for(int i =1; i <= dynlen(reqComponents); i++)
+    {
+      dynAppend(reqComponentsNames, reqComponents[i][FW_INSTALLATION_DB_COMPONENT_NAME_IDX]);
+      dynAppend(reqComponentsVersions, reqComponents[i][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX]);
+      dynAppend(instComponentsNames, instComponents[i][FW_INSTALLATION_DB_COMPONENT_NAME_IDX]);
+      dynAppend(instComponentsVersions, instComponents[i][FW_INSTALLATION_DB_COMPONENT_VERSION_IDX]);
+    }
+    dynSortAsc(reqComponentsNames);
+    dynSortAsc(reqComponentsVersions);
+    dynSortAsc(instComponentsNames);
+    dynSortAsc(instComponentsVersions);
+
+    if(reqComponentsNames == instComponentsNames &&
+       reqComponentsVersions == instComponentsVersions)
+    {
+      string msg = \"PVSS-DB Contents in SYNC\";
+      string col = \"green\";
+      
+      txConsistency.text = msg;
+      bdrConsistency.backCol = col;
+    }
+    else
+    {
+      txConsistency.text = \"PVSS-DB Consistency NOT OK\";
+      bdrConsistency.backCol = \"red\";
+    }
+  }
+  
+  temp = getCurrentTime();
+  txLastCheck.text = \"Component consistency checked at \" + substr(temp, 2, strlen(temp)- 9);
+
+  if(summaryStatus)
+  {
+    bdrStatus.backCol = \"green\";
+    txStatus.text = \"All components are correctly installed\";
+  }
+  else
+  {
+    bdrStatus.backCol = \"red\";
+    txStatus.text = \"There are components incorrectly installed\";
+  }
+  
+  if(summaryDependencies)
+  {
+    bdrDependencies.backCol = \"green\";
+    txDependencies.text = \"All component dependencies are OK\";
+  }
+  else
+  {
+    bdrDependencies.backCol = \"red\";
+    txDependencies.text = \"Component dependencies are broken\";
+  }
+    
+  if(summaryPostInstalls)
+  {
+    bdrPostInstalls.backCol = \"red\";
+    txPostInstalls.text = \"Post-Installs Scripts pending of execution\";
+  }
+  else
+  {
+    bdrPostInstalls.backCol = \"green\";
+    txPostInstalls.text = \"No pending post-install scripts\";
+  }
+  
+  temp = getCurrentTime();
+  txLastCheck.text = \"Component consistency checked at \" + substr(temp, 2, strlen(temp)- 9);;
+  
+  updateLogs(project, computerName);
+}
+
+updateLogs(string project, string computerName) {
+  dyn_dyn_string logs;
+  if(fwInstallationDB_getInstallationLog(logs, project, computerName))
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Could not read the last installation log from the DB\"));  
+    return;    
+  }
+  
+  //Write the log now...
+  tblLog.deleteAllLines();
+  //DebugN(logs);
+  
+  int start = dynlen(logs) - SB_limitLog.text() + 1;
+  if(start <= 0)
+    start = 1;
+  
+  int n = 0;
+  dyn_string ts = makeDynString();
+  dyn_string severity = makeDynString();
+  dyn_string log_text = makeDynString();
+
+  
+  //temporary fix to cope with versions of installation tool and configdbsysteminfo out of sync 
+/*
+  DebugN(logs);  
+  for(int i=start ; i <= dynlen(logs) ; i++) {
+    dyn_string line = logs[i];  
+    dyn_string ds = strsplit(line[1], \"\\n\");
+    for(int j = 1; j <= dynlen(ds); j++)
+    {
+      dyn_string dss = strsplit(ds[j], \"@\");
+      if(dynlen(dss)> 2)
+      {
+        ++n;
+        dynAppend(ts, dss[1]);
+        dynAppend(severity, dss[2]);
+        dynAppend(log_text, dss[3]);
+      }
+    }
+  }
+*/  
+  dyn_int linesWithError;
+  dyn_int linesWithWarning;
+  
+  bool isCorrectVersion = fwInstallation_checkToolVersion(FW_SYS_STAT_REQUIRED_INSTALLATION_TOOL_VERSION) ;
+  for(int i=start ; i <= dynlen(logs) ; i++) {
+    dyn_string line = logs[i];  
+    if (!isCorrectVersion)// cope with versions of installation tool and configdbsysteminfo out of sync 
+    {
+      dyn_string ds = strsplit(line[1], \"\\n\");
+      for(int j = 1; j <= dynlen(ds); j++)
+      {
+        dyn_string dss = strsplit(ds[j], \"@\");
+        if(dynlen(dss)> 2)
+        {
+          ++n;
+          dynAppend(ts, dss[1]);
+          dynAppend(severity, dss[2]);
+          dynAppend(log_text, dss[3]);
+          if(patternMatch(\"*ERROR*\", dss[2]))
+          {
+            dynAppend( linesWithError, i);
+          }
+          else if(patternMatch(\"*WARNING*\", dss[2]))
+          {
+            dynAppend( linesWithWarning, i);
+          }
+        }
+      }
+    }
+    else
+    {
+      dynAppend(ts, line[1]);
+      dynAppend(severity, line[2]);
+      dynAppend(log_text, line[3]);
+      if(patternMatch(\"*ERROR*\", line[2]))
+      {
+        dynAppend( linesWithError, i);
+      }
+      else if(patternMatch(\"*WARNING*\", line[2]))
+      {
+        dynAppend( linesWithWarning, i);
+      }
+    }
+  }  
+  tblLog.appendLines(dynlen(ts), \"ts\", ts, \"severity\", severity, \"log\", log_text);
+  for(int i=start ; i <= dynlen(linesWithError) ; i++) 
+  {
+    tblLog.cellBackColRC(linesWithError[i], \"ts\", \"red\"); 
+    tblLog.cellBackColRC(linesWithError[i], \"severity\", \"red\"); 
+    tblLog.cellBackColRC(linesWithError[i], \"log\", \"red\"); 
+  }
+  
+  for(int i=start ; i <= dynlen(linesWithWarning) ; i++) 
+  {
+    tblLog.cellBackColRC(linesWithWarning[i], \"ts\", \"yellow\"); 
+    tblLog.cellBackColRC(linesWithWarning[i], \"severity\", \"yellow\"); 
+    tblLog.cellBackColRC(linesWithWarning[i], \"log\", \"yellow\"); 
+  } 
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"tblProjectGroups"
+""
+1 20 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{   
+}" 0
+
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 38 382 232
+"main()
+{
+  //string tagId = $id;
+  
+  this.tableMode(TABLE_SELECT_MULTIPLE);
+  this.selectByClick(TABLE_SELECT_LINE);
+  
+  //updatePanel(project, computerName);
+}" 0
+E 1 0 1 1 0 "group" 32 1 0 "s" 1
+LANG:1 33 Requested groups of FW Components
+E
+1
+LANG:1 20 Double-click to edit
+
+300 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+25 3
+"tblReqComponents"
+""
+1 20 260 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+}" 0
+
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 258 452 472
+E"main(int row, string column, string value)
+{
+  string overwrite;
+  string restart;
+  string reinstall;
+      
+  if(column == \"reinstall\")
+  {
+    if(value == \"\")
+    {
+      this.cellValueRC(row, column, \"YES\");
+      getMultiValue(\"\", \"cellValueRC\", row, \"overwrite\", overwrite,
+                    \"\", \"cellValueRC\", row, \"restart\", restart);
+      this.cellValueRC(row, column, \"YES\");
+      if(restart == \"\")
+        this.cellValueRC(row, \"restart\", \"NO\");
+        
+      if(overwrite == \"\")
+        this.cellValueRC(row, \"overwrite\", \"YES\");
+      
+    }
+    else
+    {
+      this.cellValueRC(row, column, \"\");
+      this.cellValueRC(row, \"overwrite\", \"\");
+      this.cellValueRC(row, \"restart\", \"\");
+    }
+  }
+  else if(column == \"overwrite\")
+  {
+      getValue(\"\", \"cellValueRC\", row, \"reinstall\", reinstall);
+      if(reinstall == \"YES\" || reinstall == \"PENDING\")
+        if(value == \"NO\")
+          this.cellValueRC(row, column, \"YES\");
+        else
+          this.cellValueRC(row, column, \"NO\");
+        
+  }
+  else if(column == \"restart\")
+  {
+      getValue(\"\", \"cellValueRC\", row, \"reinstall\", reinstall);
+      if(reinstall == \"YES\" || reinstall == \"PENDING\")
+        if(value == \"NO\")
+          this.cellValueRC(row, column, \"YES\");
+        else
+          this.cellValueRC(row, column, \"NO\");
+  }
+  
+}
+" 0
+ 1 0 1 7 0 "component" 15 1 0 "s" 1
+LANG:1 19 Requested Component
+E
+1
+LANG:1 20 Double-click to edit
+
+150 "version" 6 1 0 "s" 1
+LANG:1 7 Version
+E
+1
+LANG:1 20 Double-click to edit
+
+62 "reinstall" 5 1 0 "s" 1
+LANG:1 9 Reinstall
+E
+1
+LANG:1 20 Double-click to edit
+
+57 "restart" 6 1 0 "s" 1
+LANG:1 12 Restart Proj
+E
+1
+LANG:1 20 Double-click to edit
+
+64 "overwrite" 7 1 0 "s" 1
+LANG:1 15 Overwrite Files
+E
+1
+LANG:1 20 Double-click to edit
+
+76 "subcomponent" 4 0 0 "s" 1
+LANG:1 12 subcomponent
+E
+1
+LANG:1 20 Double-click to edit
+
+50 "descFile" 21 0 0 "s" 1
+LANG:1 16 Description File
+E
+1
+LANG:1 0 
+
+200 
+16 16 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+25 4
+"tblInstComponents"
+""
+1 510 260.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+  string scripts, component, version;
+  component = this.cellValueRC(row, \"component\");
+  version = this.cellValueRC(row, \"version\");
+  scripts = this.cellValueRC(row, \"pendingPostInstalls\");
+  
+  ChildPanelOnCentral(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_pendingPostInstalls.pnl\",
+                      \"Pending Post-Installation Scripts for \" + component + \" v.\" + version,
+                      makeDynString(\"$component:\" + component, \"$version:\" + version, \"$scripts:\" + scripts)); 
+  
+}
+
+" 0
+
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  508 258 792 472
+EE 1 0 1 5 0 "component" 20 1 0 "s" 1
+LANG:1 19 Installed Component
+E
+1
+LANG:1 57 Double-click to see the pending post-installation scripts
+
+190 "version" 6 1 0 "s" 1
+LANG:1 7 Version
+E
+1
+LANG:1 57 Double-click to see the pending post-installation scripts
+
+70 "pendingPostInstalls" 6 1 0 "s" 1
+LANG:1 20 Pending PostInstalls
+E
+1
+LANG:1 0 
+
+70 "subcomponent" 0 0 0 "s" 1
+LANG:1 12 subcomponent
+E
+1
+LANG:1 0 
+
+0 "descFile" 0 0 0 "s" 1
+LANG:1 16 Description File
+E
+1
+LANG:1 0 
+
+0 
+16 16 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+30 5
+"FRAME1"
+""
+1 10 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+8 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.11904761904762 0 0.915619389587076 -1.190476190476204 -1.903052064631987 0 E 10 13 431 571
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 62 Requested Configuration through the FW System Configuration DB
+30 6
+"FRAME2"
+""
+1 10 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+10 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.738095238095238 0 0.5026302915880072 492.6190476190476 233.4658062093559 0 E 10 13 431 571
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 29 Component currently installed
+2 10
+"txConsistency"
+""
+1 841.9523809523803 10.00000000000015 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 541.9523809523803 122.0000000000001 580 136
+0 2 2 "0s" 0 0 0 192 0 0  541.9523809523803 122.0000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 8 txStatus
+30 11
+"FRAME3"
+""
+1 440 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+15 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.738095238095238 0 0.8629441624365489 175.2380952380952 58.78172588832486 0 E 440 13 861 211
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 12 Summary Info
+2 13
+"PRIMITIVE_TEXT5"
+""
+1 580 88 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 520 90 615 104
+0 2 2 "0s" 0 0 0 192 0 0  520 90 1
+1
+LANG:1 32 MS Shell Dlg,8,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 16 Management Mode:
+2 14
+"txMode"
+""
+1 693 88 E E E 1 E 1 E N "_ETM" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 633 90 657 104
+0 2 2 "0s" 0 0 0 192 0 0  633 90 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 4 xxxx
+13 15
+"btnAdopt"
+""
+1 660 480 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  658 478 792 512
+
+T 
+1
+LANG:1 19 Adopt Configuration
+"main()
+{
+  dyn_float df;
+  dyn_string ds;
+  string group;
+  int error = 0;  
+//  string tagId = $id;
+
+  int groupId = -1;
+  bool registerGroup = false;
+     
+  ChildPanelOnCentralModalReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_messageInput.pnl\", \"Adopt configuration\", makeDynString(\"$1:Please enter a new component group name\", \"$2:OK\", \"$3:g\" + project), df, ds);  
+  
+  if(dynlen(df) <= 0 || df[1] < 1.)
+    return; //action aborted by user
+  
+  if(dynlen(ds) <= 0 || ds[1] == \"\" )
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"Invalid component group name. Action aborted.\"));
+    return;
+  }
+ 
+  string description = myPanelName() + \": Adopting project configuration. Computer:\" + computerName +\" Project: \" + project +\" Group:\"+ds[1];
+  fwConfigurationDBSystemInformation_logAction(description);
+  if(fwConfigurationDBSystemInformation_adoptProjectConfiguration(computerName, project, ds[1]))
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Project Configuration adopted with errors.\\nCheck log viewer for details.\")); 
+    return;
+  }
+  else
+  {
+    ChildPanelOnCentralModal(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Project Configuration successfully adopted.\")); 
+    updatePanel(project, computerName);
+//    txStatus.text = \"OK\";
+//    string temp = getCurrentTime();
+//    txLastCheck.text = \"Last consistency check was at \" + substr(temp, 0, strlen(temp)- 7);
+//    bdrStatus.backCol = \"green\";
+  }
+
+
+  return;
+}
+
+
+
+" 0
+ E E E
+2 17
+"txLastCheck"
+""
+1 500 210 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 540 210 599 224
+0 2 2 "0s" 0 0 0 192 0 0  540 210 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 11 txLastCheck
+6 18
+"RECTANGLE1"
+""
+1 20 580 E E E 1 E 1 E N "_Transparent" E N "advanceAlarmCamAckn" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.4 0 1 332 -50 1 E 20 580 120 590
+2 19
+"PRIMITIVE_TEXT6"
+""
+1 388 528 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 388 528 482 542
+0 2 2 "0s" 0 0 0 192 0 0  388 528 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 22 Incorrect installation
+6 20
+"RECTANGLE2"
+""
+1 20 580 E E E 1 E 1 E N "_Transparent" E N "STD_dp_not_existing" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.4 0 1 162 -50 1 E 20 580 120 590
+2 21
+"PRIMITIVE_TEXT7"
+""
+1 220 528 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 220 528 324 542
+0 2 2 "0s" 0 0 0 192 0 0  220 528 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Broken dependencies
+2 22
+"txMsg"
+""
+1 510 490 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 510 490 643 504
+0 2 2 "0s" 0 0 0 192 0 0  510 490 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 28 (Values refreshed every min)
+20 23
+"cbAutoRefresh"
+""
+1 510 470 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  508 468 592 492
+1
+T 
+1
+LANG:1 12 Auto refresh
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+  if(state)
+  {
+    txMsg.foreCol(\"black\");
+    txMsg.text = \"(Values are refreshed every min)\";
+  }
+    else
+  {
+    txMsg.foreCol(\"disturbanceCamWentUna\");
+    txMsg.text = \"(Autorefresh is disabled)\";
+  }
+}" 0
+13 24
+"btnReinstalls"
+""
+1 340 480 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  338 478 452 512
+
+T 
+1
+LANG:1 19 Register Reinstalls
+"main()
+{
+  int lines = tblReqComponents.lineCount();
+  dyn_string values;
+  
+  fwInstallationDB_unregisterProjectReinstallations(computerName, project);
+  
+  string description = myPanelName() +\" Registering reinstallations. Computer:\" + computerName + \" Project:\" + project;
+  for(int i = 1; i <= lines; i++)
+  {
+    dynClear(values);
+    values = tblReqComponents.getLineN(i-1);
+    
+    if(strtoupper(values[3]) == \"YES\" || strtoupper(values[3]) == \"PENDING\")
+    {
+      int restartProject = 0, overwriteFiles = 0;
+      
+      if(values[4] == \"YES\")
+        restartProject = 1;
+      
+      if(values[5] == \"YES\")
+        overwriteFiles = 1;
+      
+      string name = values[1];
+      if(patternMatch(\"_*\", name))
+        name = strltrim(name, \"_\");
+      description += \" Component: \" + name + \" Version: \" + values[2] + \" Restart:\"+restartProject;
+      fwConfigurationDBSystemInformation_logAction(description);
+      fwInstallationDB_registerReinstallation(computerName, project, name, values[2], values[7], restartProject, overwriteFiles);
+    }
+  }
+  
+  updatePanel(project, computerName);
+}
+
+
+    
+
+
+" 0
+ E E E
+1 99 0 "" 4
+0
+1 100 0 "" 6
+0
+1 101 0 "" 9
+0
+1 102 0 "" 10
+0
+1 103 0 "" 11
+0
+22 30
+"cbUpgrade"
+""
+1 602 733 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  600 731 764 755
+0
+
+"main()
+{
+  dyn_string versions, oss;
+  
+  
+  
+  fwInstallationDB_getPvssVersions(computerName, versions, oss);
+    
+  for(int i=1; i<=dynlen(versions); i++)
+  {
+    this.appendItem(versions[i] + \":\" + oss[i]);
+  }
+  
+  this.text = \"\";
+}" 0
+
+E
+E
+ 1 0
+2 31
+"PRIMITIVE_TEXT9"
+""
+1 500 736 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 500 736 595 750
+0 2 2 "0s" 0 0 0 192 0 0  500 736 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Upgrade project to:
+13 32
+"PUSH_BUTTON2"
+""
+1 772 733 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+38 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  770 731 804 755
+
+T 
+1
+LANG:1 3 Set
+"/*
+(bombo box should take values from DB, what registered version are set there)  
+  
+  -check if version field is empty, yes->return
+  -compare selected version with current one. If lower or equal -> return
+  -update database, colum 'upgrade'
+
+*/
+main()
+{
+  string upgradeToVersion = cbUpgrade.text;
+  
+  
+//  computerName = treeEditor.getText(computerId, FW_INST_TAG_COL);
+//  project = treeEditor.getText(tagId, FW_INST_TAG_COL);  
+  
+  if(upgradeToVersion == \"\")
+    return;
+  
+  dyn_string ds = strsplit(upgradeToVersion, \":\");
+  upgradeToVersion = ds[1];
+  
+//  if(upgradeToVersion <= current version)
+//    return;
+  
+  
+  
+  fwInstallationDB_setProjectUpgrade(project, computerName, upgradeToVersion);
+}
+
+
+int fwInstallationDB_setProjectUpgrade(string project, string computerName, string version)
+{
+  int project_id;
+  string sql;
+  
+  computerName = strtoupper(computerName);  
+  
+  if(fwInstallationDB_isProjectRegistered(project_id, project, computerName) != 0)
+  {
+    fwInstallation_throw(\"ERROR: fwUpgrade_setProjectUpgrade() -> Could not access the DB\");
+    return -1;
+  }
+  else if(project_id == -1)
+  {
+    fwInstallation_throw(\"ERROR: fwUpgrade_setProjectUpgrade() -> Project is not registered in the DB\");
+    return -1;
+  }
+  
+  dyn_mixed record;
+  
+  record[1] = version;
+  record[2] = project_id;
+
+  sql = \"UPDATE fw_sys_stat_pvss_project SET upgrade = :1 WHERE id = :2\";
+  
+  if(g_fwInstallationSqlDebug)
+   DebugN(sql);
+  
+  if(fwInstallationDB_execute(sql, record)) 
+  {
+    fwInstallation_throw(\"ERROR: fwUpgrade_setProjectUpgrade() -> Could not execute the following SQL: \" + sql); 
+    return -1;
+  }
+  return 0;
+}" 0
+ E E E
+13 38
+"btnSetMode"
+""
+1 680 80.00000000000014 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  678 78 802 112
+
+T 
+1
+LANG:1 12 Set to Local
+"main()
+{
+  dyn_string ds;
+  dyn_string df;
+  
+  string str = \"Local\";
+  int mode = 0;
+  
+ 
+  if(fwInstallationDB_getCentrallyManaged(project, computerName) == 0)
+  {
+    mode = 1;
+    str = \"Central\";
+  }
+  
+  ChildPanelOnCentralReturn(\"fwInstallation/fwInstallationDB_question.pnl\", \"Warning\", makeDynString(\"$txt:Setting project management mode to \"+ str + \".\\nAre you sure you want to proceed?\"), df, ds);
+  if(df[1] != 1.)
+    return;
+
+  string description = myPanelName() + \": Changing the management mode of a project. Project: \" + project + \" Computer: \" +  computerName + \" Mode: \" + str;
+  fwConfigurationDBSystemInformation_logAction(description);
+  
+  if(fwInstallationDB_setCentrallyManaged(mode, project, computerName) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:There were errors setting the project\\nmanagement mode to \" + str));
+  }
+  updatePanel(project, computerName);
+}
+
+
+
+
+
+" 0
+ E E E
+20 46
+"cbSubcomponents"
+""
+1 20 240 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+41 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  18 238 212 262
+1
+T 
+1
+LANG:1 19 Show sub-components
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+E"main(int button, int state)
+{
+  updatePanel(project, computerName);
+}" 0
+6 53
+"RECTANGLE3"
+""
+1 20 580 E E E 1 E 1 E N "_Transparent" E N "red" E E
+ E E
+42 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.4 0 1 492 -50 1 E 20 580 120 590
+2 54
+"PRIMITIVE_TEXT10"
+""
+1 548 528 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+43 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 548 528 661 542
+0 2 2 "0s" 0 0 0 192 0 0  548 528 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 22 Components not in sync
+2 56
+"txStatus"
+""
+1 842 32.00000000000004 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+45 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 542 144 580 158
+0 2 2 "0s" 0 0 0 192 0 0  542 144 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 8 txStatus
+2 58
+"txDependencies"
+""
+1 842 54.00000000000003 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 542 166 580 180
+0 2 2 "0s" 0 0 0 192 0 0  542 166 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 8 txStatus
+2 67
+"txPostInstalls"
+""
+1 842 76.99999999999999 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 542 189 580 203
+0 2 2 "0s" 0 0 0 192 0 0  542 189 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 8 txStatus
+30 68
+"FRAME4"
+""
+1 440 13 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+51 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.738095238095238 0 0.304568527918782 175.2380952380952 6.040609137055835 0 E 440 13 861 211
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 22 Remote DB-Agent Status
+6 72
+"RECTANGLE4"
+""
+1 20 580 E E E 1 E 1 E N "_Transparent" E N "cyan" E E
+ E E
+52 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.4 0 1 2 -50 1 E 20 580 120 590
+2 73
+"PRIMITIVE_TEXT11"
+""
+1 60 528 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+53 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 60 528 156 542
+0 2 2 "0s" 0 0 0 192 0 0  60 528 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Post-installs pending
+25 78
+"tblLog"
+""
+1 10.00000000000004 550.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  8 548 812 722
+EE 1 0 1 3 0 "ts" 17 1 0 "s" 1
+LANG:1 9 Timestamp
+E
+1
+LANG:1 0 
+
+145 "severity" 6 1 0 "s" 1
+LANG:1 8 Severity
+E
+1
+LANG:1 0 
+
+60 "log" 127 1 0 "s" 1
+LANG:1 21 Last Installation Log
+E
+1
+LANG:1 0 
+
+1024 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+2 85
+"PRIMITIVE_TEXT13"
+""
+1 12 735 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 12 735 122 751
+0 2 2 "0s" 0 0 0 192 0 0  12 735 1
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Limit log messages
+21 86
+"SB_limitLog"
+""
+1 132 731 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  130 729 184 757
+0
+
+E
+"main()
+{
+  string tagId = $id;
+  string computerId = treeEditor.parent(tagId);
+  computerName = treeEditor.getText(computerId, FW_INST_TAG_COL);
+  project = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  
+  updateLogs(project, computerName);
+}" 0
+
+E
+
+N 0 10000 10 20 1 1
+2 87
+"PRIMITIVE_TEXT14"
+""
+1 212 735 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 212 735 307 751
+0 2 2 "0s" 0 0 0 192 0 0  212 735 1
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Clear logs before
+13 88
+"BT_clearLogs"
+""
+1 442 730 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+62 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  440 728 494 757
+
+T 
+1
+LANG:1 5 Clear
+"main()
+{
+//  string tagId = $id;
+//  string computerId = treeEditor.parent(tagId);
+//  computerName = treeEditor.getText(computerId, FW_INST_TAG_COL);
+//  project = treeEditor.getText(tagId, FW_INST_TAG_COL);
+  
+  computerName = $computer;
+  project = $project;
+  
+  int hoursAgo;
+  switch(CB_clearLogsAgo.selectedPos()) {
+    case 1: // 1 hour ago
+      hoursAgo = 1;
+    break;
+    case 2: // 12 hours ago
+      hoursAgo = 12;
+    break;
+    case 3: // 1 day ago
+      hoursAgo = 24;
+    break;
+    case 4: // 3 days ago
+      hoursAgo = 72;
+    break;
+    default: // case 5 and other: All
+      hoursAgo = 0;
+  }
+  if(fwInstallationDB_deleteInstallationLog(hoursAgo, project, computerName))
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"ERROR\", makeDynString(\"$1:Could not delete logs from the DB\"));  
+    return;    
+  }
+  
+  updateLogs(project, computerName);
+}
+" 0
+ E E E
+22 89
+"CB_clearLogsAgo"
+""
+1 322 731 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 30 Sans Serif,9,-1,5,50,0,0,0,0,0
+0  320 729 434 757
+5
+1
+LANG:1 10 1 hour ago
+
+0
+1
+LANG:1 12 12 hours ago
+
+0
+1
+LANG:1 9 1 day ago
+
+0
+1
+LANG:1 10 3 days ago
+
+0
+1
+LANG:1 3 All
+
+0
+
+E
+E
+E
+ 0 0
+14 95
+"bdrConsistency"
+""
+1 510 120 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+64 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  508 118 532 141
+2 "0s" 0 0 0 0 0 -1  E E E
+14 96
+"bdrStatus"
+""
+1 510 142 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  508 140 532 163
+2 "0s" 0 0 0 0 0 -1  E E E
+14 97
+"bdrDependencies"
+""
+1 510 164 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  508 162 532 185
+2 "0s" 0 0 0 0 0 -1  E E E
+14 98
+"bdrPostInstalls"
+""
+1 510 187 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Arial,8,-1,5,50,0,0,0,0,0
+0  508 185 532 208
+2 "0s" 0 0 0 0 0 -1  E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "PANEL_REF1" -1
+"fwConfigurationDBSystemInformation\\fwConfigurationDBSystemInformation_remoteAgentStatus.pnl" 500 30 T 36 1 0 1 -18 -12
+2
+"$computer""$computer"
+"$project""$project"
+0

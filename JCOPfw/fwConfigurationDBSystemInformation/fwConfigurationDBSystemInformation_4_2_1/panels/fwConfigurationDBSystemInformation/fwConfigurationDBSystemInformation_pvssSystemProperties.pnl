@@ -1,0 +1,574 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 512 522 N "_3DFace" 2
+"$id"
+"$sys"
+"main()
+{
+  if(isDollarDefined(\"$sys\") && $sys != \"\")
+  {
+    systemName = $sys;
+//     string color = \"white\";
+//     frTitle.foreCol = color;
+//     txSystem.foreCol = color;
+//     txDataPort.foreCol = color;
+//     txEventPort.foreCol = color;
+//     txDistPort.foreCol = color;
+//     cbIsRedundant.foreCol = color;
+//     txReduPair.foreCol = color;
+//     txLinkedFrom.foreCol = color;
+//     txListDistPeers.foreCol = color;
+//     txLocalConnections.foreCol = color;
+//     color = \"unSynopticBackground\";
+//     txSystem.backCol = color;
+//     txDataPort.backCol = color;
+//     txEventPort.backCol = color;
+//     txDistPort.backCol = color;
+//     cbIsRedundant.backCol = color;
+//     txReduPair.backCol = color;
+//     txLinkedFrom.backCol = color;
+//     txListDistPeers.backCol = color;
+//     txLocalConnections.backCol = color;
+//     frTitle.backCol = color;
+   }
+  else
+  {
+    tagId = $id; 
+    systemName = treeEditor.getText(tagId, 0);
+  }
+
+   updatePanel();
+}
+
+
+
+
+
+
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "
+string tagId; 
+string systemName;    
+    
+int updatePanel()
+{
+  dyn_mixed systemInfo;
+  dyn_dyn_mixed allConnectedSystemsInfo;
+  dyn_dyn_mixed initiatedConnectionsSystemsInfo;
+  dyn_dyn_mixed projectsInfo;
+  
+  frTitle.text  = \"PVSS System: \" + systemName;  
+  
+  tblSystems.deleteAllLines();
+  tblProjects.deleteAllLines();
+  tblInitiatedConnections.deleteAllLines();
+  if(fwInstallationDB_getPvssSystemProperties(systemName, systemInfo) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Error\", makeDynString(\"$1:Could not read system properties from the DB.\\nPlease check connection parameters\"));
+    return -1;   
+  }
+//DebugN(systemInfo); 
+  tfSystemNumber.text = systemInfo[FW_INSTALLATION_DB_SYSTEM_NUMBER];
+  tfDataPort.text = systemInfo[FW_INSTALLATION_DB_SYSTEM_DATA_PORT];
+  tfEventPort.text = systemInfo[FW_INSTALLATION_DB_SYSTEM_EVENT_PORT];
+  tfDistPort.text = systemInfo[FW_INSTALLATION_DB_SYSTEM_DIST_PORT];
+  
+  //All system connectivity:
+  if(fwInstallationDB_getSystemConnectivity(systemName, allConnectedSystemsInfo) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Error\", makeDynString(\"$1:Could not retrieve the list of connected systems from DB\"));
+    return -1;   
+  }
+  
+  for(int i = 1; i <= dynlen(allConnectedSystemsInfo); i++){
+    setMultiValue(\"tblSystems\", \"appendLine\", \"name\", allConnectedSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME],
+                                              \"number\", allConnectedSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NUMBER]);
+  }
+  
+  //Initiated Connections
+  if(fwInstallationDB_getSystemConnectivity(systemName, initiatedConnectionsSystemsInfo, true) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Error\", makeDynString(\"$1:Could not retrieve the list of connected systems from DB\"));
+    return -1;   
+  }
+  
+  for(int i = 1; i <= dynlen(initiatedConnectionsSystemsInfo); i++){
+    setMultiValue(\"tblInitiatedConnections\", \"appendLine\", \"name\", initiatedConnectionsSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NAME],
+                                              \"number\", initiatedConnectionsSystemsInfo[i][FW_INSTALLATION_DB_SYSTEM_NUMBER]);
+  }
+  
+  //Associated projects:
+  if(fwInstallationDB_getSystemProjects(systemName, projectsInfo) != 0)
+  {
+    ChildPanelOnCentral(\"vision/MessageInfo1\", \"DB Error\", makeDynString(\"$1:Could not retrieve the list of projects linked to this system\"));
+    return -1;   
+  }
+  
+  for(int i = 1; i <= dynlen(projectsInfo); i++){
+    setMultiValue(\"tblProjects\", \"appendLine\", \"project\", projectsInfo[i][FW_INSTALLATION_DB_PROJECT_NAME], 
+                                               \"host\", projectsInfo[i][FW_INSTALLATION_DB_PROJECT_HOST]);
+  }
+  
+}
+
+
+
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 1
+"txSystem"
+""
+1 38 106 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 32 42 109 56
+0 2 2 "0s" 0 0 0 192 0 0  32 42 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 System Number:
+2 2
+"txDataPort"
+""
+1 36 100 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 32 66 80 80
+0 2 2 "0s" 0 0 0 192 0 0  32 66 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Data Port:
+2 3
+"txEventPort"
+""
+1 38 101 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 34 91 87 105
+0 2 2 "0s" 0 0 0 192 0 0  34 91 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Event Port:
+2 4
+"txDistPort"
+""
+1 48 108 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 244 42 319 56
+0 2 2 "0s" 0 0 0 192 0 0  244 42 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 17 Distributed Port:
+20 5
+"cbIsRedundant"
+""
+1 240 66 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  238 64 350 84
+1
+T 
+1
+LANG:1 13 Is redundant?
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+EE2 6
+"txListDistPeers"
+""
+1 28 203 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 24 229 150 243
+0 2 2 "0s" 0 0 0 192 0 0  24 229 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 28 Full list of connected peers
+25 8
+"tblSystems"
+""
+1 20 250 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 248 230 472
+EE 1 0 1 2 0 "name" 13 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+128 "number" 5 1 0 "s" 1
+LANG:1 6 Number
+E
+1
+LANG:1 0 
+
+60 
+16 16 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+14 9
+"tfSystemNumber"
+""
+1 130 41 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  128 39 216 60
+3 "0s" 0 0 0 0 0 -1  E E E
+14 10
+"tfDataPort"
+""
+1 130 65 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  128 63 216 84
+3 "0s" 0 0 0 0 0 -1  E E E
+14 11
+"tfEventPort"
+""
+1 130 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  128 88 216 109
+3 "0s" 0 0 0 0 0 -1  E E E
+14 12
+"tfDistPort"
+""
+1 362 41 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  360 39 448 60
+3 "0s" 0 0 0 0 0 -1  E E E
+2 13
+"txReduPair"
+""
+1 48 101 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 242 91 335 105
+0 2 2 "0s" 0 0 0 192 0 0  242 91 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Redundant pair PC:
+14 14
+"tfRedundantPC"
+""
+1 362 90 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  360 88 448 109
+2 "0s" 0 0 0 0 0 -1  E E E
+2 15
+"txLinkedFrom"
+""
+1 -230 104 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 130 118 144
+0 2 2 "0s" 0 0 0 192 0 0  20 130 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Linked from projects:
+25 16
+"tblProjects"
+""
+1 20.00000000000011 147 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  18 145 492 219
+EE 1 0 1 2 0 "project" 23 1 0 "s" 1
+LANG:1 7 Project
+E
+1
+LANG:1 0 
+
+220 "host" 24 1 0 "s" 1
+LANG:1 4 Host
+E
+1
+LANG:1 0 
+
+230 
+16 16 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+13 17
+"PUSH_BUTTON1"
+""
+1 380 477 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  378 475 492 509
+
+T 
+1
+LANG:1 19 Edit Connections...
+"main()
+{
+  dyn_string ds;
+  dyn_float df;
+  
+  ChildPanelOnCentralReturn(\"fwConfigurationDBSystemInformation/fwConfigurationDBSystemInformation_systemConnections.pnl\",
+                            \"Edit \" + systemName + \" distributed connections\",
+                            makeDynString(\"$peer1:\" + systemName), df, ds);
+  
+  if(dynlen(df) && df[1] == 1.)
+    updatePanel();
+}" 0
+ E E E
+25 18
+"tblInitiatedConnections"
+""
+1 280 249 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  278 247 490 471
+EE 1 0 1 2 0 "name" 13 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+128 "number" 5 1 0 "s" 1
+LANG:1 6 Number
+E
+1
+LANG:1 0 
+
+60 
+16 16 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 2 1 1 7
+1 0
+2 19
+"txLocalConnections"
+""
+1 286 205 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 282 231 471 245
+0 2 2 "0s" 0 0 0 192 0 0  282 231 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 40 Local System initiates connections onto:
+30 20
+"frTitle"
+""
+1 20 33 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+31 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.021739130434782 0 1.103092783505155 -0.434782608695679 -16.40206185567011 0 E 20 33 481 131
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Frame Title
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

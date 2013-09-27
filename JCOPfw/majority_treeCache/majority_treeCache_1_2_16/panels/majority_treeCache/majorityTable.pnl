@@ -1,0 +1,350 @@
+V 11
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 452 420 N "_3DFace" 12
+"$1"
+"$column_labels"
+"$column_width"
+"$detailed_devices"
+"$majority_detailPanel"
+"$majority_topNode"
+"$mode"
+"$selected_columns"
+"$show_children"
+"$show_header"
+"$show_total"
+"$treeCache_topNode"
+"string type;
+dyn_string columns;
+
+main()
+{
+  percentageTable.sortOnClick = false;
+  setValue(\"percentageTable\",\"selectByClick\",TABLE_SELECT_NOTHING);
+    
+  string node = $1;
+  majority_new($majority_topNode, $treeCache_topNode);
+  majority_readConfigObject(majority_object,$majority_topNode);
+ // DebugN(majority_object);
+  
+  string majoritydp = majority_getDpFromNode(node);
+  
+  dpConnect(\"hide_show\",true,majoritydp + \".included.fsmState\");
+  //dpConnect(\"set_valid\",true,majoritydp + \".admin.valid\");       
+          
+  majorityTable_initTable();  
+}
+
+void hide_show(string dpe, string state) {
+  bool vis;
+  if (state==\"UNUSED\") {
+//     DebugN(\"Hiding\");
+     vis = false;
+  }  else {
+    vis=true;
+  }
+  
+  percentageTable.visible(vis);
+//   if ($show_children == 1) {
+//     topNodeText.visible = vis;
+//   } 
+//   
+  
+}
+" 0
+ E E E E 1 0 0 0  20 20
+""0  1
+E "
+#uses \"majority_treeCache/majorityLib.ctl\"
+
+float majOn, majErr;
+mapping rowMapping;
+dyn_int columnMapping;
+bool init_called = false;
+
+bool valid;
+
+dyn_string nodes;
+dyn_mixed majority_object;
+const string backCol = \"_Window\";
+const string foreCol = \"_ButtonText\";
+int column_width = 34;
+int row_height = 28;
+string tableMode; 
+mapping mAll;
+string element, it;
+
+void majorityTable_initTable() {
+  if (init_called) return;
+  init_called = true;
+  tableMode = $mode;
+  if (tableMode == \"\") tableMode = \"percentage\";
+  
+  dyn_string selected_columns;
+  if ($selected_columns == \"all\") {
+    selected_columns = majority_object[majority_DEVICESXSTATES];
+  } else {
+    selected_columns = strsplit($selected_columns, \"|\");    
+  }
+  
+  if (isDollarDefined(\"$column_labels\")) {
+    if ($column_labels==\"auto\") {
+       columns =  selected_columns; 
+    } else {                  
+        columns = strsplit($column_labels,\"|\"); 
+   }
+  } else {
+      columns = selected_columns; 
+  }
+  
+  if (dynlen(columns) != dynlen(selected_columns)) {
+     DebugN(\"Wrong length for the labels\");
+     columns = selected_columns; 
+  }
+  
+  if (isDollarDefined(\"$column_width\") ){
+     column_width = $column_width; 
+  }
+
+ 
+  
+  int count; int idx;
+
+  for (int i=1; i<= dynlen(majority_object[majority_DEVICESXSTATES]); i++) {
+     columnMapping[i] = -1; 
+  }
+  
+  int idx_devxstate;
+  
+  for (int idx=1; idx<= dynlen(selected_columns); idx++) {
+    if (idx_devxstate = dynContains(majority_object[majority_DEVICESXSTATES],selected_columns[idx])) {
+      percentageTable.insertColumn(count);   
+      percentageTable.columnWidth(count,column_width);
+      percentageTable.columnHeader(count,columns[idx]);
+      percentageTable.columnName(count, \"#\" + count);  
+      columnMapping[idx_devxstate] = count;
+      count++;
+     } 
+    
+  }
+  
+  
+  string node = $1;
+  
+  percentageTable.columnHeaderVisibility() = $show_header;
+  
+  if ($show_children == 1) {
+    nodes = treeCache_getVisibleChildren(node);
+  }
+ // DebugN(nodes);
+  dyn_string split;
+    
+  
+  dynAppend(nodes,node);
+  int nNodes = 0;
+  it = \".included\";
+  if ($show_total == 1) {
+      it = \".total\";
+  }
+  if ((tableMode==\"absolute\") ||
+     (tableMode==\"ratio\")) {
+     element = it + \".states.n\"; 
+  } else {
+    element = it + \".percentages\";     
+  }
+  string summary, type_child, majorityChild, child, dpe;
+  for ( int n = 1 ; n <= dynlen(nodes) ; n ++ ) {
+    percentageTable.appendLine(\"#1\",\"\"); // create line for each visible children
+    split = strsplit(nodes[n],\"::\");
+    child = split[dynlen(split)];    
+    majorityChild = majority_getDpFromNode(child);
+    if (dpExists(majorityChild)) {
+      rowMapping[majorityChild] = n-1;
+      if (tableMode == \"ratio\") {
+          dpConnect(\"updateAll\",
+                    majorityChild + it + \".all.n\");
+      }
+      dpConnect(\"updatePercentage\",               
+              majorityChild + element,
+              majorityChild + it + \".majStates\",
+              majorityChild + \".admin.valid\");
+    } 
+       
+    nNodes ++;
+  }
+  
+    int posX, posY, sizeX, sizeY;
+    
+  sizeX = dynlen(selected_columns)*column_width + 5;
+  sizeY = (nNodes+((int) $show_header)) *row_height ;
+  
+    
+  percentageTable.size( sizeX, sizeY );
+  percentageTable.rowHeight(row_height);
+//  topNodeText.text = treeCache_getFsmUserLabel(node);
+//   
+//   getValue(\"percentageTable\",\"position\",posX, posY);
+//   getValue(\"percentageTable\",\"size\",sizeX, sizeY);
+//   DebugN(\"posX, posY, sizeX, sizeY;\",posX, posY, sizeX, sizeY);
+//     
+//     string shapeName = nodes[dynlen(nodes)-1];
+//     if (treeCache_getUnit(shapeName) == \"CU\") shapeName = shapeName + \"::\" + shapeName;
+//   /*  if (! shapeExists(shapeName) ) {
+//       DebugN(shapeName + \" does not exist\");
+//       */
+//       posX = 350;
+//       posY = posY + sizeY -row_height *3 + 20;
+//       DebugN(posX, posY);
+//       
+// /*    } else {
+//        DebugN(shapeName + \"  exists\");
+//       int xshape, yshape;
+//       getValue(shapeName, \"position\",xshape, yshape);
+//       DebugN(xshape, yshape);
+//       posX = 350;
+//       posY = yshape ; // ?? don't know why but it seems to work without any additional space
+//     }
+//  */   
+//  topNodeText.position(posX,posY);
+//   if ($show_children != 1) {
+  //   topNodeText.visible = false; 
+//   }
+//   
+
+  percentageTable.currentColumn(\"#10\"); // dummy
+  for ( int i = 1 ; i <= dynlen(selected_columns) ; i ++ ) {
+    // bold, obtained from fontselector()
+    percentageTable.cellFontRC(dynlen(nodes)-1,\"#\"+i,\"MS Shell Dlg,8,-1,5,75,0,0,0,0,0\");
+  }
+  
+}
+
+
+void updateAll(string dpe, dyn_int all) {
+      dpe = dpSubStr(dpe, DPSUB_SYS_DP);
+      mAll[dpe] = all;
+      dyn_int n, states; bool valid;
+      dpGet(dpe + element, n,
+            dpe + \".included.majStates\", states,
+            dpe + \".admin.valid\", valid);
+      updatePercentage(dpe, n,dpe, states, dpe, valid);      
+}
+
+void updatePercentage(string dpe, dyn_float percentages,
+                      string dpe_states, dyn_int states,
+                      string dp_valid, bool valid) {
+   if (dynlen(states) == 0) return;
+ // DebugN(\"updatePercentage\" , dpe, percentages, dpe_states, states);
+  dpe = dpSubStr(dpe, DPSUB_SYS_DP);
+  string strVal; dyn_string vals, dev_state;
+  int row,col;
+  row = rowMapping[dpe];
+  for (int i=1; i<= dynlen(percentages); i++) {
+    col = columnMapping[i];
+    if (col==-1) continue;
+    if (valid) {
+      if (tableMode == \"absolute\") {
+         sprintf(strVal,\"%3d\", percentages[i]);       
+      } else if (tableMode == \"ratio\") {
+        dyn_string split = strsplit(majority_object[majority_DEVICESXSTATES][i], \":\");
+        sprintf(strVal,\"%d/%d\", percentages[i],(mAll[dpe])[dynContains(majority_object[majority_DEVICES], split[1])]);   
+      } else {
+         int precision;
+         if (percentages[i]==100) precision = 0;
+         else if (percentages[i] > 99.9) precision = 2;
+         else if (percentages[i]<10) precision=2;
+         else precision = 1;
+         sprintf(strVal,\"%\" +  \".\"+precision+\"f\",percentages[i]);
+       }
+     
+
+     if (tableMode == \"percentage%\") strVal += \"%\";
+     // vals = makeDynString(strVal,backCol,getColor(states[i],(col%2)?\"on\":\"err\"));
+       dev_state = strsplit(majority_object[majority_DEVICESXSTATES][i],\":\");
+       vals = makeDynString(strVal,majority_getColor(majority_object,states[i],dev_state[1], dev_state[2]),foreCol);
+    } else {
+      vals = makeDynString(\" - \",\"FwEquipmentDisabled\",\"_3DText\");
+    }
+    percentageTable.cellValueRC(row,\"#\"+col,vals);
+  }   
+}
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+25 49
+"percentageTable"
+""
+1 11 20 E E E 1 E 1 E N "_3DText" E N "_Window" E E
+ E E
+41 0 0 0 0 0
+E E "main(bool enter)
+{
+ 
+}" 0
+
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 32 MS Shell Dlg,-1,9,5,50,0,0,0,0,0
+0  9 18 46 77
+E"main(int row, string column, string value)
+{
+ 
+  
+  string node = nodes[row +1];
+
+  if (dpExists(majority_getDpFromNode(node))) {     
+   ChildPanelOnCentral($majority_detailPanel,
+      \"Majority details for \" +treeCache_getFsmUserLabel( node), makeDynString(\"$1:\" + node, \"$majority_topNode:\" + $majority_topNode, \"$treeCache_topNode:\" + $treeCache_topNode, 
+                                                                               \"$devices:\" + $detailed_devices)
+      );
+  }
+}
+" 0
+ 1 0 1 0 0 
+22 22 10 10
+1
+LANG:1 32 MS Shell Dlg,-1,9,5,50,0,0,0,0,0
+0 0 0 0 0 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

@@ -1,0 +1,1278 @@
+V 10
+1
+LANG:1 0 
+PANEL,-1 -1 700 582 N "_3DFace" 2
+"$openDPT"
+"$recipeType"
+"main()
+{
+
+	dyn_string exceptionInfo;
+
+	DisableOnUnselect();
+
+	if (!isDollarDefined(\"$recipeType\")) {
+		fwException_raise(exceptionInfo,\"ERROR\",
+				\"Dollar parameter $recipeType not defined\",\"\");
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+
+	}
+
+
+	PopulateRTData();
+
+	PopulatePanel();
+}" 0
+ E E E E 1 -1 -1 0  40 4
+""0  1
+E "global string gRT; // global recipeType
+global string gDPT;// currently selected DataPointType
+global string gDev;// currently selected DeviceType related to gDPT
+global dyn_dyn_string gRTData;
+
+void PopulateRTData()
+{
+	dyn_string exceptionInfo;
+
+
+	_fwConfigurationDB_getRecipeTypeData($recipeType,gRTData,exceptionInfo);
+
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+
+	};
+
+
+
+
+
+if (isDollarDefined(\"$openDPT\")) {
+	setValue(\"ApplyButton\",\"visible\",FALSE);
+	_fwConfigurationDB_RTAddToModel($openDPT,gRTData, exceptionInfo);
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+}
+
+}
+
+
+
+void PopulatePanel()
+{
+	string comment;
+	dyn_string devTypes,dpTypes, exceptionInfo;
+
+	_fwConfigurationDB_getRTDescription($recipeType,comment,exceptionInfo);
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+	}
+
+	setValue(\"Name\",\"text\",$recipeType);
+	setValue(\"RecipeTypeComment\",\"text\",comment);
+
+	// create list of device types/dptypes from model data...
+
+	for (int i=1;i<=dynlen(gRTData);i++) {
+		if (!(dynContains(dpTypes,gRTData[i][2]))) {
+			dynAppend(dpTypes,gRTData[i][2]);
+			dynAppend(devTypes,gRTData[i][1]);
+		}
+	}
+
+	setValue(\"DeviceTypes\",\"deleteAllLines\");
+
+	for (int i=1;i<=dynlen(dpTypes);i++) {
+
+		setValue(\"DeviceTypes\",\"appendLine\",
+			\"Name\",devTypes[i],
+			\"DPName\",dpTypes[i]);
+		if (devTypes[i]==dpTypes[i]) {
+			setValue(\"DeviceTypes\",\"cellBackColRC\",i-1,\"Name\",\"yellow\");
+		}
+	}
+
+if (isDollarDefined(\"$openDPT\")) {
+	int n;
+	dyn_string line;
+	getValue(\"DeviceTypes\",\"lineCount\",n);
+	getValue(\"DeviceTypes\",\"getLineN\",n-1,line);
+	setValue(\"DeviceTypes\",\"selectLineN\",n-1);
+	setValue(\"DeviceTypes\",\"lineVisible\",n-1);
+	SelectedDevice(line[1], line[2]);
+};
+
+
+}
+
+
+void AddDevices()
+{
+	dyn_string exceptionInfo;
+	dyn_dyn_string fwDevices;
+	int i,n;
+
+// preserve selection
+dyn_int sellines;
+int r,c;
+getValue(\"DeviceTypes\",\"getSelectedLines\",sellines);
+getValue(\"DeviceTypes\",\"currentCell\",r,c);
+
+
+
+	fwDevice_getAllTypes(fwDevices,exceptionInfo);
+	if (dynlen(exceptionInfo)) {
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+
+	// fwDevices[1][i] - device type
+ 	// fwDevices[2][i] - datapoint type
+
+	dyn_string devNames;
+
+	for (i=1;i<=dynlen(fwDevices[1]);i++){
+		dynAppend(devNames,fwDevices[1][i]);
+	}
+
+	dyn_float df;
+	dyn_string ds;
+
+// get already existing items:
+dyn_string existingItems;
+getValue(\"DeviceTypes\",\"lineCount\",n);
+for(i=0;i<n;i++) {
+
+	dyn_string line;
+	getValue(\"DeviceTypes\",\"getLineN\",i,line);
+	string dpt=line[2];
+	string dev=line[1];
+
+	if (dev!=dpt) { // means we have FwDevice
+		dynAppend(existingItems,line[1]); // we store dev names...
+	} else { // this is a dpType - we need to resolve it...
+		for (int j=1;j<=dynlen(fwDevices[2]);j++) {
+		if (fwDevices[2][j]==dpt) {
+			dynAppend(existingItems,fwDevices[1][j]);
+		}
+		}
+	}
+}
+
+
+
+	ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_SelectionList.pnl\",
+		\"Select Devices\",
+		makeDynString(\"$text:Select devices:\",
+				\"$items:\"+devNames,
+				\"$selectMultiple:\"+TRUE,
+				\"$disabledItems:\"+existingItems),
+		df,ds);
+
+
+	if (df[1]>0){
+
+	    for (i=1;i<=dynlen(ds);i++) {
+		 string deviceDPType=\"\";
+		 for (int j=1;j<=dynlen(fwDevices[1]);j++){
+		     if (fwDevices[1][j]==ds[i]) deviceDPType=fwDevices[2][j];
+		 };
+		 setValue(\"DeviceTypes\",\"appendLine\",
+			\"Name\",ds[i],
+			\"DPName\",deviceDPType);
+			_fwConfigurationDB_RTAddToModel(deviceDPType,gRTData, exceptionInfo);
+			if (dynlen(exceptionInfo)) {
+				fwExceptionHandling_display(exceptionInfo);
+				return;
+			}
+	    }
+	}
+// restore selection
+if (dynlen(sellines)) {
+	setValue(\"DeviceTypes\",\"selectLineN\",sellines[1]);
+	setValue(\"DeviceTypes\",\"currentCell\",r,c);
+	setValue(\"DeviceTypes\",\"lineVisible\",sellines[1]);
+}
+
+
+}
+
+
+void AddDPTs(string wildcard=\"\")
+{
+	dyn_string exceptionInfo;
+	int i,n;
+
+// preserve selection
+dyn_int sellines;
+int r,c;
+getValue(\"DeviceTypes\",\"currentCell\",r,c);
+getValue(\"DeviceTypes\",\"getSelectedLines\",sellines);
+
+	dyn_string dptypes=dpTypes(wildcard);
+
+	// further processing: if wildcard was empty,
+	// filter-out internal dps...
+	if (wildcard==\"\") {
+		dyn_string dptypes2;
+		for (i=1;i<=dynlen(dptypes);i++) {
+			if ( substr(dptypes[i],0,1)!=\"_\")
+				dynAppend(dptypes2,dptypes[i]);
+		}
+		dptypes=dptypes2;
+	}
+
+dyn_dyn_string fwDevices;
+fwDevice_getAllTypes(fwDevices,exceptionInfo);
+if (dynlen(exceptionInfo)) {
+	fwExceptionHandling_display(exceptionInfo);
+	return;
+}
+
+
+// get already existing items:
+dyn_string existingItems;
+getValue(\"DeviceTypes\",\"lineCount\",n);
+for(i=0;i<n;i++) {
+
+	dyn_string line;
+	getValue(\"DeviceTypes\",\"getLineN\",i,line);
+	dynAppend(existingItems,line[2]);
+	
+}
+
+
+
+	dyn_float df;
+	dyn_string ds;
+
+	ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_SelectionList.pnl\",
+		\"Select DPTs\",
+		makeDynString(\"$text:Select DPTs:\",
+				\"$items:\"+dptypes,
+				\"$selectMultiple:\"+TRUE,
+				\"$disabledItems:\"+existingItems),
+		df,ds);
+
+
+
+
+	for (i=1;i<=dynlen(ds);i++) {
+
+		string devName=ds[i];
+		string dptName=ds[i];
+		for (int j=1;j<=dynlen(fwDevices[2]);j++) {
+			if (fwDevices[2][j]==dptName) devName=fwDevices[i][j];
+		}
+
+		setValue(\"DeviceTypes\",\"appendLine\",
+				\"Name\",devName,
+				\"DPName\",dptName);
+		getValue(\"DeviceTypes\",\"lineCount\",n);
+		if (devName==dptName) setValue(\"DeviceTypes\",\"cellBackColRC\",n-1,\"Name\",\"yellow\");
+		_fwConfigurationDB_RTAddToModel(dptName,gRTData, exceptionInfo);
+		if (dynlen(exceptionInfo)) {
+			fwExceptionHandling_display(exceptionInfo);
+			return;
+		}
+	};
+
+// restore selection
+if (dynlen(sellines)) {
+	setValue(\"DeviceTypes\",\"selectLineN\",sellines[1]);
+	setValue(\"DeviceTypes\",\"currentCell\",r,c);
+	setValue(\"DeviceTypes\",\"lineVisible\",sellines[1]);
+}
+}
+
+
+
+void RemoveFromModel(string dptName)
+{
+	int max=dynlen(gRTData);
+	for(int i=max;i>=1;i--) {
+		if (gRTData[i][2]==dptName) {
+			dynRemove(gRTData,i);
+		}
+	};
+
+}
+
+void SelectedDevice(string devType, string dptName)
+{
+
+gDPT=dptName;
+gDev=devType;
+
+
+dyn_string exceptionInfo;
+int i;
+bool discardDeviceDefinition;
+	getValue(\"DiscardDeviceDefinition\",\"state\",0,discardDeviceDefinition);
+
+	EnableOnSelect();
+
+if (devType==dptName) {
+	// means: this is DPT rather than Fw device
+	setValue(\"Frame\",\"text\",\"Properties of DP Type: \"+devType);
+	setValue(\"DiscardDeviceDefinition\",\"visible\",FALSE);
+	setValue(\"ShowButton\",\"visible\",FALSE);
+
+	setValue(\"Properties\",\"columnVisibility\",0,FALSE);
+	setValue(\"Properties\",\"columnVisibility\",1,TRUE);
+
+
+} else {
+
+	// this is a FW device
+	string name;
+	setValue(\"Frame\",\"text\",\"Properties of Framework device: \"+devType+\" (\"+dptName+\")\");
+	setValue(\"DiscardDeviceDefinition\",\"visible\",TRUE);
+	if (discardDeviceDefinition) {
+		setValue(\"ShowButton\",\"visible\",FALSE);
+		name = \"Show device properties\";
+		setValue(\"Properties\",\"columnVisibility\",0,FALSE);
+		setValue(\"Properties\",\"columnVisibility\",1,TRUE);
+		setValue(\"ShowButton\",\"text\",name);
+	} else {
+		setValue(\"ShowButton\",\"visible\",TRUE);
+		name = \"Show DPT Elements\";
+		setValue(\"Properties\",\"columnVisibility\",1,FALSE);
+		setValue(\"Properties\",\"columnVisibility\",0,TRUE);
+		setValue(\"ShowButton\",\"text\",name);
+
+	};
+
+}	
+
+
+
+// extract the entries which are of this type from the model:
+dyn_int rows;
+dyn_string dpeList;
+for (i=1;i<=dynlen(gRTData);i++) {
+	if (gRTData[i][2]==dptName) {
+		dynAppend(rows,i);
+		dynAppend(dpeList,gRTData[i][3]);
+	}
+};
+
+// now fill the table...
+setValue(\"Properties\",\"deleteAllLines\");
+
+for (i=1;i<=dynlen(rows);i++) {
+	int idx=rows[i];
+	string property=gRTData[idx][4];
+	if ( (devType!=dptName) && (discardDeviceDefinition==FALSE) && (property==\"$\")) continue;
+	string storeValue=\"\";
+	string storeAlert=\"\";
+	if (gRTData[idx][5]) storeValue=\"YES\";
+	if (gRTData[idx][6]) storeAlert=\"YES\";
+
+	setValue(\"Properties\",\"appendLine\",
+		\"Name\",property,
+		\"Row\",idx,
+		\"DPEName\",gRTData[idx][3],
+		\"StoreValue\",storeValue,
+		\"StoreAlert\",storeAlert);
+}
+
+// scroll to the first line
+if (dynlen(rows)) {
+	setValue(\"Properties\",\"lineVisible\",0);
+	setValue(\"Properties\",\"selectLineN\",0);
+}
+
+}
+
+void DisableOnUnselect()
+{
+	setValue(\"Properties\",\"deleteAllLines\");
+	gDPT=\"\";
+	gDev=\"\";
+
+	setValue(\"Properties\",\"enabled\",FALSE);
+	setValue(\"ShowButton\",\"enabled\",FALSE);
+	setValue(\"StoreAll\",\"enabled\",FALSE);
+	setValue(\"StoreNone\",\"enabled\",FALSE);
+	setValue(\"StoreInvert\",\"enabled\",FALSE);
+	setValue(\"AlertAll\",\"enabled\",FALSE);
+	setValue(\"AlertNone\",\"enabled\",FALSE);
+	setValue(\"AlertInvert\",\"enabled\",FALSE);
+
+	setValue(\"DiscardDeviceDefinition\",\"visible\",FALSE);
+	setValue(\"Frame\",\"text\",\"Select Device Type ... \");
+	gDPT=\"\";
+	gDev=\"\";
+}
+
+void EnableOnSelect()
+{
+	setValue(\"Properties\",\"enabled\",TRUE);
+	setValue(\"ShowButton\",\"enabled\",TRUE);
+	setValue(\"StoreAll\",\"enabled\",TRUE);
+	setValue(\"StoreNone\",\"enabled\",TRUE);
+	setValue(\"StoreInvert\",\"enabled\",TRUE);
+	setValue(\"AlertAll\",\"enabled\",TRUE);
+	setValue(\"AlertNone\",\"enabled\",TRUE);
+	setValue(\"AlertInvert\",\"enabled\",TRUE);
+
+	setValue(\"ShowButton\",\"text\",\"Show DPT Elements\");
+	setValue(\"Properties\",\"columnVisibility\",0,TRUE);
+	setValue(\"Properties\",\"columnVisibility\",1,FALSE);
+
+}
+
+
+
+bool Apply()
+{
+dyn_string exceptionInfo;
+//fwOpenProgressBar(\"Saving recipe type\", \"Saving recipe type\",1);
+
+_fwConfigurationDB_setRecipeTypeData($recipeType, gRTData, exceptionInfo);
+
+string comment;
+getValue(\"RecipeTypeComment\",\"text\",comment);
+_fwConfigurationDB_setRTDescription($recipeType, comment, exceptionInfo);
+
+if (dynlen(exceptionInfo)) {
+//	fwCloseProgressBar(\"ERROR\");
+	fwExceptionHandling_display(exceptionInfo);
+	return FALSE;
+}
+
+//fwCloseProgressBar(\"Recipe Type saved\");
+return TRUE;
+}
+
+void AddReference()
+{
+	dyn_string exceptionInfo;
+	dyn_float df;
+	dyn_string ds;
+	dyn_string RTypes,excludedRTypes,myRTypes;
+
+	fwException_raise(exceptionInfo,\"ERROR\",\"Adding references not implemented yet\",\"\");
+
+	if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo);return;}
+
+
+	dpGet(gRT+\".RecipeTypeList\",myRTypes);
+DebugN(\"my own:\",myRTypes);
+	RTypes=dpNames(\"*\",\"_FwRecipeType\");
+
+	for (int i=1;i<=dynlen(RTypes);i++) {
+		if (dynContains(myRTypes,RTypes[i])) dynAppend(excludedRTypes,RTypes[i]);
+		// now also we need to exclude the ones of type that are already
+		// present...
+		
+		//string devType,dpType;
+		//dpGet(recipeType+\".DeviceType\",devType);
+		//dpGet(recipeType+\".DeviceDPT\",dpType);
+	}
+
+	ChildPanelOnCentralReturn(\"fwConfigurationDB/fwConfigurationDB_SelectionList.pnl\",
+		\"Select Recipe for reference\",
+		makeDynString(\"$text:Select recipe for reference:\",
+				\"$items:\"+RTypes,
+				\"$disabledItems:\"+excludedRTypes),
+		df,ds);
+
+
+
+
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 15 -6 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 15 10 327 31
+0 2 2 "0s" 0 0 0 192 0 0  15 10 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-16-*-100-100-*-*-iso8859-1|-16,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 46 Configuration Database: recipe type definition
+13 1
+"CancelButton"
+""
+1 598 543 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 598 543 678 573
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+PanelOffReturn(makeDynFloat(0.0),makeDynString());
+}" 0
+ E E E
+2 3
+"PRIMITIVE_TEXT2"
+""
+1 25 75 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 0 0 1 E U  1 E 25 75 104 92
+0 2 2 "0s" 0 0 0 192 0 0  25 75 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 12 Recipe Type:
+25 4
+"DeviceTypes"
+""
+1 322.3300970873786 32.08333333333334 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+110 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 323 33 602 177
+"main()
+{
+	setValue(\"\",\"tableMode\",TABLE_SELECT_BROWSE);
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+
+}" 0
+"main(int row, string column, string value)
+{
+
+dyn_string line;
+
+getValue(\"\",\"getLineN\",row,line);
+
+SelectedDevice(line[1],line[2]);
+
+}" 0
+ 1 0 1 2 1 "Name" 23 1 0 "s" 1
+LANG:1 11 Device Type
+E
+1
+LANG:1 11 Device type
+
+270 "DPName" 17 0 0 "s" 1
+LANG:1 3 DPT
+E
+1
+LANG:1 15 Data point type
+
+200 
+17 17 "?" 1 1
+LANG:1 2 #1
+10 84
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+30 7
+"Frame"
+""
+1 80 160 E E E 1 E 1 E N "black" E N {0,0,0} E E
+ E E
+15 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.375 0 1.944444444444444 -90 -131.111111111111 0 E 80 160 560 340
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22 Properties of device: 
+25 8
+"Properties"
+""
+1 39.99999999999999 230.0000000000002 E E E 1 E 1 E N "_3DText" E N "white" E E
+ E E
+107 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 40 230 660 490
+"main()
+{
+	setValue(\"\",\"tableMode\",TABLE_SELECT_BROWSE);
+	setValue(\"\",\"selectByClick\",TABLE_SELECT_LINE);
+}" 0
+"main(int row, string column, string value)
+{
+int idx;
+dyn_string line;
+getValue(\"\",\"getLineN\",row,line);
+
+idx=line[3];
+
+	if (column==\"StoreValue\") {
+		if (value==\"YES\") {
+			value=\"\";
+			gRTData[idx][5]=FALSE;
+		} else {
+			 value=\"YES\";
+			gRTData[idx][5]=TRUE;
+		}
+		setValue(\"\",\"cellValueRC\",row,column,value);
+
+	} else 	if (column==\"StoreAlert\") {
+		if (value==\"YES\") {
+			value=\"\";
+			gRTData[idx][6]=FALSE;
+		} else {
+		 	value=\"YES\";
+			gRTData[idx][6]=TRUE;
+		}
+		setValue(\"\",\"cellValueRC\",row,column,value);
+
+	}
+
+}" 0
+ 1 0 1 5 1 "Name" 35 1 0 "s" 1
+LANG:1 14 Property names
+E
+1
+LANG:1 0 
+
+400 "DPEName" 35 0 0 "s" 1
+LANG:1 16 DP Type Elements
+E
+1
+LANG:1 0 
+
+400 "Row" 2 0 0 "s" 1
+LANG:1 3 Row
+E
+1
+LANG:1 0 
+
+40 "StoreValue" 8 1 0 "s" 1
+LANG:1 11 Store Value
+E
+1
+LANG:1 0 
+
+100 "StoreAlert" 8 1 0 "s" 1
+LANG:1 11 Store Alert
+E
+1
+LANG:1 0 
+
+100 
+17 17 "?" 0 10 84
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 1 1 1 7
+1 0
+26 20
+"AddDevice"
+""
+1 608 63 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+118 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 608 63 678 93
+ 0 1
+LANG:1 6 Add...
+"" 0 0 0 0 0
+ 4 1 1
+LANG:1 16 Framework Device
+"Device" 0 0 0 0 0
+ 1 1
+LANG:1 3 DPT
+"DPT" 0 0 0 0 0
+ 1 1
+LANG:1 12 Internal DPT
+"internalDPT" 0 0 0 0 0
+ 1 1
+LANG:1 27 Reference other Recipe Type
+"reference" 0 0 0 0 0
+ E "main(string id)
+{
+	if (id==\"Device\")
+		AddDevices();
+	else if (id==\"DPT\")
+		AddDPTs();
+	else if (id==\"internalDPT\")
+		AddDPTs(\"_*\");
+	else if (id==\"reference\")
+		AddReference();
+	else
+		DebugN(\"selected unknown item:\",id);
+}" 0
+0 
+13 21
+"RemoveButton"
+""
+1 608 98 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+55 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 608 98 678 129
+
+T 
+1
+LANG:1 6 Remove
+"main()
+{
+	dyn_int selLines;
+	dyn_string line;
+	getValue(\"DeviceTypes\",\"getSelectedLines\",selLines);
+	if (!dynlen(selLines)) return;
+
+	getValue(\"DeviceTypes\",\"getLineN\",selLines[1],line);
+
+	RemoveFromModel(line[2]);	
+	setValue(\"DeviceTypes\",\"deleteLineN\",selLines[1]);
+	DisableOnUnselect();
+
+}" 0
+ E E E
+13 22
+"StoreAll"
+""
+1 440 200.0000000000002 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 440 200 470 230
+
+T 
+1
+LANG:1 1 +
+"main()
+{
+	int i,n;
+	int idx;
+	dyn_string line;
+
+	getValue(\"Properties\",\"lineCount\",n);
+	for (i=0;i<n;i++) {
+		getValue(\"Properties\",\"getLineN\",i,line);
+		idx=line[3];
+		gRTData[idx][5]=TRUE;
+		setValue(\"Properties\",\"cellValueRC\",i,\"StoreValue\",\"YES\");
+	}
+
+
+}" 0
+ E E E
+13 23
+"StoreNone"
+""
+1 470 200.0000000000002 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 470 200 500 230
+
+T 
+1
+LANG:1 1 -
+"main()
+{
+
+	int i,n;
+	int idx;
+	dyn_string line;
+
+	getValue(\"Properties\",\"lineCount\",n);
+	for (i=0;i<n;i++) {
+		getValue(\"Properties\",\"getLineN\",i,line);
+		idx=line[3];
+		gRTData[idx][5]=FALSE;
+		setValue(\"Properties\",\"cellValueRC\",i,\"StoreValue\",\"\");
+	}
+
+
+
+}" 0
+ E E E
+13 24
+"StoreInvert"
+""
+1 500 200.0000000000002 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 500 200 530 230
+
+T 
+1
+LANG:1 1 *
+"main()
+{
+
+	int i,n;
+	int idx;
+	dyn_string line;
+
+	getValue(\"Properties\",\"lineCount\",n);
+	for (i=0;i<n;i++) {
+		getValue(\"Properties\",\"getLineN\",i,line);
+		idx=line[3];
+		string value=\"\";
+		if(gRTData[idx][5]) {
+			gRTData[idx][5]=FALSE;
+		} else {
+			gRTData[idx][5]=TRUE;
+			value=\"YES\";
+		};
+		setValue(\"Properties\",\"cellValueRC\",i,\"StoreValue\",value);
+	}
+
+
+
+
+}" 0
+ E E E
+13 25
+"AlertInvert"
+""
+1 600 200.0000000000002 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 600 200 630 230
+
+T 
+1
+LANG:1 1 *
+"main()
+{
+
+	int i,n;
+	int idx;
+	dyn_string line;
+
+	getValue(\"Properties\",\"lineCount\",n);
+	for (i=0;i<n;i++) {
+		getValue(\"Properties\",\"getLineN\",i,line);
+		idx=line[3];
+		string value=\"\";
+		if(gRTData[idx][6]) {
+			gRTData[idx][6]=FALSE;
+		} else {
+			gRTData[idx][6]=TRUE;
+			value=\"YES\";
+		};
+		setValue(\"Properties\",\"cellValueRC\",i,\"StoreAlert\",value);
+	}
+
+
+
+
+}" 0
+ E E E
+13 26
+"AlertNone"
+""
+1 570 200.0000000000002 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+81 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 570 200 600 230
+
+T 
+1
+LANG:1 1 -
+"main()
+{
+
+	int i,n;
+	int idx;
+	dyn_string line;
+
+	getValue(\"Properties\",\"lineCount\",n);
+	for (i=0;i<n;i++) {
+		getValue(\"Properties\",\"getLineN\",i,line);
+		idx=line[3];
+		gRTData[idx][6]=FALSE;
+		setValue(\"Properties\",\"cellValueRC\",i,\"StoreAlert\",\"\");
+	}
+
+
+
+}" 0
+ E E E
+13 27
+"AlertAll"
+""
+1 540 200.0000000000002 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+83 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 540 200 570 230
+
+T 
+1
+LANG:1 1 +
+"main()
+{
+
+	int i,n;
+	int idx;
+	dyn_string line;
+
+	getValue(\"Properties\",\"lineCount\",n);
+	for (i=0;i<n;i++) {
+		getValue(\"Properties\",\"getLineN\",i,line);
+		idx=line[3];
+		gRTData[idx][6]=TRUE;
+		setValue(\"Properties\",\"cellValueRC\",i,\"StoreAlert\",\"YES\");
+	}
+
+
+}" 0
+ E E E
+13 28
+"ShowButton"
+""
+1 39.99999999999989 200.0000000000002 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+91 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 40 200 240 230
+
+T 
+1
+LANG:1 17 Show DPT Elements
+"main()
+{
+
+	// preserve selection in the table
+	dyn_int sellines;
+	int r,c;
+	getValue(\"Properties\",\"getSelectedLines\",sellines);
+	getValue(\"Properties\",\"currentCell\",r,c);
+
+	string name;
+	getValue(\"\",\"text\",name);
+	if (name==\"Show DPT Elements\") {
+		name = \"Show device properties\";
+		setValue(\"Properties\",\"columnVisibility\",0,FALSE);
+		setValue(\"Properties\",\"columnVisibility\",1,TRUE);
+	} else { 
+		name= \"Show DPT Elements\";
+		setValue(\"Properties\",\"columnVisibility\",1,FALSE);
+		setValue(\"Properties\",\"columnVisibility\",0,TRUE);
+	}
+
+	setValue(\"\",\"text\",name);
+
+	// restore the line which was selected:
+
+	if (dynlen(sellines)) {
+			setValue(\"Properties\",\"selectLineN\",sellines[1]);
+	};
+	setValue(\"Properties\",\"currentCell\",r,c);
+
+}" 0
+ E E E
+20 29
+"DiscardDeviceDefinition"
+""
+1 39.99999999999999 500.0000000000002 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 40 500 226 528
+1
+T 
+1
+LANG:1 25 Discard Device Definition
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, int state)
+{
+	SelectedDevice(gDev, gDPT);
+}" 0
+14 30
+"RecipeTypeComment"
+""
+1 23.31288343558283 123 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 19 recipe type comment
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 23 123 302 150
+3 "0s" 0 0 0 0 0 -1  E E E
+14 31
+"Name"
+""
+1 23.31288343558279 93 E E E 1 E 1 E N "_WindowText" E N "lightgrey" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 23 93 302 120
+2 "0s" 0 0 0 0 0 -1  E E E
+13 32
+"ApplyButton"
+""
+1 498 543 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+95 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 498 543 578 573
+
+T 
+1
+LANG:1 5 Apply
+"main()
+{
+Apply();
+}" 0
+ E E E
+13 33
+"OKButton"
+""
+1 398 543 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 398 543 478 573
+
+T 
+1
+LANG:1 2 OK
+"main()
+{
+if (Apply()) PanelOffReturn(makeDynFloat(1.0),makeDynString());
+}" 0
+ E E E
+13 34
+"RevertButton"
+""
+1 18 543 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+116 0 0 0 0 0
+E E E
+0
+1
+LANG:1 27 Revert to original settings
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,505,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 543 98 573
+
+T 
+1
+LANG:1 6 Revert
+"main()
+{
+DisableOnUnselect();
+PopulateRTData();
+PopulatePanel();
+}" 0
+ E E E
+1 35 0 "" 0
+0
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 0 "" 
+"objects/fwGeneral/fwHelpButton.pnl" 270 20 T 120 1 0 1 382 -18
+1
+"$sPanelRelativePath""fwConfigurationDB/fwConfigurationDB_RecipeTypeEdit"
+0

@@ -1,0 +1,197 @@
+string proj_path, dim_path, pvss_path, pvss_version;
+
+main()
+{
+	string conf_path;
+	int pos, ok, restart;
+
+	addGlobal("os",STRING_VAR);
+/*
+	os = getenv("OSTYPE");
+	if(strpos(os,"linux") >= 0)
+		os = "Linux";
+*/
+	if(_UNIX)
+		os = "Linux";
+	conf_path = getPath(CONFIG_REL_PATH, "config");
+	pos = strpos(conf_path, "/config/config");
+	proj_path = substr(conf_path, 0, pos);
+	DebugN("fwDIM.postInstall: Project: " + proj_path);
+	if(get_paths(conf_path) == 3)
+	{
+		DebugN("fwDIM.postInstall: " + dim_path);
+		install_version();
+	}
+	fwInstallation_appendManager(0,"FW","PVSS00ui","manual",5,3,5,
+		"-p fwDIM/fwDim.pnl -menuBar -iconBar");
+	restart = 1;
+	if(dpExists("ToDo.action"))
+	{
+		string action, status;
+
+		dpGet("ToDo.status", status);
+		if(status == "Installing")
+			restart = 0;		
+		dpSet("ToDo.action","");
+	}
+	if(restart)
+	{
+		DebugTN("fwDIM.postInstall: Restarting PVSS00dim Managers");
+		fwInstallation_executeAllManagerReconfigurationActions();
+	}
+	else
+		DebugTN("fwDIM.postInstall: done");
+}
+
+install_version()
+{
+	int ok, i;
+
+	if (os == "Linux")
+	{
+/*
+		ok = copyFile(dim_path + "/bin/PVSS00dim" + pvss_version + ".sh", 
+			proj_path + "/bin/PVSS00dim");
+		if(dim_path != proj_path+"/")
+		{
+			ok = copyFile(dim_path + "/bin/PVSS00dim" + pvss_version,
+				proj_path + "/bin/PVSS00dim" + pvss_version);
+			ok = copyFile(dim_path + "/bin/libdim.so", proj_path + "/bin/libdim.so");
+			ok = copyFile(dim_path + "/bin/libwklin.so.4", 
+				proj_path + "/bin/libwklin.so.4");
+		}
+*/
+		dyn_string linux_files;
+		dynAppend(linux_files,proj_path + "/bin/PVSS00dim");
+		dynAppend(linux_files,"/bin/PVSS00dim" + pvss_version);
+		dynAppend(linux_files,proj_path + "/bin/libdim.so");
+		dynAppend(linux_files,proj_path + "/bin/libwklin.so.4");
+		for(i = 1; i <= dynlen(linux_files); i++)
+		{
+			if(access(linux_files[i], F_OK) == 0)
+				ok = moveFile(linux_files[i], linux_files[i]+"_old");
+		}
+		if(access(dim_path + "/bin/PVSS00dim", F_OK) == 0)
+			ok = moveFile(dim_path + "/bin/PVSS00dim", dim_path + "/bin/PVSS00dim"+"_old");
+		ok = copyFile(dim_path + "/bin/PVSS00dim" + pvss_version + ".sh", 
+			dim_path + "/bin/PVSS00dim");
+	}
+	else
+	{
+/*
+		ok = copyFile(dim_path + "/bin/dim.dll", proj_path + "/bin/dim.dll");
+		ok = copyFile(dim_path + "/bin/msvcrtd.dll", proj_path + "/bin/msvcrtd.dll");
+		ok = copyFile(dim_path + "/bin/PVSS00dim" + pvss_version + ".exe", proj_path + "/bin/PVSS00dim.exe");
+*/
+		dyn_string windows_files;
+		dynAppend(windows_files,proj_path + "/bin/dim.dll");
+		dynAppend(windows_files,proj_path + "/bin/msvcrtd.dll");
+		dynAppend(windows_files,proj_path + "/bin/PVSS00dim.exe");
+		for(i = 1; i <= dynlen(windows_files); i++)
+		{
+			if(access(windows_files[i], F_OK) == 0)
+				ok = moveFile(windows_files[i], windows_files[i]+"_old");
+		}
+		if(access(dim_path + "/bin/PVSS00dim.exe", F_OK) == 0)
+			ok = moveFile(dim_path + "/bin/PVSS00dim.exe", dim_path + "/bin/PVSS00dim.exe"+"_old");
+		ok = copyFile(dim_path + "/bin/PVSS00dim" + pvss_version + ".exe", 
+			dim_path + "/bin/PVSS00dim.exe");
+		if(access(dim_path + "/bin/PVSS00dim", F_OK) == 0)
+			ok = moveFile(dim_path + "/bin/PVSS00dim", dim_path + "/bin/PVSS00dim"+"_old");
+		ok = copyFile(dim_path + "/bin/PVSS00dim" + pvss_version + ".sh", 
+			dim_path + "/bin/PVSS00dim");
+	}
+	
+	if(os == "Linux")
+	{
+		string str;
+		file f;
+		system("chmod a+x "+dim_path + "/bin/PVSS00dim" + pvss_version);
+		system("chmod a+x "+dim_path + "/bin/PVSS00dim");
+		system("chmod a+x "+dim_path + "/bin/dns");
+		system("chmod a+x "+dim_path + "/bin/did");
+		system("chmod a+x "+dim_path + "/bin/pvss_dim_server");
+		system("chmod a+x "+dim_path + "/bin/pvss_dim_client");
+		str = "export LD_LIBRARY_PATH="+dim_path+"/bin:"
+			+"${LD_LIBRARY_PATH}\n"
+			+"alias Dns="+dim_path+"/bin/dns\n"
+			+"alias Did="+dim_path+"/bin/did\n";
+		f = fopen(dim_path+"/bin/fwDim.sh","w");
+		fprintf(f,"%s",str); 
+		fclose(f);
+		str = "setenv LD_LIBRARY_PATH "+dim_path+"/bin:"
+			+"${LD_LIBRARY_PATH}\n"
+			+"alias Dns "+dim_path+"/bin/dns\n"
+			+"alias Did "+dim_path+"/bin/did\n";
+		f = fopen(dim_path+"/bin/fwDim.csh","w");
+		fprintf(f,"%s",str); 
+		fclose(f);
+	}
+	if(ok)
+		DebugN("fwDIM.postInstall: PVSS00dim for version " + pvss_version + " installed");
+	else
+		DebugN("fwDIM.postInstall: Failed installing PVSS00dim for version " + pvss_version);
+}
+
+int get_paths(string conf_path)
+{
+	file fin;
+	string s;
+	int pos;
+	int ok;
+	int found = 0;
+	dyn_anytype componentInfo;
+
+	fin = fopen(conf_path, "r");
+	if(fin == 0)
+	{
+		err = ferror(fin);
+		DebugN("fwDIM.postInstall: Could not open " + conf_path + " - Error No. " + err);
+		return 0;
+	} 	
+	
+	ok = fwInstallation_getComponentInfo("fwDIM", "installationdirectory", componentInfo);
+	if(ok == 0)
+	{
+		dim_path = componentInfo[1];
+		DebugN("fwDIM.postInstall: got installation directory for fwDIM " + dim_path);
+		found++;
+	}
+	else
+	{
+		DebugN("fwDIM.postInstall: could not get installation directory for fwDIM");
+	}
+	
+	while(!feof(fin))
+	{
+		fgets(s, 2000, fin);
+		/*if(strpos(s, "FwDIM") >= 0)
+		{
+			pos = strpos(s,"\"");
+			dim_path = substr(s, pos + 1);
+			pos = strpos(dim_path, "\"");
+			dim_path = substr(dim_path, 0, pos);
+			found++;
+		}*/
+		if(strpos(s, "proj_version") >= 0)
+		{
+			pos = strpos(s, "\"");
+			pvss_version = substr(s, pos + 1);
+			pos = strpos(pvss_version, "\"");
+			pvss_version = substr(pvss_version, 0, pos);
+			found++;
+		}
+		if(strpos(s, "pvss_path") >= 0)
+		{
+			pos = strpos(s, "\"");
+			pvss_path = substr(s, pos + 1);
+			pos = strpos(pvss_path, "\"");
+			pvss_path = substr(pvss_path, 0, pos);
+			found++;
+		}
+		if(found == 3)
+			break;
+	}
+	fclose(fin);
+	return found;
+}

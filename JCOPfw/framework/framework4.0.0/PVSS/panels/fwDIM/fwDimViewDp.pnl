@@ -1,0 +1,467 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,460 362 489 250 N "_3DFace" 1
+"$1"
+EEE E E 1 -1 -1 0  0 0
+"" 0 1
+E"get_structure(string dp, dyn_string &dpels, dyn_string &dimtypes)
+{
+string dpt;
+dyn_string items, dps;
+int struc;
+dyn_string list_items, list_types;
+dyn_string ldpels, ldimtypes;
+int i;
+
+	dps = strsplit(dp,\";\");
+	for(i = 1; i <= dynlen(dps); i++)
+	{
+		dp = dps[i];
+		dpt= dpTypeName ( dp );
+		items = strsplit(dp,\".\");
+		get_type_info( dpt, list_items, list_types, items[1]); 
+		find_struct(dp, list_items, list_types, ldpels, ldimtypes);
+		dynAppend(dpels, ldpels);
+		dynAppend(dimtypes, ldimtypes);
+	}
+}
+
+find_struct(string dp, dyn_string list_items, dyn_string list_types,
+	dyn_string &dpels, dyn_string &dimtypes)
+{
+int i;
+
+	dynClear(dpels);
+	dynClear(dimtypes);
+	for(i = 1; i <= dynlen(list_items); i++)
+	{
+		if(strpos(list_items[i],dp) == 0)
+		{
+			dynAppend(dpels, list_items[i]);
+			dynAppend(dimtypes, list_types[i]);
+		}
+	}
+}
+	
+
+get_type_info( string dpt, dyn_string &list_items, dyn_string &list_types,
+	string &prefix)
+{
+dyn_dyn_string lnames;
+dyn_dyn_int ltypes;
+int struc, i, j, k;
+string ldpt, str, dimtype;
+dyn_string items;
+
+	struc=dpTypeGet(dpt,lnames,ltypes);
+//	DebugN(prefix, lnames, ltypes);
+	for(i = 2; i <= dynlen(ltypes); i++)
+	{
+		for(j = 1; j <= dynlen(ltypes[i]); j++)
+		{
+			if(ltypes[i][j] != 0)
+			{
+				str = prefix;
+				items[j] = lnames[i][j];
+				for(k = 2; k <= j; k++)
+				{
+					str += \".\";
+					str += items[k];
+				}
+				if(	(ltypes[i][j] != DPEL_TYPEREF) && (ltypes[i][j] != DPEL_STRUCT))
+				{
+					dimtype = getDimDpType(ltypes[i][j]);
+					dynAppend(list_items, str);
+					dynAppend(list_types, dimtype);
+				}
+				if(ltypes[i][j] == DPEL_TYPEREF)
+				{
+					ldpt = lnames[i][j+1];
+					get_type_info(ldpt, list_items, list_types, str);
+				}
+				break;
+			}			
+		}	
+	}
+} 
+
+
+string getDimDpType(int elTyp)
+{
+string dimType;
+/*
+DpIdentifier dp;
+DpIdentification *dpIdent;
+DpElementType elTyp;
+
+	Manager::getId(dpName, dp);
+	dpIdent = Manager::getDpIdentificationPtr();
+	dpIdent->getElementType(dp, elTyp);
+*/
+	switch(elTyp)
+	{
+		case DPEL_STRING:
+//			type = DIM_STRING;
+			dimType = \"C\";
+			break;
+		case DPEL_UINT:
+//			type = DIM_UINTEGER;
+			dimType = \"I:1\";
+			break;
+		case DPEL_INT:
+//			type = DIM_INTEGER;
+			dimType = \"I:1\";
+			break;
+		case DPEL_FLOAT:
+//			type = DIM_FLOAT;
+			dimType = \"F:1\";
+			break;
+		case DPEL_DYN_UINT:
+//			type = DIM_UINT_ARRAY;
+			dimType = \"I\";
+			break;
+		case DPEL_DYN_INT:
+//			type = DIM_INT_ARRAY;
+			dimType = \"I\";
+			break;
+		case DPEL_DYN_FLOAT:
+//			type = DIM_FLOAT_ARRAY;
+			dimType = \"F\";
+			break;
+		case DPEL_DYN_STRING:
+//			type = DIM_STRING_ARRAY;
+			dimType = \"C\";
+			break;
+		case DPEL_BOOL:
+//			type = DIM_BOOL;
+			dimType = \"I:1\";
+			break;
+		case DPEL_DYN_BOOL:
+//			type = DIM_BOOL_ARRAY;
+			dimType = \"I\";
+			break;
+		case DPEL_BIT32:
+//			type = DIM_BITFIELD;
+			dimType = \"I:1\";
+			break;
+		case DPEL_DYN_BIT32:
+//			type = DIM_BITFIELD_ARRAY;
+			dimType = \"I\";
+			break;
+		case DPEL_CHAR:
+//			type = DIM_CHAR;
+			dimType = \"C:1\";
+			break;
+//		case DPELEMENT_BLOB:
+//		case DPELEMENT_DYNBLOB:
+		case DPEL_DYN_CHAR:
+//			type = DIM_CHAR_ARRAY;
+			dimType = \"C\";
+			break;
+		case DPEL_TIME:
+			dimType = \"I:1\";
+			break;
+		case DPEL_DYN_TIME:
+			dimType = \"I\";
+			break;
+//		case DPEL_TYPEREF:
+//			dimType = \"RecurseType\";
+//			break;
+//		case DPEL_STRUCT:
+/*
+		case DPELEMENT_ARRAY:
+		case DPELEMENT_CHARARRAY:
+		case DPELEMENT_UINTARRAY:
+		case DPELEMENT_INTARRAY:
+		case DPELEMENT_FLOATARRAY:
+		case DPELEMENT_BITARRAY:
+		case DPELEMENT_32BITARRAY:
+		case DPELEMENT_TEXTARRAY:
+*/
+//			type = DIM_RECURSE;
+//			dimType = \"Recurse\";
+//			break;
+		default:
+//			type = DIM_NOT_SUPPORTED;
+			dimType = \"?\";
+			break;
+	}
+	return(dimType);
+}
+" 0
+ 2
+"CBRef""0"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+25 3
+"Table"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+8 8 482 202
+"dyn_string dpes;
+
+main()
+{
+	string dpe, value, type, dpname, dpsub;
+	dyn_string dps, dyn_value, items, dpels, dimtypes, fdps;
+	int typ, i, j, pos, ret, dyn, dyn_flag;
+	
+//	addGlobal(\"dpes\",DYN_STRING_VAR);
+//	dynClear(dpes);
+	setValue(\"Table\",\"deleteAllLines\");
+	
+	dpe = $1;
+	items = strsplit(dpe,\";\");
+/*
+	for(i = 1; i <= dynlen(items); i++)
+	{
+DebugN(items[i]);
+//		get_structure(items[i], dpels, dimtypes);
+
+		dps = dpNames(items[i]+\".**\");
+		for(j = 1; j <= dynlen(dps); j++)
+		{
+			if(!(ret = is_folder(dps[j])))
+			{
+				dynAppend(dpes,dps[j]);
+			}
+		}
+
+		if(!dynlen(dps))
+			dynAppend(dpes,items[i]);
+	}
+*/
+	get_structure(dpe, dpes, dimtypes);
+	if(!dynlen(dpes))
+		dynAppend(dpes, items);
+//	DebugN(dpes);
+	dyn = 0;
+	for(i = 1; i <= dynlen(dpes); i++)
+	{
+//		if((pos = strpos(dpes[i],\":\")) >= 0)
+//			dpes[i] = substr(dpes[i],pos+1);
+		dyn_flag = is_dynamic(dpes[i]);
+		dpname = dpes[i];
+		dpsub = dpSubStr(dpname,DPSUB_DP_EL_CONF_DET_ATT);
+		if((pos = strpos(dpsub,\":\")) < 0)
+			dpname = dpes[i]+\":_online.._value\"; 
+		typ = dpAttributeType(dpname);
+		type = _const2str(typ);
+		setValue(\"Table\",\"appendLine\",
+			\"DpName\",dpes[i],
+			\"DpType\", type,
+			\"Value\",\"\");
+		if(dyn_flag)
+		{
+			dpConnect(\"update_table_dyn\",dpname);
+		}
+		else
+		{
+			dpConnect(\"update_table\",dpname);
+		}
+		if((strpos(dpsub,\":\")) < 0)
+			dpConnect(\"update_table_color\",dpes[i]+\":_original.._aut_inv\");
+	}
+}
+
+update_table_color(string dp, int invalid)
+{
+	int i, index;
+	dyn_string items;
+	string color;
+	
+	items = strsplit(dp,\":\");
+	for(i = 1; i <= dynlen(dpes); i++)
+	{
+		if((dpes[i] == items[2]) || (dpes[i] == items[1]+\":\"+items[2]))
+		{
+			index = i;
+		}
+	}
+	if(invalid)
+		color = \"_3DFace\";
+	else
+		color = \"FwStateOKPhysics\";
+	setValue(\"Table\",\"cellBackColRC\",index-1,\"Value\", color);
+}
+
+update_table(string dp, string value)
+{
+	int i;
+	dyn_string items;
+
+	items = strsplit(dp,\":\");
+	if(items[3] != \"_online.._value\")
+		items[2] += \":\"+items[3];
+	for(i = 1; i <= dynlen(dpes); i++)
+	{
+		if((dpes[i] == items[2]) || (dpes[i] == items[1]+\":\"+items[2]))
+		{
+//DebugN(dpes[i], value);
+			setValue(\"Table\",\"updateLine\",1,\"DpName\",dpes[i],\"Value\",value);
+		}
+	}
+}
+
+update_table_dyn(string dp, dyn_string values)
+{
+	string value;
+	int i, j;	
+	dyn_string items;
+
+	items = strsplit(dp,\":\");
+	for(i = 1; i <= dynlen(dpes); i++)
+	{
+		if((dpes[i] == items[2]) || (dpes[i] == items[1]+\":\"+items[2]))
+		{
+			value = \"\";
+			for(j = 1; j <= dynlen(values); j++)
+			{
+				value += values[j];
+				if(j != dynlen(values))
+					value += \"|\";
+			}
+			setValue(\"Table\",\"updateLine\",1,\"DpName\",dpes[i],\"Value\",value);
+		}
+	}
+}
+
+int is_folder(string dpe)
+{
+	int ret = 0;
+	int typ;
+
+	typ = dpElementType(dpe);
+	if(typ == DPEL_STRUCT)
+		ret = 1;
+	return(ret);
+}
+
+int is_dynamic(string dpe)
+{
+	int ret = 0;
+	int typ;
+			
+	typ = dpElementType(dpe);
+  	switch(typ) {
+    	case DPEL_DYN_BOOL:
+    	case DPEL_DYN_INT:
+    	case DPEL_DYN_UINT:
+    	case DPEL_DYN_FLOAT:
+    	case DPEL_DYN_STRING:
+    	case DPEL_DYN_CHAR:
+    	case DPEL_DYN_DPID:
+    		ret = 1;
+    	break;
+	}
+	return(ret);
+}
+" 0
+ "main()
+{
+	dyn_string line, values;
+	int x, y;
+	
+	getValue(\"\",\"currentCell\",x,y);
+	if(y == 2)
+	{
+		getValue(\"\",\"getLineN\",x,line);
+		if(strpos(line[2],\"dyn\") >= 0)
+		{
+			values = strsplit(line[3],\"|\");
+			dpSet(line[1]+\":_original.._value\",values);
+		}
+		else
+		{
+			dpSet(line[1]+\":_original.._value\",line[3]);
+		}
+	}
+}" 0
+ 1 0 1 3 1 "DpName" 0 1 0 "s" 1
+LANG:1 18 Data Point Element
+E1
+LANG:1 0 
+ 219 "DpType" 0 1 0 "s" 1
+LANG:1 4 Type
+E1
+LANG:1 0 
+ 71 "Value" 0 1 -1 "s" 1
+LANG:1 5 Value
+E1
+LANG:1 0 
+ 161 26 26 "" 1 1
+LANG:1 2 #1
+8 30 1
+LANG:1 106 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,0,0,0,0,Arial
+0 ""
+0 2 1 3 0
+1 0
+13 4
+"Button1"
+""
+1 390 210 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+5 0 0 0 0 0
+EE E
+0
+1
+LANG:1 0 
+0
+1
+LANG:1 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0 ""
+388 208 482 242
+T 
+1
+LANG:1 5 Close
+"main()
+{
+	removeGlobal(\"dpes\");
+	PanelOff();
+}" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

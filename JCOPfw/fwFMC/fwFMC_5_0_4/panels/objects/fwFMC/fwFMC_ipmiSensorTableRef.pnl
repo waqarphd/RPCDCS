@@ -1,0 +1,209 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 389 116 N "_3DFace" 2
+"$IPMISensorName"
+"$sDpName"
+"main()
+{
+  int loopTabelIPMI=5;
+  string name;
+  string status;
+  float value;
+  string unit;
+  
+  string color;
+  dyn_string sensorDps;
+  
+  string node = fwFMC_getNodeName($sDpName);
+  string systemName = dpSubStr($sDpName, DPSUB_SYS);
+  string ipmiDp = fwFMCIpmi_getDp(node, systemName);
+
+  tblSensor.visible = true;
+  tblSensor.enableColumnResize = true;
+  tblSensor.deleteAllLines;
+  
+  tblSensor.tableMode(TABLE_SELECT_MULTIPLE);
+  tblSensor.selectByClick(TABLE_SELECT_LINE);
+
+//  for(int i = 1; i <= dynlen(sensorDps); i++)
+//    this.appendLines(1, \"key\", i, \"name\", \"\", 
+//                                   \"value\", \"\", 
+//                                   \"status\", \"\");
+  
+  while(TRUE){    
+    sensorDps = fwFMCIpmi_getAllSensorDpNames(node, $IPMISensorName, systemName);  
+    
+    if(dynlen(sensorDps) <= 0)
+    {
+      tblSensor.deleteAllLines();  
+      delay(loopTabelIPMI);
+      continue;
+    }
+    
+    for(int i = 1; i <= dynlen(sensorDps); i++)
+    {
+      name = dpGetAlias(sensorDps[i] + \".value\");
+      dyn_string ds = strsplit(name, \"/\");
+      
+      dpGet(sensorDps[i] + \".value\", value,
+            sensorDps[i] + \".status\", status,
+            sensorDps[i] + \".unit\", unit);
+      
+      if(value != -1)
+      {
+        value = floor(value*1000)/1000.;
+  	     tblSensor.updateLine(1, \"key\", i, \"name\", ds[dynlen(ds)], 
+                                   \"value\", value + \" \" + unit, 
+                                   \"status\", status);
+        if(status != \"ok\")
+	        color = \"FwAlarmFatalAck\";
+	      else
+	        color = \"white\";
+	
+        tblSensor.cellBackColRC(i-1, \"name\") = color;
+        tblSensor.cellBackColRC(i-1, \"value\") = color;
+        tblSensor.cellBackColRC(i-1, \"status\") = color;
+      }
+    }
+    delay(loopTabelIPMI);
+  } 
+}
+
+
+" 0
+ E E E E 1 -1 -1 0  0 0
+""0  1
+E "#uses \"fwFMC/fwFMC.ctl\"
+#uses \"fwFMC/fwFMCIpmi.ctl\"
+ 
+          " 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 3
+"tblSensor"
+""
+1 1.79649122807018 7.31578947368421 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,11,5,50,0,0,0,0,0
+0  8 8 346 114
+"main()
+{
+ 
+}
+" 0
+E 1 0 1 4 1 "key" 23 0 0 "s" 1
+LANG:1 3 key
+E
+1
+LANG:1 0 
+
+195 "name" 21 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+180 "value" 9 1 0 "s" 1
+LANG:1 5 Value
+E
+1
+LANG:1 0 
+
+84 "status" 5 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+50 
+16 16 "" 1 1
+LANG:1 2 #1
+8 30
+1
+LANG:1 26 Arial,-1,11,5,50,0,0,0,0,0
+0 0 2 0 1 7
+1 0
+13 4
+"PUSH_BUTTON1"
+""
+1 361.538461538461 90 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 25 Sans,-1,13,5,50,0,0,0,0,0
+0  348 78 382 110
+
+P 
+4294967295
+"pictures/trend_enabled_32.gif"
+1
+LANG:1 12 PUSH_BUTTON1
+E E "main()
+{
+  dyn_string dpes = fwFMCIpmi_getAllSensorDpNames(fwFMC_getNodeName($sDpName), $IPMISensorName);;
+  dyn_string labels;
+  dyn_string ds;
+  for(int i = 1; i <= dynlen(dpes); i++)
+  {
+    dpes[i] = dpes[i] + \".value\";
+    labels[i] = dpGetAlias(dpes[i]);
+    
+    ds = strsplit(labels[i], \"/\");
+    labels[i] = ds[dynlen(ds)];
+    //DebugN(labels[i]);
+  }
+  
+  ChildPanelOnCentral(\"fwFMC/fwFMC_trendAnalogs.pnl\", strtoupper($IPMISensorName) + \" Trends\", makeDynString(\"$dpes:\" + dpes, \"$labels:\" + labels, \"$title: \" + strtoupper($IPMISensorName) + \" Trends\"));
+}" 0
+ E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

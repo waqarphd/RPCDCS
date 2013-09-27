@@ -1,0 +1,2798 @@
+V 12
+2
+LANG:10001 36 JCOP Framework Installation Packager
+LANG:1 36 JCOP Framework Installation Packager
+PANEL,-1 -1 1001 707 N "_3DFace" 0
+E E E E E 1 -1 -1 0  130 50
+""0  1
+E "#uses \"fwInstallation.ctl\"
+
+string fsSep;
+
+
+
+dyn_string xmlDesc;
+string xmlFileContent;
+
+bool enforcePaths = TRUE;
+bool componentXmlLoaded = FALSE;
+
+string fileComponentName, fileComponentVersion, fileComponentDate;
+bool fileComponentIsSubComponent;
+dyn_string 	fileComponentRequiredComponents, 
+						fileComponentInitFiles, fileComponentDeleteFiles, 
+						fileComponentPostInstallFiles, fileComponentPostDeleteFiles,
+						fileComponentConfigFiles_general,
+						fileComponentConfigFiles_windows,
+						fileComponentConfigFiles_linux,
+						fileComponentDplistFiles, fileComponentPanelFiles,
+						fileComponentScriptFiles, fileComponentLibFiles,
+						fileComponentOtherFiles, fileComponentSubComponents,
+						fileComponentScriptsToBeAdded, fileComponentFiles;
+						
+
+
+refreshPanel()
+{
+  dyn_string tempDynString, tempDynString2;
+  string tempString;
+  string dontRestartProject = \"no\";
+        
+  if(cbRestart.state(0))
+    dontRestartProject = \"yes\";
+
+  // wait for file system init
+  while(fsSep == \"\")
+    delay(0,100);
+
+/*	if(enforcePaths)
+		DebugTN(\"Enforcing Paths\");
+	else
+		DebugTN(\"NOT Enforcing Paths\");
+*/
+	
+	if(!componentXmlLoaded)
+	{
+		dynClear(xmlDesc);
+	
+		fwInstallationXml_create(	\"\", 
+															componentName.text, componentVersion.text, componentDate.text,
+															getSelectedLines(\"requiredComponents\"),
+															isSubComponent.state(0),
+															getSelectedLines(\"initScript\"), getSelectedLines(\"deleteScript\"),
+															getSelectedLines(\"postInstallScript\"), getSelectedLines(\"postDeleteScript\"),
+															getSelectedLines(\"configFiles\"),
+															getSelectedLines(\"asciiFiles\"),
+															getSelectedLines(\"panelFiles\"),
+															getSelectedLines(\"scriptFiles\"),
+															getSelectedLines(\"libraryFiles\"),
+															getSelectedLines(\"otherFiles\"),
+                                                                                                                        dontRestartProject,
+															xmlDesc);
+															
+		dynClear(fileComponentRequiredComponents);
+		dynClear(fileComponentInitFiles);
+		dynClear(fileComponentDeleteFiles);
+		dynClear(fileComponentPostInstallFiles);
+		dynClear(fileComponentPostDeleteFiles);
+		dynClear(fileComponentConfigFiles_general);
+		dynClear(fileComponentConfigFiles_windows);
+		dynClear(fileComponentConfigFiles_linux);
+		dynClear(fileComponentDplistFiles);
+		dynClear(fileComponentPanelFiles);
+		dynClear(fileComponentScriptFiles);
+		dynClear(fileComponentLibFiles);
+		dynClear(fileComponentOtherFiles);
+		dynClear(fileComponentSubComponents);
+		dynClear(fileComponentScriptsToBeAdded);
+		dynClear(fileComponentFiles);
+
+		fwInstallationXml_decode(xmlDesc,
+															fileComponentName, fileComponentVersion, fileComponentDate,
+															fileComponentRequiredComponents, 
+															fileComponentIsSubComponent,
+															fileComponentInitFiles, fileComponentDeleteFiles, 
+															fileComponentPostInstallFiles, fileComponentPostDeleteFiles,
+															fileComponentConfigFiles_general,
+															fileComponentConfigFiles_windows,
+															fileComponentConfigFiles_linux,
+															fileComponentDplistFiles, fileComponentPanelFiles,
+															fileComponentScriptFiles, fileComponentLibFiles,
+															fileComponentOtherFiles, fileComponentSubComponents,
+															fileComponentScriptsToBeAdded, fileComponentFiles,
+               dontRestartProject);
+	
+	}
+	
+	
+// panels
+	dynClear(tempDynString);
+	if(!enforcePaths)
+	{
+		tempDynString = getFileNamesRec(sourcePath.selectedText+fsSep + \"panels\", \"*.pnl\");
+	} else {
+		tempDynString = getFileNames(sourcePath.selectedText+fsSep + \"panels\", \"*.pnl\");
+	// panels in component path
+		if(componentName.text != \"\")
+		{
+			tempDynString2 = getFileNames(sourcePath.selectedText+fsSep + \"panels\" + fsSep+componentName.text, \"*.pnl\");
+			if(dynlen(tempDynString2) > 0)
+				for(int i=1; i<=dynlen(tempDynString2); i++)
+					tempDynString2[i] = componentName.text + \"/\" + tempDynString2[i];
+			dynAppend(tempDynString, tempDynString2);
+		}
+	// reference panels
+		tempDynString2 = getFileNames(sourcePath.selectedText+fsSep + \"panels\" + fsSep + \"objects\", \"*.pnl\");
+		if(dynlen(tempDynString2) > 0)
+			for(int i=1; i<=dynlen(tempDynString2); i++)
+				tempDynString2[i] = \"objects/\" + tempDynString2[i];
+		dynAppend(tempDynString, tempDynString2);
+	// reference panels in component path
+		if(componentName.text != \"\")
+		{
+			tempDynString2 = getFileNames(sourcePath.selectedText+fsSep + \"panels\" + fsSep + \"objects\" + fsSep+componentName.text, \"*.pnl\");
+			if(dynlen(tempDynString2) > 0)
+				for(int i=1; i<=dynlen(tempDynString2); i++)
+					tempDynString2[i] = \"objects/\" + componentName.text + \"/\" + tempDynString2[i];
+			dynAppend(tempDynString, tempDynString2);
+		}
+	// FSM panels
+		tempDynString2 = getFileNames(sourcePath.selectedText+fsSep + \"panels\" + fsSep + \"fwFSMUser\", \"*.pnl\");
+		if(dynlen(tempDynString2) > 0)
+			for(int i=1; i<=dynlen(tempDynString2); i++)
+				tempDynString2[i] = \"fwFSMUser/\" + tempDynString2[i];
+		dynAppend(tempDynString, tempDynString2);
+	// FSM panels with component path
+		if(componentName.text != \"\")
+		{
+			tempDynString2 = getFileNames(sourcePath.selectedText+fsSep + \"panels\" + fsSep + \"fwFSMUser\" + fsSep+componentName.text, \"*.pnl\");
+			if(dynlen(tempDynString2) > 0)
+				for(int i=1; i<=dynlen(tempDynString2); i++)
+					tempDynString2[i] = \"fwFSMUser/\" + componentName.text + \"/\" + tempDynString2[i];
+			dynAppend(tempDynString, tempDynString2);
+		}
+	}
+	addLinesSelected(\"panelFiles\", tempDynString);
+
+
+// config files	
+	tempDynString = getFileNames(sourcePath.selectedText+fsSep + \"config\", componentName.text + \".\" + \"config\");
+	dynAppend(tempDynString, getFileNames(sourcePath.selectedText+fsSep + \"config\", componentName.text + \".\" + \"config.windows\"));
+	dynAppend(tempDynString, getFileNames(sourcePath.selectedText+fsSep + \"config\", componentName.text + \".\" + \"config.linux\"));
+	addLinesSelected(\"configFiles\", tempDynString);
+	
+// installation/deletion scripts
+	addLinesSelected(\"initScript\", getFileNames(sourcePath.selectedText+fsSep + \"config\", \"*.init\"));
+	addLinesSelected(\"initScript\", getFileNames(sourcePath.selectedText+fsSep + \"scripts\", \"*.init\"));
+	addLinesSelected(\"initScript\", getFileNames(sourcePath.selectedText+fsSep + \"scripts/\" + componentName.text, \"*.init\"));
+
+        addLinesSelected(\"deleteScript\", getFileNames(sourcePath.selectedText+fsSep + \"config\", \"*.delete\"));
+        addLinesSelected(\"deleteScript\", getFileNames(sourcePath.selectedText+fsSep + \"scripts\", \"*.delete\"));
+        addLinesSelected(\"deleteScript\", getFileNames(sourcePath.selectedText+fsSep + \"scripts/\" + componentName.text, \"*.delete\"));
+
+       	addLinesSelected(\"postInstallScript\", getFileNames(sourcePath.selectedText+fsSep + \"config\", \"*.postInstall\"));
+       	addLinesSelected(\"postInstallScript\", getFileNames(sourcePath.selectedText+fsSep + \"scripts\", \"*.postInstall\"));
+       	addLinesSelected(\"postInstallScript\", getFileNames(sourcePath.selectedText+fsSep + \"scripts/\" + componentName.text, \"*.postInstall\"));
+	
+        addLinesSelected(\"postDeleteScript\", getFileNames(sourcePath.selectedText+fsSep + \"config\", \"*.postDelete\"));
+        addLinesSelected(\"postDeleteScript\", getFileNames(sourcePath.selectedText+fsSep + \"scripts\", \"*.postDelete\"));
+        addLinesSelected(\"postDeleteScript\", getFileNames(sourcePath.selectedText+fsSep + \"scripts/\" + componentName.text, \"*.postDelete\"));
+	
+	
+// required components
+	dynClear(tempDynString);
+	tempDynString2 = dpNames(\"fwInstallation_*\", \"_FwInstallationComponents\");
+		if(dynlen(tempDynString2) > 0)
+			for(int i=1; i<=dynlen(tempDynString2); i++)
+			{
+				dpGet(tempDynString2[i]+\".componentVersionString\", tempString);
+//				DebugN(tempDynString2[i]+\".componentVersionString\", substr(tempDynString2[i], strpos(tempDynString2[i], \"_\")+1)+\"=\"+tempString);
+				strreplace(tempDynString2[i], getSystemName(), \"\");
+				dynAppend(tempDynString, substr(tempDynString2[i], strpos(tempDynString2[i], \"_\")+1)+\"=\"+tempString);
+			}
+	addLinesSelected(\"requiredComponents\", tempDynString);
+	
+// ASCII files
+	tempDynString2 = getFileNames(sourcePath.selectedText+fsSep + \"dplist\", \"*.dpl\");
+//		if(dynlen(tempDynString2) > 0)
+//			for(int i=1; i<=dynlen(tempDynString2); i++)
+//				tempDynString2[i] = /*\"dplist/\" + */tempDynString2[i];
+	dyn_string tempDynString22 = getFileNames(sourcePath.selectedText+fsSep + \"dplist/\" + componentName.text, \"*.dpl\");
+			for(int i=1; i<=dynlen(tempDynString22); i++)
+				tempDynString22[i] = componentName.text + \"/\" + tempDynString22[i];
+                                                         
+  dynAppend(tempDynString2, tempDynString22);
+	addLinesSelected(\"asciiFiles\", tempDynString2);
+	
+// scripts
+	if(!enforcePaths)
+	{
+		tempDynString2 = getFileNamesRec(sourcePath.selectedText+fsSep + \"scripts\");
+			if(dynlen(tempDynString2) > 0)
+  			  for(int i=1; i<=dynlen(tempDynString2); i++){
+			    tempDynString2[i] = /*\"scripts/libs/\" + */tempDynString2[i];                        
+                          }
+	} else {
+		tempDynString2 = getFileNamesRec(sourcePath.selectedText+fsSep + \"scripts\" + fsSep + componentName.text);
+			if(dynlen(tempDynString2) > 0)
+       				for(int i=1; i<=dynlen(tempDynString2); i++){
+	                         tempDynString2[i] = /*\"scripts/libs/\"*/ +  componentName.text + fsSep + tempDynString2[i];
+                                }
+	}
+	if(dynlen(tempDynString2) > 0)
+		for(int i=dynlen(tempDynString2); i>=1; i--)
+			if(strpos(tempDynString2[i], \"/libs\") == 0)
+				dynRemove(tempDynString2, i);
+			else {
+				dynInsertAt(tempDynString2, strltrim(tempDynString2[i], \"/\"), i);
+				dynRemove(tempDynString2, i+1);
+			}
+
+         if(dynlen(tempDynString2) > 0){
+           for(int i=dynlen(tempDynString2); i>=1; i--){
+	     if(patternMatch(\"*.init\", tempDynString2[i]) || patternMatch(\"*.postInstall\", tempDynString2[i]))                                           
+               dynRemove(tempDynString2, i);
+           } 
+         }                   
+
+                        	  addLinesSelected(\"scriptFiles\", tempDynString2);
+	
+// libraries
+	if(!enforcePaths)
+	{
+		tempDynString2 = getFileNamesRec(sourcePath.selectedText+fsSep + \"scripts\" + fsSep + \"libs\");
+			if(dynlen(tempDynString2) > 0)
+				for(int i=1; i<=dynlen(tempDynString2); i++)
+					tempDynString2[i] = /*\"scripts/libs/\" + */strltrim(tempDynString2[i], \"/\");
+	} else {
+		tempDynString2 = getFileNamesRec(sourcePath.selectedText+fsSep + \"scripts\" + fsSep + \"libs\"+ fsSep + componentName.text);
+			if(dynlen(tempDynString2) > 0)
+				for(int i=1; i<=dynlen(tempDynString2); i++)
+					tempDynString2[i] = /*\"scripts/libs/\" + */ componentName.text + fsSep + tempDynString2[i];
+	}
+	if(dynlen(tempDynString2) > 0)
+		for(int i=dynlen(tempDynString2); i>=1; i--)
+		{
+			dynInsertAt(tempDynString2, strltrim(tempDynString2[i], \"/\"), i);
+			dynRemove(tempDynString2, i+1);
+		}
+	addLinesSelected(\"libraryFiles\", tempDynString2);
+
+// Other files for this component (from ./, ./bin, ./colorDB, ./images, ./pictures, ./source).
+	dynClear(tempDynString);
+	
+	tempDynString2 = getFileNames(sourcePath.selectedText);
+	if(dynlen(tempDynString2) > 0)
+		for(int i=1; i<=dynlen(tempDynString2); i++)
+			tempDynString2[i] = tempDynString2[i];
+	dynAppend(tempDynString, tempDynString2);
+	tempDynString2 = getFileNamesRec(sourcePath.selectedText + fsSep + \"bin\");
+	if(dynlen(tempDynString2) > 0)
+		for(int i=1; i<=dynlen(tempDynString2); i++)
+			tempDynString2[i] = \"bin/\" + tempDynString2[i];
+	dynAppend(tempDynString, tempDynString2);
+	tempDynString2 = getFileNames(sourcePath.selectedText + fsSep + \"colorDB\");
+	if(dynlen(tempDynString2) > 0)
+		for(int i=1; i<=dynlen(tempDynString2); i++)
+			tempDynString2[i] = \"colorDB/\" + tempDynString2[i];
+	dynAppend(tempDynString, tempDynString2);
+
+	if(!enforcePaths)
+	{
+		tempDynString2 = getFileNamesRec(sourcePath.selectedText + fsSep + \"images\");
+		if(dynlen(tempDynString2) > 0)
+			for(int i=1; i<=dynlen(tempDynString2); i++)
+				tempDynString2[i] = \"images/\" + tempDynString2[i];
+		dynAppend(tempDynString, tempDynString2);
+	}
+
+	tempDynString2 = getFileNames(sourcePath.selectedText + fsSep + \"pictures\");
+	if(dynlen(tempDynString2) > 0)
+		for(int i=1; i<=dynlen(tempDynString2); i++)
+			tempDynString2[i] = \"pictures/\" + tempDynString2[i];
+	dynAppend(tempDynString, tempDynString2);
+	tempDynString2 = getFileNamesRec(sourcePath.selectedText + fsSep + \"source\");
+	if(dynlen(tempDynString2) > 0)
+		for(int i=1; i<=dynlen(tempDynString2); i++)
+			tempDynString2[i] = \"source/\" + tempDynString2[i];
+	dynAppend(tempDynString, tempDynString2);
+	
+	if(!enforcePaths)
+	{
+		tempDynString2 = getFileNamesRec(sourcePath.selectedText + fsSep + \"help\");
+		if(dynlen(tempDynString2) > 0)
+			for(int i=1; i<=dynlen(tempDynString2); i++)
+				tempDynString2[i] = \"help/\" + tempDynString2[i];
+		dynAppend(tempDynString, tempDynString2);
+	} else {
+		tempDynString2 = getFileNamesRec(sourcePath.selectedText + fsSep + \"help\" + fsSep + componentName.text);
+		if(dynlen(tempDynString2) > 0)
+			for(int i=1; i<=dynlen(tempDynString2); i++)
+				tempDynString2[i] = \"help/\" + tempDynString2[i];
+		dynAppend(tempDynString, tempDynString2);
+	}
+	addLinesSelected(\"otherFiles\", tempDynString);
+        
+        if(strtolower(dontRestartProject) == \"yes\")
+          cbRestart.state(0, true);
+	
+//	if(componentXmlLoaded)
+		applyXmlFromFile();
+
+}
+
+addLinesSelected(string shapeName, dyn_string items)
+{
+	shape myShape = getShape(shapeName);
+	
+	myShape.deleteAllLines();
+	myShape.tableMode(TABLE_SELECT_MULTIPLE);
+	myShape.selectByClick(TABLE_SELECT_LINE);
+	if(dynlen(items) > 0)
+		for(int i=1; i<=dynlen(items); i++)
+		{
+			myShape.appendLine(\"items\", items[i], \"inSelection\", \"Y\");
+		}
+	myShape.cellForeCol(\"Black\");
+	myShape.sort(/*\"inSelection\", */\"items\");	
+	myShape.lineVisible(0);
+	myShape.columnToolTipText(0, \"Select+Rightclick to select/deselect, Doubleclick to invert selection.\");
+	myShape.columnToolTipText(1, \"In Selection? {Y/N}\");
+	myShape.columnToolTipText(2, \"XML: The item in this line is part of the loaded description file.\");
+}
+
+applyXmlFromFile()
+{
+	dyn_string tempDynString;
+	applyShapeFromFile(\"requiredComponents\", fileComponentRequiredComponents);
+	tempDynString = fileComponentConfigFiles_general;
+	dynAppend(tempDynString, fileComponentConfigFiles_windows);
+	dynAppend(tempDynString, fileComponentConfigFiles_linux);
+	applyShapeFromFile(\"configFiles\", tempDynString);
+	applyShapeFromFile(\"asciiFiles\", fileComponentDplistFiles);
+	applyShapeFromFile(\"initScript\", fileComponentInitFiles);
+	applyShapeFromFile(\"deleteScript\", fileComponentDeleteFiles);
+	applyShapeFromFile(\"postInstallScript\", fileComponentPostInstallFiles);
+	applyShapeFromFile(\"postDeleteScript\", fileComponentPostDeleteFiles);
+	applyShapeFromFile(\"panelFiles\", fileComponentPanelFiles);
+	applyShapeFromFile(\"scriptFiles\", fileComponentScriptFiles);
+	applyShapeFromFile(\"libraryFiles\", fileComponentLibFiles);
+	applyShapeFromFile(\"otherFiles\", fileComponentOtherFiles);
+}
+
+applyShapeFromFile(string shapeName, dyn_string xmlItems)
+{
+	shape myShape = getShape(shapeName);
+	dyn_string items, itemSelected, tempXmlItems = xmlItems;
+	
+	dynClear(items);
+	if(myShape.lineCount > 0)
+		for(int i=0; i<myShape.lineCount; i++)
+		{
+			myShape.currentCell(i,0);
+			dynAppend(items, myShape.cellValue);
+			myShape.currentCell(i,1);
+			dynAppend(itemSelected, myShape.cellValue);
+		}
+
+//	DebugTN(shapeName, xmlItems, items);
+
+
+//	DebugN(items, itemSelected, xmlItems);
+	
+	myShape.deleteAllLines();
+	myShape.tableMode(TABLE_SELECT_MULTIPLE);
+	myShape.selectByClick(TABLE_SELECT_LINE);
+	if(dynlen(items) > 0)
+		for(int i=1; i<=dynlen(items); i++)
+		{
+			int pos = dynContains(tempXmlItems, items[i]);
+			if(pos > 0)
+			{
+				if(componentXmlLoaded)
+					myShape.appendLine(\"items\", items[i], \"inSelection\", itemSelected[i], \"fromFile\", \"XML\");
+				else
+					myShape.appendLine(\"items\", items[i], \"inSelection\", itemSelected[i]);
+				dynRemove(tempXmlItems, pos);
+				while(pos = dynContains(tempXmlItems, items[i]))
+					dynRemove(tempXmlItems, pos);
+//	DebugTN(items[i], tempXmlItems, pos);
+			}
+			else
+				myShape.appendLine(\"items\", items[i], \"inSelection\", \"N\");
+		}
+		
+//	DebugTN(tempXmlItems);		
+		
+	if(dynlen(tempXmlItems) > 0)
+		for(int i=1; i<=dynlen(tempXmlItems); i++)
+		{
+			myShape.appendLine(\"items\", tempXmlItems[i], \"fromFile\", \"XML\");
+		}
+		
+	myShape.cellForeCol(\"Black\");
+	myShape.sort(/*\"inSelection\", */\"items\");	
+	myShape.lineVisible(0);
+	myShape.columnToolTipText(0, \"Select+Rightclick to select/deselect, Doubleclick to invert selection.\");
+	myShape.columnToolTipText(1, \"In Selection? {Y/N}\");
+	myShape.columnToolTipText(2, \"XML: The item in this line is part of the loaded description file.\");
+}
+
+
+dyn_string getSelectedLines(string shapeName)
+{
+	shape myShape = getShape(shapeName);
+	dyn_string items;
+	
+	dynClear(items);
+	if(myShape.lineCount > 0)
+		for(int i=0; i<myShape.lineCount; i++)
+		{
+			myShape.currentCell(i,1);
+			if(myShape.cellValue == \"Y\")
+			{
+				myShape.currentCell(i,0);
+				dynAppend(items, myShape.cellValue);
+			} else if(myShape.cellValue != \"N\") {
+				myShape.currentCell(i,2);
+				if(myShape.cellValue == \"XML\")
+				{
+					myShape.currentCell(i,0);
+					dynAppend(items, myShape.cellValue);
+				}
+			} 			
+		}
+		
+	return items;
+}
+
+	
+loadXmlFile(string xmlFileName)
+{
+	bool result = FALSE;
+        string dontRestartProject = \"no\";
+
+	if(xmlFileName != \"\")
+		result = fileToString(xmlFileName, xmlFileContent);
+		
+	if(result)
+	{
+		componentXmlLoaded = TRUE;
+		newXmlButton.enabled = TRUE;
+
+		dynClear(fileComponentRequiredComponents);
+		dynClear(fileComponentInitFiles);
+		dynClear(fileComponentDeleteFiles);
+		dynClear(fileComponentPostInstallFiles);
+		dynClear(fileComponentPostDeleteFiles);
+		dynClear(fileComponentConfigFiles_general);
+		dynClear(fileComponentConfigFiles_windows);
+		dynClear(fileComponentConfigFiles_linux);
+		dynClear(fileComponentDplistFiles);
+		dynClear(fileComponentPanelFiles);
+		dynClear(fileComponentScriptFiles);
+		dynClear(fileComponentLibFiles);
+		dynClear(fileComponentOtherFiles);
+		dynClear(fileComponentSubComponents);
+		dynClear(fileComponentScriptsToBeAdded);
+		dynClear(fileComponentFiles);
+		
+		fwInstallationXml_decode(xmlFileContent,
+															fileComponentName, fileComponentVersion, fileComponentDate,
+															fileComponentRequiredComponents, 
+															fileComponentIsSubComponent,
+															fileComponentInitFiles, fileComponentDeleteFiles, 
+															fileComponentPostInstallFiles, fileComponentPostDeleteFiles,
+															fileComponentConfigFiles_general,
+															fileComponentConfigFiles_windows,
+															fileComponentConfigFiles_linux,
+															fileComponentDplistFiles, fileComponentPanelFiles,
+															fileComponentScriptFiles, fileComponentLibFiles,
+															fileComponentOtherFiles, fileComponentSubComponents,
+															fileComponentScriptsToBeAdded, fileComponentFiles,
+                                                                                                                        dontRestartProject);
+
+
+
+		componentName.text = fileComponentName;
+		componentVersion.text = fileComponentVersion;
+		componentDate.text = fileComponentDate;
+
+                if(strtolower(dontRestartProject) == \"yes\")
+                  cbRestart.state(0, true);
+                
+		XMLEditButton.enabled = TRUE;
+		XMLPackAndGoButton.enabled = TRUE;	
+		
+		xmlDesc = strsplit(xmlFileContent, \"\\n\");											
+	}
+	
+	refreshPanel();
+//	applyXmlFromFile();
+//	DebugN(xmlFileContent, fileComponentName, fileComponentVersion, fileComponentDate,
+//					fileComponentPanelFiles, fileComponentScriptFiles, fileComponentOtherFiles);
+	
+}
+
+	
+rightClickTable()
+{				
+	dyn_int selectedLines;
+	
+	selectedLines = this.getSelectedLines();
+	
+	
+	if(dynlen(selectedLines) > 0)
+		for(int i=1; i<=dynlen(selectedLines); i++)
+		{
+			this.currentCell(selectedLines[i],1);
+//			DebugN(this.cellValue);
+			if(this.cellValue == \"Y\")
+			{
+//				setValue(\"\", \"cellForeColRC\", selectedLines[i], \"items\", \"Grey\");
+				this.cellValue = \"N\";
+			} else {
+//				setValue(\"\", \"cellForeColRC\", selectedLines[i], \"items\", \"Black\");
+				this.cellValue = \"Y\";
+			}
+		}
+	
+	this.sort(/*\"inSelection\", */\"items\");
+}
+
+editScript(string scriptType)
+{
+	shape tableShape = getShape(scriptType+\"Script\");
+	dyn_int selectedLines;
+	string script;
+	file scriptFile;
+	string path;
+        
+	selectedLines = tableShape.getSelectedLines();
+	
+	
+	if(dynlen(selectedLines) == 1)
+	{
+		tableShape.currentCell(selectedLines[1],0);
+//		DebugTN(sourcePath.text +\"/config/\"+ tableShape.cellValue);
+      		if(access(sourcePath.text +\"/config/\"+ tableShape.cellValue, W_OK) == 0){
+                  path = sourcePath.text +\"/config/\";
+                }else if(access(sourcePath.text +\"/scripts/\"+ tableShape.cellValue, W_OK) == 0){
+                  path = sourcePath.text +\"/scripts/\";
+                }else if(access(sourcePath.text +\"/scripts/\" + componentName.text + \"/\" + tableShape.cellValue, W_OK) == 0){
+                  path = sourcePath.text +\"/scripts/\" + componentName.text + \"/\";
+                }                
+
+                DebugN(\"Opening file: \" + path+ tableShape.cellValue);
+                
+                scriptFile = fopen(path+ tableShape.cellValue, \"r\");
+
+                if(ferror(scriptFile) == 0)
+		{
+			DebugTN(\"Starting editing\");
+			if(_WIN32)
+				system(\"notepad \"+path+ tableShape.cellValue);
+			else
+				system(\"xterm -e vi \"+path+ tableShape.cellValue);
+			DebugTN(\"Editing finished\");
+		}
+		fclose(scriptFile);
+
+	}
+}
+
+doubleClickTable()
+{
+	if(this.lineCount > 0)
+		for(int i=0; i<this.lineCount; i++)
+		{
+			this.currentCell(i,1);
+//			DebugN(this.cellValue);
+			if(this.cellValue == \"Y\")
+			{
+//				setValue(\"\", \"cellForeColRC\", i, \"items\", \"Grey\");
+				this.cellValue = \"N\";
+			} else if(this.cellValue == \"N\"){
+//				setValue(\"\", \"cellForeColRC\", i, \"items\", \"Black\");
+				this.cellValue = \"Y\";
+			}
+		}
+	
+	this.sort(/*\"inSelection\", */\"items\");
+}
+
+dyn_string getFileNamesRec(string dir = \".\", string pattern = \"*\")
+{
+  dyn_string tempDynString;
+  dyn_string allFileNames;
+  string newDir = \"/*\";
+  
+  recurserFileNames(dir, \"*\", allFileNames);
+
+  if(dynlen(allFileNames) > 0)
+    for(int i=1; i<=dynlen(allFileNames); i++)
+		  {
+			   strreplace(allFileNames[i], dir + \"/\", \"\");
+			   strreplace(allFileNames[i], \"//\", \"/\");
+		  }
+
+  for(int i=1; i<=dynlen(allFileNames); i++)
+    if(patternMatch(pattern, allFileNames[i]))
+      dynAppend(tempDynString, allFileNames[i]);
+	
+  return tempDynString;
+}
+
+recurserFileNames(string dir, string pattern, dyn_string & fileNames)
+{
+  dyn_string tempDynString = getFileNames(dir + \"/*\", pattern);
+  dyn_string tempDynString2 = getFileNames(dir, pattern);
+	
+  for(int i=1; i<=dynlen(tempDynString2); i++)
+  {
+    tempDynString2[i] = dir +\"/\"+ tempDynString2[i];
+    if(!patternMatch(\"*.svn\", tempDynString2[i]))
+      dynAppend(fileNames, tempDynString2[i]);
+    else
+      DebugN(\"Packager: Skipping SVN folder: \" + tempDynString2[i]);
+  }
+  
+  dynRemove(tempDynString, 1);
+	
+		for(int i=1; i<=dynlen(tempDynString); i++)
+  {
+    if(!patternMatch(\"*.svn\", tempDynString[i]))		  
+      recurserFileNames(dir + \"/\" + tempDynString[i] + \"/\", pattern, fileNames);
+    else
+      DebugN(\"Packager: Skipping SVN folder: \" + dir + \"/\" + tempDynString[i]);
+  }
+}
+
+
+
+
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" "main()
+{
+ int i = 0;
+}" 0
+
+""
+1
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:10001 6 Layer1
+2 0
+"Text1"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	fsSep = (_WIN32) ? \"/\" : \"/\";
+	if(_WIN32)
+	{
+		Border1.visible = TRUE;
+		Line1.visible   = TRUE;
+	}
+//DebugN(fsSep);
+}" 0
+ E 0 1 1 0 1 E U  0 E 12 12 426 34
+0 2 0 "0s" 0 0 0 192 0 0  12 12 1
+2
+LANG:10001 26 Arial,-1,19,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-19-*-100-100-*-*-iso8859-1|-19,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 47 JCOP Framework Installation Description Creator
+LANG:1 47 JCOP Framework Installation Description Creator
+2 2
+"Text2"
+""
+1 10 190 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 192 123 208
+0 2 0 "0s" 0 0 0 192 0 0  12 192 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 18 Source Projectpath
+LANG:1 18 Source Projectpath
+2 5
+"Text3"
+""
+1 14 40 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 65 Name of the component as it will appear in the installation tool.
+LANG:1 65 Name of the component as it will appear in the installation tool.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 16 42 120 58
+0 2 0 "0s" 0 0 0 192 0 0  16 42 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 14 Component Name
+LANG:1 14 Component Name
+2 7
+"Text4"
+""
+1 471 70 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 26 Panels for this component.
+LANG:1 26 Panels for this component.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 473 72 589 168
+0 2 0 "0s" 0 0 0 64 0 0  473 72 3
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 7 Panels 
+LANG:1 7 Panels 
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 9 and Ref. 
+LANG:1 9 and Ref. 
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 6 Panels
+LANG:1 6 Panels
+2 8
+"Text5"
+""
+1 18 288 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 34 Config file(s) for this component.
+LANG:1 34 Config file(s) for this component.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 290 88 306
+0 2 0 "0s" 0 0 0 192 0 0  20 290 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 12 Config Files
+LANG:1 12 Config Files
+2 10
+"Text6"
+""
+1 471 280 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 27 Scripts for this component.
+LANG:1 27 Scripts for this component.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 473 282 514 298
+0 2 0 "0s" 0 0 0 192 0 0  473 282 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 7 Scripts
+LANG:1 7 Scripts
+2 11
+"Text7"
+""
+1 471 390 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 29 Libraries for this component.
+LANG:1 29 Libraries for this component.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 473 392 522 408
+0 2 0 "0s" 0 0 0 192 0 0  473 392 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 9 Libraries
+LANG:1 9 Libraries
+2 16
+"Text8"
+""
+1 14 70 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 68 Version of the component as it will appear in the installation tool.
+LANG:1 68 Version of the component as it will appear in the installation tool.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 16 72 129 88
+0 2 0 "0s" 0 0 0 192 0 0  16 72 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 17 Component Version
+LANG:1 17 Component Version
+2 18
+"Text9"
+""
+1 14 100 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 73 Release date of the component as it will appear in the installation tool.
+LANG:1 73 Release date of the component as it will appear in the installation tool.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 16 102 113 118
+0 2 0 "0s" 0 0 0 192 0 0  16 102 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 14 Component Date
+LANG:1 14 Component Date
+2 20
+"Text10"
+""
+1 14 340 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 40 ASCII import file(s) for this component.
+LANG:1 40 ASCII import file(s) for this component.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 16 342 81 358
+0 2 0 "0s" 0 0 0 192 0 0  16 342 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 11 ASCII Files
+LANG:1 11 ASCII Files
+2 22
+"Text11"
+""
+1 10 230 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 33 Required components for this one.
+LANG:1 33 Required components for this one.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 232 128 268
+0 2 0 "0s" 0 0 0 64 0 0  12 232 2
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 14 Required Other
+LANG:1 14 Required Other
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 10 Components
+LANG:1 10 Components
+2 25
+"Text12"
+""
+1 82.89672186175655 382.7826507081508 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 34 Init script(s) for this component.
+LANG:1 34 Init script(s) for this component.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.959459459459459 0 0.952380952380952 8.48648648648649 12.3809523809524 0 E 12 472 82 488
+0 2 0 "0s" 0 0 0 192 0 0  12 472 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 14 Init Script(s)
+LANG:1 14 Init Script(s)
+2 27
+"Text13"
+""
+1 10 520 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 41 PostInstall script(s) for this component.
+LANG:1 41 PostInstall script(s) for this component.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 12 522 126 538
+0 2 0 "0s" 0 0 0 192 0 0  12 522 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 21 PostInstall Script(s)
+LANG:1 21 PostInstall Script(s)
+2 29
+"Text14"
+""
+1 20 588 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 36 Delete script(s) for this component.
+LANG:1 36 Delete script(s) for this component.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 22 590 112 606
+0 2 0 "0s" 0 0 0 192 0 0  22 590 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 16 Delete Script(s)
+LANG:1 16 Delete Script(s)
+2 30
+"Text15"
+""
+1 18 638 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 40 PostDelete script(s) for this component.
+LANG:1 40 PostDelete script(s) for this component.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 20 640 137 656
+0 2 0 "0s" 0 0 0 192 0 0  20 640 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 20 PostDelete Script(s)
+LANG:1 20 PostDelete Script(s)
+2 39
+"Text17"
+""
+1 471 500 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 91 Other files for this component (from ./, ./bin, ./colorDB, ./images, ./pictures, ./source).
+LANG:1 91 Other files for this component (from ./, ./bin, ./colorDB, ./images, ./pictures, ./source).
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 473 502 589 538
+0 2 0 "0s" 0 0 0 64 0 0  473 502 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 11 Other Files
+LANG:1 11 Other Files
+6 41
+"Border1"
+""
+1 964 41 E E E 1 E 0 E N "_Transparent" E N "_Transparent" E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 54 This tool does not work on Linux yet. Use a decent OS!
+LANG:1 54 This tool does not work on Linux yet. Use a decent OS!
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  2  1 4  "pictures/Misc/linux_penguine2.wmf" 4294967295 E 964 11 994 41
+4 43
+"Line1"
+""
+1 964 11 E E E 1 E 0 E N {255,0,0} E N "_Transparent" E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 62 This tool also works on Linux, but you made the better choice!
+LANG:1 62 This tool also works on Linux, but you made the better choice!
+
+1
+"dashclr"N "_Transparent"
+E E 0 5 1 0 1 E  964 41 994 11
+2 76
+"Text16"
+""
+1 541 50 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 543 52 749 78
+0 2 0 "0s" 0 0 0 64 0 0  543 52 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 4 Item
+LANG:1 4 Item
+2 77
+"Text18"
+""
+1 911 50 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 54 This item will be included in the next creation Yes/No
+LANG:1 54 This item will be included in the next creation Yes/No
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 913 52 937 68
+0 2 0 "0s" 0 0 0 192 0 0  913 52 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 4 Inc?
+LANG:1 4 Inc?
+2 78
+"Text19"
+""
+1 1390 250 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 54 XML: This item is part of the loaded description file.
+LANG:1 54 XML: This item is part of the loaded description file.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 943 52 975 68
+0 2 0 "0s" 0 0 0 192 0 0  943 52 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 4 XML?
+LANG:1 4 XML?
+2 79
+"Text20"
+""
+1 130 210 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 132 212 338 238
+0 2 0 "0s" 0 0 0 64 0 0  132 212 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 4 Item
+LANG:1 4 Item
+2 80
+"Text21"
+""
+1 350 210 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 54 This item will be included in the next creation Yes/No
+LANG:1 54 This item will be included in the next creation Yes/No
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 352 212 376 228
+0 2 0 "0s" 0 0 0 192 0 0  352 212 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 4 Inc?
+LANG:1 4 Inc?
+2 81
+"Text22"
+""
+1 829 410 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 54 XML: This item is part of the loaded description file.
+LANG:1 54 XML: This item is part of the loaded description file.
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 382 212 414 228
+0 2 0 "0s" 0 0 0 192 0 0  382 212 1
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 2
+LANG:10001 4 XML?
+LANG:1 4 XML?
+20 37
+"isSubComponent"
+""
+1 14 130 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 111 Check if this component should ONLY be a sub-component, ie. not be shown in the standard list for installation.
+LANG:1 111 Check if this component should ONLY be a sub-component, ie. not be shown in the standard list for installation.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  12 128 246 147
+1
+T 
+2
+LANG:10001 33 This component is a sub-component
+LANG:1 33 This component is a sub-component
+
+0 
+1
+LANG:10001 0 
+E E
+0 0 0 0 0
+1
+E E
+EE14 4
+"componentName"
+""
+1 134 40 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 106 Name of the component. REQUIRED. Also sub-directories of the source path with this name will be displayed.
+LANG:1 106 Name of the component. REQUIRED. Also sub-directories of the source path with this name will be displayed.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 38 436 65
+3 "0s" 0 0 0 0 0 -1  E E "main()
+{
+	refreshPanel();
+}" 0
+
+14 17
+"componentVersion"
+""
+1 134 70 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 49 Version of the component. REQUIRED! Format: #.#.#
+LANG:1 49 Version of the component. REQUIRED! Format: #.#.#
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 68 436 95
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = \"1.0.0\";
+}" 0
+ E
+14 19
+"componentDate"
+""
+1 134 100 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 52 Date of this version of the component. Format: Y/M/D
+LANG:1 52 Date of this version of the component. Format: Y/M/D
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 98 436 125
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+	this.text = formatTime(\"%Y/%m/%d\", getCurrentTime());
+}" 0
+ E
+22 1
+"sourcePath"
+""
+1 134 190 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 49 Project path, the component should be built from.
+LANG:1 49 Project path, the component should be built from.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 188 436 215
+0
+
+"main()
+{
+	dyn_string projPaths;
+	fwInstallation_getProjPaths(projPaths);
+	this.items = projPaths;
+}" 0
+
+"main()
+{
+	refreshPanel();
+}" 0
+
+E
+ 0 0
+13 14
+"XMLCreateButton"
+""
+1 481 680 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 47 Create the xml file from the above information.
+LANG:1 47 Create the xml file from the above information.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  479 678 603 705
+
+T 
+2
+LANG:10001 15 (Re-)Create XML
+LANG:1 15 (Re-)Create XML
+"  main()
+  {
+  	dynClear(xmlDesc);
+        string dontRestartProject = \"no\";
+        
+        if(cbRestart.state(0))
+          dontRestartProject = \"yes\";
+
+    openProgressBar(\"Creating XML file\", \"copy.gif\", \"Creating XML file\", \"\", \" Be patient!\", 2); 
+
+  //	DebugTN(xmlDesc, getSelectedLines(\"panelFiles\"),getSelectedLines(\"otherFiles\"));
+  
+  	fwInstallationXml_create(PROJ_PATH, 
+  				  componentName.text, componentVersion.text, componentDate.text,
+  				  getSelectedLines(\"requiredComponents\"),
+  				  isSubComponent.state(0),
+  				  getSelectedLines(\"initScript\"), getSelectedLines(\"deleteScript\"),
+  				  getSelectedLines(\"postInstallScript\"), getSelectedLines(\"postDeleteScript\"),
+  				  getSelectedLines(\"configFiles\"),
+  				  getSelectedLines(\"asciiFiles\"),
+  				  getSelectedLines(\"panelFiles\"),
+  				  getSelectedLines(\"scriptFiles\"),
+  				  getSelectedLines(\"libraryFiles\"),
+  				  getSelectedLines(\"otherFiles\"),
+                                  dontRestartProject,
+  			          xmlDesc);
+  														
+  	XMLEditButton.enabled = TRUE;
+  	XMLPackAndGoButton.enabled = TRUE;
+  	
+  //	DebugTN(xmlDesc);
+  	
+  //	xmlFileContent = xmlDesc;
+  
+  //	DebugTN(xmlFileContent);
+  
+  	componentXmlLoaded = TRUE;
+  	newXmlButton.enabled = TRUE;
+  
+  	dynClear(fileComponentRequiredComponents);
+  	dynClear(fileComponentInitFiles);
+  	dynClear(fileComponentDeleteFiles);
+  	dynClear(fileComponentPostInstallFiles);
+  	dynClear(fileComponentPostDeleteFiles);
+  	dynClear(fileComponentConfigFiles_general);
+  	dynClear(fileComponentConfigFiles_windows);
+  	dynClear(fileComponentConfigFiles_linux);
+  	dynClear(fileComponentDplistFiles);
+  	dynClear(fileComponentPanelFiles);
+  	dynClear(fileComponentScriptFiles);
+  	dynClear(fileComponentLibFiles);
+  	dynClear(fileComponentOtherFiles);
+  	dynClear(fileComponentSubComponents);
+  	dynClear(fileComponentScriptsToBeAdded);
+  	dynClear(fileComponentFiles);
+  	
+  //	DebugTN(fileComponentOtherFiles);
+  
+  	fwInstallationXml_decode(xmlDesc,
+				  fileComponentName, 
+                                  fileComponentVersion, 
+                                  fileComponentDate,
+  				  fileComponentRequiredComponents, 
+  				  fileComponentIsSubComponent,
+  				  fileComponentInitFiles, 
+                                  fileComponentDeleteFiles, 
+  				  fileComponentPostInstallFiles, 
+                                  fileComponentPostDeleteFiles,
+  				  fileComponentConfigFiles_general,
+  				  fileComponentConfigFiles_windows,
+  				  fileComponentConfigFiles_linux,
+  				  fileComponentDplistFiles, 
+                                  fileComponentPanelFiles,
+  				  fileComponentScriptFiles, 
+                                  fileComponentLibFiles,
+  				  fileComponentOtherFiles, 
+                                  fileComponentSubComponents,
+  				  fileComponentScriptsToBeAdded, 
+                                  fileComponentFiles,
+                                  dontRestartProject);  									
+    closeProgressBar();
+    refreshPanel();
+  
+}
+" 0
+ E E E
+13 15
+"XMLEditButton"
+""
+1 611 680 E E E 0 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 49 Edit the xml file (needs to be created first ;-))
+LANG:1 49 Edit the xml file (needs to be created first ;-))
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  609 678 733 705
+
+T 
+2
+LANG:10001 8 Edit XML
+LANG:1 8 Edit XML
+"main()
+{
+// wait for file system init
+	while(fsSep == \"\")
+		delay(0,100);
+	
+	if((componentName.text != \"\"))
+	{
+		file xmlText = fopen(PROJ_PATH + fsSep +componentName.text+ \".xml\", \"r\");
+		int ferr = ferror(xmlText);
+		fclose(xmlText);
+		if(ferr == 0)
+		{
+			DebugTN(\"Starting editing\");
+			if(_WIN32)
+				system(\"notepad \"+PROJ_PATH+ fsSep +componentName.text+ \".xml\");
+			else
+				system(\"xterm -e vi \"+PROJ_PATH+ fsSep +componentName.text+ \".xml\");
+			DebugTN(\"Editing finished\");
+			loadXmlFile(PROJ_PATH+ fsSep +componentName.text+ \".xml\");
+		}
+	}
+}" 0
+ E E E
+13 44
+"XMLPackAndGoButton"
+""
+1 741 680 E E E 0 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 88 Create a folder with the component (Folder and XML need to be created first) CAUTION!!! 
+LANG:1 88 Create a folder with the component (Folder and XML need to be created first) CAUTION!!! 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  739 678 863 705
+
+T 
+2
+LANG:10001 10 Pack && Go
+LANG:1 10 Pack && Go
+"main()
+{
+	dyn_string tempDynString;
+	string destinationFolder = PROJ_PATH;
+//	DebugN(xmlDesc);
+
+
+  btnClose.enabled	= false;
+	if(dynlen(xmlDesc) > 0)
+	{
+		folderSelector(destinationFolder);
+		if(destinationFolder != \"\")
+		{
+
+			openProgressBar(\"Pack & Go\", \"export.gif\", componentName.text, \"to \" + destinationFolder, \"Be patient\", 1);
+
+			destinationFolder += fsSep + componentName.text;
+
+//	DebugN(destinationFolder);
+   fwInstallationPackager_packNgo(destinationFolder, sourcePath.text, xmlDesc);
+/*
+			for(int i=1; i<=dynlen(xmlDesc); i++)
+			{
+        showProgressBar(\"\", \"\", \"Copying config files\", 10.);
+				_transferTaggedFile(xmlDesc[i], \"config\", sourcePath.text, destinationFolder);
+        showProgressBar(\"\", \"\", \"Copying config files\", 20.);
+				_transferTaggedFile(xmlDesc[i], \"config_linux\", sourcePath.text, destinationFolder);
+        showProgressBar(\"\", \"\", \"Copying config files\", 30.);
+				_transferTaggedFile(xmlDesc[i], \"config_windows\", sourcePath.text, destinationFolder);
+        showProgressBar(\"\", \"\", \"Copying config files\", 40.);
+				_transferTaggedFile(xmlDesc[i], \"init\", sourcePath.text, destinationFolder);
+        showProgressBar(\"\", \"\", \"Copying config files\", 50.);
+				_transferTaggedFile(xmlDesc[i], \"delete\", sourcePath.text, destinationFolder);
+        showProgressBar(\"\", \"\", \"Copying config files\", 60.);
+				_transferTaggedFile(xmlDesc[i], \"postInstall\", sourcePath.text, destinationFolder);
+        showProgressBar(\"\", \"\", \"Copying config files\", 70.);
+				_transferTaggedFile(xmlDesc[i], \"postDelete\", sourcePath.text, destinationFolder);
+        showProgressBar(\"\", \"\", \"Copying config files\", 80.);
+				_transferTaggedFile(xmlDesc[i], \"dplist\", sourcePath.text, destinationFolder);
+        showProgressBar(\"\", \"\", \"Copying config files\", 90.);
+				_transferTaggedFile(xmlDesc[i], \"script\", sourcePath.text, destinationFolder);
+        showProgressBar(\"\", \"\", \"Copying config files\", 100.);
+				_transferTaggedFile(xmlDesc[i], \"file\", sourcePath.text, destinationFolder);
+			}
+*/
+			closeProgressBar();
+		}
+	}
+
+  btnClose.enabled	= true;
+	 
+}	
+
+" 0
+ E E E
+25 57
+"requiredComponents"
+""
+1 -1276 -207 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+27 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 228 436 282
+EE 0 0 1 3 1 "items" 19 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+217 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+25 58
+"configFiles"
+""
+1 -1846 -131.6 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+28 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 288 436 332
+EE 0 0 1 3 1 "items" 19 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+217 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+25 59
+"asciiFiles"
+""
+1 -1846 -713 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+29 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 338 436 442
+EE 0 0 1 3 1 "items" 19 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+217 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+25 60
+"initScript"
+""
+1 -1846 -182.4 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+30 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 448 436 512
+EE 0 0 1 3 1 "items" 19 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+217 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+25 61
+"postInstallScript"
+""
+1 -1986 -387 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+31 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 518 436 572
+EE 0 0 1 3 1 "items" 19 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+217 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+25 62
+"deleteScript"
+""
+1 -1986 -145.6 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+32 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 578 436 622
+EE 0 0 1 3 1 "items" 19 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+217 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+25 63
+"postDeleteScript"
+""
+1 -2126 -447.6 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+33 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  132 628 436 672
+EE 0 0 1 3 1 "items" 19 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+217 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+25 64
+"panelFiles"
+""
+1 -2849 -5318 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+34 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  539 68 993 272
+EE 0 0 1 3 1 "items" 32 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+367 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+25 65
+"scriptFiles"
+""
+1 -3704 -2594 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+35 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  539 278 993 382
+EE 0 0 1 3 1 "items" 32 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+367 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+25 66
+"libraryFiles"
+""
+1 -3704 -2484 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+36 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  539 388 993 492
+EE 0 0 1 3 1 "items" 32 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+367 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+25 67
+"otherFiles"
+""
+1 -3704 -4385 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main()
+{
+	rightClickTable();
+}" 0
+ "main()
+{
+	doubleClickTable();
+}" 0
+
+37 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  539 498 993 672
+EE 0 0 1 3 1 "items" 32 1 0 "s" 2
+LANG:10001 4 Item
+LANG:1 4 Item
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+367 "inSelection" 1 1 0 "s" 2
+LANG:10001 3 Sel
+LANG:1 3 Sel
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+25 "fromFile" 2 1 0 "s" 2
+LANG:10001 3 XML
+LANG:1 3 XML
+E
+2
+LANG:10001 0 
+LANG:1 0 
+
+40 
+16 16 "" 1 2
+LANG:10001 2 #1
+LANG:1 2 #1
+8 30
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 0 1 0 5 7
+1 0
+13 68
+"newXmlButton"
+""
+1 14 680 E E E 0 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 34 Clear all selections in the panel.
+LANG:1 34 Clear all selections in the panel.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  12 678 136 705
+
+T 
+2
+LANG:10001 7 New XML
+LANG:1 7 New XML
+"main()
+{
+	componentXmlLoaded = FALSE;	
+	xmlFileContent = \"\";
+	this.enabled = FALSE;
+	XMLEditButton.enabled = TRUE;
+	XMLPackAndGoButton.enabled = TRUE;												
+	refreshPanel();
+	componentVersion.text = \"1.0.0\";
+	componentDate.text = formatTime(\"%Y/%m/%d\", getCurrentTime());
+}" 0
+ E E E
+13 69
+"openXmlButton"
+""
+1 144 680 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 39 Open an XML file and show its contents.
+LANG:1 39 Open an XML file and show its contents.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  142 678 266 705
+
+T 
+2
+LANG:10001 8 Open XML
+LANG:1 8 Open XML
+"main()
+{
+	string xmlFileName = componentName.text +\".xml\";
+	fileSelector(xmlFileName, PROJ_PATH, FALSE, \"*.xml\");
+	
+//	DebugN(xmlFileName);
+	loadXmlFile(xmlFileName);
+
+}
+" 0
+ E E E
+13 71
+"cmdAscii"
+""
+1 82 338 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+3
+LANG:10001 20 Launch ASCII Manager
+LANG:1 20 Launch ASCII Manager
+LANG:0 0 
+
+0
+3
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+LANG:0 107 -microsoft windows-Arial-normal-r-normal-*-*-120-100-100-*-*-iso8859-1|-13,0,0,0,400,0,0,0,0,3,2,1,34,Arial
+0  82 338 132 388
+
+P 
+14215660
+"pictures/71.xpm"
+2
+LANG:10001 0 
+LANG:1 0 
+"main() 
+{ 
+	dyn_float tempDynFloat;
+	dyn_string tempDynString;
+	
+	if(access(\"vision/AsciiMan_fw.pnl\", F_OK) == 0)
+  	ChildPanelOnCentralModalReturn(\"vision/AsciiMan_fw.pnl\", \"PVSS ASCII Manager for Component Packaging\", makeDynString(), tempDynFloat, tempDynString);
+  else
+  	ChildPanelOnCentralModalReturn(\"vision/AsciiMan.pnl\", \"PVSS ASCII Manager for Component Packaging\", makeDynString(), tempDynFloat, tempDynString);
+  	
+	refreshPanel();
+//  ModuleOnWithPanel(  \"PVSS\", 100, 100, 0, 0, 1, 1, \"None\", \"vision/AsciiMan.pnl\", \"\", makeDynString());
+} " 0
+ E E E
+13 74
+"Button3"
+""
+1 10 480.173913043478 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 21 Create an init script
+LANG:1 21 Create an init script
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  8 478 122 505
+
+T 
+2
+LANG:10001 6 Wizard
+LANG:1 6 Wizard
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+	
+	if(componentName.text != \"\")
+	{
+	  ChildPanelOnCentralModalReturn(\"fwInstallation/fwInstallation_packagerAppendManagerWizard.pnl\",
+      \"Manager Wizard: Init Script\",
+      makeDynString(\"$componentName:\" + componentName.text, \"$scriptFunction:init\"), df, ds);
+    refreshPanel();
+  }
+}" 0
+ E E E
+13 75
+"Button1"
+""
+1 20 1010 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 27 Create a postInstall script
+LANG:1 27 Create a postInstall script
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  8 538 122 565
+
+T 
+2
+LANG:10001 6 Wizard
+LANG:1 6 Wizard
+"main()
+{
+	dyn_float df;
+	dyn_string ds;
+	
+	if(componentName.text != \"\")
+	{
+	  ChildPanelOnCentralModalReturn(\"fwInstallation/fwInstallation_packagerAppendManagerWizard.pnl\",
+      \"Manager Wizard: PostInstall Script\",
+      makeDynString(\"$componentName:\" + componentName.text, \"$scriptFunction:postInstall\"), df, ds);
+    refreshPanel();
+  }
+}" 0
+ E E E
+13 82
+"btnClose"
+""
+1 871 680 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+81 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 49 Edit the xml file (needs to be created first ;-))
+LANG:1 49 Edit the xml file (needs to be created first ;-))
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  869 678 993 705
+
+T 
+2
+LANG:10001 5 Close
+LANG:1 5 Close
+"main()
+{
+	PanelOff();
+}" 0
+ E E E
+13 83
+"exportFsmTree"
+""
+1 14 420 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+82 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 49 Export the FSM tree starting with the node above.
+LANG:1 49 Export the FSM tree starting with the node above.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  12 418 126 445
+
+T 
+2
+LANG:10001 15 Export FSM Tree
+LANG:1 15 Export FSM Tree
+"main()
+{
+  dyn_string rootNodes = makeDynString(treeStart.text);
+  int error;
+  
+  btnClose.enabled = false;
+  this.enabled = false;
+  
+  error = fwInstallationPackager_exportFsm(componentName.text, sourcePath.text, rootNodes, makeDynString());
+  refreshPanel();
+  btnClose.enabled = true;
+  this.enabled = true;
+  
+}
+" 0
+ E E E
+22 85
+"treeStart"
+""
+1 14 390 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+84 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 30 FSM start node for tree export
+LANG:1 30 FSM start node for tree export
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  12 388 126 415
+0
+
+"main()
+{
+	dyn_string nodes, exceptionInfo;
+      dyn_string componentsInfo;
+  //Is FSM installed?
+  componentsInfo = dpNames(\"*fwInstallation_fwFSM*\", \"_FwInstallationComponents\");
+
+  if(dynlen(componentsInfo) <= 0){
+	  DebugTN(\"WARNING: FwFSM is not installed. No FSM to be exported\");
+          exportFsmTree.enabled = false;
+	  return;  
+  }
+	
+	fwTree_getAllTreeNodes(\"FSM\", nodes, exceptionInfo);
+	
+	this.items = nodes;
+	this.appendItem(\"Types only\");
+	this.selectedPos = 1;
+}" 0
+
+E
+E
+ 0 0
+13 86
+"Button4"
+""
+1 440 470 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+85 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 90 Select a script in the column to the left. Clicking this button will open an editor to it.
+LANG:1 90 Select a script in the column to the left. Clicking this button will open an editor to it.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  438 468 472 495
+
+T 
+2
+LANG:10001 4 Edit
+LANG:1 4 Edit
+"main()
+{
+	editScript(\"init\");
+}" 0
+ E E E
+13 87
+"Button5"
+""
+1 762 970 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+86 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 90 Select a script in the column to the left. Clicking this button will open an editor to it.
+LANG:1 90 Select a script in the column to the left. Clicking this button will open an editor to it.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  438 528 472 555
+
+T 
+2
+LANG:10001 4 Edit
+LANG:1 4 Edit
+"main()
+{
+	editScript(\"postInstall\");
+}" 0
+ E E E
+13 88
+"Button6"
+""
+1 1084 1520 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+87 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 90 Select a script in the column to the left. Clicking this button will open an editor to it.
+LANG:1 90 Select a script in the column to the left. Clicking this button will open an editor to it.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  438 578 472 605
+
+T 
+2
+LANG:10001 4 Edit
+LANG:1 4 Edit
+"main()
+{
+	editScript(\"delete\");
+}" 0
+ E E E
+13 89
+"Button7"
+""
+1 1407 2130 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 90 Select a script in the column to the left. Clicking this button will open an editor to it.
+LANG:1 90 Select a script in the column to the left. Clicking this button will open an editor to it.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  438 628 472 655
+
+T 
+2
+LANG:10001 4 Edit
+LANG:1 4 Edit
+"main()
+{
+	editScript(\"postDelete\");
+}" 0
+ E E E
+13 90
+"Button8"
+""
+1 404 1360 E E E 1 E 1 E N {0,0,0} E N "_Button" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 76 Refreshes the file lists. Selections will be lost if XML is not yet created.
+LANG:1 76 Refreshes the file lists. Selections will be lost if XML is not yet created.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  272 678 396 705
+
+T 
+2
+LANG:10001 7 Refresh
+LANG:1 7 Refresh
+"main()
+{
+	refreshPanel();
+}
+" 0
+ E E E
+20 91
+"enforcePaths"
+""
+1 254 130 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+90 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  252 128 436 150
+1
+T 
+2
+LANG:10001 23 Enforce framework paths
+LANG:1 23 Enforce framework paths
+
+1 
+1
+LANG:10001 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	enforcePaths = state;
+	refreshPanel();
+}" 0
+4 93
+"LINE1"
+""
+1 460 40 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+92 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 3 1 2 1 E  460 40 460 50
+4 94
+"LINE2"
+""
+1 460 50 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 3 1 2 1 E  460 50 440 50
+4 95
+"LINE3"
+""
+1 440 50 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+94 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 3 1 2 1 E  440 50 450 60
+4 96
+"LINE4"
+""
+1 440 50 E E E 1 E 1 E N {0,0,0} E N {255,255,255} E E
+ E E
+95 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 0 
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 3 1 2 1 E  440 50 450 40
+20 97
+"cbRestart"
+""
+1 14 160 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+2
+LANG:10001 111 Check if this component should ONLY be a sub-component, ie. not be shown in the standard list for installation.
+LANG:1 111 Check if this component should ONLY be a sub-component, ie. not be shown in the standard list for installation.
+
+0
+2
+LANG:10001 26 Arial,-1,13,5,40,0,0,0,0,0
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0  12 158 386 177
+1
+T 
+2
+LANG:10001 47 This component does NOT require project restart
+LANG:1 47 This component does NOT require project restart
+
+0 
+1
+LANG:10001 0 
+E E
+0 0 0 0 0
+1
+E E
+EE0
+LAYER, 1 
+1
+LANG:10001 6 Layer2
+0
+LAYER, 2 
+1
+LANG:10001 6 Layer3
+0
+LAYER, 3 
+1
+LANG:10001 6 Layer4
+0
+LAYER, 4 
+1
+LANG:10001 6 Layer5
+0
+LAYER, 5 
+1
+LANG:10001 6 Layer6
+0
+LAYER, 6 
+1
+LANG:10001 6 Layer7
+0
+LAYER, 7 
+1
+LANG:10001 6 Layer8
+0
+0

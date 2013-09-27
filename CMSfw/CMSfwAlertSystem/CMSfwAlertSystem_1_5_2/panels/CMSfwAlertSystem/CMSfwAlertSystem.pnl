@@ -1,0 +1,2011 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 867 984 N "_3DFace" 0
+"
+
+
+main()
+{
+  
+  usersTable.selectByClick(TABLE_SELECT_LINE);
+  usersTable.tableMode(TABLE_SELECT_BROWSE);
+  alertsTable.selectByClick(TABLE_SELECT_LINE);
+  alertsTable.tableMode(TABLE_SELECT_BROWSE);
+  notificationsTable.selectByClick(TABLE_SELECT_LINE);
+  notificationsTable.tableMode(TABLE_SELECT_BROWSE);  
+  CMSfwAlertSystemUtil_setCurrentSystemName(getSystemName());
+  refreshSystems();
+  init();
+  InitAccessControl();  
+}
+
+" 0
+ E E E E 1 -1 -1 0  20 80
+""0  1
+E "//#uses \"CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc\"
+#uses \"CMSfwAlertSystem/CMSfwAlertSystemGeneral.ctc\"
+#uses \"CMSfwAlertSystem/CMSfwAlertSystemUtil.ctl\"
+
+string lastConsistency;
+string required_privilege;
+
+void init() {
+  loadUsers();   refreshNotifications();refreshGroups();
+  connectConsistency();
+  if ( dpExists(CMSfwAlertSystemUtil_getCurrentSystemName() + \"CMSAlertSystem/Config.accessControl.requiredPrivilege\")) {
+    dpGet(CMSfwAlertSystemUtil_getCurrentSystemName() + \"CMSAlertSystem/Config.accessControl.requiredPrivilege\", required_privilege);
+  } else {
+      required_privilege = \"\";    
+  }
+  expert_priv.text = required_privilege;
+  ApplyPanelAccessControl();
+}
+
+void refreshSystems() {
+    dyn_string systems = dpNames(\"*:\");
+   
+    cbSystems.items = systems;
+    cbSystems.selectedPos = dynContains(systems, CMSfwAlertSystemUtil_getCurrentSystemName());
+    
+    
+}
+void refreshAlertTable (string Notification){
+  dyn_string dsAlerts; 
+  string     alertColor,alertText;
+  dyn_string dpid;
+      
+  string descr =  CMSfwAlertSystemUtil_getNotificationDescription(Notification);
+  txtEditNotifDescr.text = descr;
+  alertsTable.deleteAllLines();  
+  //DebugN(Notification);  
+  CMSfwAlertSystemUtil_getSumAlertDpList (Notification +\".Notification\", dpid);  // fixes the problem with the empty dplists
+  //DebugN(\"dsAlerts:\");
+  //DebugN(dpid);
+  
+  
+  for(int i=1; i <= dynlen(dpid); i++){    
+    string active;
+    dpGet(dpid[i] + \":_alert_hdl.._act_state_color\", alertColor);
+    dpGet(dpid[i] + \":_alert_hdl.._active\", active);
+    //DebugN(dpid[i] + \":_alert_hdl.._act_state_color\");
+    //DebugN(alertColor);
+    dpGet(dpid[i] + \":_alert_hdl.._act_state_text\",  alertText);
+    alertsTable.updateLines(1,\"Name\",       makeDynString(dpid[i]),
+                              \"Active\",     makeDynString(active),
+                              \"AlertText\",  makeDynString( alertText));
+    
+    if(alertColor==\"\")
+      alertColor = \"green\";
+    alertsTable.cellBackColRC(i-1, \"AlertText\",alertColor);  
+    if(active==TRUE){
+      alertsTable.cellBackColRC(i-1, \"Active\", \"green\");
+    }
+    else{
+      alertsTable.cellBackColRC(i-1, \"Active\", \"red\");
+    }
+  }  
+}
+ 
+
+void refreshNotificationsTable(string DP){
+  dyn_string Notifications, Type;
+  dyn_bool   Sent;
+  dyn_int    Priority; 
+  
+  notificationsTable.deleteAllLines();
+  alertsTable.deleteAllLines();
+  dpGet(DP + \".Notifications\",        Notifications,
+        DP + \".NotificationTypes\",    Type,
+        DP + \".NotificationSent\",     Sent,
+        DP + \".NotificationPriority\", Priority);      
+  //DebugN(Notifications);
+  //DebugN(Type);
+  //DebugN(Sent);
+  //DebugN(Priority);
+  
+  for(int i=1; i <= dynlen(Notifications); i++){    
+    bool active;
+    string   Triggered;
+    if(!dpExists(Notifications[i] + \".Notification:_alert_hdl.._act_state_text\"))
+      continue;
+    dpGet(Notifications[i] + \".Notification:_alert_hdl.._act_state_text\", Triggered);
+    dpGet(Notifications[i] + \".Notification:_alert_hdl.._active\",         active);
+    notificationsTable.updateLines(1,\"UniqueName\",makeDynString(Notifications[i]+Type[i]),
+                                     \"Name\",      makeDynString(Notifications[i]),
+                                     \"Active\",    makeDynString(active),
+                                     \"Triggered\", makeDynString(Triggered),
+                                     \"Type\",      makeDynString(Type[i]),
+                                     \"Sent\",      makeDynString(Sent[i]),
+                                     \"Priority\",  makeDynString(Priority[i]));
+    
+    if(active==TRUE){
+      notificationsTable.cellBackColRC(i-1, \"Active\", \"green\");
+    }
+    else{
+      notificationsTable.cellBackColRC(i-1, \"Active\", \"red\");
+    }
+      if(Triggered==\"TRUE\"){
+        notificationsTable.cellBackColRC(i-1, \"Triggered\", \"red\");
+        if(Sent[i])
+          notificationsTable.cellBackColRC(i-1, \"Sent\", \"green\");
+        else
+          notificationsTable.cellBackColRC(i-1, \"Sent\", \"alarmGingUnq\");
+      }
+      else{
+        notificationsTable.cellBackColRC(i-1, \"Triggered\", \"green\");      
+        if(Sent[i])
+          notificationsTable.cellBackColRC(i-1, \"Sent\", \"red\");
+        else
+          notificationsTable.cellBackColRC(i-1, \"Sent\", \"green\");   
+      }        
+      notificationsTable.cellBackColRC(i-1,\"Type\",getColorFromNotificationType(Type[i], Notifications[i]));
+      
+        
+  }  
+}
+
+string getColorFromNotificationType(string type, string Notification) {
+   string color;
+ 
+  switch (type) {
+    case \"SMS\": return \"FwModeOther\";
+    case \"EMAIL\": return \"yellow\";
+    case \"SMSMAIL\": return \"cyan\";
+    case \"SMSACK\":
+        dpGet(Notification+ \".SMSAck:_alert_hdl.._act_state_color\", color);
+        return color;      
+  }  
+  return \"_Window\";
+}
+void loadUsers(){
+  alertsTable.deleteAllLines();
+  notificationsTable.deleteAllLines();
+  usersTable.deleteAllLines();
+  
+  dyn_string dsUsers = dpNames(CMSfwAlertSystemUtil_getCurrentSystemName()+\"CMSAlertSystem/Users/*\", CMSfwALERTSYSTEM_USERTYPE);
+  dynAppend(dsUsers,dpNames(CMSfwAlertSystemUtil_getCurrentSystemName()+\"CMSAlertSystem/Groups/*\", CMSfwALERTSYSTEM_GROUPTYPE));
+  //DebugN(dsUsers);
+  
+  
+  for(int i=1; i <= dynlen(dsUsers); i++){
+    string Name, Number, Email;
+    dpGet(dsUsers[i] + \".Name\", Name); 
+    if (dpTypeName(dsUsers[i]) == CMSfwALERTSYSTEM_USERTYPE) {
+      dpGet(dsUsers[i] + \".GSMNumber\", Number); 
+      dpGet(dsUsers[i] + \".MailAddress\", Email); 
+    } else {
+      Number = \"-\"; Email = \"-\";    
+    }
+    usersTable.updateLines(1,\"Name\",      makeDynString(Name),
+                             \"GSMNumber\", makeDynString(Number),
+                             \"Email\",     makeDynString(Email),
+                             \"DP\",        makeDynString(dsUsers[i]));
+  }
+}
+
+void refreshNotifications() {
+    dyn_string  notifications = dpNames (CMSfwAlertSystemUtil_getCurrentSystemName() + \"*\",\"CMSfwAlertSystemSumAlerts\"),
+              exceptionInfo;  
+  
+  cmbNotifications.items = makeDynString();
+    
+  for(int i=1 ; i <= dynlen(notifications);i++){
+    string notifName;
+    fwDevice_getName(notifications[i],notifName,exceptionInfo); 
+    cmbNotifications.appendItem(notifName);
+  }
+  cmbNotifications.text =\"\";
+}
+
+
+connectConsistency() {
+  if (lastConsistency != \"\") {
+    DebugN(\"Disconnecting \" + lastConsistency);
+    int res = dpDisconnect(\"updateConsistency\", lastConsistency + \".modified\",
+            lastConsistency + \".savedToDb\",
+            lastConsistency + \".loadedFromDb\");
+    DebugN(\"Res = \" + res);
+  }
+  lastConsistency = CMSfwAlertSystemUtil_getCurrentSystemName() + CMSfwAlertSystemUtil_CONSISTENCYDP;
+  if (! dpExists(lastConsistency) ) {
+    CMSfwAlertSystemUtil_showMsg(\"Please start the CMSfwAlertSystem server on system \" + CMSfwAlertSystemUtil_getCurrentSystemName() );
+    PanelOff();
+    return;
+  }
+  
+  dpConnect(\"updateConsistency\",
+            lastConsistency + \".modified\",
+            lastConsistency + \".savedToDb\",
+            lastConsistency + \".loadedFromDb\");
+  if (dpExists(lastConsistency + \".configurationName\")) {
+      dpConnect(\"updateConsistencyConfName\",
+                lastConsistency + \".configurationName\");
+      txtConfigurationName.backCol = \"_Window\";
+   } else {
+    txtConfigurationName.text = \"WARNING: Old Version in Use in this system\";
+    txtConfigurationName.backCol = \"FwStateAttention3\";
+      
+  }
+  
+  
+}
+
+void updateConsistency(string dp1, time modified,
+                       string dp2, time savedToDb,
+                       string dp3, time loadedFromDb) {
+//  DebugN(\"Update consistency \" + dp1);
+  
+    txtModified.text = modified;
+    txtSaved.text = savedToDb;
+    txtLoaded.text = loadedFromDb;
+    bool ok;
+    if (period(savedToDb) == 0) { // never saved
+      ok = false;
+    } else if (loadedFromDb == modified) {
+        ok = true;
+    } else {
+      ok = (modified < savedToDb);      
+    }
+
+    txtConsistencyStatus.text = ((ok)?\"OK\":\"NOT OK\");
+    txtConsistencyStatus.backCol = ((ok)?\"FwStateOKPhysics\":\"FwStateAttention3\");
+    
+}
+
+updateConsistencyConfName(string dp1, string confName) {
+    txtConfigurationName.text = confName;
+}
+
+
+bool promptUser(string msg) {
+  dyn_string result;
+  dyn_float float_result;
+  
+  ChildPanelOnCentralModalReturn(\"vision/MessageInfo\",(\"information\"),makeDynString(msg,\"Yes\",\"No\"),float_result, result);
+  return result[1]==\"true\";
+
+}
+
+void refreshGroups()
+{
+	dyn_string names,fullNames;
+	dyn_string exceptionInfo;
+
+	string filter=txtGroupFilter.text;
+
+	cbGroup.deleteAllItems();
+  
+	fwAccessControl_getAllGroups(names,fullNames,exceptionInfo);
+	if (dynlen(exceptionInfo)) {
+		fwAccessControl_displayException(exceptionInfo);
+		return;
+	}
+
+	if (filter!=\"\") {
+		dyn_string filteredNames, filteredFullNames;
+		string uFilter=strtoupper(filter);
+		for (int i=1;i<=dynlen(names);i++) {
+			if (patternMatch(uFilter,strtoupper(names[i])) || patternMatch(uFilter,strtoupper(fullNames[i]))){
+				dynAppend(filteredNames,names[i]);
+				dynAppend(filteredFullNames,fullNames[i]);
+			}
+		};
+		names=filteredNames;
+		fullNames=filteredFullNames;
+	}
+ 
+  cbGroup.items = names;
+
+}
+
+void DisableEnableAllInPanel(bool val) {
+  for (int i=1; i<= 15; i++) {
+      setValue(\"btn\" + i , \"enabled\", val);
+  }
+    
+}
+
+  void ApplyPanelAccessControl(string s1 = \"\", string s2 = \"\")
+ {
+    // at first, disable whatever was enabled to this moment
+    DisableEnableAllInPanel(false);
+
+    dyn_string exceptionInfo;
+   
+    if (hasPrivilege(required_privilege) ) {
+        DisableEnableAllInPanel(true);
+    }
+
+ }
+  
+  void InitAccessControl() {
+    DisableEnableAllInPanel(false);
+ 
+    dyn_string exceptionInfo;
+    fwAccessControl_setupPanel(\"ApplyPanelAccessControl\",exceptionInfo);
+
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);return;}; 
+  }
+  
+  
+   bool hasPrivilege(string privilege) {
+     if (strlen(privilege) == 0) return true;
+  // DebugN(\"Checking if user has privilege \" + privilege);
+   dyn_string exceptionInfo;
+    bool hasPrivilege;
+    if (strlen(privilege)==0) return true;
+      
+    // check if current user has privilege level \"Modify\"
+    fwAccessControl_isGranted(privilege, hasPrivilege, exceptionInfo);
+      
+    // check and handle exceptions that might have been thrown by the function above
+    if (dynlen(exceptionInfo)) {fwAccessControl_displayException(exceptionInfo);
+      return false;}; 
+    
+    return (hasPrivilege) ;
+    
+   
+  }
+
+   
+   bool readString(string& value, string description, string title) {
+     dyn_float rf; dyn_string rt;
+     
+       ChildPanelOnCentralModalReturn(\"CMSfwAlertSystem/readString.pnl\", title,
+                                makeDynString(\"$sTitle:\" + title,
+                                              \"$sDescription:\" + description,
+                                              \"$sValue:\" + value),
+                                rf, 
+                                rt);
+       if (rf[1] == -1) return false;
+       value = rt[1];
+       return true;
+   }
+   " 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+NC
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+25 0
+"notificationsTable"
+""
+1 8 447 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+  if (column == \"Type\") {
+      int a;
+      dyn_anytype rowValue;
+      getValue(\"\",\"getLineN\", row, rowValue);
+      string notifName = rowValue[1];
+      string currType = rowValue[6];
+      
+      dyn_string type = makeDynString(\"EMAIL\",\"SMS\",\"SMSMAIL\",\"SMSACK\");        
+      dyn_string menu = makeDynString(\"CASCADE_BUTTON, Change Notification Type, 1\",\"Change Notification Type\");
+      for (int i=1; i<= dynlen(type); i++) {
+        if (currType != type[i]) {
+         dynAppend(menu, \"PUSH_BUTTON,\" + type[i] + \",\"  + (i+1) + \",1\"); 
+        }
+      }      
+      
+      popupMenu( menu,a); 
+      if (a >= 2) {
+
+          if (_CMSfwAlertSystemUser_hasNotification(getSelectedUser(), notifName + type[a-1])) {
+              CMSfwAlertSystemUtil_showMsg(\"User has already this type of notification\");
+              return;
+          }
+          this.cellValueRC(row, column, type[a-1]);
+          this.cellBackColRC(row, column, getColorFromNotificationType(type[a-1], notifName));
+      }
+  }
+}
+
+string getSelectedUser() {
+  
+  dyn_int selLines ;//= usersTable.getSelectedLines();
+  getValue(\"usersTable\", \"getSelectedLines\", selLines);   
+  //DebugN(selLines);
+  if(dynlen(selLines)>0){
+    dyn_anytype result = usersTable.getLineN(selLines[1]);
+    //DebugN(result);
+    return result[4];
+  }
+  return \"\";
+}" 0
+ E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"selectionChangedCB" "synchronized main(){
+   
+  dyn_int selLines ;//= usersTable.getSelectedLines();
+  getValue(\"notificationsTable\", \"getSelectedLines\", selLines);   
+  //DebugN(selLines);
+  if(dynlen(selLines)>0){
+    dyn_anytype result = notificationsTable.getLineN(selLines[1]);
+    //DebugN(result);
+    refreshAlertTable(result[1]);
+  }  
+}
+  
+
+"
+1
+LANG:1 27 Tahoma,-1,11,5,50,0,0,0,0,0
+0  6 445 616 597
+EE 1 0 1 7 0 "Name" 39 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+320 "UniqueName" 39 0 0 "s" 1
+LANG:1 10 UniqueName
+E
+1
+LANG:1 0 
+
+320 "Active" 5 1 0 "s" 1
+LANG:1 6 Active
+E
+1
+LANG:1 0 
+
+50 "Triggered" 6 1 0 "s" 1
+LANG:1 9 Triggered
+E
+1
+LANG:1 0 
+
+60 "Sent" 5 1 0 "s" 1
+LANG:1 4 Sent
+E
+1
+LANG:1 0 
+
+50 "Type" 5 1 0 "s" 1
+LANG:1 4 Type
+E
+1
+LANG:1 0 
+
+50 "Priority" 5 1 0 "s" 1
+LANG:1 8 Priority
+E
+1
+LANG:1 0 
+
+50 
+14 14 10 10
+1
+LANG:1 27 Tahoma,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 1
+"PRIMITIVE_TEXT1"
+""
+1 10 350 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 10 350 92 364
+0 2 2 "0s" 0 0 0 192 0 0  10 350 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 13 NOTIFICATIONS
+25 2
+"usersTable"
+""
+1 9 77 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ "main(int row, string column)
+{
+   dyn_anytype daResult = usersTable.getLineN(row);
+  string dp = daResult[4];
+  if (dpTypeName(dp) == CMSfwALERTSYSTEM_GROUPTYPE) {
+    int a = 0;
+    popupMenu(makeDynString(\"PUSH_BUTTON,View Users in group,1,1\"), a);
+    if (a == 1) {
+      string group = daResult[1];
+        ChildPanelOnCentral(\"fwAccessControl/fwAccessControl_UsersInGroupList.pnl\",\"Users in group \" + group,
+                            makeDynString(\"$group:\"  + group));
+    }
+     
+  } 
+  
+     
+}" 0
+ E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"selectionChangedCB" "synchronized main()
+{
+  //DebugN(\"Selection Changed...\");
+  
+  dyn_int selLines ;//= usersTable.getSelectedLines();
+  getValue(\"usersTable\", \"getSelectedLines\", selLines);   
+  //DebugN(selLines);
+  if(dynlen(selLines)>0){
+    dyn_anytype result = usersTable.getLineN(selLines[1]);
+    //DebugN(result);
+    refreshNotificationsTable(result[4]);
+  }
+  
+}"
+1
+LANG:1 27 Tahoma,-1,11,5,50,0,0,0,0,0
+0  7 75 609 277
+E"main(int row, string column, string value){
+ //dyn_anytype rowInfo;    
+ //rowInfo = usersTable.getLineN(row) ;  
+ //refreshNotificationsTable(rowInfo[4]);
+}
+
+" 0
+ 1 0 1 4 0 "Name" 9 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+80 "GSMNumber" 10 1 0 "s" 1
+LANG:1 9 GSMNumber
+E
+1
+LANG:1 0 
+
+90 "Email" 30 1 0 "s" 1
+LANG:1 5 Email
+E
+1
+LANG:1 0 
+
+250 "DP" -1 0 0 "s" 1
+LANG:1 2 DP
+E
+1
+LANG:1 0 
+
+0 
+14 14 10 10
+1
+LANG:1 27 Tahoma,-1,11,5,50,0,0,0,0,0
+0 0 1 0 1 7
+1 0
+2 3
+"PRIMITIVE_TEXT2"
+""
+1 9 57 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 9 57 107 71
+0 2 2 "0s" 0 0 0 192 0 0  9 57 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 15 USERS or GROUPS
+25 4
+"alertsTable"
+""
+1 7 672 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E "main(int row, string column)
+{
+   dyn_anytype dsRow;
+  getValue(\"\",\"getLineN\", row, dsRow);
+
+ if (! hasPrivilege(required_privilege) ) return;
+ 
+  ChildPanelOnCentral(\"fwConfigs/fwAlarmOperationPanel.pnl\", \"Details for \" + dsRow[1], 
+                          makeDynString(\"$sDpe:\" + dsRow[1]));
+  
+}" 0
+
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"selectionChangedCB" " main()
+{
+  return;
+  dyn_int selLines ;//= usersTable.getSelectedLines();
+  getValue(\"alertsTable\", \"getSelectedLines\", selLines);   
+  //DebugN(selLines);
+  dyn_anytype result;
+  if(dynlen(selLines)>0){
+    result = alertsTable.getLineN(selLines[1]);
+    //DebugN(result);
+    //refreshAlertTable(result[1]);
+    
+    removeSymbol(myModuleName(),myPanelName(),\"AlertConfig\");
+    addSymbol(myModuleName(),myPanelName(),\"fwConfigs/fwAlertConfig.pnl\",\"AlertConfig\",
+              makeDynString(\"$sSummaryDpe:\" +\".\", 
+                            \"$sDpe:\"+ result[1],
+                            \"$bHierarchyBrowser:\" + \"FALSE\",
+                            \"$sDpeConfigObjectVarName:\" + \"\"),
+              900,500,0,0.7,0.7);
+    closeButton.enabled = FALSE;
+  }
+  
+}
+
+"
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  5 670 621 920
+EE 1 0 1 3 0 "Name" 43 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+400 "Active" 4 1 1 "s" 1
+LANG:1 6 Active
+E
+1
+LANG:1 0 
+
+50 "AlertText" 10 1 0 "s" 1
+LANG:1 9 AlertText
+E
+1
+LANG:1 0 
+
+100 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 6
+"PRIMITIVE_TEXT4"
+""
+1 9 651 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 9 651 129 665
+0 2 2 "0s" 0 0 0 192 0 0  9 651 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 19 NOTIFICATION ALERTS
+13 7
+"PUSH_BUTTON1"
+""
+1 502 957 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  500 955 624 982
+
+T 
+1
+LANG:1 5 CLOSE
+"main()
+{
+  PanelOff();
+}" 0
+ E E E
+13 8
+"btn1"
+""
+1 286 287 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  284 285 408 312
+
+T 
+1
+LANG:1 8 ADD USER
+"main()
+{
+  if (txtAlias.text==\"\")
+    return;
+  string alias = txtAlias.text;
+  DebugN(\"Add user request: \" + alias);
+  
+  CMSfwAlertSystemUtil_addUser (alias);
+ 
+  dyn_float resultFloat; dyn_string resultText;
+  
+  if(!dpExists(\"CMSAlertSystem/Users/\" + alias)) {
+    if (promptUser(\"User not found. Do you want to enter user information manually?\")) {
+        ChildPanelOnCentralModalReturn(\"CMSfwAlertSystem/CMSfwAlertSystem_addUser.pnl\",\"addUser\", makeDynString(\"$userName:\" + alias), resultFloat, resultText);
+    }
+  }  
+  
+   loadUsers();
+  txtAlias.text=\"\";
+}" 0
+ E E E
+13 10
+"btn7"
+""
+1 371 924 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  369 922 493 949
+
+T 
+1
+LANG:1 9 ADD ALERT
+"main()
+{
+  dyn_int     diSelectedLines = notificationsTable.getSelectedLines;
+  dyn_anytype daResult;
+  dyn_string exceptionInfo;
+  if(dynlen(diSelectedLines)==1){
+    daResult = notificationsTable.getLineN(diSelectedLines[1]);  
+    //DebugN(daResult);
+  }  
+ // DebugN(diSelectedLines);
+  
+  if(dynlen(daResult)==0){
+    CMSfwAlertSystemUtil_showMsg(\"Please select a notification\");
+    return;
+  }
+  if( txtAlert.text ==\"\"){
+    CMSfwAlertSystemUtil_showMsg(\"Please select a data point element\"); 
+    return;
+  }
+    
+  //if no alert configured return
+  
+ 
+//  DebugN(daResult);
+  bool alreadyIn;
+  string dp = txtAlert.text;
+  
+  if(!dpExists( dp +\":_alert_hdl.._type\")){    
+    CMSfwAlertSystemUtil_showMsg (\"Notification screwed... find an expert\");
+    return;
+  }
+  string notifName;
+  fwDevice_getName (daResult[1], notifName,exceptionInfo);
+  CMSfwAlertSystemUtil_addAlertToNotification(notifName,dp);
+  txtAlert.text=\"\";
+  
+  dyn_int selLines ;//= usersTable.getSelectedLines();
+  getValue(\"notificationsTable\", \"getSelectedLines\", selLines);   
+  //DebugN(selLines);
+  if(dynlen(selLines)>0){
+    dyn_anytype result = notificationsTable.getLineN(selLines[1]);
+    //DebugN(result);
+    refreshAlertTable(result[1]);
+  }  
+  
+  /*
+  fwAlertConfig_checkIsDpInAlertSummary(daResult[1]+\".Notification\",dp, alreadyIn ,exceptionInfo) ;
+  DebugN(exceptionInfo);
+  DebugN(alreadyIn);
+  if(!alreadyIn)     {
+    fwAlertConfig_addDpInAlertSummary(daResult[1]+\".Notification\",dp,exceptionInfo);
+    DebugN(exceptionInfo);
+  }*/
+}" 0
+ E E E
+14 19
+"txtAlias"
+""
+1 74 289 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  72 287 278 310
+3 "0s" 0 0 0 0 0 -1  E E E
+13 26
+"btn5"
+""
+1 281 604 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+44 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  279 602 411 629
+
+T 
+1
+LANG:1 17 DELETE FROM TABLE
+"main(){
+  //DebugN(usersTable.getSelectedLines);
+  dyn_int     diSelectedLines = notificationsTable.getSelectedLines;
+  if(dynlen(diSelectedLines)==1){
+    notificationsTable.deleteLineN(diSelectedLines[1]);
+  }
+}
+" 0
+ E E E
+13 27
+"btn4"
+""
+1 485 379 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ "main(){
+  int   answer;
+  dyn_string text;
+  
+  dyn_int diLine = usersTable.getSelectedLines();  
+  
+  if(dynlen(diLine) > 0){    
+    dyn_string sumAlerts = dpNames(\"CMSAlertSystem/SumAlerts/*\",\"CMSfwAlertSystemSumAlerts\");  
+    dyn_string result = usersTable.getLineN(diLine[1]);
+    dyn_string actualNotifications, notificationType;
+    dyn_bool   notificationSent;
+    dyn_int    notificationPriority;    
+    
+    for (int i=1; i <= dynlen(sumAlerts); i++){
+      dynAppend( text , \"PUSH_BUTTON, \"+sumAlerts[i]+\", \"+i+\", 1\");        
+    }    
+    popupMenu(text,answer);
+  
+    dpGet(result[4] + \".Notifications\",        actualNotifications);
+    dpGet(result[4] + \".NotificationTypes\",     notificationType);
+    dpGet(result[4] + \".NotificationSent\",     notificationSent);
+    dpGet(result[4] + \".NotificationPriority\", notificationPriority);
+    dynAppend(actualNotifications,sumAlerts[answer]);
+    dynAppend(notificationType,   \"SMS\");
+    dynAppend(notificationSent,   FALSE);
+    dynAppend(notificationPriority,50);
+    dpSet(result[4] + \".Notifications\",        actualNotifications);
+    dpSet(result[4] + \".NotificationTypes\",     notificationType);
+    dpSet(result[4] + \".NotificationSent\",     notificationSent);
+    dpSet(result[4] + \".NotificationPriority\", notificationPriority);
+  }
+  refreshNotificationsTable(result[4]);
+}" 0
+ E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  483 377 617 404
+
+T 
+1
+LANG:1 19 CREATE NOTIFICATION
+"main(){
+  CMSfwAlertSystemUtil_createNotification (txtNotification.text,txtNotifDescription.text);
+  txtNotification.text = \"\"; txtNotifDescription.text = \"\";
+  refreshNotifications();
+}" 0
+ E E E
+13 28
+"btn2"
+""
+1 427.0000000000001 287 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  425 285 565 312
+
+T 
+1
+LANG:1 17 REMOVE USER/GROUP
+"main(){
+  //DebugN(usersTable.getSelectedLines);
+  dyn_int     diSelectedLines = usersTable.getSelectedLines;
+  dyn_anytype daResult;
+  if(dynlen(diSelectedLines)==1){
+    daResult = usersTable.getLineN(diSelectedLines[1]);  
+    //DebugN(daResult);
+  }  
+  if(dynlen(daResult)==0)
+    return;
+  CMSfwAlertSystemUtil_removeUser (daResult[4]);
+  loadUsers();
+}" 0
+ E E E
+14 29
+"txtNotification"
+""
+1 73 383 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  71 381 227 404
+3 "0s" 0 0 0 0 0 -1  E E E
+13 31
+"btn14"
+""
+1 248 414 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+54 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  246 412 426 439
+
+T 
+1
+LANG:1 24 ADD NOTIFICATION TO USER
+"main()
+{
+  dyn_int     diSelectedLines = usersTable.getSelectedLines;
+  dyn_anytype daResult;
+  if(dynlen(diSelectedLines)==1){
+    daResult = usersTable.getLineN(diSelectedLines[1]);  
+    //DebugN(daResult);
+  }  
+  if(dynlen(daResult)==0){
+    CMSfwAlertSystemUtil_showMsg(\"Select a user\");
+    return;
+  }
+  if( cmbNotifications.text ==\"\"){
+    CMSfwAlertSystemUtil_showMsg(\"No notification selected\"); 
+    return;
+  }
+    
+  dyn_string ds;
+  dyn_float df;
+  ChildPanelOnCentralModalReturn(\"CMSfwAlertSystem/CMSfwAlertSystem_addNotificationToUser.pnl\",
+                            \"EditUserNotifications\",
+                            makeDynString (\"$UserDp:\" + daResult[4],\"$NotifName:\" + cmbNotifications.text),
+                            ds,df);
+  refreshNotificationsTable(daResult[4]);
+}" 0
+ E E E
+22 33
+"cmbNotifications"
+""
+1 12 413 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  10 411 237 438
+0
+
+"main(){
+
+}" 0
+
+E
+E
+ 0 0
+13 34
+"btn6"
+""
+1 416 603 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  414 601 618 628
+
+T 
+1
+LANG:1 29 UPDATE NOTIFICATIONS FOR USER
+"main(){
+  
+  int lineCount = notificationsTable.lineCount;
+  dyn_string notifications, notificationTypes;
+  dyn_int notificationPriority;
+  dyn_bool notificationSent;
+  for(int i=0; i<lineCount;i++){
+    dyn_anytype result =notificationsTable.getLineN(i);
+    dynAppend(notifications,result[1]);
+    dynAppend(notificationTypes,result[6]);
+    dynAppend(notificationSent,result[5]);
+    dynAppend(notificationPriority,result[7]);  
+    //DebugN(result);  
+  } 
+  
+  
+  dyn_int     diSelectedLines = usersTable.getSelectedLines;
+  dyn_anytype daResult;
+  if(dynlen(diSelectedLines)==1){
+    daResult = usersTable.getLineN(diSelectedLines[1]);      
+  }  
+  
+  
+  CMSfwAlertSystemUtil_updateNotifications(daResult[4],
+                                       notifications,
+                                       notificationTypes,
+                                       notificationSent,
+                                       notificationPriority);
+}" 0
+ E E E
+14 35
+"txtAlert"
+""
+1 7 927 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  5 925 337 948
+3 "0s" 0 0 0 0 0 -1  E E E
+13 37
+"btn9"
+""
+1 339 924 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  337 922 365 949
+
+P 
+4294967295
+"pictures/dpsel.xpm"
+1
+LANG:1 13 PUSH_BUTTON11
+"main(){
+  string dp;
+  txtAlert.text=\"\";
+  dpSelector(dp, 0);
+  if(dpSubStr(dp,DPSUB_SYS)!=CMSfwAlertSystemUtil_getCurrentSystemName()){
+    CMSfwAlertSystemUtil_showMsg(\"Only alerts in system \" + CMSfwAlertSystemUtil_getCurrentSystemName() + \" can be added\");
+    return;
+  }
+  
+  if(! CMSfwAlertSystemUtil_elementHasAlerts(dp)){
+    CMSfwAlertSystemUtil_showMsg(\"Alert not configured for dp\");  
+    return;
+  }
+  txtAlert.text = dp;
+}
+
+" 0
+ E E E
+13 38
+"btn8"
+""
+1 500 923 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+65 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  498 921 622 948
+
+T 
+1
+LANG:1 12 REMOVE ALERT
+"main(){
+  //DebugN(usersTable.getSelectedLines);
+  dyn_int     diSelectedLines = alertsTable.getSelectedLines;
+  dyn_string exceptionInfo;
+  if(dynlen(diSelectedLines)==1){
+    //notificationsTable.deleteLineN(diSelectedLines[1]);
+    
+    dyn_anytype daResult = alertsTable.getLineN(diSelectedLines[1]);
+    //DebugN(daResult);
+    
+    dyn_int     diSelectedLinesNotif = notificationsTable.getSelectedLines;
+    dyn_anytype daResultNotif;
+    //DebugN (\"NotifTable selected lines: \"+diSelectedLinesNotif);
+    
+    if(dynlen(diSelectedLinesNotif)==1){
+      daResultNotif = notificationsTable.getLineN(diSelectedLinesNotif[1]);  
+      
+      string notifName;
+      fwDevice_getName (daResultNotif[1], notifName,exceptionInfo);
+      
+      DebugN(notifName,
+                                                        daResult[1]);
+      CMSfwAlertSystemUtil_deleteAlertFromNotification (notifName,
+                                                        daResult[1]);
+      } else {
+        CMSfwAlertSystemUtil_showMsg(\"Please select a notification\");   
+      }        
+   } else {
+     CMSfwAlertSystemUtil_showMsg(\"Please select an alert\");   
+   }
+  
+  dyn_int selLines ;//= usersTable.getSelectedLines();
+  getValue(\"notificationsTable\", \"getSelectedLines\", selLines);   
+  //DebugN(selLines);
+  if(dynlen(selLines)>0){
+    dyn_anytype result = notificationsTable.getLineN(selLines[1]);
+    //DebugN(result);
+    refreshAlertTable(result[1]);
+  }  
+}
+" 0
+ E E E
+13 39
+"btn10"
+""
+1 649 260 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  647 258 798 285
+
+T 
+1
+LANG:1 17 SAVE TO CONFIG DB
+"main()
+{
+  
+  string confName = txtConfigurationName.text;
+  bool res = readString(confName, \"Enter configuration name\", \"Configuration Name\");
+  if (! res) return;
+  
+  CMSfwAlertSystemUtil_saveToConfigurationDb(confName);
+  if (getSystemName() != CMSfwAlertSystemUtil_getCurrentSystemName()) {
+      CMSfwAlertSystemUtil_showMsg(\"Saved\");
+  }
+}
+" 0
+ E E E
+2 40
+"PRIMITIVE_TEXT5"
+""
+1 645 83 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 645 83 755 113
+0 2 2 "0s" 0 0 0 192 0 0  645 83 2
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 17 CONFIGURATION DB 
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 11 CONSISTENCY
+13 41
+"btn11"
+""
+1 651 339 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  649 337 800 364
+
+T 
+1
+LANG:1 19 LOAD FROM CONFIG DB
+"main()
+{
+  
+  if (txtConsistencyStatus.text != \"OK\") {
+      if (! promptUser(\"Are you sure to load from configuration db and discard the changes you made in PVSS?\") ) return;
+  }
+  
+
+  string confName = txtConfigurationName.text;
+  bool res = readString(confName, \"Enter configuration name\", \"Configuration Name\");
+  if (! res) return;
+  CMSfwAlertSystemUtil_loadFromConfigurationDb(confName);
+  
+  loadUsers();   refreshNotifications();
+    CMSfwAlertSystemUtil_showMsg(\"Loaded\");
+}
+" 0
+ E E E
+14 42
+"txtSaved"
+""
+1 647 234 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  645 232 846 255
+2 "0s" 0 0 0 0 0 -1  E E E
+2 43
+"PRIMITIVE_TEXT6"
+""
+1 652 218 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 652 218 758 232
+0 2 2 "0s" 0 0 0 192 0 0  652 218 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Saved to config DB on
+14 44
+"txtLoaded"
+""
+1 648 311 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  646 309 847 332
+2 "0s" 0 0 0 0 0 -1  E E E
+2 45
+"PRIMITIVE_TEXT7"
+""
+1 651 290 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+72 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 651 290 774 304
+0 2 2 "0s" 0 0 0 192 0 0  651 290 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 24 Loaded from config DB on
+14 46
+"txtModified"
+""
+1 647 191 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  645 189 846 212
+2 "0s" 0 0 0 0 0 -1  E E E
+2 47
+"PRIMITIVE_TEXT8"
+""
+1 652 175 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+74 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 652 175 692 189
+0 2 2 "0s" 0 0 0 192 0 0  652 175 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 8 Modified
+14 48
+"txtConsistencyStatus"
+""
+1 650 380 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+75 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  648 378 849 401
+2 "0s" 0 0 0 0 0 -1  E E E
+30 49
+"FRAME1"
+""
+1 633 20 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+76 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1 0 1.06865671641791 -3 35.6268656716418 0 E 633 20 866 356
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+13 50
+"PUSH_BUTTON15"
+""
+1 650 422 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  648 420 799 447
+
+T 
+1
+LANG:1 14 DELETE ALL DPS
+"main()
+{
+    if (! promptUser(\"Are you sure to delete all dps?\") ) return;
+    CMSfwAlertSystemUtil_deleteAllDps(\"*\");
+  
+    loadUsers();   refreshNotifications();
+    CMSfwAlertSystemUtil_showMsg(\"Deleted\");
+}
+" 0
+ E E E
+2 51
+"PRIMITIVE_TEXT9"
+""
+1 12 293 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 12 293 68 307
+0 2 2 "0s" 0 0 0 192 0 0  12 293 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 User Name:
+6 52
+"RECTANGLE3"
+""
+1 300 370 E E E 1 E 1 E N "lightgrey" E N "lightgrey" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -27 -50 2  0 1  "pictures/AC-Enter.gif" 4294967295 E 300 370 324 393
+14 53
+"txtGroupFilter"
+""
+1 72.53125 315 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 68 Filter on names and full names (case insensitive), use * as wildcard
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  72 315 264 344
+3 "0s" 0 0 0 0 0 -1  E "main()
+{
+  this.text = \"*\";
+}" 0
+ "main()
+{
+refreshGroups();
+}" 0
+
+2 54
+"PRIMITIVE_TEXT10"
+""
+1 9 327 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+81 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 9 327 69 341
+0 2 2 "0s" 0 0 0 192 0 0  9 327 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 13 Group Filter:
+22 55
+"cbGroup"
+""
+1 305 320 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+82 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  303 318 509 345
+0
+
+"main(){
+
+}" 0
+
+E
+E
+ 0 0
+13 56
+"btn3"
+""
+1 513 319 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+83 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  511 317 613 344
+
+T 
+1
+LANG:1 9 ADD GROUP
+"main()
+{
+    string alias = cbGroup.selectedText;
+  if (alias==\"\")
+    return;
+
+  DebugN(\"Add group request: \" + alias);
+  
+  CMSfwAlertSystemUtil_addGroup (alias);
+  loadUsers();
+}" 0
+ E E E
+2 57
+"PRIMITIVE_TEXT11"
+""
+1 24 11 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+84 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 24 11 94 25
+0 2 2 "0s" 0 0 0 192 0 0  24 11 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 14 Select system:
+22 58
+"cbSystems"
+""
+1 106 7 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+85 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  104 5 294 28
+0
+
+E
+"main()
+{
+  CMSfwAlertSystemUtil_setCurrentSystemName(this.selectedText);
+  init();
+}" 0
+
+E
+ 0 0
+1 81 1 "" 2
+0
+1 82 1 "" 1
+0
+1 83 1 "" 4
+0
+2 67
+"Text5"
+""
+1 647 510 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 649 474 786 491
+0 2 2 "0s" 0 0 0 192 0 0  649 474 1
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0 1
+LANG:1 21 Access Rights Needed:
+14 68
+"expert_priv"
+""
+1 701.8 515 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  645 490 786 517
+3 "0s" 0 0 0 0 0 -1  E E E
+13 69
+"btn12"
+""
+1 797 491 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+90 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  795 489 849 522
+
+T 
+1
+LANG:1 6 Change
+"main()
+{
+	dyn_string privileges;
+	string priv;
+		
+	getValue(\"expert_priv\",\"text\",priv);
+	privileges[1] = priv;
+	fwAccessControl_selectPrivileges(privileges, \"Please Select Domain\");
+	if(dynlen(privileges))
+		setValue(\"expert_priv\",\"text\",privileges[1]);
+}" 0
+ E E E
+13 70
+"btn13"
+""
+1 670 697 E E E 0 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+91 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 arial,-1,13,5,50,0,0,0,0,0
+0  647 525 731 555
+
+T 
+2
+LANG:1 5 Apply
+LANG:0 2 OK
+"main()
+{
+string  expert_priv;
+
+
+
+	getValue(\"expert_priv\",\"text\",expert_priv);
+  if (! hasPrivilege(expert_priv)) {
+    if (! promptUser(\"Warning: you want to set a privilege you do not have.\\nDo you want to continue?\")) {
+        dpGet(CMSfwAlertSystemUtil_getCurrentSystemName() + \"CMSAlertSystem/Config.accessControl.requiredPrivilege\", expert_priv); 
+        setValue(\"expert_priv\", \"text\", expert_priv);         
+        return;
+    }                    
+  }
+
+  dpSet(CMSfwAlertSystemUtil_getCurrentSystemName() + \"CMSAlertSystem/Config.accessControl.requiredPrivilege\", expert_priv);
+  required_privilege = expert_priv;
+  ApplyPanelAccessControl();
+         
+}
+" 0
+ E E E
+2 74
+"PRIMITIVE_TEXT12"
+""
+1 10 386 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+92 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 10 386 66 400
+0 2 2 "0s" 0 0 0 192 0 0  10 386 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 11 Notif. Name
+2 75
+"PRIMITIVE_TEXT13"
+""
+1 236 386 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+93 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 236 386 318 400
+0 2 2 "0s" 0 0 0 192 0 0  236 386 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Notif. Description
+14 76
+"txtNotifDescription"
+""
+1 324 383 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+94 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  322 381 478 404
+3 "0s" 0 0 0 0 0 -1  E E E
+2 78
+"PRIMITIVE_TEXT14"
+""
+1 9 632 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+96 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 9 632 91 646
+0 2 2 "0s" 0 0 0 192 0 0  9 632 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Notif. Description
+14 79
+"txtEditNotifDescr"
+""
+1 99.00000000000003 630 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  97 628 440 651
+3 "0s" 0 0 0 0 0 -1  E E E
+13 80
+"btn15"
+""
+1 447 631 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ "main(){
+  int   answer;
+  dyn_string text;
+  
+  dyn_int diLine = usersTable.getSelectedLines();  
+  
+  if(dynlen(diLine) > 0){    
+    dyn_string sumAlerts = dpNames(\"CMSAlertSystem/SumAlerts/*\",\"CMSfwAlertSystemSumAlerts\");  
+    dyn_string result = usersTable.getLineN(diLine[1]);
+    dyn_string actualNotifications, notificationType;
+    dyn_bool   notificationSent;
+    dyn_int    notificationPriority;    
+    
+    for (int i=1; i <= dynlen(sumAlerts); i++){
+      dynAppend( text , \"PUSH_BUTTON, \"+sumAlerts[i]+\", \"+i+\", 1\");        
+    }    
+    popupMenu(text,answer);
+  
+    dpGet(result[4] + \".Notifications\",        actualNotifications);
+    dpGet(result[4] + \".NotificationTypes\",     notificationType);
+    dpGet(result[4] + \".NotificationSent\",     notificationSent);
+    dpGet(result[4] + \".NotificationPriority\", notificationPriority);
+    dynAppend(actualNotifications,sumAlerts[answer]);
+    dynAppend(notificationType,   \"SMS\");
+    dynAppend(notificationSent,   FALSE);
+    dynAppend(notificationPriority,50);
+    dpSet(result[4] + \".Notifications\",        actualNotifications);
+    dpSet(result[4] + \".NotificationTypes\",     notificationType);
+    dpSet(result[4] + \".NotificationSent\",     notificationSent);
+    dpSet(result[4] + \".NotificationPriority\", notificationPriority);
+  }
+  refreshNotificationsTable(result[4]);
+}" 0
+ E
+98 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  445 629 617 656
+
+T 
+1
+LANG:1 25 CHANGE NOTIF. DESCRIPTION
+"main(){
+ dyn_int     diSelectedLines = notificationsTable.getSelectedLines;
+  dyn_anytype daResult;
+  dyn_string exceptionInfo;
+  if(dynlen(diSelectedLines)==1){
+    daResult = notificationsTable.getLineN(diSelectedLines[1]);  
+    //DebugN(daResult);
+  }  
+ // DebugN(diSelectedLines);
+  
+  if(dynlen(daResult)==0){
+    CMSfwAlertSystemUtil_showMsg(\"Please select a notification\");
+    return;
+  }
+  CMSfwAlertSystemUtil_setNotificationDescription(daResult[1] + \".\", txtEditNotifDescr.text);
+
+
+}" 0
+ E E E
+14 84
+"txtConfigurationName"
+""
+1 647 151 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+99 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  645 149 846 172
+2 "0s" 0 0 0 0 0 -1  E E E
+2 85
+"PRIMITIVE_TEXT15"
+""
+1 652 129 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+100 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 652 129 747 143
+0 2 2 "0s" 0 0 0 192 0 0  652 129 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 18 Configuration Name
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+3 1 "PANEL_REF0" -1
+"objects\\fwAccessControl\\fwAccessControl_CurrentUser.pnl" 10 10 T 87 1 0 1 630 -20
+0
+0

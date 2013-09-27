@@ -1,0 +1,4801 @@
+V 11
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 729 768 N "_3DFace" 3
+"$branch"
+"$sysName"
+"$tabname"
+"main()
+{
+ 
+  lvcrates = makeDynString(\"X2_near\",\"X3_near\",\"X4_near\",\"X4_far\",\"X3_far\",\"X2_far\");
+  lvzerocrates = makeDynString(\"X2_balcony\",\"X2\",\"X4\");
+  hvcrate = makeDynString(\"Bottom\",\"Central\",\"Top\",\"Bottom\",\"Central\",\"Top\");  
+
+dyn_string tablabel;  
+  
+if(strpos($tabname,\"/\")>0)
+  tablabel = strsplit($tabname,\"/\");
+else
+  tablabel = $tabname; 
+
+if(dynlen(tablabel)>1)
+  for(int i = 1;i<=dynlen(hvcrate);i++)
+    if(i<4) hvcrate[i] = tablabel[1]+\"_\"+hvcrate[i];
+    else hvcrate[i] = tablabel[2]+\"_\"+hvcrate[i];
+
+  
+DisableAll();
+FillCrates();
+displayT();
+refreshMao();
+
+}
+
+void refreshT(string dpe, int value){
+  
+string sn,newDp = dpSubStr(dpe,DPSUB_SYS_DP);
+  //DebugN(dpe);
+  int pos = dynContains(boards,newDp);
+  dpGet(newDp+\".Information.SerNum\",sn);
+  //DebugN(\"box\"+position[pos][1]+position[pos][2],\"text\",value);
+   setValue(\"box\"+position[pos][1]+position[pos][2],\"text\",value);
+   setValue(\"s\"+position[pos][1]+position[pos][2],\"text\",sn);
+   setValue(\"s\"+position[pos][1]+position[pos][2],\"visible\",true);
+  string color;
+    if(value > 32)
+      setValue(\"box\"+position[pos][1]+position[pos][2],\"backCol\",\"FwStateAttention2\");   
+   
+  }
+
+void displayT(){
+  string model;
+  int temperature;
+  for(int i = 1; i<= dynlen(boards);i++)
+  {
+    dpGet(boards[i]+\".model\",model);
+    if(model !=\"A3801A\")
+    {
+//       dpGet(boards[i]+\".Temp.Temp1\",temperature);
+//       setValue(\"box\"+position[i][1]+position[i][2],\"text\",temperature);
+   
+      dpConnect(\"refreshT\",boards[i]+\".Temp.Temp1\");
+      }
+    
+    }
+  
+  }
+
+void refreshMao(){
+  
+  dynClear(chMao);
+  dyn_string param = makeDynString(\".actual.isOn\",\".actual.temp\");
+  
+  bool isOn;
+  dyn_string maoChannel,exceptionInfo;
+  
+  for(int j = 1; j<=dynlen(maos);j++)
+  {
+    setValue(\"mao\"+j,\"visible\",true);
+    setValue(\"ch\"+j+\"1\",\"visible\",true);
+    setValue(\"bch\"+j+\"1\",\"visible\",true);
+    setValue(\"ch\"+j+\"2\",\"visible\",true);
+    setValue(\"bch\"+j+\"2\",\"visible\",true);
+
+
+    fwDevice_getChildren(maos[j], fwDevice_HARDWARE, maoChannel, exceptionInfo); 
+    dyn_string temp = maoChannel;
+    //DebugN(\"1\",dynlen(maoChannel));
+     dynAppend(chMao,temp);
+     // DebugN(\"2\",dynlen(maoChannel));
+     for(int i=1; i<=dynlen(maoChannel); i++)
+	{
+     // DebugN(maoChannel[i]);							 
+	for(int k=1; k<=dynlen(param); k++)
+		dpConnect(\"refreshMaoParameters\",TRUE,maoChannel[i]+param[k]);
+	}
+
+    
+    }
+  
+  //DebugN(\"--->\",chMao);
+    
+  }
+void refreshMaoParameters(string dpe, anytype value)
+{
+string color,statusText;
+			
+dyn_string exceptionInfo;
+int channelNum, parameterNum;
+string mpos = \"1\";
+string maoname = dpSubStr(dpe,DPSUB_SYS_DP);
+//determin channel number
+channelNum=dynContains(chMao,maoname);
+
+if(channelNum >2)
+{
+  channelNum = channelNum -2;
+mpos = \"2\";
+}
+
+//DebugN(channelNum,mpos);
+//determin mao parameter
+if(strpos(dpe,\"temp\")>=0)
+	{
+       // DebugN(value);
+	setValue(\"ch\"+mpos + channelNum,\"text\",value);
+	}
+
+else if(strpos(dpe,\"isOn\")>=0)
+	{
+	if (!value)
+  {
+    setValue(\"ch\"+mpos + channelNum, \"backCol\", \"FwStateOKNotPhysics\");
+    setValue(\"bch\"+mpos + channelNum, \"text\", \"ON\");
+    
+  }
+  else
+        {
+    setValue(\"ch\"+mpos + channelNum, \"backCol\", \"FwStateOKPhysics\");
+    setValue(\"bch\"+mpos + channelNum, \"text\", \"OFF\");
+  }
+
+  //DebugN(value,\"isoN\",dpe);
+	}
+}
+" 0
+ E E E E 1 0 0 0  0 0
+""0  1
+E "string HARDWARE_COMPONENT;
+
+dyn_string lvcrates,lvzerocrates,hvcrate;
+
+dyn_string crates,boards,chMao,maos;
+dyn_string crnames;
+dyn_dyn_string maoParameters,position;
+int LABEL=1,
+		OUT=2;
+
+
+void openBoardTemp(string position)
+{
+
+
+dyn_string easyboards;
+string strsearch = strltrim(position,\"Border\");
+string type,sCrate=strsearch[0];
+int nCrate = sCrate;
+string sBoards = strsearch[1];
+int nBoards = sBoards;
+
+getValue(\"Text\"+strsearch,\"text\",type);
+//DebugN(type);
+if(type==\"H\")
+	{
+
+	for (int i =1; i<=dynlen(boards); i++)
+		{
+		if(strpos(boards[i],\"Crate\"+(nCrate-1))>-1)
+			dynAppend(easyboards,boards[i]);
+		}
+	ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorSinglePlot.pnl\",
+      \"\",
+      makeDynString(\"$dpename:\" + easyboards[nBoards]+\".Temp.Temp1\"));
+  
+}
+}
+void DisableAll()
+{
+for (int i =0; i<=5; i++)
+	{
+	setValue(\"hardwareResetButton\"+i,\"enabled\",false);
+	setValue(\"recoverButton\"+i,\"enabled\",false);
+	}
+
+hvoff.enabled = false;
+}
+enableControl(){}
+enableDebug(){
+  
+  for (int i =0; i<=5; i++)
+	{
+	setValue(\"hardwareResetButton\"+i,\"enabled\",true);
+	setValue(\"recoverButton\"+i,\"enabled\",true);
+	}
+ }
+enableMod(){
+  
+  hvoff.enabled = true;
+  
+  }
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl,hasMod;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+DisableAll(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Modify\", hasMod, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+if (hasControl) enableControl();
+if (hasDebug) enableDebug();
+if (hasMod) enableMod();
+}
+
+void FillCrates()
+{
+dyn_string systemNumber,temp;
+HARDWARE_COMPONENT = $sysName;//systemNumber[1];
+dyn_string ccname;
+
+//DebugN(\"ddd\",$branch);
+boards = dpNames(HARDWARE_COMPONENT+\"*\"+$branch+\"*\",\"FwCaenBoardEasy\");
+//DebugN(boards[2]);
+int x,y;
+dyn_int pos;
+pos[6]=0;
+crates = dpNames(HARDWARE_COMPONENT+\"*\"+$branch+\"*\",\"FwCaenCrateEasy\");
+//DebugN(crates);
+
+if(strpos($branch,\"rb1527hv\")>0)
+  ccname = hvcrate;
+else
+  if(dynlen(crates)>3)
+    ccname = lvcrates;
+  else
+    ccname =  lvzerocrates;
+for(int i=1;i<=dynlen(boards);i++)
+{
+int postring = strpos(boards[i],\"easyCrate\") + 9;
+string nCrate = boards[i][postring] ;
+int num= nCrate;
+
+setValue(\"crate\"+num,\"text\",ccname[num+1]);
+setValue(\"hardwareResetButton\"+num,\"enabled\",true);
+setValue(\"recoverButton\"+num,\"enabled\",true);
+++num;
+pos[num]++;
+//DebugN(num,pos[num],boards[i]);
+string type;
+dpGet(boards[i]+\".model\",type);
+dynAppend(temp,num);
+dynAppend(temp,pos[num]);
+dynAppend(position,temp);
+dynClear(temp);
+if ((type== \"A3009\")||(type== \"A3016\"))
+	{
+	setValue(\"Border\"+num+(pos[num]),\"visible\",true);
+  setValue(\"box\"+num+(pos[num]),\"visible\",true);
+	setValue(\"Text\"+num+(pos[num]),\"text\",\"L\\nV\");
+	setValue(\"Border\"+num+(pos[num]),\"backCol\",\"blue\");
+	//DebugN(\"Border\"+num+(pos[num]));
+	}
+
+
+else if (type== \"A3512N\")
+	{
+        setValue(\"box\"+num+(pos[num]),\"visible\",true);
+	setValue(\"Border\"+num+(pos[num]),\"visible\",true);
+	setValue(\"Border\"+num+(pos[num]),\"backCol\",\"FwModeIncluded\");
+	setValue(\"Text\"+num+(pos[num]),\"text\",\"H\\nV\");
+	}
+	
+else if (type== \"A3486S\")
+	{
+	//ActiveMAO(boards[i]);
+        dynAppend(maos,boards[i]);	
+	}
+else if (type== \"A3801A\")
+	{
+        //setValue(\"Box\"+num+(pos[num]),\"visible\",true);
+	setValue(\"Border\"+num+(pos[num]),\"visible\",true);
+	setValue(\"Border\"+num+(pos[num]),\"backCol\",\"{102,204,255}\");
+	setValue(\"Text\"+num+(pos[num]),\"text\",\"A\\nD\\nC\");
+	}
+}
+
+dyn_string exceptionInfo;
+//This function creates a callback to the function passed as //first parameter every time the user logged in changes
+fwAccessControl_setupPanel( \"ApplyPanelAccessControl\", exceptionInfo);
+
+
+}
+
+void getLeafChannels(string pos, dyn_string & channels)
+{
+	dyn_string children, exceptionInfo;
+	string device, type;
+	fwTree_getChildren(pos, children, exceptionInfo);
+	if(dynlen(children)==0)
+	{
+		fwTree_getNodeDevice(pos, device, type, exceptionInfo);
+		if((type == \"FwCaenChannelHV\")||(type == \"FwCaenChannelLV\"))
+			dynAppend(channels, pos);
+	}	
+	else
+		for(int i=1; i<=dynlen(children); i++)
+		{
+			getLeafChannels(children[i], channels);
+		}
+	//DebugN(\"questo e channels\",channels);
+}
+void openBoardPanel(string position)
+{
+
+
+dyn_string easyboards;
+string strsearch = strltrim(position,\"Border\");
+string type,sCrate=strsearch[0];
+int nCrate = sCrate;
+string sBoards = strsearch[1];
+int nBoards = sBoards;
+
+getValue(\"Text\"+strsearch,\"text\",type);
+//DebugN(type);
+if(type==\"H\")
+	{
+
+	for (int i =1; i<=dynlen(boards); i++)
+		{
+		if(strpos(boards[i],\"Crate\"+(nCrate-1))>-1)
+			dynAppend(easyboards,boards[i]);
+		}
+	ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorHVPlots.pnl\",
+      \"\",
+      makeDynString(\"$sDpName:\" + easyboards[nBoards],\"$sys:\"+HARDWARE_COMPONENT));
+
+	}
+else 
+	popupMessage(myUiDpName(),\"No panel available for this board.\");
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+6 1
+"Border1"
+""
+1 25 235 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+
+}" 0
+ E 0 1 1 0 1 E U  1 E 25 108 323 236
+6 5
+"Border5"
+""
+1 23 631 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 23 504 321 632
+6 3
+"Border3"
+""
+1 23 435 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  1 E 23 308 323 436
+6 2
+"Border2"
+""
+1 578 239 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -198 -4 1 E 578 112 876 240
+6 4
+"Border4"
+""
+1 576 441 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -198 -4 1 E 576 314 876 442
+6 6
+"Border6"
+""
+1 576 637 E E E 1 E 1 E N "_WindowText" E N {255,255,255} E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -198 -4 1 E 576 510 876 638
+6 7
+"Border11"
+""
+1 46 211 E E E 1 E 0 E N "_WindowText" E N "FwModeIncluded" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+
+openBoardPanel(position);
+}
+
+
+" 0
+ 0 1 1 0 1 E 0.8 0 1 9.19999999999999 0 1 E 46 121 86 211
+6 8
+"Border12"
+""
+1 91 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 2.375 0 1 E 91 121 131 211
+6 9
+"Border13"
+""
+1 136 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.85 0 1 5.40000000000001 0 1 E 136 121 176 211
+6 10
+"Border14"
+""
+1 180 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.85 0 1 6 0 1 E 180 121 220 211
+6 11
+"Border15"
+""
+1 224 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.9 0 1 -5.59999999999999 0 1 E 224 121 264 211
+6 12
+"Border31"
+""
+1 45 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 5.625 0 1 E 45 322 85 412
+6 13
+"Border32"
+""
+1 90 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.85 0 1 7.5 0 1 E 90 322 130 412
+6 14
+"Border33"
+""
+1 135 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 3.875 0 1 E 135 322 175 412
+6 15
+"Border34"
+""
+1 179 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.825 0 1 12.325 0 1 E 179 322 219 412
+6 16
+"Border35"
+""
+1 223 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+
+}" 0
+ "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 0.875 0 1 E 223 322 263 412
+6 17
+"Border21"
+""
+1 591 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+18 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -124.125 -4 1 E 591 126 631 216
+6 18
+"Border22"
+""
+1 636 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.9 0 1 -141.4 -4 1 E 636 126 676 216
+6 19
+"Border23"
+""
+1 681 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -126.875 -4 1 E 681 126 721 216
+6 20
+"Border24"
+""
+1 725 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -127.375 -4 1 E 725 126 765 216
+6 21
+"Border25"
+""
+1 769 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+
+}" 0
+ "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -127.875 -4 1 E 769 126 809 216
+6 22
+"Border41"
+""
+1 590 418 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+23 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.9 0 1 -139 -4 1 E 590 328 630 418
+6 23
+"Border42"
+""
+1 635 418 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+24 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -123.625 -4 1 E 635 328 675 418
+6 24
+"Border43"
+""
+1 680 418 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+25 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.9 0 1 -142 -4 1 E 680 328 720 418
+6 25
+"Border44"
+""
+1 724 418 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+26 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.9 0 1 -141.6 -4 1 E 724 328 764 418
+6 26
+"Border45"
+""
+1 768 418 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+27 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.9 0 1 -143.2 -4 1 E 768 328 808 418
+6 27
+"Border51"
+""
+1 45 608 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 5.625 0 1 E 45 518 85 608
+6 28
+"Border52"
+""
+1 90 608 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875675675675676 0 1 3.67567567567567 0 1 E 90 518 130 608
+6 29
+"Border53"
+""
+1 135 608 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+30 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 1.875 0 1 E 135 518 175 608
+6 30
+"Border54"
+""
+1 179 608 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 1.375 0 1 E 179 518 219 608
+6 31
+"Border55"
+""
+1 223 608 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+32 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 0.875 0 1 E 223 518 263 608
+6 32
+"Border61"
+""
+1 591 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -123.125 -4 1 E 591 526 631 616
+6 33
+"Border62"
+""
+1 636 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.9 0 1 -140.4 -4 1 E 636 526 676 616
+6 34
+"Border63"
+""
+1 681 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -125.875 -4 1 E 681 526 721 616
+6 35
+"Border64"
+""
+1 726 617 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.85 0 1 -109.1 -5 1 E 726 527 766 617
+6 36
+"Border65"
+""
+1 769 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+37 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -128.875 -4 1 E 769 526 809 616
+2 45
+"Text11"
+""
+1 54 124 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+46 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 56 126 67 212
+0 2 0 "0s" 0 0 0 65 0 0  56 126 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 46
+"Text12"
+""
+1 93 124 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+47 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 95 126 105 214
+0 2 0 "0s" 0 0 0 65 0 0  95 126 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 47
+"Text13"
+""
+1 129 124 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 131 126 145 214
+0 2 0 "0s" 0 0 0 65 0 0  131 126 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 48
+"Text14"
+""
+1 168 124 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+49 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 170 126 182 214
+0 2 0 "0s" 0 0 0 65 0 0  170 126 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 49
+"Text15"
+""
+1 208 124 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+50 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 210 126 218 208
+0 2 0 "0s" 0 0 0 65 0 0  210 126 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 55
+"Text31"
+""
+1 55 322 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 57 324 67 406
+0 2 0 "0s" 0 0 0 65 0 0  57 324 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 56
+"Text32"
+""
+1 92 322 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+57 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 94 324 106 410
+0 2 0 "0s" 0 0 0 65 0 0  94 324 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 57
+"Text33"
+""
+1 131 322 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 133 324 143 410
+0 2 0 "0s" 0 0 0 65 0 0  133 324 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 58
+"Text34"
+""
+1 169 322 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 171 324 181 410
+0 2 0 "0s" 0 0 0 65 0 0  171 324 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 59
+"Text35"
+""
+1 207 322 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+60 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 209 324 219 410
+0 2 0 "0s" 0 0 0 65 0 0  209 324 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 65
+"Text51"
+""
+1 53 516 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+66 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 55 518 69 606
+0 2 0 "0s" 0 0 0 65 0 0  55 518 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 66
+"Text52"
+""
+1 93 516 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 95 518 105 604
+0 2 0 "0s" 0 0 0 65 0 0  95 518 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 67
+"Text53"
+""
+1 130 516 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+68 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 132 518 144 602
+0 2 0 "0s" 0 0 0 65 0 0  132 518 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 68
+"Text54"
+""
+1 170 516 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+69 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 172 518 184 604
+0 2 0 "0s" 0 0 0 65 0 0  172 518 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 69
+"Text55"
+""
+1 206 516 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+70 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 208 518 220 604
+0 2 0 "0s" 0 0 0 65 0 0  208 518 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 75
+"Text41"
+""
+1 602 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+76 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 406 326 414 410
+0 2 0 "0s" 0 0 0 65 0 0  406 326 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 76
+"Text42"
+""
+1 640 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 444 326 452 412
+0 2 0 "0s" 0 0 0 65 0 0  444 326 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 77
+"Text43"
+""
+1 678 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+78 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 482 326 490 412
+0 2 0 "0s" 0 0 0 65 0 0  482 326 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 78
+"Text44"
+""
+1 720 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+79 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 524 326 534 412
+0 2 0 "0s" 0 0 0 65 0 0  524 326 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 79
+"Text45"
+""
+1 755 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+80 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 559 326 571 410
+0 2 0 "0s" 0 0 0 65 0 0  559 326 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 85
+"Text61"
+""
+1 602 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+86 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 406 524 414 610
+0 2 0 "0s" 0 0 0 65 0 0  406 524 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 86
+"Text62"
+""
+1 640 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+87 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 444 524 454 610
+0 2 0 "0s" 0 0 0 65 0 0  444 524 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 87
+"Text63"
+""
+1 677 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+88 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 481 524 491 610
+0 2 0 "0s" 0 0 0 65 0 0  481 524 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 88
+"Text64"
+""
+1 714 524 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+89 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 518 522 530 608
+0 2 0 "0s" 0 0 0 65 0 0  518 522 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 89
+"Text65"
+""
+1 753 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+90 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 557 524 567 610
+0 2 0 "0s" 0 0 0 65 0 0  557 524 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 95
+"Text21"
+""
+1 601 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+96 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 405 124 415 210
+0 2 0 "0s" 0 0 0 65 0 0  405 124 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 96
+"Text22"
+""
+1 638 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+97 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 442 124 454 208
+0 2 0 "0s" 0 0 0 65 0 0  442 124 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 97
+"Text23"
+""
+1 677 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+98 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 481 124 491 212
+0 2 0 "0s" 0 0 0 65 0 0  481 124 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 98
+"Text24"
+""
+1 716 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+99 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 520 124 528 212
+0 2 0 "0s" 0 0 0 65 0 0  520 124 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+2 99
+"Text25"
+""
+1 754 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+100 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 558 124 566 208
+0 2 0 "0s" 0 0 0 65 0 0  558 124 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+30 121
+"crate0"
+""
+1 13 280 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+110 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -3 0 0 E 13 94 335 280
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Crate 0
+30 122
+"crate2"
+""
+1 13 474 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+111 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.00625 0 1 -3.081250000000015 0 0 E 13 292 333 476
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Crate 2
+30 125
+"crate4"
+""
+1 19 670 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+114 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1.018987341772152 0 1 -9.360759493670905 0 0 E 19 488 335 672
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Crate 4
+30 131
+"crate1"
+""
+1 568 280 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+120 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1.010869565217391 -197 -5.065217391304357 0 E 568 98 886 282
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Crate 1
+30 134
+"crate3"
+""
+1 568 480 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+123 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.99375 0 1 -193.45 -6 0 E 568 298 888 482
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Crate 3
+30 137
+"crate5"
+""
+1 568 673 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+126 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.99375 0 1 -193.45 -4 0 E 568 494 888 676
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 7 Crate 5
+2 140
+"Text94"
+""
+1 -8 28 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+129 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 10 30 428 74
+0 2 0 "0s" 0 0 0 64 0 0  10 30 1
+1
+LANG:1 26 Arial,-1,19,5,69,0,0,0,0,0
+0 1
+LANG:1 22 Crate Hardware Mapping
+6 141
+"Border37"
+""
+1 41 216 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+130 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 41 116 315 216
+6 142
+"Border38"
+""
+1 586 222 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+131 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -198 -4 0 E 586 122 860 222
+6 143
+"Border39"
+""
+1 40 418 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+132 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -2 0 0 E 40 318 315 418
+6 144
+"Border40"
+""
+1 584 424 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+133 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -198 -4 0 E 584 324 862 424
+6 145
+"Border50"
+""
+1 39 614 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+134 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 39 514 311 614
+6 146
+"Border47"
+""
+1 584 622 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+135 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -198 -4 0 E 584 522 860 622
+2 147
+"Text67"
+""
+1 123 218 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+136 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 125 220 193 236
+0 2 0 "0s" 0 0 0 64 0 0  125 220 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 9 EASY 3000
+2 148
+"Text68"
+""
+1 710 222 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+137 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 514 220 582 236
+0 2 0 "0s" 0 0 0 64 0 0  514 220 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 9 EASY 3000
+2 149
+"Text69"
+""
+1 121 418 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+138 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 123 420 191 436
+0 2 0 "0s" 0 0 0 64 0 0  123 420 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 9 EASY 3000
+2 150
+"Text70"
+""
+1 121 614 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+139 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 123 616 191 632
+0 2 0 "0s" 0 0 0 64 0 0  123 616 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 9 EASY 3000
+2 151
+"Text71"
+""
+1 712 422 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+140 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 516 420 584 436
+0 2 0 "0s" 0 0 0 64 0 0  516 420 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 9 EASY 3000
+2 152
+"Text72"
+""
+1 710 620 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+141 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 514 618 582 634
+0 2 0 "0s" 0 0 0 64 0 0  514 618 1
+1
+LANG:1 26 Arial,-1,13,5,69,0,0,0,0,0
+0 1
+LANG:1 9 EASY 3000
+6 154
+"Border16"
+""
+1 268 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+142 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.85 0 1 7.2 0 1 E 268 121 308 211
+2 155
+"Text16"
+""
+1 245 124 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+143 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 247 126 257 212
+0 2 0 "0s" 0 0 0 65 0 0  247 126 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+6 157
+"Border36"
+""
+1 268 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+145 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.85 0 1 6.2 0 1 E 268 322 308 412
+2 158
+"Text36"
+""
+1 245 324 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+146 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 247 326 257 412
+0 2 0 "0s" 0 0 0 65 0 0  247 326 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+6 160
+"Border56"
+""
+1 267 609 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+148 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 0.375 -1 1 E 267 519 307 609
+2 161
+"Text56"
+""
+1 244 516 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+149 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 246 518 258 600
+0 2 0 "0s" 0 0 0 65 0 0  246 518 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+6 163
+"Border26"
+""
+1 813 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+151 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -128.375 -4 1 E 813 126 853 216
+2 164
+"Text26"
+""
+1 791 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+152 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 595 124 605 214
+0 2 0 "0s" 0 0 0 65 0 0  595 124 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+6 166
+"Border46"
+""
+1 813 419 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+154 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -125.375 -5 1 E 813 329 853 419
+2 167
+"Text46"
+""
+1 795 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+155 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 599 326 609 412
+0 2 0 "0s" 0 0 0 65 0 0  599 326 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+6 169
+"Border66"
+""
+1 813 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ E E
+157 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -129.375 -4 1 E 813 526 853 616
+2 170
+"Text66"
+""
+1 791 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+158 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 595 524 605 612
+0 2 0 "0s" 0 0 0 65 0 0  595 524 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+13 0
+"TempTrend"
+""
+1 592 29.96969696969697 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  590 28 674 62
+
+T 
+1
+LANG:1 10 Temp Trend
+"
+main()
+{
+  EP_childPanelOn();
+}
+
+EP_childPanelOn()
+{
+  ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorTempTrend.pnl\",
+      \"\",
+      makeDynString(\"$branch:\" + $branch,\"$sys:\"+HARDWARE_COMPONENT,\"$crates:\"+crates));
+}
+" 0
+ E E E
+13 119
+"hardwareResetButton0"
+""
+1 25 242 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+108 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  23 240 137 270
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.HwReset0\" , 1);
+}" 0
+ E E "main()
+{
+
+}" 0
+
+13 120
+"recoverButton0"
+""
+1 208 242 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+109 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  206 240 320 270
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.Recovery0\", 1);
+}" 0
+ E E E
+13 123
+"hardwareResetButton2"
+""
+1 25 444 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+112 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  23 442 137 472
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.HwReset2\", 1);
+}" 0
+ E E E
+13 124
+"recoverButton2"
+""
+1 208 444 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+113 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  206 442 320 472
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.Recovery2\" , 1);
+}" 0
+ E E E
+13 126
+"hardwareResetButton4"
+""
+1 23 638 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+115 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  21 636 135 666
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.HwReset4\" , 1);
+}" 0
+ E E E
+13 127
+"recoverButton4"
+""
+1 208 638 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+116 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  206 636 320 666
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.Recovery4\" , 1);
+}" 0
+ E E E
+13 132
+"hardwareResetButton1"
+""
+1 380 242 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+121 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  378 240 492 270
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.HwReset1\" , 1);
+}" 0
+ E E E
+13 133
+"recoverButton1"
+""
+1 566 242 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+122 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  564 240 678 270
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.Recovery1\", 1);
+}" 0
+ E E E
+13 135
+"hardwareResetButton3"
+""
+1 380 444 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+124 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  378 442 492 472
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.HwReset3\", 1);
+}" 0
+ E E E
+13 136
+"recoverButton3"
+""
+1 568 444 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+125 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  566 442 680 472
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.Recovery3\", 1);
+}" 0
+ E E E
+13 138
+"hardwareResetButton5"
+""
+1 380 638 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+127 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  378 636 492 666
+
+T 
+1
+LANG:1 14 Hardware reset
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.HwReset5\", 1);
+}" 0
+ E E E
+13 139
+"recoverButton5"
+""
+1 568 638 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+128 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  566 636 680 666
+
+T 
+1
+LANG:1 7 Recover
+"main()
+{
+	dpSet($sysName+$branch + \".Commands.RemoteCrates.Recovery5\", 1);
+}" 0
+ E E E
+6 171
+"Border17"
+""
+1 268 211 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ "main()
+{
+        string position =this.name;
+ openBoardTemp(position);
+}" 0
+ E
+160 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.85 0 1 44.2 1 1 E 268 121 308 211
+2 172
+"Text17"
+""
+1 283 125 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+162 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 285 127 295 213
+0 2 0 "0s" 0 0 0 65 0 0  285 127 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+6 173
+"Border27"
+""
+1 813 216 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ "main()
+{
+        string position =this.name;
+ openBoardTemp(position);
+}" 0
+ E
+164 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -89.375 -4 1 E 813 126 853 216
+2 174
+"Text27"
+""
+1 831 126 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+166 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 635 124 645 214
+0 2 0 "0s" 0 0 0 65 0 0  635 124 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+6 175
+"Border37"
+""
+1 268 412 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ "main()
+{
+        string position =this.name;
+ openBoardTemp(position);
+}" 0
+ "main()
+{
+  string position =this.name;
+ openBoardTemp(position);
+}
+" 0
+
+168 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.85 0 1 44.2 0 1 E 268 322 308 412
+2 176
+"Text37"
+""
+1 283 324 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+170 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 285 326 295 412
+0 2 0 "0s" 0 0 0 65 0 0  285 326 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+6 177
+"Border47"
+""
+1 813 419 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ "main()
+{
+        string position =this.name;
+ openBoardTemp(position);
+}" 0
+ E
+172 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -87.375 -5 1 E 813 329 853 419
+2 178
+"Text47"
+""
+1 831 328 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+174 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 635 326 645 412
+0 2 0 "0s" 0 0 0 65 0 0  635 326 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+6 179
+"Border57"
+""
+1 267 609 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ "main()
+{
+      string position =this.name;
+ openBoardTemp(position);
+}" 0
+ "main()
+{
+
+}" 0
+
+176 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 38.375 -1 1 E 267 519 307 609
+2 180
+"Text57"
+""
+1 282 518 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+178 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 284 520 296 602
+0 2 0 "0s" 0 0 0 65 0 0  284 520 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+6 181
+"Text67"
+""
+1 813 616 E E E 1 E 0 E N "_WindowText" E N {255,51,51} E E
+ "main()
+{
+        string position =this.name;
+ openBoardTemp(position);
+}" 0
+ E
+180 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E "main()
+{
+string position =this.name;
+openBoardPanel(position);
+}" 0
+ 0 1 1 0 1 E 0.875 0 1 -91.375 -4 1 E 813 526 853 616
+2 182
+"Text67"
+""
+1 829 526 E E E 1 E 1 E N "Weiss" E N "_Transparent" E E
+ E E
+182 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 633 524 643 612
+0 2 0 "0s" 0 0 0 65 0 0  633 524 1
+1
+LANG:1 26 Arial,-1,11,5,69,0,0,0,0,0
+0 1
+LANG:1 1 V
+14 184
+"box11"
+""
+1 50 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+184 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  48 180 76 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 185
+"box12"
+""
+1 88 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+186 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  86 180 114 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 186
+"box13"
+""
+1 126 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+188 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  124 180 152 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 187
+"box14"
+""
+1 164 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+190 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  162 180 190 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 188
+"box15"
+""
+1 202 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+192 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  200 180 228 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 189
+"box16"
+""
+1 240 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+194 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  238 180 266 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 190
+"s17"
+""
+1 278 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+196 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  276 180 304 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 191
+"box21"
+""
+1 398 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+198 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  396 180 424 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 192
+"box22"
+""
+1 436 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+200 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  434 180 462 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 193
+"box23"
+""
+1 474 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+202 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  472 180 500 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 194
+"box24"
+""
+1 512 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+204 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  510 180 538 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 195
+"box25"
+""
+1 550 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+206 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  548 180 576 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 196
+"box26"
+""
+1 588 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+208 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  586 180 614 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 197
+"box27"
+""
+1 628 182 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+210 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  626 180 654 207
+3 "0s" 0 0 0 0 0 -1  E E E
+14 198
+"box31"
+""
+1 50 382 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+212 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  48 380 76 407
+3 "0s" 0 0 0 0 0 -1  E E E
+14 199
+"box32"
+""
+1 88 382 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+214 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  86 380 114 407
+3 "0s" 0 0 0 0 0 -1  E E E
+14 200
+"box33"
+""
+1 126 382 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+216 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  124 380 152 407
+3 "0s" 0 0 0 0 0 -1  E E E
+14 201
+"box34"
+""
+1 164 382 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+218 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  162 380 190 407
+3 "0s" 0 0 0 0 0 -1  E E E
+14 202
+"box35"
+""
+1 202 382 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+220 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  200 380 228 407
+3 "0s" 0 0 0 0 0 -1  E E E
+14 203
+"box36"
+""
+1 240 382 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+222 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  238 380 266 407
+3 "0s" 0 0 0 0 0 -1  E E E
+14 204
+"box37"
+""
+1 278 383 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+224 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  276 381 304 408
+3 "0s" 0 0 0 0 0 -1  E E E
+14 205
+"box51"
+""
+1 50 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+226 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  48 579 76 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 206
+"box52"
+""
+1 88 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+228 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  86 579 114 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 207
+"box53"
+""
+1 126 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+230 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  124 579 152 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 208
+"box54"
+""
+1 164 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+232 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  162 579 190 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 209
+"box55"
+""
+1 202 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+234 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  200 579 228 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 210
+"box56"
+""
+1 240 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+236 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  238 579 266 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 211
+"box57"
+""
+1 278 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+238 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  276 579 304 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 212
+"box41"
+""
+1 398 386 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+240 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  396 384 424 411
+3 "0s" 0 0 0 0 0 -1  E E E
+14 213
+"box42"
+""
+1 436 386 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+242 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  434 384 462 411
+3 "0s" 0 0 0 0 0 -1  E E E
+14 214
+"box43"
+""
+1 474 386 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+244 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  472 384 500 411
+3 "0s" 0 0 0 0 0 -1  E E E
+14 215
+"box44"
+""
+1 517 386 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+246 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  515 384 543 411
+3 "0s" 0 0 0 0 0 -1  E E E
+14 216
+"box45"
+""
+1 553 386 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+248 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  551 384 579 411
+3 "0s" 0 0 0 0 0 -1  E E E
+14 217
+"box46"
+""
+1 592 386 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+250 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  590 384 618 411
+3 "0s" 0 0 0 0 0 -1  E E E
+14 218
+"box47"
+""
+1 628 386 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+252 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  626 384 654 411
+3 "0s" 0 0 0 0 0 -1  E E E
+14 219
+"box61"
+""
+1 398 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+254 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  396 579 424 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 220
+"box62"
+""
+1 436 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+256 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  434 579 462 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 221
+"box63"
+""
+1 474 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+258 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  472 579 500 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 222
+"box64"
+""
+1 512 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+260 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  510 579 538 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 223
+"box65"
+""
+1 550 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+262 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  548 579 576 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 224
+"box66"
+""
+1 588 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+264 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  586 579 614 606
+3 "0s" 0 0 0 0 0 -1  E E E
+14 225
+"box67"
+""
+1 626 581 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+266 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  624 579 652 606
+3 "0s" 0 0 0 0 0 -1  E E E
+30 227
+"mao1"
+""
+1 22 681 E E E 1 E 0 E N "_WindowText" E N {0,0,0} E E
+ E E
+268 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.022201420402516 0 1.40425531914893 -13.97405425205023 -274.297872340424 0 E 22 681 337 729
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 8 MAO NEAR
+14 229
+"ch11"
+""
+1 44 704 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+271 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  42 702 116 732
+3 "0s" 0 0 0 0 0 -1  E E E
+13 231
+"bch11"
+""
+1 140 703.965517241379 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+274 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  138 702 174 732
+
+T 
+1
+LANG:1 12 PUSH_BUTTON2
+"main()
+{
+  int d,t;
+  string name = this.name;
+  //DebugN(name);
+  if(name[3]==\"1\")
+   d = 1;
+  else
+    d = 3;
+     
+  if(name[4]==\"1\")
+    t = 1;
+  else
+    t = 2;
+ 
+  string value;
+  if(this.text == \"ON\")
+    value = \"0\";
+  else
+    value = \"1\";
+   
+  dpSet(chMao[d+t]+\".settings.onOff\",value);
+  
+}" 0
+ E E E
+14 232
+"ch12"
+""
+1 190 704 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+276 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  188 702 262 732
+3 "0s" 0 0 0 0 0 -1  E E E
+13 233
+"bch12"
+""
+1 286 703.965517241379 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+278 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  284 702 320 732
+
+T 
+1
+LANG:1 12 PUSH_BUTTON2
+"main()
+{
+    int d,t;
+  string name = this.name;
+  //DebugN(name);
+  if(name[3]==\"1\")
+   d = 1;
+  else
+    d = 3;
+     
+  if(name[4]==\"1\")
+    t = 1;
+  else
+    t = 2;
+ 
+  string value;
+  if(this.text == \"ON\")
+    value = \"0\";
+  else
+    value = \"1\";
+   
+  dpSet(chMao[d+t]+\".settings.onOff\",value);
+  
+}" 0
+ E E E
+30 234
+"mao2"
+""
+1 22 681 E E E 1 E 0 E N "_WindowText" E N {0,0,0} E E
+ E E
+280 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.00952380952381 0 1.40396274563984 345.2984634109239 -274.098629780731 0 E 22 681 337 729
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 7 MAO FAR
+14 235
+"ch21"
+""
+1 396 705 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+282 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  394 703 468 733
+3 "0s" 0 0 0 0 0 -1  E E E
+13 236
+"bch21"
+""
+1 492 704.965517241379 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+284 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  490 703 526 733
+
+T 
+1
+LANG:1 12 PUSH_BUTTON2
+"main()
+{
+     int d,t;
+  string name = this.name;
+  //DebugN(name);
+  if(name[3]==\"1\")
+   d = 1;
+  else
+    d = 3;
+     
+  if(name[4]==\"1\")
+    t = 1;
+  else
+    t = 2;
+ 
+  string value;
+  if(this.text == \"ON\")
+    value = \"0\";
+  else
+    value = \"1\";
+   
+  dpSet(chMao[d+t]+\".settings.onOff\",value);
+  
+}" 0
+ E E E
+14 237
+"ch22"
+""
+1 542 705 E E E 1 E 0 E N "_WindowText" E N "_Window" E E
+ E E
+286 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  540 703 614 733
+3 "0s" 0 0 0 0 0 -1  E E E
+13 238
+"bch22"
+""
+1 638 704.965517241379 E E E 1 E 0 E N "_ButtonText" E N "_Button" E E
+ E E
+288 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  636 703 672 733
+
+T 
+1
+LANG:1 12 PUSH_BUTTON2
+"main()
+{
+    int d,t;
+  string name = this.name;
+  //DebugN(name);
+  if(name[3]==\"1\")
+   d = 1;
+  else
+    d = 3;
+     
+  if(name[4]==\"1\")
+    t = 1;
+  else
+    t = 2;
+ 
+  string value;
+  if(this.text == \"ON\")
+    value = \"0\";
+  else
+    value = \"1\";
+   
+  dpSet(chMao[d+t]+\".settings.onOff\",value);
+}" 0
+ E E E
+13 239
+"hvoff"
+""
+1 410 30 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+289 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  408 28 552 62
+
+T 
+1
+LANG:1 23 HV Pedestal Calibration
+"dyn_string offsetMap;
+dyn_int serialMap;
+main()
+{
+  fwOpenProgressBar(\"Offset Calculation\",\"Calculating the HV boards pedestal...\",1,0);
+  this.enabled = false;
+  
+  string hvSys = RPCfwSupervisor_getComponent(\"BarrelHV\");
+  
+  dyn_string boards = dpNames($sysName+\"*\",\"FwCaenBoardEasy\");
+  dyn_string btype = dpNames($sysName+\"*\",\"RpcBoardOffset\");
+//DebugN(btype);  
+  int val;
+  for(int i = 1;i<=dynlen(btype);i++)
+  {
+    dynAppend(offsetMap,btype[i]);
+    dpGet(btype[i]+\".offset\",val);
+    dynAppend(serialMap,val);
+  }
+  int pos;
+  string type;
+  for(int i = 1;i<=dynlen(boards);i++)
+  {
+   
+  dpGet(boards[i]+\".model\",type); 
+  if(type == \"A3512N\"){  
+  dpGet(boards[i]+\".Information.SerNum\",val);
+  pos = dynContains(serialMap,val);
+   
+  if(pos > 0)
+     setvalues(boards[i],offsetMap[pos],val); 
+  else
+  {
+    pos = getPosToAppend(val);
+    setvalues(boards[i],offsetMap[pos],val); 
+    serialMap[pos] = val;
+              
+  }  
+    
+  }
+  }
+  fwCloseProgressBar(\"Done\");
+  this.enabled = true;
+  //for(int i = 1; )
+                   
+}
+int getPosToAppend(int serial){
+  
+  int pp = -1;
+  
+  for(int i = 1;i<dynlen(serialMap);i++)
+    if(serialMap[i]==0){ 
+      pp = i;
+      break;
+      }
+  return pp;
+  
+  }
+void setvalues(string toread, string towrite,int sernum){
+          
+  dyn_string channels,exInfo;
+  dyn_float imon;
+  int ll;
+  string temp;
+  fwDevice_getChildren(toread,fwDevice_HARDWARE,channels,exInfo);
+  for(int i =1;i<=dynlen(channels);i++) {   
+    dpGet(channels[i]+\".actual.iMon\",imon[i]);
+//     temp = imon[i];
+//     ll = strpos(temp,\".\"); 
+//     if(ll>-1)
+//       imon[i]= substr(temp,0,ll+2);      
+    }
+ // DebugN(imon);
+  
+  dpSet(towrite+\".serial\",sernum);
+  dpSet(towrite+\".offset\",imon);
+        
+      
+}
+" 0
+ E E "
+main()
+{
+  //DebugN($branch);
+  if(strpos($branch,\"hv\")<0)
+    this.visible = false;
+  
+}" 0
+
+2 240
+"s11"
+""
+1 50 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+290 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 50 160 74 178
+0 2 2 "0s" 0 0 0 65 0 0  50 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 241
+"s12"
+""
+1 88 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+291 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 88 160 112 178
+0 2 2 "0s" 0 0 0 65 0 0  88 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 242
+"s13"
+""
+1 126 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+292 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 126 160 150 178
+0 2 2 "0s" 0 0 0 65 0 0  126 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 243
+"s14"
+""
+1 164 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+293 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 164 160 188 178
+0 2 2 "0s" 0 0 0 65 0 0  164 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 244
+"s15"
+""
+1 202 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+294 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 202 160 226 178
+0 2 2 "0s" 0 0 0 65 0 0  202 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 245
+"s16"
+""
+1 240 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+295 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 240 160 264 178
+0 2 2 "0s" 0 0 0 65 0 0  240 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 246
+"PRIMITIVE_TEXT7"
+""
+1 278 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+296 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 278 160 302 178
+0 2 2 "0s" 0 0 0 65 0 0  278 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 247
+"s21"
+""
+1 398 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+297 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 398 160 422 178
+0 2 2 "0s" 0 0 0 65 0 0  398 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 248
+"s22"
+""
+1 436 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+298 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 436 160 460 178
+0 2 2 "0s" 0 0 0 65 0 0  436 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 249
+"s23"
+""
+1 474 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+299 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 474 160 498 178
+0 2 2 "0s" 0 0 0 65 0 0  474 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 250
+"s24"
+""
+1 512 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+300 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 512 160 536 178
+0 2 2 "0s" 0 0 0 65 0 0  512 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 251
+"s25"
+""
+1 550 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+301 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 550 160 574 178
+0 2 2 "0s" 0 0 0 65 0 0  550 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 252
+"s26"
+""
+1 588 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+302 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 588 160 612 178
+0 2 2 "0s" 0 0 0 65 0 0  588 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 253
+"s27"
+""
+1 628 160 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+303 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 628 160 652 178
+0 2 2 "0s" 0 0 0 65 0 0  628 160 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 254
+"s31"
+""
+1 50 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+304 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 50 361 74 379
+0 2 2 "0s" 0 0 0 65 0 0  50 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 255
+"s32"
+""
+1 88 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+305 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 88 361 112 379
+0 2 2 "0s" 0 0 0 65 0 0  88 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 256
+"s33"
+""
+1 126 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+306 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 126 361 150 379
+0 2 2 "0s" 0 0 0 65 0 0  126 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 257
+"s34"
+""
+1 164 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+307 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 164 361 188 379
+0 2 2 "0s" 0 0 0 65 0 0  164 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 258
+"s35"
+""
+1 202 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+308 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 202 361 226 379
+0 2 2 "0s" 0 0 0 65 0 0  202 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 259
+"s36"
+""
+1 240 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+309 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 240 361 264 379
+0 2 2 "0s" 0 0 0 65 0 0  240 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 260
+"s37"
+""
+1 278 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+310 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 278 361 302 379
+0 2 2 "0s" 0 0 0 65 0 0  278 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 261
+"s41"
+""
+1 398 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+311 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 398 361 422 379
+0 2 2 "0s" 0 0 0 65 0 0  398 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 262
+"s42"
+""
+1 436 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+312 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 436 361 460 379
+0 2 2 "0s" 0 0 0 65 0 0  436 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 263
+"s43"
+""
+1 474 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+313 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 474 361 498 379
+0 2 2 "0s" 0 0 0 65 0 0  474 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 264
+"s44"
+""
+1 517 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+314 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 517 361 541 379
+0 2 2 "0s" 0 0 0 65 0 0  517 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 265
+"s45"
+""
+1 553 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+315 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 553 361 577 379
+0 2 2 "0s" 0 0 0 65 0 0  553 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 266
+"s46"
+""
+1 592 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+316 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 592 361 616 379
+0 2 2 "0s" 0 0 0 65 0 0  592 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 267
+"s47"
+""
+1 628 361 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+317 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 628 361 652 379
+0 2 2 "0s" 0 0 0 65 0 0  628 361 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 268
+"s51"
+""
+1 50 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+318 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 50 559 74 577
+0 2 2 "0s" 0 0 0 65 0 0  50 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 269
+"s52"
+""
+1 88 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+319 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 88 559 112 577
+0 2 2 "0s" 0 0 0 65 0 0  88 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 270
+"s53"
+""
+1 126 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+320 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 126 559 150 577
+0 2 2 "0s" 0 0 0 65 0 0  126 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 271
+"s54"
+""
+1 166 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+321 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 166 559 190 577
+0 2 2 "0s" 0 0 0 65 0 0  166 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 272
+"s55"
+""
+1 202 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+322 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 202 559 226 577
+0 2 2 "0s" 0 0 0 65 0 0  202 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 273
+"s56"
+""
+1 240 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+323 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 240 559 264 577
+0 2 2 "0s" 0 0 0 65 0 0  240 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 274
+"s57"
+""
+1 278 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+324 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 278 559 302 577
+0 2 2 "0s" 0 0 0 65 0 0  278 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 275
+"s61"
+""
+1 398 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+325 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 398 559 422 577
+0 2 2 "0s" 0 0 0 65 0 0  398 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 276
+"s62"
+""
+1 438 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+326 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 438 559 462 577
+0 2 2 "0s" 0 0 0 65 0 0  438 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 277
+"s63"
+""
+1 474 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+327 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 474 559 498 577
+0 2 2 "0s" 0 0 0 65 0 0  474 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 278
+"s64"
+""
+1 512 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+328 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 512 559 536 577
+0 2 2 "0s" 0 0 0 65 0 0  512 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 279
+"s65"
+""
+1 550 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+329 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 550 559 574 577
+0 2 2 "0s" 0 0 0 65 0 0  550 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 280
+"s66"
+""
+1 588 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+330 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 588 559 612 577
+0 2 2 "0s" 0 0 0 65 0 0  588 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+2 281
+"s67"
+""
+1 626 559 E E E 1 E 0 E N "_Window" E N "_Transparent" E E
+ E E
+331 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  this.text = \"234\";
+}" 0
+ E 0 1 1 2 1 E U  0 E 626 559 650 577
+0 2 2 "0s" 0 0 0 65 0 0  626 559 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

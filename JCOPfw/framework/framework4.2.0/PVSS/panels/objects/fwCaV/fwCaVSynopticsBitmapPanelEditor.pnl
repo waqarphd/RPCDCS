@@ -1,0 +1,452 @@
+V 10
+1
+LANG:1 8 (NoName)
+PANEL,-1 -1 1241 1028 N "_3DFace" 3
+"$sBitmapDp"
+"$sForceDp"
+"$sMyReferenceName"
+"main()
+{
+	dyn_string exceptionInfo;
+	dyn_string parameters;
+	bitmapDp = $sBitmapDp;	
+	// Get all the nodes describing the widgets for the current Bitmap
+	//dpGet(/*bitmapDp+\".widgets\",bitmapNodes,*/
+	//			bitmapDp+\".Size.x\",sizeX,
+	//			bitmapDp+\".Size.y\",sizeY);
+	fwCaV_getSynopticsPanelDetails(bitmapDp, parameters, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+		return;
+	}
+	sizeX = parameters[fwCaV_SynopticsBitmap_Size_x];
+	sizeY = parameters[fwCaV_SynopticsBitmap_Size_y];
+	
+	fwCaV_listSynopticsPanelWidgets(bitmapDp, bitmapNodes, exceptionInfo);
+	if(dynlen(exceptionInfo)!=0)
+	{
+		fwExceptionHandling_display(exceptionInfo);
+	}
+	
+	// get the offsets for adding symbols
+        if(isDollarDefined(\"$sMyReferenceName\"))
+          if(shapeExists($sMyReferenceName))
+          {
+            getValue($sMyReferenceName, \"position\", offsetX, offsetY);
+            offsetY-=30; // Why subtract these values from the offset?
+            offsetX-=420; // Because it works...
+          }
+	
+	// Collect the data about the children nodes - widgets
+	getWidgetData();
+	populateComboBox();
+	
+	string sForceDp = \"\"; // Parameter for the bitmap reference panel - it is used to override the used DP
+	if(isDollarDefined(\"$sForceDp\"))
+	{
+		sForceDp = $sForceDp;
+	}
+	
+	// Add the bitmap
+	addSymbol(myModuleName(),myPanelName(), fwCaV_SynopticsPATH,
+							 \"EditorBitmap\", makeDynString(\"$sBitmapDp:\"+$sBitmapDp, \"$sMyReferenceName:EditorBitmap\", \"$sForceDp:\"+sForceDp),
+							 20+offsetX, 350+offsetY, 0, 1, 1);
+							 
+	addSymbol(myModuleName(),myPanelName(), fwCaV_SynopticsGridPATH,
+							 \"Grid\", makeDynString(\"\"),
+							 20+offsetX, 100+offsetY, 0, (float)sizeX/100, (float)sizeY/100);
+}" 0
+ E E E E 1 0 0 0  420 30
+""0  1
+E "
+	string bitmapDp;	// The DP containing info about BitmapPanel
+	dyn_string bitmapNodes; // The children of bitmapDP - the widgets
+	
+	dyn_dyn_string childPanelsInfo; // Information about the widgets
+	
+	int previous=0; // Previously selected widget
+	
+	int offsetX, offsetY;
+	int sizeX, sizeY;
+/*
+	Populate the spinbuttons and the checkboxes
+*/
+void displayWidgetData(int i)
+{
+	if(dynlen(childPanelsInfo)>=i)
+	{
+		Horizontal.text = childPanelsInfo[i][3];
+		Vertical.text = childPanelsInfo[i][4];
+		visibleCheck.state(0) = childPanelsInfo[i][2];	
+		if(previous&&childPanelsInfo[previous][2])
+		{
+			setValue(childPanelsInfo[previous][1]+\".widgetBorder\",\"foreCol\",\"black\");
+			setValue(childPanelsInfo[previous][1]+\".widgetBorder\",\"border\",\"[solid, oneColor, JoinMiter, CapNotLast,1]\");			
+		}
+		if(childPanelsInfo[i][2])
+		{
+			setValue(childPanelsInfo[i][1]+\".widgetBorder\",\"foreCol\",\"blue\");
+			setValue(childPanelsInfo[i][1]+\".widgetBorder\",\"border\",\"[solid, oneColor, JoinMiter, CapNotLast,4]\");
+		}
+	}
+}
+
+getWidgetData()
+{
+	dynClear(childPanelsInfo);
+        
+        dynAppend(childPanelsInfo,\"\");
+	for(int i=1; i<=dynlen(bitmapNodes); i++)
+	{
+		string fileName;
+		int posX, posY;
+		bool isVisible;
+		dpGet(bitmapNodes[i]+\".panel\", fileName,
+					bitmapNodes[i]+\".Position.x\", posX,
+					bitmapNodes[i]+\".Position.y\", posY,
+					bitmapNodes[i]+\".visible\", isVisible);
+		
+		// Store the data about the widget
+		dyn_string widgetData = makeDynString(bitmapNodes[i], (int)isVisible, posX, posY);
+		dynAppend(childPanelsInfo, widgetData);
+	}
+}
+
+populateComboBox()
+{
+	string currentVal = selectedWidget.selectedText;
+	
+	// Populate selection combo-box
+	selectedWidget.deleteAllItems;
+        
+	for(int i=1; i<=dynlen(childPanelsInfo); i++)
+	{
+		// put the widget DP into the selection box
+		selectedWidget.appendItem(childPanelsInfo[i][1]);
+		if(currentVal==childPanelsInfo[i][1])
+			selectedWidget.selectedPos=i;
+	}
+}
+" 0
+ 2
+"CBRef""1"
+"EClose"E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+2 5
+"Text1"
+""
+1 400 30 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 402 32 528 48
+0 2 0 "0s" 0 0 0 64 0 0  402 32 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 22 Vertical Position (%):
+2 6
+"Text2"
+""
+1 400 60 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 402 62 548 78
+0 2 0 "0s" 0 0 0 64 0 0  402 62 1
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+1
+LANG:1 24 Horizontal Position (%):
+22 0
+"selectedWidget"
+""
+1 20 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 18 28 202 55
+0
+
+"main()
+{
+	displayWidgetData(1);
+}" 0
+
+"main()
+{
+    if (this.text == \"\")
+    {
+      visibleCheck.state(0,FALSE);
+      Horizontal.text = 0;
+      Vertical.text = 0;
+    }
+    else
+    {
+	displayWidgetData(this.selectedPos);
+	previous = this.selectedPos;
+    }
+}" 0
+
+E
+ 0 0
+20 1
+"visibleCheck"
+""
+1 220 30 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 218 28 392 52
+1
+T 
+1
+LANG:1 19 Display the widget?
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+E E
+E"main(int button, bool state)
+{
+	//if(selectedWidget.selectedText!=\"\")
+	//	childPanelsInfo[selectedWidget.selectedPos][2] = state;
+}" 0
+21 4
+"Vertical"
+""
+1 550 30 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 548 28 612 55
+0
+
+"main()
+{
+	this.editable	= 1;
+}" 0
+
+"main()
+{
+	//if(selectedWidget.text!=\"\")
+	//	childPanelsInfo[selectedWidget.selectedPos][4] = Vertical.text;
+}" 0
+
+E
+
+N 0 100 1 0 1 1
+21 7
+"Horizontal"
+""
+1 550 60 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+8 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 548 58 612 85
+0
+
+"main()
+{
+	this.editable	= 1;
+}" 0
+
+"main()
+{
+	//if(selectedWidget.text!=\"\")
+	//	childPanelsInfo[selectedWidget.selectedPos][3] = Horizontal.text;
+}" 0
+
+E
+
+N 0 100 1 0 1 1
+13 10
+"saveButton"
+""
+1 690 40 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 84 -*-Arial-*-r-normal-*-13-*-100-100-*-*-iso8859-1|-13,0,0,0,404,0,0,0,0,0,0,0,0,Arial
+0 ""
+ 688 38 792 72
+
+T 
+1
+LANG:1 14 Save && Redraw
+"main()
+{
+	dyn_string dpes;
+	dyn_string values;
+	previous=0;
+
+	/*dpGet(bitmapDp+\".Size.x\",sizeX,
+				bitmapDp+\".Size.y\",sizeY);*/
+	dyn_string exceptionInfo;
+	dyn_string parameters;
+	fwCaV_getSynopticsPanelDetails(bitmapDp, parameters, exceptionInfo);
+	sizeX = parameters[fwCaV_SynopticsBitmap_Size_x];
+	sizeY = parameters[fwCaV_SynopticsBitmap_Size_y];
+	
+	// Write the data to the proper DPs
+	/*for(int i=2; i<=dynlen(childPanelsInfo); i++)
+	{
+		dynAppend(dpes,childPanelsInfo[i][1]+\".visible\");
+		dynAppend(values,childPanelsInfo[i][2]);
+		dynAppend(dpes,childPanelsInfo[i][1]+\".Position.x\");
+		dynAppend(values,childPanelsInfo[i][3]);
+		dynAppend(dpes,childPanelsInfo[i][1]+\".Position.y\");
+		dynAppend(values,childPanelsInfo[i][4]);
+		// remove the widgets - grandchildren
+		removeSymbol(myModuleName(),myPanelName(),childPanelsInfo[i][1]);
+	}*/
+        if (selectedWidget.text != \"\")
+        {
+           bool visible = visibleCheck.state(0);
+          dynAppend(dpes,selectedWidget.text+\".visible\");
+	  dynAppend(values,visible);
+	  dynAppend(dpes,selectedWidget.text+\".Position.x\");
+	  dynAppend(values,Horizontal.text);
+	  dynAppend(dpes,selectedWidget.text+\".Position.y\");
+	  dynAppend(values,Vertical.text);
+		// remove the widgets - grandchildren
+          for(int i=2; i<=dynlen(childPanelsInfo); i++)
+	    removeSymbol(myModuleName(),myPanelName(),childPanelsInfo[i][1]);
+	  dpSetWait(dpes,values);
+      	
+	// In case someone added new widget, changed the bitmap or the size...
+	getWidgetData();
+	populateComboBox();
+
+	
+	// remove the bitmap panel
+	removeSymbol(myModuleName(),myPanelName(),\"Grid\");
+	removeSymbol(myModuleName(),myPanelName(),\"EditorBitmap\");
+	// add the bitmap panel (and the widgets - done by the bitmap panel)
+	addSymbol(myModuleName(),myPanelName(), fwCaV_SynopticsPATH,
+							 \"EditorBitmap\", makeDynString(\"$sBitmapDp:\"+$sBitmapDp, \"$sMyReferenceName:EditorBitmap\"),
+							 20+offsetX, 350+offsetY, 0, 1, 1);
+	addSymbol(myModuleName(),myPanelName(), fwCaV_SynopticsGridPATH,
+							 \"Grid\", makeDynString(\"\"),
+							 20+offsetX, 100+offsetY, 0, (float)sizeX/100, (float)sizeY/100);
+      }
+}" 0
+ E E E
+6 11
+"Border2"
+""
+1 663 82 E E E 1 E 1 E N "_3DFace" E N "_3DFace" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -43 -22 2  0 1  "pictures/returnIndicator.gif" 12632256 E 663 82 677 107
+6 12
+"RECTANGLE1"
+""
+1 663 82 E E E 1 E 1 E N "_3DFace" E N "_3DFace" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 1 0 1 -43 -52 2  0 1  "pictures/returnIndicator.gif" 12632256 E 663 82 677 107
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

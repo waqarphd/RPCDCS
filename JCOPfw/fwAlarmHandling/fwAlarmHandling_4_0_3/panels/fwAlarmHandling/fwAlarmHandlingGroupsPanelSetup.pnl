@@ -1,0 +1,697 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 706 414 N "_3DFace" 0
+E E E E E 1 -1 -1 0  0 0
+""0  1
+E "/* 
+   @author Marco Boccioli
+*/
+int g_oldW, g_oldH;
+
+saveSettings()
+{ 
+  dyn_string exceptionInfo;
+  //save sound settings
+  if(dpExists(fwAlarmHandlingGroups_SOUNDENABLED_DP))
+  {
+    dpSetWait(fwAlarmHandlingGroups_SOUNDENABLED_DP, ckEnabled.state(0),
+              fwAlarmHandlingGroups_SOUNDFILE_DP, lblPathW.text,
+              fwAlarmHandlingGroups_SOUNDSOURCE_DP, radioSource.number,
+              fwAlarmHandlingGroups_SOUNDINHIBIT_DP, spnInhibit.text);
+  }   
+  //save geometry settings  
+  if(spW.text != g_oldW || spH.text != g_oldH)
+  {
+     string fname=getPath(PANELS_REL_PATH, \"fwAlarmHandling/fwAlarmHandlingGroupsScreen.pnl\");
+     string st,line;
+     string fnewname = fname + \".tmp\";
+     dyn_string spl; 
+     dyn_string panelAscii; 
+     file f, newF; 
+     int ret, i, settingLineNumber; 
+     bool lineFound;
+     i=access(fname,W_OK); // panel writeable? 
+     if (i==0) // yes
+     { 
+        f=fopen(fname,\"r+\"); // Create a new panel 
+        for (i=1 ; i<=20 && !lineFound ; i++)
+        {
+          fgets(line, 99999, f);
+          lineFound=(strpos(line, \"PANEL,\")==0 && strpos(line, \" N \\\"\")>13);
+          if(lineFound) settingLineNumber=i;
+        }
+        if(lineFound)
+        {
+          spl = strsplit(line,\" \");
+          if(dynlen(spl) == 7)
+          {
+            if(spl[3] != spW.text || spl[4] != spH.text)
+            {
+              spl[3] = spW.text;
+              spl[4] = spH.text;
+              fwGeneral_dynStringToString(spl, line, \" \");
+              rewind(f); // Back to the beginning 
+              while (feof(f)==0) // so long as it is not at the end
+              {
+                fgets(st, 99999999, f);
+                dynAppend(panelAscii, st);
+              }
+              panelAscii[settingLineNumber] = line;
+              fclose(f);
+              //delete files hanging from last time
+              if(isfile(fnewname))
+                remove(fnewname);
+              delay(0,100);
+              f=fopen(fnewname,\"w+\"); // Create a new file 
+              for(i=1 ; i<=dynlen(panelAscii) ; i++)
+                fputs(panelAscii[i],f);
+              fclose(f);
+              //if the new panel could be saved, replace the old panel with it
+              if(isfile(fnewname) && 
+                 getFileSize(fname) + 2000 > getFileSize(fnewname) && 
+                 getFileSize(fname) - 2000 < getFileSize(fnewname))
+              {
+                if(isfile(fname+\".bak\"))
+                  remove(fname+\".bak\");
+                delay(0,100);
+                ret+=rename(fname, fname+\".bak\");
+                ret+=rename(fnewname, fname);
+                if(ret<0)
+                   fwException_raise(exceptionInfo, \"ERROR\", \"fwAlarmHandlingGroupsPanelSetup.pnl - could not rename the new panel file \"+fnewname+\" to \"+fname,\"\");                  
+              }
+              //save settings
+              if(dpExists(fwAlarmHandlingGroups_GEOMETRYW_DP))
+              {
+                dpSetWait(fwAlarmHandlingGroups_GEOMETRYW_DP, spW.text,
+                          fwAlarmHandlingGroups_GEOMETRYH_DP, spH.text); 
+              }    
+            }
+          }
+          else
+          {
+             fwException_raise(exceptionInfo, \"ERROR\", \"fwAlarmHandlingGroupsPanelSetup.pnl - unexpected file format: the file \"+fname+\" has a format different from the PVSS 3.8 format (v11).\",\"\");
+          }
+        }
+        else
+        {
+           fwException_raise(exceptionInfo, \"ERROR\", \"fwAlarmHandlingGroupsPanelSetup.pnl - unexpected file format: the file \"+fname+\" has a format different from the PVSS 3.8 format (v11).\",\"\");
+        }
+     }
+     else
+     {
+       fwException_raise(exceptionInfo, \"ERROR\", \"fwAlarmHandlingGroupsPanelSetup.pnl - could not set the panel size: the file \"+fname+\" is not accessible.\",\"\");
+     }
+   }  
+
+  exceptionInfo = getLastError();
+  if(dynlen(exceptionInfo))
+    fwExceptionHandling_display(exceptionInfo);
+}
+
+
+enableButtons(bool enable)
+{
+  lblPathW.enabled = enable;
+  cmOpen.enabled = enable;
+  cmPlay.enabled =  enable;  
+}" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+2 0
+"PRIMITIVE_TEXT1"
+""
+1 10 10 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+0 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 10 10 505 35
+0 2 2 "0s" 0 0 0 64 0 0  10 10 1
+1
+LANG:1 26 Arial,14,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 31 Alarm Screen Groups Panel Setup
+13 1
+"PUSH_BUTTON3"
+""
+1 590 370 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  588 368 698 402
+
+T 
+1
+LANG:1 6 Cancel
+"main()
+{
+  PanelOff();
+}
+" 0
+ E E E
+13 2
+"PUSH_BUTTON7"
+""
+1 430 370 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+2 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  428 368 538 402
+
+T 
+1
+LANG:1 2 Ok
+"main()
+{
+  saveSettings();
+  PanelOff();
+}" 0
+ E E E
+21 3
+"spW"
+""
+1 90 270 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  88 268 192 292
+0
+
+"main()
+{
+  int value;
+  if(dpExists(fwAlarmHandlingGroups_SETUP_DP))
+  {
+    dpGet(fwAlarmHandlingGroups_GEOMETRYW_DP, value);
+    if(value<600) value = fwAlarmHandlingGroups_GEOMETRYW_DEFAULT;
+    this.text = value;
+    g_oldW=value;
+  }
+}" 0
+
+E
+E
+
+N 600 1000000 1 1040 1 1
+2 4
+"PRIMITIVE_TEXT2"
+""
+1 42 272 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+4 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42 272 76 289
+0 2 2 "0s" 0 0 0 192 0 0  42 272 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 5 Width
+21 5
+"spH"
+""
+1 90 300 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  88 298 192 322
+0
+
+"main()
+{
+  int value;
+  if(dpExists(fwAlarmHandlingGroups_SETUP_DP))
+  {
+    dpGet(fwAlarmHandlingGroups_GEOMETRYH_DP, value);
+    if(value<500) value = fwAlarmHandlingGroups_GEOMETRYH_DEFAULT;
+    this.text = value;
+    g_oldH=value;
+  }
+}" 0
+
+E
+E
+
+N 500 10000000 1 875 1 1
+2 6
+"PRIMITIVE_TEXT3"
+""
+1 42 302 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+6 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42 302 79 319
+0 2 2 "0s" 0 0 0 192 0 0  42 302 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 6 Height
+13 7
+"cmScreen"
+""
+1 200 270 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+7 0 0 0 0 0
+E E E
+0
+1
+LANG:1 45 Set the panel size as the primary screen size
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  198 268 282 322
+
+T 
+1
+LANG:1 18 Fit to
+screen size
+"main()
+{
+  int w,h,x,y;
+  getScreenSize(w,h,x,y,1);
+  spW.text = w;
+  spH.text = h-32;
+}" 0
+ E E E
+30 8
+"FRAME1"
+""
+1 0 42 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+8 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 0.8285714285714286 0 1 10 198 0 E 0 42 351 141
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 10 Panel Size
+13 10
+"cmOpen"
+""
+1 640 140 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+10 0 0 0 0 0
+E E E
+0
+1
+LANG:1 15 Select wav file
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  638 138 662 162
+
+P 
+4294967295
+"pictures/openpanel.png"
+1
+LANG:1 12 PUSH_BUTTON1
+"main()
+{
+  string s_wPath;
+  fileSelector(s_wPath,\"\", true, \"*.wav\");
+  if(strlen(s_wPath))
+      lblPathW.text = s_wPath;
+}" 0
+ E E E
+14 11
+"lblPathW"
+""
+1 130 140 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  128 138 634 164
+3 "0s" 0 0 0 0 0 -1  E "// SimpleCtrlScriptStart {invalid}
+main()
+{
+  EP_textFieldIn();
+}
+
+EP_textFieldIn()
+{
+dyn_errClass err;
+
+  if( !dpExists( fwAlarmHandlingGroups_SOUNDFILE_DP))
+  {
+    setValue(\"\", \"color\", \"_dpdoesnotexist\");
+    return;
+  }
+
+  dpConnect(\"EP_textFieldInCB\",
+            fwAlarmHandlingGroups_SOUNDFILE_DP);
+  err = getLastError();
+  if (dynlen(err) > 0)
+    setValue(\"\", \"color\", \"_dpdoesnotexist\");
+
+}
+
+
+EP_textFieldInCB(string dp, string sNewValue)
+{
+  if(strlen(sNewValue))
+    this.text = dpValToString(dp, sNewValue, TRUE);
+  else
+    this.text = fwAlarmHandlingScreenGroups_getDefaultSoundPath();
+}
+
+// SimpleCtrlScript {EP_textFieldIn}
+// DP {dcs_ui:aliDcs_alertsSounds.sounds.warning}
+// DPConfig {:_online.._value}
+// DPType {string}
+// UseDPUnit {TRUE}
+// UseDPFormat {TRUE}
+// SimpleCtrlScriptEnd {EP_textFieldIn}
+" 0
+ E
+13 12
+"cmPlay"
+""
+1 660 140 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 10 Play sound
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  658 138 682 162
+
+P 
+4294967295
+"pictures/start_en.gif"
+1
+LANG:1 12 PUSH_BUTTON4
+"main()
+{
+  startSound(lblPathW.text);
+}" 0
+ E E E
+21 13
+"spnInhibit"
+""
+1 200 180 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  198 178 272 202
+0
+
+"main()
+{
+  int enabled;
+  if(dpExists(fwAlarmHandlingGroups_SETUP_DP))
+  {
+    dpGet(fwAlarmHandlingGroups_SOUNDINHIBIT_DP, enabled);
+    this.text = enabled;
+  }
+}" 0
+
+E
+E
+
+N 0 3600 1 0 1 1
+2 14
+"PRIMITIVE_TEXT5"
+""
+1 42 182 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 42 182 194 202
+0 2 2 "0s" 0 0 0 64 0 0  42 182 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 26 Don't re-play sound during
+2 15
+"PRIMITIVE_TEXT6"
+""
+1 272 182 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 272 182 287 202
+0 2 2 "0s" 0 0 0 64 0 0  272 182 1
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 1 s
+20 16
+"ckEnabled"
+""
+1 20 70.00000000000003 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  18 68 102 92
+1
+T 
+1
+LANG:1 7 Enabled
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+0
+"main()
+{
+  bool enabled;
+  if(dpExists(fwAlarmHandlingGroups_SETUP_DP))
+  {
+    dpGet(fwAlarmHandlingGroups_SOUNDENABLED_DP, enabled);
+    this.state(0, enabled);
+    radioSource.enabled = enabled;
+    spnInhibit.enabled = enabled;
+    enableButtons(enabled && radioSource.number);
+  }
+}" 0
+"main(int button, int state)
+{
+  radioSource.enabled = state;
+  spnInhibit.enabled = state;
+  enableButtons(state && radioSource.number);
+}" 0
+19 17
+"radioSource"
+""
+1 -8.000000000000028 73.33333333333337 E E E 1 E 1 E N "_3DText" E N "_3DFace" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  38 98 132 172
+2
+T 
+1
+LANG:1 10 PC speaker
+
+1 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+T 
+1
+LANG:1 10 Sound file
+
+0 
+1
+LANG:1 0 
+E E
+0 0 0 0 0
+1
+"main()
+{
+  int iOrderMode;
+  if(dpExists(fwAlarmHandlingGroups_SOUNDSOURCE_DP))
+  {
+      dpGet(fwAlarmHandlingGroups_SOUNDSOURCE_DP,iOrderMode);
+      setValue(\"\",\"number\",iOrderMode);
+  }  
+  enableButtons(iOrderMode);
+}" 0
+ "main(int button)
+{
+  enableButtons(button);
+}" 0
+
+30 18
+"FRAME2"
+""
+1 0 42 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.942857142857143 0 1.73469387755102 10 -22.85714285714285 0 E 0 42 351 141
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 19 Sound for New Alert
+13 19
+"cmDefault"
+""
+1 10 370 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 25 Reset to default settings
+
+0
+1
+LANG:1 26 Arial,10,-1,5,50,0,0,0,0,0
+0  8 368 142 402
+
+T 
+1
+LANG:1 18 Restore to Default
+"main()
+{
+  spnInhibit.text = 0;
+  lblPathW.text = fwAlarmHandlingScreenGroups_getDefaultSoundPath();
+  ckEnabled.state(0,false);
+  spW.text = fwAlarmHandlingGroups_GEOMETRYW_DEFAULT;
+  spH.text = fwAlarmHandlingGroups_GEOMETRYH_DEFAULT;
+}
+" 0
+ E E E
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0
