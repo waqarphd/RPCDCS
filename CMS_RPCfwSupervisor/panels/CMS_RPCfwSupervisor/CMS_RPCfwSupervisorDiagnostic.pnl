@@ -1,0 +1,1000 @@
+V 11
+1
+LANG:1 0 
+PANEL,-1 -1 816 465 N "_3DFace" 0
+"main()
+{
+  RPCfwSupervisor_getSupervisorInit();
+  if(dynlen(syss)<1) {syss =  makeDynString(_hvbsys,_hvesys,_sersys,_supsys,_lvesys,_lvbsys);
+  objs = makeDynString(\"pc01\",\"pc02\",\"pc03\",\"pc04\",\"pc05\",\"pc06\");
+  caenmem = makeDynFloat(12.8,8.9,100,100,15,23.8);}
+}" 0
+ E E E E 1 -1 -1 0  20 143
+""0  1
+E "dyn_string objs; 
+dyn_string syss,dcsParamList;
+dyn_float caenmem;
+void filltab(string name,string & titlebox){
+  
+  
+  dyn_string dps;
+  dyn_string rows;
+  dyn_string rowres;
+  bool memko;
+  delay(0,300);
+  
+  
+  
+  time ttemp,t0,t1 = getCurrentTime();
+  string title = name;
+  
+  ////DebugN(objs,title);
+  int pos = dynContains(objs,title);
+  int valint;
+  string sysname = syss[pos];
+  titlebox = sysname;
+  string valstring;
+
+//DNS
+  
+  dynAppend(dps,dpNames(sysname+\"*\",\"_FwCtrlInternal\")+\".dim_dns_up\");//int
+  dpGet(dps[1],valint);
+  //dpGet(dps[1]+\":_original.._stime\",t0);
+  if(valint>0) dynAppend(rowres,\"OK\");else dynAppend(rowres,\"Not OK\"); 
+  dynAppend(rows,\"DNS UP\");
+  
+//FSM RUNNING  
+  
+  dyn_string names = dpNames(sysname+\"*\",\"_FwCtrlUnit\");
+  int len = dynlen(names);
+  int val,res = 0;
+  title = \"\";
+  for(int i = 1;i<=len;i++){
+  title =  title +\"|\"+ names[i]+\".running\" ;
+  dpGet(names[i]+\".running\",val);
+//   dpGet(names[i]+\".running:_original.._stime\",ttemp);
+//   if(ttemp<t1)
+//     t1=ttemp;
+  res = res + val;
+  }
+  dynAppend(rows,\"FSM RUNNING\");
+  if(res == len) dynAppend(rowres,\"OK\");else dynAppend(rowres,\"Not OK\"); 
+  
+//   dynAppend(rows,\"FSM UPDATE\");
+//    if(t0<t1) dynAppend(rowres,\"OK\");else dynAppend(rowres,\"Not OK\");
+//Memory check
+//  DebugN(t0,t1);
+  names = dpNames(sysname+\"*\",\"_MemoryCheck\");  
+  len = dynlen(names);
+  title = \"\";
+  for(int i = 1;i<=len;i++){
+
+  dpGet(names[i]+\".Status\",valstring);
+   ////DebugN(names[i],valstring);
+  if(valstring != \"\"){
+    dpGet(names[i]+\".AvailPerc\",valint); 
+    if(valint>20) dynAppend(rowres,\"OK\");
+    else dynAppend(rowres,\"Not OK\");  
+  
+  } 
+  }
+  dynAppend(rows,\"MEM. CHECK\");
+  len = dynlen(rows);  
+ 
+  names = dpNames(sysname+\"*\",\"PerformanceCheck\");  
+
+  title = \"\";
+  dyn_string proc;
+  int smiProc = 0;
+  dyn_int cpu,mem,pid;
+  for(int i = 1;i<=dynlen(names);i++){
+  dpGet(names[i]+\".Processes\",proc,
+        names[i]+\".ProcCPU\",cpu,
+        names[i]+\".ProcIDs\",mem,names[i]+\".ProcMem\",pid);
+    //DebugN(names[i]);
+    for(int j = 1;j<=dynlen(proc);j++){
+      if(cpu[j]>30) {
+        dynAppend(rows,\"HCPU \"+proc[j]); 
+        dynAppend(rowres,cpu[j]); 
+      }
+      if(strpos(proc[j],\"CAEN\")>-1)
+      {
+       float mm = (float)mem[j] / 1048576;
+     
+      if(mm>caenmem[pos])
+        memko = true; 
+      else 
+        memko = false;    
+    }else if (strpos(proc[j],\"smiSM\")>-1){
+    //DebugN(names[i],mem[j],cpu[j],pid[j]);    
+    smiProc++;
+    
+    }
+//     if(mem[j]>10000) 
+//       {
+//         dynAppend(rows,proc[j]); 
+//         dynAppend(rowres,mem[j]); 
+//       }    
+      
+    }
+    dynAppend(rows,\"FSM UPDATE\");
+    if(res == smiProc) dynAppend(rowres,\"OK\");else dynAppend(rowres,\"Not OK\");     
+    
+    if((len - dynlen(rows))==0){
+    dynAppend(rows,\"CPU usage\");  
+    dynAppend(rowres,\"OK\");     
+    
+    } 
+    dynAppend(rows,\"CAEN OPC MEM\");    
+  if(memko)
+        dynAppend(rowres,\" NOT OK\");  
+  else 
+     dynAppend(rowres,\"OK\");  
+
+  }
+ 
+ 
+ 
+ 
+  //Display table 
+shape tab = getShape(objs[pos]+\"t\");   
+  for(int i = 1;i<=dynlen(rows);i++){
+  
+  tab.appendLine(\"name\",rows[i],\"status\",rowres[i]);
+  if(rowres[i]==\"OK\")
+    tab.cellBackColRC(i-1,\"status\",\"FwStateOKPhysics\"); 
+  else
+    tab.cellBackColRC(i-1,\"status\",\"FwAlarmErrorAck\"); 
+  }
+  
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 0 
+30 0
+"pc01"
+""
+1 20 143 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+0 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  RPCfwSupervisor_getSupervisorInit();
+  string ss;
+  filltab(this.name,ss);
+
+  this.text = ss;
+  
+}
+
+" 0
+ E 0 0 1 0 1 E 1 0 0.6477732793522268 10 -32.63157894736844 0 E 20 143 191 391
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 pc01
+25 1
+"pc01t"
+""
+1 38 79.99999999999986 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+1 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  36 78 194 212
+E"main(int row, string column, string value)
+{
+
+this.deleteAllLines();  
+  
+  string ss = substr(this.name,0,strlen(this.name)-1);
+  filltab(ss,ss);
+
+
+}" 0
+ 1 0 1 2 0 "name" 12 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+110 "status" 4 1 0 "[0s,,,ALIGNMENT_BEGINNING]" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+30 2
+"pc02"
+""
+1 20 143 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+2 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  RPCfwSupervisor_getSupervisorInit();
+  string ss;
+  filltab(this.name,ss);
+
+  this.text = ss;
+  
+}
+
+" 0
+ E 0 0 1 0 1 E 1 0 0.6477732793522268 190 -32.63157894736844 0 E 20 143 191 391
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 pc01
+25 3
+"pc02t"
+""
+1 218 79.99999999999986 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  216 78 374 212
+E"
+  main(int row, string column, string value)
+{
+
+this.deleteAllLines();  
+  
+  string ss = substr(this.name,0,strlen(this.name)-1);
+  filltab(ss,ss);
+
+
+}
+" 0
+ 1 0 1 2 0 "name" 12 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+110 "status" 4 1 0 "[0s,,,ALIGNMENT_BEGINNING]" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+30 4
+"pc03"
+""
+1 20 143 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+4 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  RPCfwSupervisor_getSupervisorInit();
+  string ss;
+  filltab(this.name,ss);
+
+  this.text = ss;
+  
+}
+
+" 0
+ E 0 0 1 0 1 E 1 0 0.6477732793522268 370 -32.63157894736844 0 E 20 143 191 391
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 pc01
+25 5
+"pc03t"
+""
+1 398 79.99999999999986 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  396 78 554 212
+E"main(int row, string column, string value)
+{
+
+this.deleteAllLines();  
+  
+  string ss = substr(this.name,0,strlen(this.name)-1);
+  filltab(ss,ss);
+
+
+}" 0
+ 1 0 1 2 0 "name" 12 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+110 "status" 4 1 0 "[0s,,,ALIGNMENT_BEGINNING]" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+30 10
+"pc06"
+""
+1 20 143 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+10 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  RPCfwSupervisor_getSupervisorInit();
+  string ss;
+  filltab(this.name,ss);
+
+  this.text = ss;
+  
+}
+
+" 0
+ E 0 0 1 0 1 E 1 0 0.6477732793522268 370 137.3684210526316 0 E 20 143 191 391
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 pc01
+25 11
+"pc06t"
+""
+1 398 250 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  396 248 554 382
+E"main(int row, string column, string value)
+{
+
+this.deleteAllLines();  
+  
+  string ss = substr(this.name,0,strlen(this.name)-1);
+  filltab(ss,ss);
+
+
+}" 0
+ 1 0 1 2 0 "name" 12 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+110 "status" 4 1 0 "[0s,,,ALIGNMENT_BEGINNING]" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+30 12
+"pc04"
+""
+1 20 143 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+12 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  RPCfwSupervisor_getSupervisorInit();
+  string ss;
+  filltab(this.name,ss);
+
+  this.text = ss;
+  
+}
+
+" 0
+ E 0 0 1 0 1 E 1 0 0.6477732793522268 10 137.3684210526316 0 E 20 143 191 391
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 pc01
+25 13
+"pc04t"
+""
+1 38 250.0000000000001 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  36 248 194 382
+E"main(int row, string column, string value)
+{
+
+this.deleteAllLines();  
+  
+  string ss = substr(this.name,0,strlen(this.name)-1);
+  filltab(ss,ss);
+
+
+}" 0
+ 1 0 1 2 0 "name" 12 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+110 "status" 4 1 0 "[0s,,,ALIGNMENT_BEGINNING]" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+30 14
+"pc05"
+""
+1 20 143 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+14 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+  RPCfwSupervisor_getSupervisorInit();
+  string ss;
+  filltab(this.name,ss);
+
+  this.text = ss;
+  
+}
+
+" 0
+ E 0 0 1 0 1 E 1 0 0.6477732793522268 190 137.3684210526316 0 E 20 143 191 391
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 4 pc01
+25 15
+"pc05t"
+""
+1 218 250 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  216 248 374 382
+E"main(int row, string column, string value)
+{
+
+this.deleteAllLines();  
+  
+  string ss = substr(this.name,0,strlen(this.name)-1);
+  filltab(ss,ss);
+
+
+}" 0
+ 1 0 1 2 0 "name" 12 1 0 "s" 1
+LANG:1 4 Name
+E
+1
+LANG:1 0 
+
+110 "status" 4 1 0 "[0s,,,ALIGNMENT_BEGINNING]" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+40 
+14 14 10 10
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+13 16
+"PUSH_BUTTON1"
+""
+1 350 410 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+16 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0  348 408 462 442
+
+T 
+1
+LANG:1 5 Close
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+2 17
+"PRIMITIVE_TEXT1"
+""
+1 35 15 E E E 1 E 1 E N "_Window" E N "_ETM" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 11 by G.Polese
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+   dyn_string exceptionInfo;
+  // if(ACCESS_DCS)
+  //fwAccessControl_setupPanel( \"ApplyPanelAccessControl\", exceptionInfo);
+  RPCfwSupervisor_getSupervisorInit();
+  this.backCol = \"_ETM\";
+  this.foreCol = \"_Window\";
+}" 0
+ E 0 3 2 0 1 E U  1 E 35 15 374 36.0961538461538
+1 5 2 "0s" 0 0 0 65 0 0  35 15 2
+1
+LANG:1 33 Trebuchet MS,-1,19,5,50,0,0,0,0,0
+0 1
+LANG:1 18 RPC DCS Diagnostic
+1
+LANG:1 33 Trebuchet MS,-1,19,5,50,0,0,0,0,0
+0 1
+LANG:1 0 
+30 18
+"FRAME3"
+""
+1 34 68 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+18 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+2
+"hoverbclr" "N \"_Transparent\""
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 0.4247104247104242 0 2.29166666666667 555.5598455598456 -95.8333333333335 0 E 34 68 553 213
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 14 DCS Parameters
+25 19
+"dcstab"
+""
+1 574.0149253731343 80 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  572 78 782 382
+"dyn_string values,names; 
+dyn_int globalOr;
+#uses \"CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl\"
+string sup,uxc,usc,exc,esc,psx;
+main()
+{
+  
+  delay(1,0);
+  sup = _supsys;//RPCfwSupervisor_getSupervisorSys();
+  uxc = _lvbsys;//RPCfwSupervisor_getComponent(\"BarrelLV\");
+  usc = _hvbsys;//RPCfwSupervisor_getComponent(\"BarrelHV\");
+  
+  exc = _lvesys;//RPCfwSupervisor_getComponent(\"EndcapLV\");
+  esc = _hvesys;//RPCfwSupervisor_getComponent(\"EndcapHV\");
+  psx = _sersys;//RPCfwSupervisor_getComponent(\"Services\");
+ // DebugN(psx);
+ 
+  if(sup==\"\")
+  {
+  delay(4,0);
+    sup = RPCfwSupervisor_getSupervisorSys();
+  uxc = RPCfwSupervisor_getComponent(\"BarrelLV\");
+  usc = RPCfwSupervisor_getComponent(\"BarrelHV\");
+  
+  exc = RPCfwSupervisor_getComponent(\"EndcapLV\");
+  esc = RPCfwSupervisor_getComponent(\"EndcapHV\");
+    
+  psx = RPCfwSupervisor_getComponent(\"Services\");
+    
+    }
+  //DebugN(uxc,usc);
+  dyn_string temps;
+  if(sup!=\"\")
+  {
+   dynAppend(values,sup + \"_RDBArchive.dbConnection.connected\");
+   //dynAppend(values,sup + \"RPCSup_Check.fvalue\");
+   } 
+  else
+  {
+   dynAppend(values,\"1\");
+   //dynAppend(values,\"1\");
+  
+ } 
+  if(uxc!=\"\"){
+   
+   temps = makeDynString( uxc + \"_RDBArchive.dbConnection.connected\",
+                          uxc + \"_CAENOPCServer.Connected\",
+                          uxc + \"_Connections.Dist.ManNums:_original.._active\" );
+   dynAppend(values,temps);
+   }
+   else
+    {
+    temps = makeDynString( \"1\",\"1\",\"1\");
+    dynAppend(values,temps);  
+    }
+   
+    if(usc!=\"\"){
+   
+     temps = makeDynString( usc + \"_RDBArchive.dbConnection.connected\",
+                          usc + \"_CAENOPCServer.Connected\",
+                          usc + \"_Connections.Dist.ManNums:_original.._active\" );
+   dynAppend(values,temps);
+   }
+   else
+    {
+     temps = makeDynString( \"1\",\"1\",\"1\");
+     dynAppend(values,temps);  
+     }
+       if(esc!=\"\"){
+   
+     temps = makeDynString( esc + \"_RDBArchive.dbConnection.connected\",
+                          esc + \"_CAENOPCServer.Connected\",
+                          esc + \"_Connections.Dist.ManNums:_original.._active\" );
+   dynAppend(values,temps);
+   }
+   else
+    {
+     temps = makeDynString( \"1\",\"1\",\"1\");
+     dynAppend(values,temps);  
+     }
+    if(exc!=\"\"){
+   
+     temps = makeDynString( exc + \"_RDBArchive.dbConnection.connected\",
+                          exc + \"_CAENOPCServer.Connected\",
+                          exc + \"_Connections.Dist.ManNums:_original.._active\" );
+   dynAppend(values,temps);
+   }
+   else
+    {
+     temps = makeDynString( \"1\",\"1\",\"1\");
+     dynAppend(values,temps);  
+     }
+  if(psx!=\"\"){
+   
+     temps = makeDynString( usc + \"_RDBArchive.dbConnection.connected\",
+                          usc + \"_Connections.Dist.ManNums:_original.._active\" );
+   dynAppend(values,temps);
+   }else{
+     temps = makeDynString( \"1\",\"1\");
+     dynAppend(values,temps);  
+     }
+  //DebugN(values);
+  names =  makeDynString(\"DB connection Supervisor\",
+                          \"DB connection Barrel UXC\",
+                          \"OPC client Barrel UXC\",
+                          \"Comm. PC BarrelUXC\",
+                          \"DB connection Barrel USC\",
+                          \"OPC client Barrel USC\",
+                          \"Comm. PC Barrel USC\",
+                           \"DB connection Endcap USC\",
+                          \"OPC client Endcap USC\",
+                          \"Comm. PC Endcap USC\",
+                           \"DB connection Endcap UXC\",
+                          \"OPC client Endcap UXC\",
+                          \"Comm. PC Endcap UXC\",
+                          \"DB connection Services\",
+                          \"Comm. PC Services\");
+  
+  globalOr = makeDynInt(1,1,1,1,1,1,1,1,1,1,1,1,1,1,1);
+   
+  this.deleteAllLines;
+ // this.appendLine(\"System\",\"\",\"Status\",\"\");
+  string temp;
+  int col;																	
+  for (int i=1;i<=dynlen(values);i++)
+	{
+        if(dpExists(values[i]))
+          {
+	   
+           dpGet(values[i],temp);
+           if(temp==\"TRUE\")
+            {
+            temp=\"OK\";
+             //this.cellBackColRC(i-1,\"Status\",\"FwStateOKPhysics\");
+           }
+          else
+            {
+            temp=\"Not OK\";
+            globalOr[i] = 0;
+             //this.cellBackColRC(i-1,\"Status\",\"FwStateAttention2\");
+            }
+          
+           this.appendLine(\"System\",names[i],\"Status\",temp);
+            if(temp==\"OK\")
+            {
+          
+             this.cellBackColRC(i-1,\"Status\",\"FwStateOKPhysics\");
+           }
+          else
+            {
+           
+             this.cellBackColRC(i-1,\"Status\",\"FwStateAttention2\");
+            }
+           //dpConnect(\"refresh\",values[i]);
+           
+           } 
+        else
+        {
+              globalOr[i] = 0;
+              this.appendLine(\"System\",names[i],\"Status\",\"Not OK\");
+              this.cellBackColRC(i-1,\"Status\",\"FwStateAttention2\");
+         }
+        
+        
+       col = i;
+   //       DebugN(i,names[i],temp);    
+	}
+       
+
+//refreshOr();
+
+
+
+//DebugN(values);
+dynAppend(dcsParamList,values);
+//dynAppend(dcsParamList,addInfo);
+//dynAppend(names,addText);
+
+
+
+for (int i=1;i<=dynlen(dcsParamList);i++)
+	{//dpConnect(\"refresh\",values[i]);
+        if(dpExists(dcsParamList[i]))
+          {
+	   dpConnect(\"refresh\",dcsParamList[i]);
+         }
+      }
+
+}
+
+refresh(string dpe,string value)
+{
+string newDpe=dpSubStr(dpe,DPSUB_SYS_DP_EL);
+int idx= dynContains(dcsParamList,newDpe);
+//DebugN(dpe,value,\"gg-->\",idx);
+if(idx==0)
+{
+   newDpe = dpSubStr(dpe,DPSUB_SYS_DP_EL_CONF_DET_ATT);
+//   DebugN(newDpe,dcsParamList);
+   idx= dynContains(dcsParamList,newDpe);
+ 
+   }
+if(value==\"TRUE\")
+{
+    value=\"OK\";
+    globalOr[idx] = 1;
+    this.cellBackColRC(idx-1,\"Status\",\"FwStateOKPhysics\");
+    }
+else if (value==\"FALSE\")
+{
+    value=\"Not OK\";
+    globalOr[idx] = 0;
+this.cellBackColRC(idx-1,\"Status\",\"FwStateAttention2\");
+  }
+else
+{
+    globalOr[idx] = 0;
+    this.cellBackColRC(idx-1,\"Status\",\"FwStateAttention2\");
+  }
+    this.cellValueRC(idx-1,\"System\",names[idx]);
+this.cellValueRC(idx-1,\"Status\",value);
+//refreshOr();
+}
+" 0
+"main(int row, string column, string value)
+{
+//   dyn_string exInfo;
+//   if(column == \"Status\")
+//   {
+//  DebugN(coolingAck[row+1]); 
+//   ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorAlertAction.pnl\",
+//       \"\",
+//       makeDynString(\"$sDpeName:\" + dcsParamList[row+1])); 
+//    
+//      
+//   }
+}" 0
+ 1 0 1 2 0 "System" 15 1 0 "s" 1
+LANG:1 6 System
+E
+1
+LANG:1 0 
+
+145 "Status" 5 1 0 "s" 1
+LANG:1 6 Status
+E
+1
+LANG:1 0 
+
+55 
+14 14 10 10
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 20
+"PRIMITIVE_TEXT2"
+""
+1 30 400 E E E 1 E 1 E N "STD_bar" E N "_Window" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  0 E 30 400 200 420
+0 2 2 "0s" 0 0 0 64 0 0  30 400 1
+1
+LANG:1 37 MS Shell Dlg 2,8.25,-1,5,50,0,0,0,0,0
+0 1
+LANG:1 25 Click on table to refresh
+0
+LAYER, 1 
+1
+LANG:1 0 
+0
+LAYER, 2 
+1
+LANG:1 0 
+0
+LAYER, 3 
+1
+LANG:1 0 
+0
+LAYER, 4 
+1
+LANG:1 0 
+0
+LAYER, 5 
+1
+LANG:1 0 
+0
+LAYER, 6 
+1
+LANG:1 0 
+0
+LAYER, 7 
+1
+LANG:1 0 
+0
+0

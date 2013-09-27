@@ -1,0 +1,590 @@
+V 11
+1
+LANG:1 12 WheelSummary
+PANEL,-1 -1 785 475 N "_3DFace" 1
+"$2"
+"main()
+{
+  RPCfwSupervisor_getSupervisorInit();
+}" 0
+ E E E E 1 -1 -1 0  30 380
+""0  1
+E "dyn_string nchannels, fchannels;
+ 
+dyn_string rhchannels;
+getChannelsName(dyn_string logicName,dyn_string &channels)
+{
+for (int i=1;i<=dynlen(logicName);i++)
+	{
+	channels[i] = fwDU_getPhysicalName(logicName[i]);
+	}
+
+}
+
+waitForPanel()
+{
+	int i;
+}
+DisableAllInPanel()
+{
+Button2.enabled = FALSE;
+
+ }
+enableControl(){
+
+   }
+enableDebug(){
+Button2.enabled = TRUE;
+ 
+  }
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+if (hasControl) enableControl();
+if (hasDebug) enableDebug();
+}
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+13 2
+"Button1"
+""
+1 630 420 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  628 418 722 452
+
+T 
+1
+LANG:1 5 Close
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+25 10
+"TABLE1"
+""
+1 42 42 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+10 0 0 0 0 0
+E E "main(bool enter)
+{
+this.toolTipText(\"Click on the chamber to see the behaviour over time of the entire sector\");
+}" 0
+
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  40 40 342 324
+"dyn_dyn_string chambers;
+
+
+
+main()
+{
+
+
+   
+  delay(2,0);
+  float value;
+  string val,times,color;
+  dyn_int limit;
+  dyn_float limits;
+  dyn_string temp,exceptionInfo;
+  int pos;
+     for(int i = 1; i<=dynlen(nchannels);i++)
+     {
+       dpGet(nchannels[i]+\".actual.temperature\",value);
+       dynAppend(chambers[1],nchannels[i]);
+       dyn_string split = strsplit(fwDU_getLogicalName(nchannels[i]),\"/\");
+       dynAppend(chambers[2],split[3]);
+       
+       dynAppend(chambers,temp);
+       dynClear(temp);
+       val = value;
+       //DebugN(invalid);
+       
+       pos = strpos(val,\".\");
+       if(pos>0)
+         val = substr(val,0,pos+2);
+       dpConnect(\"refresh\",nchannels[i]+\".actual.temperature\");
+       
+       this.appendLine(\"chamber\",chambers[2][i],\"input\",val);
+       if(value < 1)
+         this.cellBackColRC(i-1,\"input\", \"FwStateOKNotPhysics\");
+       else if(value < 23)
+         this.cellBackColRC(i-1,\"input\",\"FwStateOKPhysics\");
+       else if (value<24)
+         this.cellBackColRC(i-1,\"input\",\"FwAlarmWarnAck\");
+       else
+         this.cellBackColRC(i-1,\"input\",\"FwAlarmErrorAck\");
+        
+       //dpGet(nchannels[i]+\".actual.temperature::_alert_hdl.._act_state\",color);
+       //DebugN(color);
+       //this.cellBackColRC(i-1,\"input\",color);
+        
+  
+     }
+    
+
+}
+ refresh(string dpe, float value)
+ {
+  string column,val,strval;
+  
+  
+  string name = dpSubStr(dpe,DPSUB_SYS_DP);
+ 
+  int num = dynContains(chambers[1],name);
+ 
+
+   strval = value;
+
+int pos = strpos(strval,\".\");
+       if(pos>0)
+         strval = substr(strval,0,pos+2);
+//        
+ this.cellValueRC(num-1,\"input\",strval);
+      
+       if(value < 1)
+         this.cellBackColRC(num-1,\"input\", \"FwStateOKNotPhysics\");
+      else if(value < 23)
+         this.cellBackColRC(num-1,\"input\",\"FwStateOKPhysics\");
+       else if (value<24)
+         this.cellBackColRC(num-1,\"input\",\"FwAlarmWarnAck\");
+       else
+         this.cellBackColRC(num-1,\"input\",\"FwAlarmErrorAck\");
+   }" 0
+"main(int row, string column, string value)
+{
+int pos;
+    if(column ==\"chamber\")
+  {
+  pos = strpos(value,\"_RB\");
+  value = substr(value,0,pos);
+  openTempPanel(value);
+  }
+}
+
+openTempPanel(string doll){
+ChildPanelOnCentral(\"CMS_RPCfwSupervisor//CMS_RPCfwSupervisorChamberTempTrend.pnl\",
+      \"Sector Temperature Trend\",
+      makeDynString(\"$2:\" + doll));
+}" 0
+ 1 0 1 2 0 "chamber" 15 1 0 "s" 1
+LANG:1 7 Chamber
+E
+1
+LANG:1 0 
+
+180 "input" 8 1 0 "s" 1
+LANG:1 11 Temperature
+E
+1
+LANG:1 0 
+
+100 
+20 20 10 10
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 13
+"PRIMITIVE_TEXT1"
+""
+1 42 12 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+   dyn_string systemNumber;
+  dyn_string channels;
+  string logname;
+  int pos;
+   if(dynlen(channels)==0)
+  {
+  string T_COMPONENT = RPCfwSupervisor_getComponent(\"BarrelT\");
+  RPCfwSupervisor_getChannelsFromName($2,\"T\",T_COMPONENT,channels);
+ 
+  }
+   
+   for(int i = 1;i<=dynlen(channels);i++)
+   {
+     logname = fwDU_getLogicalName(channels[i]);
+     pos = strpos(logname,\"_S\");
+     if((logname[pos+2]==\"1\")||(logname[pos+3]==\"1\")||(logname[pos+3]==\"2\")||(logname[pos+3]==\"3\"))
+     {
+       dynAppend(nchannels,channels[i]);
+       
+     }else
+     {
+        dynAppend(fchannels,channels[i]);
+       
+       }
+     
+     }
+  //DebugN(dynlen(fchannels),dynlen(nchannels)); 
+}" 0
+ E 0 1 1 2 1 E U  1 E 42 12 212 42
+0 2 2 "0s" 0 0 0 64 0 0  42 12 1
+1
+LANG:1 33 MS Shell Dlg,-1,16,5,75,0,0,0,0,0
+0 1
+LANG:1 4 NEAR
+2 14
+"PRIMITIVE_TEXT2"
+""
+1 442 12 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+17 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 442 12 612 42
+0 2 2 "0s" 0 0 0 64 0 0  442 12 1
+1
+LANG:1 33 MS Shell Dlg,-1,16,5,75,0,0,0,0,0
+0 1
+LANG:1 3 FAR
+25 15
+"TABLE2"
+""
+1 419.9999999999999 42 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  418 40 722 324
+"dyn_dyn_string chambers;
+
+
+
+main()
+{
+
+
+   
+  delay(2,0);
+  float value;
+  string val,times,color;
+  dyn_int limit;
+  dyn_float limits;
+  dyn_string temp,exceptionInfo;
+  int pos;
+     for(int i = 1; i<=dynlen(fchannels);i++)
+     {
+       dpGet(fchannels[i]+\".actual.temperature\",value);
+       dynAppend(chambers[1],fchannels[i]);
+       dyn_string split = strsplit(fwDU_getLogicalName(fchannels[i]),\"/\");
+       dynAppend(chambers[2],split[3]);
+       
+       dynAppend(chambers,temp);
+       dynClear(temp);
+       val = value;
+       //DebugN(invalid);
+       
+       pos = strpos(val,\".\");
+       if(pos>0)
+         val = substr(val,0,pos+2);
+       dpConnect(\"refresh\",fchannels[i]+\".actual.temperature\");
+       
+       this.appendLine(\"chamber\",chambers[2][i],\"input\",val);
+       if(value <= 0)
+         this.cellBackColRC(i-1,\"input\", \"FwStateOKNotPhysics\");
+       else if(value < 23)
+         this.cellBackColRC(i-1,\"input\",\"FwStateOKPhysics\");
+       else if (value<24)
+         this.cellBackColRC(i-1,\"input\",\"FwAlarmWarnAck\");
+       else
+         this.cellBackColRC(i-1,\"input\",\"FwAlarmErrorAck\");
+        
+       //dpGet(fchannels[i]+\".actual.temperature::_alert_hdl.._act_state\",color);
+       //DebugN(color);
+       //this.cellBackColRC(i-1,\"input\",color);
+        
+  
+     }
+    
+
+}
+ refresh(string dpe, float value)
+ {
+  string column,val,strval;
+  
+  
+  string name = dpSubStr(dpe,DPSUB_SYS_DP);
+ 
+  int num = dynContains(chambers[1],name);
+ 
+
+   strval = value;
+
+int pos = strpos(strval,\".\");
+       if(pos>0)
+         strval = substr(strval,0,pos+2);
+//        
+ this.cellValueRC(num-1,\"input\",strval);
+      
+       if(value <= 0)
+         this.cellBackColRC(num-1,\"input\", \"FwStateOKNotPhysics\");
+      else if(value < 23)
+         this.cellBackColRC(num-1,\"input\",\"FwStateOKPhysics\");
+       else if (value<24)
+         this.cellBackColRC(num-1,\"input\",\"FwAlarmWarnAck\");
+       else
+         this.cellBackColRC(num-1,\"input\",\"FwAlarmErrorAck\");
+   }" 0
+"main(int row, string column, string value)
+{
+int pos;
+    if(column ==\"chamber\")
+  {
+  pos = strpos(value,\"_RB\");
+  value = substr(value,0,pos);
+  openTempPanel(value);
+  }
+}
+
+openTempPanel(string doll){
+ChildPanelOnCentral(\"CMS_RPCfwSupervisor//CMS_RPCfwSupervisorChamberTempTrend.pnl\",
+      \"Sector Temperature Trend\",
+      makeDynString(\"$2:\" + doll));
+}" 0
+ 1 0 1 2 0 "chamber" 15 1 0 "s" 1
+LANG:1 7 Chamber
+E
+1
+LANG:1 0 
+
+180 "input" 8 1 0 "s" 1
+LANG:1 11 Temperature
+E
+1
+LANG:1 0 
+
+100 
+20 20 10 10
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+2 16
+"PRIMITIVE_TEXT3"
+""
+1 490 350 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 490 350 720 370
+0 2 2 "0s" 0 0 0 64 0 0  490 350 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 44 Click on chamber name for Trending over time
+25 17
+"TABLE3"
+""
+1 42.01374570446738 350 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+21 0 0 0 0 0
+E E "main(bool enter)
+{
+this.toolTipText(\"Click on the chamber to see the behaviour over time \");
+}" 0
+
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0  40 348 342 452
+"dyn_dyn_string chambers;
+
+
+main()
+{
+  delay(1,0);
+  //DebugN($2);
+  RPCfwSupervisor_getAllChannelsFromType(_lvbsys,\"RH\", rhchannels,$2);
+  
+   
+//   
+  string value;
+  int j = 0;
+   string name,times,color;
+//   dyn_int limit;
+//   dyn_float limits;
+   dyn_string temp,exceptionInfo;
+  int pos;
+     for(int i = 1; i<=dynlen(rhchannels);i++)
+     {
+       dpGet(rhchannels[i]+\".actual.averageValue\",value);
+       name = fwDU_getLogicalName(rhchannels[i]);
+       dpConnect(\"refresh\",rhchannels[i]+\".actual.averageValue\");
+       pos = strpos(name,$2);
+       this.appendLine(\"chamber\",substr(name,pos),\"input\",value);
+       
+           if(value <= 20)
+            this.cellBackColRC(j,\"input\",\"FwStateOKNotPhysics\");
+          else if(value < 70)
+            this.cellBackColRC(j,\"input\",\"FwStateOKPhysics\");
+          else 
+            this.cellBackColRC(j,\"input\",\"FwAlarmWarnAck\");
+          j++;
+       
+     }
+}
+
+
+ refresh(string dpe, int value)
+ {
+  string column,val,strval;
+  
+  
+  string name = dpSubStr(dpe,DPSUB_SYS_DP);
+ 
+  int num = dynContains(rhchannels,name);
+ 
+
+   strval = value;
+
+int pos = strpos(strval,\".\");
+       if(pos>0)
+         strval = substr(strval,0,pos+2);
+//        
+ this.cellValueRC(num-1,\"input\",strval);
+      
+   if(value <= 20)
+             this.cellBackColRC(num-1,\"input\",\"FwStateOKNotPhysics\");
+          else if(value < 70)
+            this.cellBackColRC(num-1,\"input\",\"FwStateOKPhysics\");
+          else 
+            this.cellBackColRC(num-1,\"input\",\"FwAlarmWarnAck\");
+   }" 0
+"main(int row, string column, string value)
+{
+  
+DebugN( rhchannels,row);  
+  
+ ChildPanelOnCentral(\"CMS_RPCfwSupervisor/CMS_RPCfwSupervisorSinglePlot.pnl\",
+      \"\",
+      makeDynString(\"$dpename:\" + rhchannels[row+1]+\".actual.averageValue\"));  
+  
+  
+}
+
+" 0
+ 1 0 1 2 0 "chamber" 15 1 0 "s" 1
+LANG:1 7 Chamber
+E
+1
+LANG:1 0 
+
+180 "input" 8 1 0 "s" 1
+LANG:1 2 RH
+E
+1
+LANG:1 0 
+
+100 
+15 15 10 10
+1
+LANG:1 26 Arial,-1,13,5,50,0,0,0,0,0
+0 0 1 1 1 7
+1 0
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0

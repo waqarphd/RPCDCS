@@ -1,0 +1,1731 @@
+V 11
+1
+LANG:1 15 Global Settings
+PANEL,-1 -1 463 396 N "_3DFace" 1
+"$2"
+E E E E E 1 -1 -1 0  100 278
+""0  1
+E "#uses \"CMS_RPCfwSupervisor/CMS_RPCfwSupervisor.ctl\"
+
+
+string DETECTOR;
+//string HARDWARE_COMPONENT;
+string HV_COMPONENT;
+string LV_COMPONENT;
+//string T_COMPONENT;
+dyn_dyn_string hvChannels,lvChannels,lbbChannels;
+
+
+
+string v0;
+
+dyn_string logicNameChannels;
+dyn_string channels;
+
+dyn_string maoChannels;
+dyn_string hvMAOChannels;
+void setI0Alarm(string dpe, float value){
+
+float diff1,diff2;
+dyn_string exceptionInfo;
+string channelName,channel;
+
+dyn_string alertTexts = makeDynString( \"OK\", \"Warning\",\"Error\");
+       
+dyn_float limits; 
+dyn_string alertClasses = makeDynString( \"\" ,\"_fwWarningAck.\", \"_fwErrorAck.\");
+      
+string alertPanel; dyn_string summary,alertPanelParameters; string alertHelp;
+
+ if(value != 0)
+ {
+ diff1=value*0.1;//primo limite al 10%
+ diff2=value*0.2;//secondo limite al 20%
+ 
+  
+///Set  Alarm channel for Imon
+ channel= dpe+\".actual.iMon\";
+ 
+
+ fwAlertConfig_deactivate(channel,exceptionInfo);  
+  limits = makeDynFloat( value-diff2,value-diff1 );
+ fwAlertConfig_set(channel,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+             alertHelp,exceptionInfo);
+             if (fwConfigurationDB_handleErrors(exceptionInfo)) return;
+ fwAlertConfig_activate(channel,exceptionInfo);
+ }
+}
+
+DisableAllInPanel()
+{
+ch1.enabled = FALSE;
+ch2.enabled = FALSE;
+ }
+enableControl(){
+
+   }
+enableDebug(){
+Button2.enabled = TRUE;
+ 
+  }
+void ApplyPanelAccessControl(string s1, string s2) // s1 and s2 are not //used
+{
+bool hasDebug, hasControl;
+dyn_string exceptionInfo;
+// revoke all previous rights:
+DisableAllInPanel(); //here you can call a function that disables //all buttons in the panel
+// check privileges:
+fwAccessControl_isGranted( \"CMS_RPC:Control\", hasControl, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+fwAccessControl_isGranted( \"CMS_RPC:Debug\", hasDebug, exceptionInfo); //this function checks if the user logged in has the //priviledge passed as first parameter
+if (dynlen(exceptionInfo)) { fwExceptionHandling_display(exceptionInfo); return;}
+// enable/disable panel functionality:
+//hasDebug = 1;
+if (hasControl) enableControl();
+if (hasDebug) enableDebug();
+}
+
+
+void DisableAll()
+{
+Button1.enabled=FALSE;
+//Button2.enabled=FALSE;
+Button5.enabled=FALSE;
+Button7.enabled=FALSE;
+
+}
+void EnableAll()
+{
+Button1.enabled=TRUE;
+//Button2.enabled=TRUE;
+Button5.enabled=TRUE;
+Button7.enabled=TRUE;
+
+}
+
+selectChannels(dyn_string channels,dyn_dyn_string &channelHvAnaDig)
+{
+string logName;
+//DebugN(\"inside select channels:\",channels);
+for(int i=1; i<=dynlen(channels); i++)
+	{	
+		logName = fwDU_getLogicalName(channels[i]);	
+		//DebugN(logName);
+		if(channels[i] != \"\")
+			{
+			 if(strpos(logName,\"ANA\")>-1)
+				{
+				dynAppend(channelHvAnaDig[1],channels[i]);
+				}
+			else if(strpos(logName,\"DIG\")>-1)
+				{
+				dynAppend(channelHvAnaDig[2],channels[i]);
+				}
+			
+			}
+			
+	}
+
+
+}
+
+void findHVMAOChannels(dyn_string & hvchannels)
+{
+ 
+  dyn_string exInfo,hvnodes, hvchildren;
+   string hvalias;
+   
+   if(HV_COMPONENT == \"\")
+    
+    	HV_COMPONENT = RPCfwSupervisor_getComponent(DETECTOR +\"HV\"); 
+   
+   fwNode_getNodes(HV_COMPONENT, fwDevice_LOGICAL, hvnodes, exInfo);
+   //DebugN(\"HV nodes\",hvnodes);
+    for(int i = 1; i <= dynlen(hvnodes); i++)
+      {
+        hvalias = dpGetAlias(hvnodes[i] + \".\");
+	//DebugN(\"HV \",hvnodes[i], hvalias);
+	hvnodes[i] = HV_COMPONENT + hvalias;
+     
+     
+         
+      if(strpos(hvnodes[i],\"MAO\")>1)  
+         {
+        fwDevice_getChildren(hvnodes[i], fwDevice_LOGICAL, hvchildren, exInfo);		                        
+      }
+      //DebugN(\"HV children\",hvchildren);
+      }
+    for(int i = 1; i<=dynlen(hvchildren);i++)
+     {
+ 
+    // if((strpos(children[i],station)>1)&&(strpos(children[i],tower)>1))
+       {  
+       dynAppend(hvchannels,HV_COMPONENT+fwDU_getPhysicalName(hvchildren[i])); 
+       //DebugN(\"HV children[i]= \",hvchildren[i]);
+        }     
+       }
+      // DebugN(\"HV channels: \" ,hvchannels);  
+  }
+
+void findMAOChannels(dyn_string & channels )
+{
+  
+  //DebugN(lbbChannels[LOG]);
+  string tower;
+  dyn_string name;
+  dyn_string b;
+  name=strsplit($2,\"_\");
+  if(DETECTOR ==\"\")
+  DETECTOR = RPCfwSupervisor_detector($2);
+  
+  if(dynlen(name)>0)
+  {
+  //DebugN(\"name\", name);
+  string station = name[2];
+  DebugN(\"$2=\", $2, \"name=\", name, \"detector=\", DETECTOR, \"STATION=\" , station);
+  if (station == \"EP1\" || station == \"EP2\" || station == \"EP3\")//taimoor
+  {
+   // dyn_string b=strsplit(station,\"P\");
+      b=strsplit(station,\"P\");
+    if(b[2]==\"2\")
+    {
+      station=\"EP1\";
+    }
+  }
+  else if (station == \"EN1\" || station == \"EN2\" || station == \"EN3\")//taimoor
+  {
+     //dyn_string b=strsplit(station,\"N\");//taimoor
+    b=strsplit(station,\"N\");//taimoor
+    if(b[2]==\"2\")
+    {
+      station=\"EN1\";
+    }
+    }
+  DebugN(\"b=\",b);
+  string sector = name[3];  
+ 
+  DebugN(sector,sector[2]);    
+  /*  if(sector[1]==\"1\")
+      tower = \"X3N\";
+    else if(sector[2]==\"1\")
+      tower = \"X3N\";
+    else if(sector[2]==\"2\")
+      tower = \"X3N\";
+    else if(sector[2]==\"3\")
+      tower = \"X3N\";
+    else 
+      tower = \"X3F\";
+    */  
+  if(LV_COMPONENT == \"\")
+    
+    	LV_COMPONENT = RPCfwSupervisor_getComponent(DETECTOR +\"LV\"); 
+    
+  DebugN(\"lv component\",LV_COMPONENT);
+  string alias;
+  dyn_string exInfo,nodes, children;
+   fwNode_getNodes(LV_COMPONENT, fwDevice_LOGICAL, nodes, exInfo);
+   DebugN(\"LV nodes\",nodes);
+     for(int i = 1; i <= dynlen(nodes); i++)
+      {
+        alias = dpGetAlias(nodes[i] + \".\");
+	nodes[i] = LV_COMPONENT + alias;
+   	//DebugN(\"LV \",nodes[i], alias);           
+      if(strpos(nodes[i],\"MAO\")>1)  
+         {
+        fwDevice_getChildren(nodes[i], fwDevice_LOGICAL, children, exInfo);		                        
+      }      
+      }
+  DebugN(\"LV children\",children);
+     tower = \"MAO\";
+
+     for(int i = 1; i<=dynlen(children);i++)
+     {
+ 
+     if((strpos(children[i],station)>1)&&(strpos(children[i],tower)>1))
+       {  
+       dynAppend(channels,LV_COMPONENT+fwDU_getPhysicalName(children[i])); 
+       //DebugN(\"LV children[i]= \",children[i]);
+        }     
+       }
+       DebugN(\"LV channels: \" ,channels);     
+   
+   
+
+  }
+  else
+  {
+    DebugN(\"Channels not found\");
+    }
+  
+}
+
+
+
+" 0
+ 2
+"CBRef" "1"
+"EClose" E
+""
+DISPLAY_LAYER, 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0
+LAYER, 0 
+1
+LANG:1 6 Layer1
+30 0
+"Frame1"
+""
+1 22 272 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+1 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+"main()
+{
+	//this.text= \"AAA\";
+        dyn_string exInfo;
+	exInfo=strsplit($2,\"_\");
+        //DebugN(exInfo);
+        title.text = \"Global Setting for \"+ exInfo[3]+\" in \"+ exInfo[2];
+        DisableAll();
+        if(DETECTOR == \"\")	
+	DETECTOR = RPCfwSupervisor_detector($2);
+	if(HV_COMPONENT == \"\")
+	HV_COMPONENT = RPCfwSupervisor_getComponent(DETECTOR+\"HV\");
+	if(LV_COMPONENT == \"\")
+	LV_COMPONENT = RPCfwSupervisor_getComponent(DETECTOR +\"LV\");
+
+	//Ricorda di aggiungere anche le LBB
+        
+        endcapRPCfwSupervisor_getChannelsFromName($2,\"HV\",HV_COMPONENT,hvChannels[HARD]);
+        endcapRPCfwSupervisor_getChannelsFromName($2,\"LV\",LV_COMPONENT,lvChannels[HARD]);
+        endcapRPCfwSupervisor_getChannelsFromName($2,\"LBB\",LV_COMPONENT,lbbChannels[HARD]);
+        //DebugTN(\"LBB end\",chann);
+	dynUnique(lvChannels[HARD]);
+	hvChannels[LOG] = RPCfwSupervisor_getLogical(hvChannels[HARD]);
+	lvChannels[LOG] = RPCfwSupervisor_getLogical(lvChannels[HARD]);
+	lbbChannels[LOG] = RPCfwSupervisor_getLogical(lbbChannels[HARD]);
+	//DebugN(lvChannels[LOG]);
+        findMAOChannels(maoChannels);
+        
+	EnableAll();
+
+}
+" 0
+ E 0 1 1 0 1 E 0.663129973474801 0 0.996015936254981 5.41114058355438 31.0796812749004 0 E 22 20 400 272
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 11 HV Settings
+2 11
+"Text1"
+""
+1 34 86 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 36 88 48 105
+0 2 0 "0s" 0 0 0 193 0 0  42 88 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 2 v0
+2 12
+"Text2"
+""
+1 35 124 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+12 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 37 126 47 143
+0 2 0 "0s" 0 0 0 193 0 0  42 126 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 2 i0
+2 13
+"Text3"
+""
+1 35 194 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+13 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 37 196 49 213
+0 2 0 "0s" 0 0 0 192 0 0  37 196 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 2 v1
+2 14
+"Text4"
+""
+1 35 158 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+14 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 37 160 47 177
+0 2 0 "0s" 0 0 0 192 0 0  37 160 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 2 i1
+2 22
+"Text6"
+""
+1 198 84 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+19 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 200 86 250 103
+0 2 0 "0s" 0 0 0 193 0 0  225 86 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 RampUp
+2 23
+"Text7"
+""
+1 197 122 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+20 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 199 124 265 141
+0 2 0 "0s" 0 0 0 193 0 0  232 124 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 8 RampDown
+2 24
+"Text8"
+""
+1 198 192 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+21 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 200 194 253 211
+0 2 0 "0s" 0 0 0 192 0 0  200 194 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 8 vMaxSoft
+2 25
+"Text9"
+""
+1 198 156 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+22 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 200 158 247 175
+0 2 0 "0s" 0 0 0 192 0 0  200 158 1
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 8 TripTime
+30 35
+"Frame2"
+""
+1 296 198 E E E 1 E 1 E N "_3DText" E N "_Transparent" E E
+ E E
+32 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E 3.08641975308642 0 0.441379310344828 -893.58024691358 287.048275862069 0 E 296 52 378 198
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0 1
+LANG:1 6 Switch
+2 44
+"Text5"
+""
+1 118 218 E E E 1 E 0 E N "_WindowText" E N "_Transparent" E E
+ E E
+40 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 0 1 E U  0 E 120 220 296 246
+0 2 0 "0s" 0 0 0 65 0 0  120 220 1
+1
+LANG:1 26 Arial,-1,21,5,40,0,0,0,0,0
+0 1
+LANG:1 9 Wait.....
+14 2
+"v0set"
+""
+1 59 84 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+3 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  57 82 119 109
+3 "0s" 0 0 0 0 0 -1  E E E
+14 4
+"i0set"
+""
+1 59 122 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+5 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  57 120 119 147
+3 "0s" 0 0 0 0 0 -1  E E E
+14 8
+"v1set"
+""
+1 59 192 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+9 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  57 190 119 217
+3 "0s" 0 0 0 0 0 -1  E E E
+14 10
+"i1set"
+""
+1 59 156 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+11 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  57 154 119 181
+3 "0s" 0 0 0 0 0 -1  E E E
+13 15
+"Button1"
+""
+1 62 252 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+15 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  60 250 194 278
+
+T 
+1
+LANG:1 6 Set HV
+"main()
+{
+dyn_string array;	
+string name;
+float value;
+	DisableAll();	
+ Text5.visible= TRUE;
+ 	//DebugN(hvChannels[HARD]);
+	array = makeDynString (v0set.text,i0set.text,v1set.text,i1set.text,rUp.text,rDwn.text,tripTime.text, vMaxSoftValue.text);
+	//DebugN(channels,logicNameChannels);	
+	for(int i=1; i<=dynlen(hvChannels[HARD]); i++)
+	{	
+		//name = fwDU_getLogicalName(channels[i]);
+		if(hvChannels[HARD][i] != \"\")
+			{
+			//DebugN(channels[i]);
+			if(array[1] != \"\")
+				{
+				value=v0set.text;
+				dpSet(hvChannels[HARD][i]+\".settings.v0\",value);
+				}
+			if(array[2] != \"\")
+				{
+				value=i0set.text;
+				dpSet(hvChannels[HARD][i] + \".settings.i0\", value);
+				setI0Alarm(hvChannels[HARD][i],value);
+				}
+			if(array[3] != \"\")
+				{
+				value=v1set.text;
+				dpSet(hvChannels[HARD][i] + \".settings.v1\", value);
+				}
+			if(array[4] != \"\")
+				{
+				value=i1set.text;
+				dpSet(hvChannels[HARD][i] + \".settings.i1\", value);
+				}
+			if(array[5] != \"\")
+				{
+				value=rUp.text;
+				dpSet(hvChannels[HARD][i] + \".settings.rUp\", value);
+				}
+			if(array[6] != \"\")
+				{
+				value= rDwn.text;
+				dpSet(hvChannels[HARD][i] + \".settings.rDwn\",value);
+				}
+			if(array[7] != \"\")
+				{
+				value=tripTime.text;
+				dpSet(hvChannels[HARD][i] + \".settings.tripTime\",value);
+				}
+			if(array[8] != \"\")
+				{
+				value=vMaxSoftValue.text;
+				dpSet(hvChannels[HARD][i] + \".settings.vMaxSoftValue\", value);
+				}
+			}
+	}
+	EnableAll();
+	Text5.visible= FALSE;
+}
+" 0
+ E E E
+13 31
+"Button4"
+""
+1 350 340 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+28 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  348 338 436 370
+
+T 
+1
+LANG:1 5 Close
+"// SimpleCtrlScriptStart {valid}
+main()
+{
+  EP_panelOff();
+}
+
+EP_panelOff()
+{
+  PanelOff();
+}
+
+// SimpleCtrlScript {EP_panelOff}
+// Function {PanelOff}
+// Panel {}
+// Module {}
+// SimpleCtrlScriptEnd {EP_panelOff}
+" 0
+ E E E
+13 32
+"Button5"
+""
+1 150 333 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+29 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  148 331 196 361
+
+T 
+1
+LANG:1 2 On
+"main()
+{	
+dyn_dyn_string channelAnaDig;
+ 
+
+//DebugN(channelHvAnaDig);
+string choose = List.selectedText;
+string name,logName; 	
+	//DebugN(channelHvAnaDig);
+	
+	fwOpenProgressBar(\"Global Settings for Ring.\", \"Waiting while switch ON all channels ...\", 1, 0);
+	
+	int j=0;
+
+	if(choose==\"HV\")
+		{
+                //DebugN(\"hvChannels[HARD]\",hvChannels[HARD]);
+		//channelHvAnaDig = hvChannels;
+		for(int i=1; i<=dynlen(hvChannels[HARD]); i++)
+			{
+			j++;
+			dpSet(hvChannels[HARD][i] + \".settings.onOff:_original.._value\", TRUE);
+			//DebugTN(\"Switching on \" + hvChannels[HARD][i] );
+			}	
+		DebugN(\"switching ON operation for HV channels completed.\");
+		}
+        
+	else if(choose==\"LV\")
+		{
+		selectChannels(lvChannels[HARD],channelAnaDig);
+ 		//DebugN(\"lv channels found:\",lvChannels[HARD]);
+                //DebugN(\"1\",channelAnaDig[1], \"2 \",channelAnaDig[2]);
+		for(int i=1; i<=dynlen(channelAnaDig[1]); i++)
+			{
+			j++;
+			logName = fwDU_getLogicalName(channelAnaDig[1][i]);	
+			strreplace(logName,\"ANA\",\"DIG\");
+			name = fwDU_getPhysicalName(LV_COMPONENT+logName);
+			//DebugN(name,\"-->\",logName,channelAnaDig[1][i]);
+			if(LV_COMPONENT+name==channelAnaDig[2][i])
+				{
+				dpSet(channelAnaDig[1][i] + \".settings.onOff:_original.._value\", TRUE);
+				//DebugTN(\"Switching on \" + channelAnaDig[2][i] + \" \" + logName);
+				delay(1);
+				dpSet(channelAnaDig[2][i] + \".settings.onOff:_original.._value\", TRUE);
+				}
+			Reset(i,j,channelAnaDig[1]);
+			}
+                DebugN(\"switching ON operation for LV FEB channels completed.\");	
+		
+		}
+        
+	else if(choose==\"LBB\")
+		{
+		j++;
+                //DebugN(\"lbb channels: \",lbbChannels[HARD]);
+		for(int i=1; i<=dynlen(lbbChannels[HARD]); i++)
+			{
+			dpSet(lbbChannels[HARD][i] + \".settings.onOff:_original.._value\", TRUE);
+			//DebugTN(\"Switching on \" + lbbChannels[HARD][i] + \" \" + logName);
+                      //  delay(1);
+			}
+                DebugN(\"switching ON operation for LBB channels completed.\");	
+		
+		}
+		
+	fwCloseProgressBar(\"Channels switched ON successfully.\");
+	
+
+}
+Reset(int i, int j, dyn_string array)
+{
+if(i!=j)
+	fwCloseProgressBar(\"Not All channels are switched ON correctly.\");
+		
+}
+" 0
+ E E E
+13 34
+"Button7"
+""
+1 206 334 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+31 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  204 332 252 362
+
+T 
+1
+LANG:1 3 Off
+"main()
+{
+	
+//string choose = List.selectedText,logName;
+dyn_dyn_string channelAnaDig;
+
+
+string choose = List.selectedText;
+string name,logName; 	
+	//DebugN(channelHvAnaDig);
+	fwOpenProgressBar(\"Global Settings for Sector.\", \"Waiting while switch OFF all channels ...\", 1, 0);	
+	if(choose==\"HV\")
+		{
+		for(int i=1; i<=dynlen(hvChannels[HARD]); i++)
+			{
+			dpSet(hvChannels[HARD][i] + \".settings.onOff:_original.._value\", FALSE);
+			//DebugTN(\"Switching off \" + hvChannels[HARD][i] + \" \" + logName);
+			}	
+		
+		}
+	else if(choose==\"LV\")
+		{
+		selectChannels(lvChannels[HARD],channelAnaDig);
+		for(int i=1; i<=dynlen(channelAnaDig[1]); i++)
+			{
+			logName = fwDU_getLogicalName(channelAnaDig[1][i]);	
+			strreplace(logName,\"ANA\",\"DIG\");
+			name = fwDU_getPhysicalName(LV_COMPONENT+logName);
+			//DebugN(LV_COMPONENT+name,\"-->\",channelAnaDig[2][i]);
+			if(LV_COMPONENT+name==channelAnaDig[2][i])
+				{
+				dpSet(channelAnaDig[2][i] + \".settings.onOff:_original.._value\", FALSE);
+				dpSet(channelAnaDig[1][i] + \".settings.onOff:_original.._value\", FALSE);
+				}
+		}	
+		
+		}
+	else if(choose==\"LBB\")
+		{
+		for(int i=1; i<=dynlen(lbbChannels[HARD]); i=i+2)
+			{
+			dpSet(lbbChannels[HARD][i+1] + \".settings.onOff:_original.._value\", FALSE);
+      dpSet(lbbChannels[HARD][i] + \".settings.onOff:_original.._value\", FALSE);
+       
+			}	
+		
+		}
+	fwCloseProgressBar(\"Channels switched OFF successfully.\");
+}	
+" 0
+ E E E
+14 36
+"rUp"
+""
+1 134 84 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+33 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  132 82 194 109
+3 "0s" 0 0 0 0 0 -1  E E E
+14 37
+"rDwn"
+""
+1 134 122 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+34 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  132 120 194 147
+3 "0s" 0 0 0 0 0 -1  E E E
+14 38
+"vMaxSoftValue"
+""
+1 134 192 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+35 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  132 190 194 217
+3 "0s" 0 0 0 0 0 -1  E E E
+14 39
+"tripTime"
+""
+1 134 156 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+36 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  132 154 194 181
+3 "0s" 0 0 0 0 0 -1  E E E
+22 43
+"List"
+""
+1 41.9999999999988 334 E E E 1 E 1 E N "_WindowText" E N "_Window" E E
+ E E
+39 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 26 Arial,-1,13,5,40,0,0,0,0,0
+0  40 332 102 359
+3
+1
+LANG:1 2 HV
+
+1
+1
+LANG:1 2 LV
+
+0
+1
+LANG:1 3 LBB
+
+0
+
+E
+E
+E
+ 0 0
+2 50
+"title"
+""
+1 20 20 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+48 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 20 20 366 40
+0 2 2 "0s" 0 0 0 64 0 0  20 20 1
+1
+LANG:1 26 Arial,-1,16,5,75,0,0,0,0,0
+0 1
+LANG:1 19 Global Setting for 
+30 52
+"FRAME3"
+""
+1 292 207 E E E 1 E 1 E N "_WindowText" E N {0,0,0} E E
+ E E
+50 0 0 0 0 0
+E E E
+1
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 0 1 0 1 E 1.01333333333333 0 1.45631067961165 -3.89333333333337 -251.456310679612 0 E 292 207 443 311
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0 1
+LANG:1 22 LV and HV Mao Channels
+13 56
+"ch1"
+""
+1 332 100.000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+56 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  330 98 374 130
+
+T 
+1
+LANG:1 3 CH0
+"main()
+{
+   bool status1,status2,status3,status4;
+   dynClear(maoChannels);//hassan
+ //DebugN(\"maoChannels\",maoChannels);
+   //DebugN(\"maoChannels in clicked=\",maoChannels);
+   if(dynlen(maoChannels)<1)
+  {
+  //  dyn_string maoChannels;
+    findMAOChannels(maoChannels);
+  
+    }
+   dyn_string st = strsplit($2,\"_\");
+   //DebugN(\"maoChannels\",maoChannels);
+   //DebugN(\"$2=\",$2, \"st[2]\",st[2]);
+   
+   if(dynlen(maoChannels)<1)
+         this.backCol = \"DpDoesNotExist\";
+   else
+   {
+     if(st[2]==\"EP1\" | st[2]==\"EP2\")  // | st[2]==\"EN1\" | st[2]==\"EN2\") modified by Hassan on 24th may 2009.
+     {
+///////////////FEB///////////////
+    dpGet(maoChannels[1]+\".actual.status\",status1);  //X2 FAR CH00
+    dpGet(maoChannels[4]+\".actual.status\",status2);  //X2 NEAR CH01
+    dpGet(maoChannels[5]+\".actual.status\",status3);  //X4 FAR CH00
+    dpGet(maoChannels[8]+\".actual.status\",status4);  //X4 NEAR CH01
+    if(status1 & status2 & status3 & status4)
+    {
+     dpSet(maoChannels[1]+\".settings.onOff\",false);
+     dpSet(maoChannels[4]+\".settings.onOff\",false);
+     dpSet(maoChannels[5]+\".settings.onOff\",false);
+     dpSet(maoChannels[8]+\".settings.onOff\",false);
+    }
+    else
+    {
+      dpSet(maoChannels[1]+\".settings.onOff\",true);
+      dpSet(maoChannels[4]+\".settings.onOff\",true);
+      dpSet(maoChannels[5]+\".settings.onOff\",true);
+      dpSet(maoChannels[8]+\".settings.onOff\",true);
+     }
+   }
+     
+    if(st[2]==\"EP3\" )//| st[2]==\"EN3\")   modified by Hassan on 24-5-2009
+   {
+    dpGet(maoChannels[2]+\".actual.status\",status1); //X3 FAR CH01
+    dpGet(maoChannels[4]+\".actual.status\",status2); //X3 FAR CH01
+    if(status1 & status2)
+    {
+     dpSet(maoChannels[2]+\".settings.onOff\",false);
+     dpSet(maoChannels[4]+\".settings.onOff\",false);
+    }
+    else
+    {
+      dpSet(maoChannels[2]+\".settings.onOff\",true);
+      dpSet(maoChannels[4]+\".settings.onOff\",true);
+    }
+   }    
+    ////////////////////////////////////////////
+///////////////NEGATIVE ENDCAP////////////////    
+    /////////////////////////////////////////
+    
+    
+    if( st[2]==\"EN1\" | st[2]==\"EN2\") //modified by Hassan on 24th may 2009.
+     {
+///////////////FEB/////////////////////////////////////////
+    dpGet(maoChannels[2]+\".actual.status\",status1);  //X2 FAR CH00
+    dpGet(maoChannels[4]+\".actual.status\",status2);  //X2 NEAR CH01
+    dpGet(maoChannels[6]+\".actual.status\",status3);  //X4 FAR CH00
+    dpGet(maoChannels[8]+\".actual.status\",status4);  //X4 NEAR CH01
+    if(status1 & status2 & status3 & status4)
+    {
+     dpSet(maoChannels[2]+\".settings.onOff\",false);
+     dpSet(maoChannels[4]+\".settings.onOff\",false);
+     dpSet(maoChannels[6]+\".settings.onOff\",false);
+     dpSet(maoChannels[8]+\".settings.onOff\",false);
+    }
+    else
+    {
+      dpSet(maoChannels[2]+\".settings.onOff\",true);
+      dpSet(maoChannels[4]+\".settings.onOff\",true);
+      dpSet(maoChannels[6]+\".settings.onOff\",true);
+      dpSet(maoChannels[8]+\".settings.onOff\",true);
+     }
+   }
+     
+    if( st[2]==\"EN3\")  // modified by Hassan on 24-5-2009
+   {
+    dpGet(maoChannels[2]+\".actual.status\",status1); //X3 FAR CH01
+    dpGet(maoChannels[3]+\".actual.status\",status2); //X3 FAR CH01
+    if(status1 & status2)
+    {
+     dpSet(maoChannels[2]+\".settings.onOff\",false);
+     dpSet(maoChannels[3]+\".settings.onOff\",false);
+    }
+    else
+    {
+      dpSet(maoChannels[2]+\".settings.onOff\",true);
+      dpSet(maoChannels[3]+\".settings.onOff\",true);
+    }
+   }    
+    
+    
+    
+    
+    
+  }
+}
+
+" 0
+ E E "main()
+{
+  dynClear(maoChannels);
+  dyn_string st = strsplit($2,\"_\");  
+  if(dynlen(maoChannels)<1)
+ {
+    //DebugN(\"st.....\",st);
+    //dyn_string maoChannels;
+    findMAOChannels(maoChannels);
+    DebugN(\"mao channels==\", maoChannels);
+  }  
+  if(dynlen(maoChannels)<1)
+        this.backCol = \"DpDoesNotExist\";
+  else
+  {
+    //DebugN(\"LV  maoChannels-----\",maoChannels);//taimoor
+   if(st[2]==\"EP1\" | st[2]==\"EP2\" )
+    {//DebugN(\"LV  st[2]  \",st[2]);
+    dpConnect(\"refresh\",maoChannels[1]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[4]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[5]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[8]+\".actual.isOn\");
+    }
+  if(st[2]==\"EP3\" )
+    {//DebugN(\"LV  st[2]  \",st[2]);
+     dpConnect(\"refresh\",maoChannels[2]+\".actual.isOn\");
+     dpConnect(\"refresh\",maoChannels[4]+\".actual.isOn\");
+    }
+  
+  //NEGATIVE ENDCAP
+  
+   if(st[2]==\"EN1\"| st[2]==\"EN2\")
+    {
+     //DebugN(\"LV  st[2]  \",st[2]);
+    dpConnect(\"refresh\",maoChannels[2]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[4]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[6]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[8]+\".actual.isOn\");
+    }
+  if(st[2]==\"EN3\")
+    {//DebugN(\"LV  st[2]  \",st[2]);
+     dpConnect(\"refresh\",maoChannels[2]+\".actual.isOn\");
+     dpConnect(\"refresh\",maoChannels[3]+\".actual.isOn\");
+    }
+  
+  
+  else if(st[2] == \"\")
+    {
+    DebugN(\"MAO LV no channels\");
+    }
+  }
+}
+
+
+
+refresh(string dpe, bool value)
+{
+  if(value)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+    else
+  {
+    this.backCol = \"FwStateOKNotPhysics\";
+    this.text = \"OFF\";
+    }
+}" 0
+
+13 57
+"ch2"
+""
+1 392 100.000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+58 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  390 98 434 130
+
+T 
+1
+LANG:1 3 CH1
+"main()
+{
+  bool status1,status2,status3,status4;
+  dynClear(maoChannels);//hassan
+   if(dynlen(maoChannels)<1)
+  {
+//    dyn_string maoChannels;
+    findMAOChannels(maoChannels);
+  
+    }
+   dyn_string st = strsplit($2,\"_\");
+  // DebugN(\"maoChannels\",maoChannels);
+   //DebugN(\"$2=\",$2, \"st[2]\",st[2]);
+   
+  if(dynlen(maoChannels)<1)
+    this.backCol = \"DpDoesNotExist\";
+  else
+  {
+   if(st[2]==\"EP1\" | st[2]==\"EP2\" )
+   {
+    dpGet(maoChannels[2]+\".actual.status\",status1);
+    dpGet(maoChannels[3]+\".actual.status\",status2);
+    dpGet(maoChannels[6]+\".actual.status\",status3);
+    dpGet(maoChannels[7]+\".actual.status\",status4);
+ if(status1 & status2 & status3 & status4)
+    {
+      dpSet(maoChannels[2]+\".settings.onOff\",false);
+      dpSet(maoChannels[3]+\".settings.onOff\",false);
+      dpSet(maoChannels[6]+\".settings.onOff\",false);
+      dpSet(maoChannels[7]+\".settings.onOff\",false);
+     }
+      else
+    {
+      dpSet(maoChannels[2]+\".settings.onOff\",true);
+      dpSet(maoChannels[3]+\".settings.onOff\",true);
+      dpSet(maoChannels[6]+\".settings.onOff\",true);
+      dpSet(maoChannels[7]+\".settings.onOff\",true);
+    }
+   }
+   if(st[2]==\"EP3\")
+   {
+    dpGet(maoChannels[1]+\".actual.status\",status1);
+    dpGet(maoChannels[3]+\".actual.status\",status2);
+    if(status1 & status2)
+    {
+     dpSet(maoChannels[1]+\".settings.onOff\",false);
+     dpSet(maoChannels[3]+\".settings.onOff\",false);
+    }
+   else
+    {
+      dpSet(maoChannels[1]+\".settings.onOff\",true);
+      dpSet(maoChannels[3]+\".settings.onOff\",true);
+    }
+ }
+   
+   
+   
+   
+    ///////////NEGATIVE ENDCAP///////////////
+    ///////////////////////////////////////
+    if( st[2]==\"EN1\"  | st[2]==\"EN2\" )
+   {
+    dpGet(maoChannels[1]+\".actual.status\",status1);
+    dpGet(maoChannels[3]+\".actual.status\",status2);
+    dpGet(maoChannels[5]+\".actual.status\",status3);
+    dpGet(maoChannels[7]+\".actual.status\",status4);
+ if(status1 & status2 & status3 & status4)
+    {
+      dpSet(maoChannels[1]+\".settings.onOff\",false);
+      dpSet(maoChannels[3]+\".settings.onOff\",false);
+      dpSet(maoChannels[5]+\".settings.onOff\",false);
+      dpSet(maoChannels[7]+\".settings.onOff\",false);
+     }
+      else
+    {
+      dpSet(maoChannels[1]+\".settings.onOff\",true);
+      dpSet(maoChannels[3]+\".settings.onOff\",true);
+      dpSet(maoChannels[5]+\".settings.onOff\",true);
+      dpSet(maoChannels[7]+\".settings.onOff\",true);
+    }
+   }
+   if( st[2]==\"EN3\" )
+   {
+    dpGet(maoChannels[1]+\".actual.status\",status1);
+    dpGet(maoChannels[4]+\".actual.status\",status2);
+    if(status1 & status2)
+    {
+     dpSet(maoChannels[1]+\".settings.onOff\",false);
+     dpSet(maoChannels[4]+\".settings.onOff\",false);
+    }
+    
+    
+    else
+    {
+      dpSet(maoChannels[1]+\".settings.onOff\",true);
+      dpSet(maoChannels[4]+\".settings.onOff\",true);
+    }
+   }   
+  }
+}" 0
+ E E "main()
+{
+  dyn_string st = strsplit($2,\"_\");  
+   dynClear(maoChannels) ;
+  if(dynlen(maoChannels)<1)
+  {
+    //dyn_string maoChannels;
+    findMAOChannels(maoChannels);  
+  }
+  if(dynlen(maoChannels)<1)
+    this.backCol = \"DpDoesNotExist\";
+  else
+  {
+    //DebugN(\"LBB  maoChannels-----\",maoChannels);//taimoor
+     if(st[2]==\"EP1\" | st[2]==\"EP2\"  )
+    {//DebugN(\"LBB  st[2]  \",st[2]);
+    dpConnect(\"refresh\",maoChannels[2]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[3]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[6]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[7]+\".actual.isOn\");    
+     }
+   if(st[2]==\"EP3\" )
+    {//DebugN(\"LBB  st[2]  \",st[2]);
+     dpConnect(\"refresh\",maoChannels[1]+\".actual.isOn\");
+     dpConnect(\"refresh\",maoChannels[3]+\".actual.isOn\");
+    }
+   
+   //NEGATIVE ENDCAP
+    if(st[2]==\"EN1\" | st[2]==\"EN2\"  )
+    {//DebugN(\"LBB  st[2]  \",st[2]);
+    dpConnect(\"refresh\",maoChannels[1]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[3]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[5]+\".actual.isOn\");
+    dpConnect(\"refresh\",maoChannels[7]+\".actual.isOn\");    
+     }
+   if(st[2]==\"EN3\" )
+    {//DebugN(\"LBB  st[2]  \",st[2]);
+     dpConnect(\"refresh\",maoChannels[1]+\".actual.isOn\");
+     dpConnect(\"refresh\",maoChannels[4]+\".actual.isOn\");
+    }
+   
+  else if(st[2] == \"\")
+   {
+    DebugN(\"MAO LBB  no channels\");
+   }
+  }
+  
+}
+refresh(string dpe, bool value)
+{
+  if(value)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+    else
+  {
+    this.backCol = \"FwStateOKNotPhysics\";
+  this.text = \"OFF\";
+    }
+  }
+" 0
+
+2 58
+"PRIMITIVE_TEXT1"
+""
+1 342 80.0000000000008 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+59 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 342 80.0000000000008 370 98.0000000000008
+0 2 2 "0s" 0 0 0 64 0 0  342 80.0000000000008 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 4  FEB
+2 59
+"PRIMITIVE_TEXT2"
+""
+1 574.3307687044144 -10.00000000000199 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+61 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E 0.9375 0 1 73.875 -172 1 E 350 250 378 268
+0 2 2 "0s" 0 0 0 64 0 0  350 250 2
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 3 LBB
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 0 
+13 60
+"ch3"
+""
+1 332 150.000000000001 E E E 1 E 1 E N "_ButtonText" E N "_Button" E E
+ E E
+63 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+0
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,50,0,0,0,0,0
+0  330 148 434 182
+
+T 
+1
+LANG:1 3 CH2
+"/*
+Taimoor.
+My First Contribution for DCS
+clicked
+*/
+
+main()
+{
+  bool status,status1;
+  dynClear(hvMAOChannels);
+  int value = 50;
+ 
+  if(dynlen(hvMAOChannels)<1)
+    {
+     findHVMAOChannels(hvMAOChannels);
+    }
+  dyn_string st = strsplit($2,\"_\");
+   
+  if(dynlen(hvMAOChannels)<1)
+  this.backCol = \"DpDoesNotExist\";
+  else
+   {
+     if(st[2]==\"EP1\" | st[2]==\"EP2\" | st[2]==\"EP3\")
+       {
+        dpGet(hvMAOChannels[1]+\".actual.status\",status);
+        // dpSet(hvMAOChannels[1]+\".settings.i0\",value);
+        if(status)
+           {
+             dpSet(hvMAOChannels[1]+\".settings.onOff\",false);
+             //DebugN(\"HV MAO for +ve Endcap is Switched OFF\");
+           }
+       else
+           {
+             dpSet(hvMAOChannels[1]+\".settings.onOff\",true);
+            // DebugN(\"HV MAO for +ve Endcap is Switched ON\");
+          }
+       }
+     else if (st[2]==\"EN1\" | st[2]==\"EN2\" | st[2]==\"EN3\")
+       {
+        dpGet(hvMAOChannels[2]+\".actual.status\",status1);
+        //dpSet(hvMAOChannels[2]+\".settings.i0\",value);
+        if(status1)
+           {
+              dpSet(hvMAOChannels[2]+\".settings.onOff\",false);
+          //    DebugN(\"HV MAO for -ve Endcap is Switched OFF\");
+           }
+       else
+           {
+              dpSet(hvMAOChannels[2]+\".settings.onOff\",true);
+             // DebugN(\"HV MAO for -ve Endcap is Switched ON\");
+        }
+      }
+   }
+}
+
+
+
+
+
+// main()
+// {  
+//   bool status;
+//   dyn_string mao=dpAliases(\"*/MAO/*\",\"*\");
+//   dyn_string deviceList,HV_COMPONENT;
+//    
+//   DebugN(\"mao  \",mao);
+//   for (int i=1;i<=dynlen(mao); i++)
+//       {
+//         deviceList[i]= fwDU_getPhysicalName(mao[i]);
+//       }  
+// 
+//       dpGet(deviceList[1]+\".actual.status\",status);  
+//  
+//       if (status)
+//              {
+//                dpSet(deviceList[1]+\".settings.onOff\",false);
+//                DebugN(\"HV Mao for -ve side is turned OFF  \",status);
+//        
+//               }
+//        else
+//               {
+//                 dpSet(deviceList[1]+\".settings.onOff\",true);
+//                 DebugN(\"HV Mao for -ve side is turned ON  \",status);
+//               }
+//string xxx;
+//  findHVMAOChannels(xxx);
+//  DebugN(\"xxx\",xxx);
+  
+//}
+
+// void findHVMAOChannels(dyn_string & hvchannels)
+// {
+//   dyn_string exInfo,hvnodes, hvchildren;
+//    string hvalias;
+//    if(HV_COMPONENT == \"\")
+//     
+//     	HV_COMPONENT = RPCfwSupervisor_getComponent(DETECTOR +\"HV\"); 
+//    
+//    fwNode_getNodes(HV_COMPONENT, fwDevice_LOGICAL, hvnodes, exInfo);
+//    DebugN(\"HV nodes\",hvnodes);
+//     for(int i = 1; i <= dynlen(hvnodes); i++)
+//       {
+//         hvalias = dpGetAlias(hvnodes[i] + \".\");
+	//DebugN(\"LV \",nodes[i], alias);
+// 	hvnodes[i] = HV_COMPONENT + hvalias;
+//      
+//      
+//          
+//       if(strpos(hvnodes[i],\"MAO\")>1)  
+//          {
+//         fwDevice_getChildren(hvnodes[i], fwDevice_LOGICAL, hvchildren, exInfo);		                        
+//       }
+     // DebugN(\"HV children\",hvchildren);
+//       }
+//      for(int i = 1; i<=dynlen(hvchildren);i++)
+//      {
+//  
+    // if((strpos(children[i],station)>1)&&(strpos(children[i],tower)>1))
+//        {  
+//        dynAppend(hvchannels,HV_COMPONENT+fwDU_getPhysicalName(hvchildren[i])); 
+//        DebugN(\"HV children[i]= \",hvchildren[i]);
+//         }     
+//        }
+//        DebugN(\"HV channels: \" ,hvchannels);  
+//   }
+//   " 0
+ E E "/*Taimoor.
+My First Contribution for DCS
+
+HV
+*/
+main()
+{
+  dynClear(hvMAOChannels);
+  dyn_string st = strsplit($2,\"_\");  
+  if(dynlen(hvMAOChannels)<1)
+    {
+       findHVMAOChannels(hvMAOChannels);
+    }  
+  if(dynlen(hvMAOChannels)<1)
+        this.backCol = \"DpDoesNotExist\";
+    else
+       {
+        if(st[2]==\"EP1\" | st[2]==\"EP2\" | st[2]==\"EP3\")
+          {
+            text_P.visible = TRUE;
+            text_N.visible = FALSE;
+            dpConnect(\"refresh\",hvMAOChannels[1]+\".actual.isOn\");//for +ve
+            //DebugN(\"hvMAOChannels[1]  \",hvMAOChannels[1]);
+          }
+        else if(st[2]==\"EN1\" | st[2]==\"EN2\" | st[2]==\"EN3\")
+          {
+            text_N.visible = TRUE;
+            text_P.visible = FALSE;
+            dpConnect(\"refresh\",hvMAOChannels[2]+\".actual.isOn\");//for -ve
+            //DebugN(\"hvMAOChannels[2]  \",hvMAOChannels[2]);
+          }
+        else if(st[2] == \"\")
+          {
+            DebugN(\"MAO HV no channels\");
+          }
+        }
+   
+}
+
+
+refresh(string dpe, bool value)
+{
+  if(value)
+  {
+    this.backCol = \"FwStateOKPhysics\";
+    this.text = \"ON\";
+  }
+    else
+  {
+    this.backCol = \"FwStateOKNotPhysics\";
+    this.text = \"OFF\";
+    }
+}
+" 0
+
+2 62
+"PRIMITIVE_TEXT3"
+""
+1 292 160.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+67 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 292 160.000000000001 320 178.000000000001
+0 2 2 "0s" 0 0 0 64 0 0  292 160.000000000001 2
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 3  HV
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 0 
+2 64
+"PRIMITIVE_TEXT4"
+""
+1 292 110.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+71 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 292 110.000000000001 320 128.000000000001
+0 2 2 "0s" 0 0 0 64 0 0  292 110.000000000001 2
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 3  LV
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 0 
+2 65
+"text_N"
+""
+1 362 130.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+73 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 362 130.000000000001 390 148.000000000001
+0 2 2 "0s" 0 0 0 64 0 0  362 130.000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 5  - ve
+2 67
+"text_P"
+""
+1 360 130.000000000001 E E E 1 E 1 E N "_WindowText" E N "_Transparent" E E
+ E E
+77 0 0 0 0 0
+E E E
+0
+1
+LANG:1 0 
+
+1
+"dashclr"N "_Transparent"
+E E 0 1 1 2 1 E U  1 E 360 130.000000000001 388 148.000000000001
+0 2 2 "0s" 0 0 0 64 0 0  360 130.000000000001 1
+1
+LANG:1 33 MS Shell Dlg,-1,11,5,75,0,0,0,0,0
+0 1
+LANG:1 5  + ve
+0
+LAYER, 1 
+1
+LANG:1 6 Layer2
+0
+LAYER, 2 
+1
+LANG:1 6 Layer3
+0
+LAYER, 3 
+1
+LANG:1 6 Layer4
+0
+LAYER, 4 
+1
+LANG:1 6 Layer5
+0
+LAYER, 5 
+1
+LANG:1 6 Layer6
+0
+LAYER, 6 
+1
+LANG:1 6 Layer7
+0
+LAYER, 7 
+1
+LANG:1 6 Layer8
+0
+0
