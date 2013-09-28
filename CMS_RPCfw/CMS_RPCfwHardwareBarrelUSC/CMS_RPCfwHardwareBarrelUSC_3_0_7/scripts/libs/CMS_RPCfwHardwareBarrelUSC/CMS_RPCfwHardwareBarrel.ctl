@@ -2,79 +2,95 @@ const int LOG = 1;
 const int HARD = 2;
 const bool ACCESS_DCS = true;
 
-string RPCfwSupervisor_getSupervisorSys(){
-
-dyn_string systemNumber;
-fwInstallation_getApplicationSystem("CMS_RPCfwSupervisor",systemNumber);
-//DebugN("789: "+value);
-if(dynlen(systemNumber)!=0)
-return systemNumber[1];
-else
-	{
-	return "Error";
-	DebugN("Component not found");
-	}
-
-}
-
-string RPCfwSupervisor_getComponent(string type){
-
-string value;
-dyn_string systemNumber;
-dpGet(getSystemName()+"CMS_RPCfwSupervisor.CompType."+type,value);
-fwInstallation_getApplicationSystem(value,systemNumber);
-if(dynlen(systemNumber)!=0)
-return systemNumber[1];
-else
-	DebugN("Component not found");
-
-}
-CMS_RPCfwHardware_getDeviceChannels(string pos, string type, dyn_dyn_string & channels)
-    
+//_____________________________________________________________________________
+string 
+RPCfwSupervisor_getSupervisorSys()
 {
-  
-  dyn_string children, exceptionInfo;
-	string device, typeNode;
-        string compName;
-        if(strpos(type,"HV")>-1)
-          compName = "BarrelHV";
-        else if(strpos(type,"LV")>-1)
-            compName = "BarrelLV";
-        else if(strpos(type,"T")>-1)
-          {
-            compName = "BarrelT";
-            type = "ADCTemp";
-          }
-        string parent = RPCfwSupervisor_getComponent(compName)+pos;
-        
-	fwTree_getChildren(parent, children, exceptionInfo);
-	//DebugN("ue",pos, children,"ola");
-	if(dynlen(children)==0)
-	{
-		fwTree_getNodeDevice(parent, device, typeNode, exceptionInfo);
-		//Debug("ok",typeNode,type);
-                if(typeNode == "FwCaenChannel"+type)
-                {
-                  //Debug("ok");
-                  dynAppend(channels[LOG], parent);                  
-                  dynAppend(channels[HARD],dpSubStr(parent,DPSUB_SYS)+fwDU_getPhysicalName(parent));
-
-                  }
-		
-	}	
-	else
-		for(int i=1; i<=dynlen(children); i++)
-		{
-			if(children[i][0]=="&")
-				children[i] = substr (children[i], 5);
-
-			CMS_RPCfwHardware_getDeviceChannels(children[i],type, channels);
-		}
-  
-  
-  
+  dyn_string systemNumber;
+  fwInstallation_getApplicationSystem("CMS_RPCfwSupervisor", systemNumber);
+  //DebugN("789: "+value);
+  if(dynlen(systemNumber)!=0)
+  {
+    return systemNumber[1];
   }
+  else
+  {
+    return "Error";
+    DebugN("Component not found");
+  }
+}
 
+
+//_____________________________________________________________________________
+string 
+RPCfwSupervisor_getComponent(string type)
+{
+  string value;
+  dyn_string systemNumber;
+  dpGet(getSystemName()+"CMS_RPCfwSupervisor.CompType."+type,value);
+  fwInstallation_getApplicationSystem(value,systemNumber);
+  if(dynlen(systemNumber)!=0)
+  {
+    return systemNumber[1];
+  }
+  else
+  {
+    DebugN("Component not found");
+  }
+}
+
+
+//_____________________________________________________________________________
+void
+CMS_RPCfwHardware_getDeviceChannels(string pos, string type, dyn_dyn_string & channels)
+{
+  dyn_string children, exceptionInfo;
+  string device, typeNode;
+  string compName;
+  if(strpos(type,"HV")>-1)
+  {
+    compName = "BarrelHV";
+  }
+  else if(strpos(type,"LV")>-1)
+  {
+    compName = "BarrelLV";
+  }
+  else if(strpos(type,"T")>-1)
+  {
+    compName = "BarrelT";
+    type = "ADCTemp";
+  }
+  
+  string parent = RPCfwSupervisor_getComponent(compName)+pos;
+        
+  fwTree_getChildren(parent, children, exceptionInfo);
+  //DebugN("ue",pos, children,"ola");
+  if(dynlen(children)==0)
+  {
+    fwTree_getNodeDevice(parent, device, typeNode, exceptionInfo);
+    //Debug("ok",typeNode,type);
+    if(typeNode == "FwCaenChannel"+type)
+    {
+      //Debug("ok");
+      dynAppend(channels[LOG], parent);                  
+      dynAppend(channels[HARD],dpSubStr(parent,DPSUB_SYS)+fwDU_getPhysicalName(parent));
+    }
+  }	
+  else
+  {
+    for(int i=1; i<=dynlen(children); i++)
+    {
+      if(children[i][0]=="&")
+      {
+	children[i] = substr (children[i], 5);
+      }
+      CMS_RPCfwHardware_getDeviceChannels(children[i],type, channels);
+    }
+  } 
+}
+
+
+//_____________________________________________________________________________
 // RPCfwSupervisor_getChannelsFromChildren(int level, string pos,string type,string sysName,dyn_string &children){
 // 		
 // 	dyn_string nodes,childrenName, temp, exceptionInfo,device;
@@ -160,10 +176,17 @@ CMS_RPCfwHardware_getDeviceChannels(string pos, string type, dyn_dyn_string & ch
 // 
 // }
 
-string RPCfwSupervisor_detector(string name){
-if(strpos(name,"YE")>-1)
-	return "Endcap";
-else
-	return "Barrel";
 
+//_____________________________________________________________________________
+string 
+RPCfwSupervisor_detector(string name)
+{
+  if(strpos(name,"YE")>-1)
+  {
+    return "Endcap";
+  }
+  else
+  {
+    return "Barrel";
+  }
 }

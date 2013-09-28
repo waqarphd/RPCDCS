@@ -1,15 +1,22 @@
 /*
-* Created by Giovanni Polese (Lappeenranta University of Technology
-*	date:08/05/2007
-*	LastChange:15/03/2008
-*
-*
-*/
+ * Created by Giovanni Polese (Lappeenranta University of Technology
+ *	date:08/05/2007
+ *	LastChange:15/03/2008
+ *
+ *
+ */
+
+
+//_____________________________________________________________________________
 main()
 {
   DeleteAll();
 }
-void DeleteOffsetDps()
+
+
+//_____________________________________________________________________________
+void 
+DeleteOffsetDps()
 {
   // Delete Offsets
   
@@ -20,18 +27,21 @@ void DeleteOffsetDps()
   {
     dyn_string dps = dpNames("*","RpcBoardOffset");
     for(int i = 1 ; i<=dynlen(dps);i++)
+    {
       dpDelete(dps[i]);
-   dpTypeDelete("RpcBoardOffset");
-    
     }
+    dpTypeDelete("RpcBoardOffset");    
+  }
   else
+  {
     DebugN("No offset to delete"); 
-  
-  
-  
+  }
 }
 
-void  DeleteAll()
+
+//_______________________________________________________________
+void  
+DeleteAll()
 {
   DebugN("Start deleting old component");
   deleteAlarm();
@@ -43,7 +53,11 @@ void  DeleteAll()
   //DeleteDps();
   DebugN("FSM USC component successfully deleted");
 }
-void DeleteLogical()
+
+
+//_____________________________________________________________________________
+void 
+DeleteLogical()
 {
   string type;
   dyn_string exInfo;
@@ -51,17 +65,20 @@ void DeleteLogical()
   //DebugN(deviceList);
   fwDevice_initialize();  
   for(int i = 1 ;i<=dynlen(deviceList);i++)
-    {
+  {
     dpGet(deviceList[i]+".type",type);
     if(strpos(type,"LOGICAL")>-1)
     {
-    //  DebugN(deviceList[i]);
-    dpDelete(deviceList[i]);  
+      //DebugN(deviceList[i]);
+      dpDelete(deviceList[i]);  
     }
   }
 }
 
-void DeleteHW(){
+
+//_____________________________________________________________________________
+void 
+DeleteHW(){
    fwDevice_initialize();   
   dyn_string exceptionInfo;
   dyn_string localCrates = dpNames(getSystemName()+"*CAEN?*", "FwCaenCrateSY1527");
@@ -69,63 +86,73 @@ void DeleteHW(){
   DebugN(localCrates);
   for(int i = 1;i<=dynlen(localCrates);i++)
   {
-   if(strpos(localCrates[1],"hv")>-1)
-       fwDevice_delete(localCrates[i], exceptionInfo);  
-  }
-  
+    if(strpos(localCrates[1],"hv")>-1)
+    {
+      fwDevice_delete(localCrates[i], exceptionInfo);  
+    }
+  }  
   DebugN("---Caen hardware deleted."); 
-  
+}
+
+
+//_____________________________________________________________________________
+void 
+deleteAlarm()
+{
+  string dpe, 
+  	 alertHelp,  
+  	 alertPanel;
+  bool configExists,
+       isActive;
+  int alertConfigType;
+  dyn_string alertTexts,  
+  	     alertClasses,
+   	     summaryDpeList,  
+   	     alertPanelParameters,  
+   	     exceptionInfo;
+  dyn_float alertLimits;
+
+  dyn_string dplist = dpNames("*","_FwFsmObject");
+  dynAppend(dplist,dpNames("*","FwCaenChannel"));
+  //DebugN("sadfdf",dplist);
+  for(int i = 1; i<=dynlen(dplist);i++)
+  { 
+    fwAlertConfig_get(dplist[i]+".",
+                      configExists,  
+                      alertConfigType,  
+		      alertTexts,  
+		      alertLimits,  
+		      alertClasses,  
+		      summaryDpeList,  
+		      alertPanel,  
+		      alertPanelParameters,  
+		      alertHelp,  
+		      isActive,  
+ 		      exceptionInfo);  
+
+    if(dynlen(summaryDpeList)==0)
+    {
+      fwAlertConfig_delete(dplist[i]+".",exceptionInfo);  
+      //DebugN("SSS:",dplist[i]);
+    }
   }
-
-void deleteAlarm()
-{
-string  dpe;
-  bool   configExists;
-  int   alertConfigType;
-  dyn_string   alertTexts;  
-  dyn_float   alertLimits;
-  dyn_string   alertClasses;
-  dyn_string   summaryDpeList;  
-  string   alertPanel;
-  dyn_string   alertPanelParameters;  
-  string   alertHelp;  
-  bool  isActive;
-  dyn_string   exceptionInfo;
-
-
-dyn_string dplist= dpNames("*","_FwFsmObject");
-dynAppend(dplist,dpNames("*","FwCaenChannel"));
-//DebugN("sadfdf",dplist);
-for(int i = 1; i<=dynlen(dplist);i++)
-{
-fwAlertConfig_get  (dplist[i]+".",configExists,  
-  alertConfigType,  
-   alertTexts,  
- alertLimits,  
-  alertClasses,  
- summaryDpeList,  
- alertPanel,  
-  alertPanelParameters,  
-  alertHelp,  
- isActive,  
- exceptionInfo 
- );  
-
-if(dynlen(summaryDpeList)==0)
-	{
-	fwAlertConfig_delete(dplist[i]+".",exceptionInfo);  
-	//DebugN("SSS:",dplist[i]);
-	}
-
-}
 }
 
-void DeleteFSM()
+
+//_____________________________________________________________________________
+void 
+DeleteFSM()
 {
-  dyn_string nodes,nnodes,exInfo,type = makeDynString("HV","USC"),nodesTypes;
-  bool find = false, delAll = false;
+  dyn_string nodes, 
+  	     nnodes,
+	     exInfo,
+	     type = makeDynString("HV","USC"),
+	     nodesTypes;
+
+  bool find = false, 
+       delAll = false;
   int f =1;
-  fwTree_getChildren("RPC_BARREL_HWUSC",nodes,exInfo);
+  fwTree_getChildren("RPC_BARREL_HWUSC", nodes, exInfo);
   DebugN(nodes);
   DebugN("This operation could be longer");
   for(int i = 1; i<=dynlen(nodes);i++ )
@@ -142,43 +169,40 @@ void DeleteFSM()
       {
         fwTree_getChildren(nodes[i],nnodes,exInfo);
         for(int k = 1; k<=dynlen(nnodes);k++)
+        {
           if(strpos(nnodes[k],"USC")>-1)
           {
             fwFsmTree_removeNode(nodes[i],nnodes[k]);
-        fwCU_getDp(nodes[i], nodesTypes[f]);
-        f++;
-      }
+            fwCU_getDp(nodes[i], nodesTypes[f]);
+            f++;
+          }
+        }
+
         fwTree_getChildren(nodes[i],nnodes,exInfo);
         if(dynlen(nnodes)==0)
         {
           fwFsmTree_removeNode("RPC_BARREL_HWUSC",nodes[i]);
           fwCU_getDp(nodes[i], nodesTypes[f]);
-        f++;
-      }
-          
+          f++;
         }
-        
-              
       }
-   }
+    }
+  }
   fwTree_getChildren("RPC_BARREL_HWUSC",nodes,exInfo);
   if(dynlen(nodes)==0)
   {
-          fwFsmTree_removeNode("FSM","RPC_BARREL_HWUSC");
-           fwCU_getDp("RPC_BARREL_HWUSC", nodesTypes[f]);
-        f++;
-        delAll = true;
-        }
+    fwFsmTree_removeNode("FSM","RPC_BARREL_HWUSC");
+    fwCU_getDp("RPC_BARREL_HWUSC", nodesTypes[f]);
+    f++;
+    delAll = true;
+  }
   dynUnique(nodesTypes);
   if(delAll)
   {
-      for (int i = 1; i <= dynlen(nodesTypes); i++)
-  {
-    DebugN("Starting delete all nodes type ", nodesTypes[i]);  
-        dpDelete(nodesTypes[i]); 
-  }
-  
+    for (int i = 1; i <= dynlen(nodesTypes); i++)
+    {
+      DebugN("Starting delete all nodes type ", nodesTypes[i]);  
+      dpDelete(nodesTypes[i]); 
     }
-   
-  
   }
+}

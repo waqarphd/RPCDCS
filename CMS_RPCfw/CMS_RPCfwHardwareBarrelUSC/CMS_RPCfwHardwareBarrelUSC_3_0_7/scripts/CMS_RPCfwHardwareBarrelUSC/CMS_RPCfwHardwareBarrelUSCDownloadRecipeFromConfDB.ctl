@@ -1,14 +1,20 @@
-/****
-  
-Fixed problem with recipe  
-  
-*///////////////
+/*
+ * 
+ * Fixed problem with recipe  
+ * 
+ */
+
+
+//_____________________________________________________________________________
 main()
 {
   loadFromConfigDB();
 }
 
-void loadFromConfigDB()
+
+//_____________________________________________________________________________
+void 
+loadFromConfigDB()
 {
   dyn_string deviceList,exceptionInfo,recipeSettings; 
   string defaultConnectString, recipeName,on,stb; 
@@ -21,7 +27,10 @@ void loadFromConfigDB()
   dyn_string recipeList;
   int exists;
   fwConfigurationDB_getRecipesInCache(recipeList,exceptionInfo);
-  if(dynlen(exceptionInfo)>0) DebugN("Searching for cache failed", exceptionInfo);
+  if(dynlen(exceptionInfo)>0) 
+  {
+    DebugN("Searching for cache failed", exceptionInfo);
+  }
   dynClear(exceptionInfo);
 
   dyn_string deviceList=dpAliases("*/HV/*","*");

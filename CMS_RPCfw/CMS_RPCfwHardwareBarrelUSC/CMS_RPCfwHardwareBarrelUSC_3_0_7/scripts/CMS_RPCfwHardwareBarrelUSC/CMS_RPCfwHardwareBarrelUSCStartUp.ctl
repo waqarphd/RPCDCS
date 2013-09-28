@@ -13,14 +13,16 @@ dyn_dyn_string chStatus;
 int dim;
 const string version = "1.9";
 
+
+//_____________________________________________________________________________
 main()
 {
-
   DebugN("Start up script version: ",version); 
   
-  //----------------- Refresh status every 5 minuti
+  //----------------- Refresh status every 5 minutes
   dyn_string c1527=dpAliases("*RPCUSBarrel/Crates/*","*");
-  if(dynlen(c1527)>0){
+  if(dynlen(c1527)>0)
+  {
     caen1527 = getSystemName()+fwDU_getPhysicalName(c1527[1]);
   }
    
@@ -33,45 +35,44 @@ main()
     dynAppend(chStatus[step],fwDU_getPhysicalName(chs[i]));
   }
   
-  //   DebugN(dynlen(chStatus),chStatus[1]); 
+  //DebugN(dynlen(chStatus),chStatus[1]); 
   
-    if(!dpExists("USCFSMtime"))
-     {
-      dpCreate("USCFSMtime","RPCUtils");
-      dpSet("USCFSMtime.fvalue",40);      
-      }
-    int refTime;   
-    dpGet("USCFSMtime.fvalue",refTime);
-    dpSet("USCFSMtime.svalue",version);
-    checkDpTimed("USCFSMRefresh",refTime);
-    timedFunc("FSMRefresh","USCFSMRefresh");
+  if(!dpExists("USCFSMtime"))
+  {
+    dpCreate("USCFSMtime","RPCUtils");
+    dpSet("USCFSMtime.fvalue",40);      
+  }
+  int refTime;   
+  dpGet("USCFSMtime.fvalue",refTime);
+  dpSet("USCFSMtime.svalue",version);
 
-   
-  
-  
- dyn_string nodes,exInfo;
+  checkDpTimed("USCFSMRefresh",refTime);
+  timedFunc("FSMRefresh","USCFSMRefresh");
+
+  dyn_string nodes, exInfo;
  
-    checkDpTimed("USCTimedCheck",120);
-    timedFunc("systemCheck","USCTimedCheck");
-    checkDpTimed("USCCurrentCheck",600);
-    timedFunc("currentCheck","USCCurrentCheck");
+  checkDpTimed("USCTimedCheck",120);
+  timedFunc("systemCheck","USCTimedCheck");
+  checkDpTimed("USCCurrentCheck",600);
+  timedFunc("currentCheck","USCCurrentCheck");
 
   dyn_string checkOPC = dpNames("caenHV*","RPCUtils"); 
- //DebugN(checkOPC);
-// _OPCProtection_Enabled = true;
+  //DebugN(checkOPC);
+  //_OPCProtection_Enabled = true;
 
- if(dynlen(checkOPC)>0)
- {
-   dpConnect("turnOPCOff",checkOPC[1]+".svalue");
- }
-     
+  if(dynlen(checkOPC)>0)
+  {
+    dpConnect("turnOPCOff",checkOPC[1]+".svalue");
+  }
 }
 
-void turnOPCOff(string dpe, string value){
 
- 
-    if(value=="Ko"){
-
+//_____________________________________________________________________________
+void 
+turnOPCOff(string dpe, string value)
+{
+  if(value=="Ko")
+  {
     dpSet(getSystemName()+"OPC_Conf_General.regInput.idOperation:_original.._value", 5);
   
     time t;
@@ -86,63 +87,73 @@ void turnOPCOff(string dpe, string value){
 
     // Wait until the operation is completed - code 0
     status = dpWaitForValue( dpNamesWait, conditions, dpNamesReturn, returnValues, t );  
-  
   }
-  
 }
 
 
-
-
-void FSMRefresh(){
-  
+//_____________________________________________________________________________
+void 
+FSMRefresh()
+{
   dyn_string chs = chStatus[dim];
   int status,v0,vmon,i0,ri1;
   time now = getCurrentTime();
   time last;
   int tdiff;
-  string alias, state,cu;
+  string alias, state, cu;
   string sys =getSystemName(); 
   dyn_string exInfo;
-  for(int i = 1;i<=dynlen(chs);i++){
-    
+  for(int i = 1;i<=dynlen(chs);i++)
+  {
     dpGet(sys+chs[i]+".settings.v0:_original.._stime",last);
     tdiff = now -last;
-    if(tdiff>40){    
-    dpGet(sys+chs[i]+".actual.status",status,
-          sys+chs[i]+".actual.vMon",vmon,
-          sys+chs[i]+".settings.v0",v0,
-          sys+chs[i]+".readBackSettings.i1",ri1,
-          sys+chs[i]+".readBackSettings.i0",i0
-          );
+    if(tdiff>40)
+    {    
+      dpGet(sys+chs[i]+".actual.status",status,
+            sys+chs[i]+".actual.vMon",vmon,
+            sys+chs[i]+".settings.v0",v0,
+            sys+chs[i]+".readBackSettings.i1",ri1,
+            sys+chs[i]+".readBackSettings.i0",i0
+           );
     
-    if((status<2)&&(v0-vmon < 30)&&(v0-vmon > -30)){
-      //
-     alias = fwDU_getLogicalName(sys+chs[i]);    
-     fwTree_getCUName(alias, cu, exInfo);
-     if(dynlen(exInfo)==0){
-      fwDU_getState(cu,alias,state);
-      //
-       if(((state == "ON")&&(vmon <8800))||((state != "ON")&&(vmon >8800))||(i0>ri1))
-       dpSet(sys+chs[i]+".actual.status",status);
+      if((status<2)&&(v0-vmon < 30)&&(v0-vmon > -30))
+      {
+        //
+        alias = fwDU_getLogicalName(sys+chs[i]);    
+        fwTree_getCUName(alias, cu, exInfo);
+        if(dynlen(exInfo)==0)
+        {
+          fwDU_getState(cu,alias,state);
+          //
+          if(((state == "ON")&&(vmon <8800))||((state != "ON")&&(vmon >8800))||(i0>ri1))
+          {
+           dpSet(sys+chs[i]+".actual.status",status);
+          }
+        }
       }
     }
-    }
-    }
+  }
+
   if(dim == 10)
     dim = 1;
   else
     dim ++;
-  }
-void currentCheck(){
-  
+}
+
+
+//_____________________________________________________________________________
+void 
+currentCheck()
+{
   float value;
-  dyn_float sum ;
+  dyn_float sum;
   dyn_int n;
   int pos;
   
   if(dynlen(chanToCheck)==0)
+  {
     chanToCheck = dpAliases("*RPCUSBarrel/HV/*","*");
+  }
   
   dyn_string wheels = makeDynString("WP2","WP1","W00","WM1","WM2");
   
@@ -150,7 +161,7 @@ void currentCheck(){
   {
     n[i]= 0;
     sum[i]= 0;
-    }
+  }
   for(int i = 1; i<=dynlen(chanToCheck);i++)
   {
     pos = strpos(chanToCheck[i],"_W");
@@ -160,172 +171,161 @@ void currentCheck(){
     {
       sum[pos] = sum[pos] + value;
       n[pos]++;
-      }
     }
+  }
   
   for(int i = 1;i<=dynlen(wheels);i++)
   {
-  if(n[i]!=0)
-  {
-    dpSet(getSystemName() + "globImon"+wheels[i]+".total", sum[i]);
-    dpSet(getSystemName() + "globImon"+wheels[i]+".averange", sum[i] / n[i]);
-  }
+    if(n[i]!=0)
+    {
+      dpSet(getSystemName() + "globImon"+wheels[i]+".total", sum[i]);
+      dpSet(getSystemName() + "globImon"+wheels[i]+".averange", sum[i] / n[i]);
+    }
   }
 }
 
-void checkDpTimed(string dp,int sec)
+
+//_____________________________________________________________________________
+void 
+checkDpTimed(string dp,int sec)
 {
   if(!dpExists(dp))
   {
     dpCreate(dp,"_TimedFunc");
-   
   }
-   dpSet(dp+".syncTime",-1);
-   dpSet(dp+".interval",sec);
-  
-  }
+  dpSet(dp+".syncTime",-1);
+  dpSet(dp+".interval",sec);
+}
 
 
-void systemCheck()
+//_____________________________________________________________________________
+void 
+systemCheck()
 {
-// checkExists();
- dyn_string exInfo;
- int rint = 0;
+  // checkExists();
+  dyn_string exInfo;
+  int rint = 0;
   if(!dpExists(getSystemName()+"RPCCheckUSC"))
- {
-  dyn_string alertTexts = makeDynString( "Ok", "Not Ok");
-  dyn_float limits = (1); 
-  dyn_string alertClasses = makeDynString( "" , "_fwErrorAck.");
-  string alertPanel,summary,dp; dyn_string alertPanelParameters; string alertHelp;
-
+  {
+    dyn_string alertTexts = makeDynString( "Ok", "Not Ok");
+    dyn_float limits = (1); 
+    dyn_string alertClasses = makeDynString( "" , "_fwErrorAck.");
+    string alertPanel,summary,dp; 
+    dyn_string alertPanelParameters; 
+    string alertHelp;
    
-  dpCreate("RPCCheckUSC","RPCUtils");
- dp = getSystemName()+"RPCCheckUSC.fvalue";
- fwArchive_set(dp,"RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,0,0,exInfo);
- fwAlertConfig_set(dp,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
-             alertHelp,exInfo);
- fwAlertConfig_activate(dp,exInfo);
- }
+    dpCreate("RPCCheckUSC","RPCUtils");
+    dp = getSystemName()+"RPCCheckUSC.fvalue";
+    fwArchive_set(dp,"RDB-99) EVENT",DPATTR_ARCH_PROC_SIMPLESM,DPATTR_COMPARE_OLD_NEW,0,0,exInfo);
+    fwAlertConfig_set(dp,DPCONFIG_ALERT_NONBINARYSIGNAL ,alertTexts,limits, alertClasses,summary,alertPanel,alertPanelParameters,
+                      alertHelp,exInfo);
+    fwAlertConfig_activate(dp,exInfo);
+  }
+ 
+  string info;
+  // Check connections
+  string result;
+  dyn_string channels = makeDynString("_RDBArchive.dbConnection.connected","_CAENOPCServer.Connected");
+  dyn_string values = makeDynString("RDB error","OPC Error");
+  for(int i = 1; i<=dynlen(channels);i++)
+  {
+    dpGet(getSystemName()+channels[i],result);
+    if(!result)
+    {
+      info = info + values[i] + ";";
+      rint = rint + (i*2);
+    }
+  }
 
- 
- string info;
- // Check connections
- string result;
- dyn_string channels = makeDynString("_RDBArchive.dbConnection.connected","_CAENOPCServer.Connected");
- dyn_string values = makeDynString("RDB error","OPC Error");
- for(int i = 1; i<=dynlen(channels);i++)
- {
-   dpGet(getSystemName()+channels[i],result);
-   if(!result)
-   {
-     info = info + values[i] + ";";
-       rint = rint + (i*2);
-   }
- }
-
- 
- 
   // check fan status
-time refresh,now = getCurrentTime();
- dyn_string sy1527 = dpNames("*","FwCaenCrateSY1527");
- string mainf;
- for(int i = 1 ; i<=dynlen(sy1527);i++)
- {
-   dpGet(sy1527[i]+".FanStatus.FanStat:_original.._stime",refresh);
-  //DebugN(refresh);
-   float dif =now - refresh; 
- if(dif>200)
-   {
-    info = info + "Fan stopped;";
-    rint = rint + 8;
+  time refresh, now = getCurrentTime();
+  dyn_string sy1527 = dpNames("*","FwCaenCrateSY1527");
+  string mainf;
+  for(int i = 1 ; i<=dynlen(sy1527);i++)
+  {
+    dpGet(sy1527[i]+".FanStatus.FanStat:_original.._stime",refresh);
+    //DebugN(refresh);
+    float dif =now - refresh; 
+    if(dif>200)
+    {
+      info = info + "Fan stopped;";
+      rint = rint + 8;
     }
     mainf = sy1527[i];
   }
  
- //check opc control if exists
- string op;
- dyn_string checkOPC = dpNames("caenHV*","RPCUtils"); 
- //DebugN(checkOPC);
- if(dynlen(checkOPC)>0)
- {
-   dpGet(checkOPC[1]+".svalue",op);
-   if(op != "Ok")
-   {
-    info = info + "OPC server KO;";
-    rint = rint + 16;
- if(strlen(mainf)>0)   dpSet(mainf+".Information.ModelName","Ko"); 
-    }else if(strlen(mainf)>0)   
-      {
+  //check opc control if exists
+  string op;
+  dyn_string checkOPC = dpNames("caenHV*","RPCUtils"); 
+  //DebugN(checkOPC);
+  if(dynlen(checkOPC)>0)
+  {
+    dpGet(checkOPC[1]+".svalue",op);
+    if(op != "Ok")
+    {
+      info = info + "OPC server KO;";
+      rint = rint + 16;
+      if(strlen(mainf)>0)
+      {   
+        dpSet(mainf+".Information.ModelName","Ko"); 
+      }
+    }
+    else if(strlen(mainf)>0)   
+    {
       dpGet(mainf+".Information.ModelName",op);
       if(op == "Ko")
-      dpSet(mainf+".Information.ModelName","SY1527");
+      {
+        dpSet(mainf+".Information.ModelName","SY1527");
       }
-    
-      
-   }
- // fsm heartbeat
+    }
+  }
+  // fsm heartbeat
   string sval;
-//  dpGet(getSystemName()+"RPCCheckUSC.svalue",sval);
+  // dpGet(getSystemName()+"RPCCheckUSC.svalue",sval);
   dpGet(caen1527+".userDefined",sval); 
   if(sval == "0")
-    {
-     rint = rint + 32;
-     info = info + " FSM not responding;";
-     }
-   dpSet(caen1527+".userDefined","0");   
+  {
+    rint = rint + 32;
+    info = info + " FSM not responding;";
+  }
+  dpSet(caen1527+".userDefined","0");   
        
- // write analisys results
- dpSet(getSystemName()+"RPCCheckUSC.fvalue",rint);
- dpSet(getSystemName()+"RPCCheckUSC.svalue",info);
-//refresh FSM
- string infoSerial;
-    dpGet(caen1527+".Information.ModelName",infoSerial);
-   dpSet(caen1527+".Information.ModelName",infoSerial);
-   
-   
- }
+  // write analisys results
+  dpSet(getSystemName()+"RPCCheckUSC.fvalue",rint);
+  dpSet(getSystemName()+"RPCCheckUSC.svalue",info);
 
-void checkExists()
+  //refresh FSM
+  string infoSerial;
+  dpGet(caen1527+".Information.ModelName", infoSerial);
+  dpSet(caen1527+".Information.ModelName", infoSerial);
+}
+
+
+//_____________________________________________________________________________
+void 
+checkExists()
 {
-   dyn_string types;
-  types = dpTypes("sysCheck");
+  dyn_string types = dpTypes("sysCheck");
   //DebugN(types);
   if(dynlen(types)<1) 
   {
-  int n;
+    // Create the data type
 
-  dyn_dyn_string xxdepes;
+    dyn_dyn_string xxdepes;
+    xxdepes[1] = makeDynString ("sysCheck","");
+    xxdepes[2] = makeDynString ("","value");
+    //xxdepes[3] = makeDynString ("","ts");
 
-  dyn_dyn_int xxdepei;
+    dyn_dyn_int xxdepei;
+    xxdepei[1] = makeDynInt (DPEL_STRUCT);
+    xxdepei[2] = makeDynInt (0,DPEL_STRING);
 
- 
+    // Create the datapoint type
+    int n = dpTypeCreate(xxdepes, xxdepei);
 
-// Create the data type
-
-  xxdepes[1] = makeDynString ("sysCheck","");
-
-  xxdepes[2] = makeDynString ("","value");
-  //xxdepes[3] = makeDynString ("","ts");
-
-
-  xxdepei[1] = makeDynInt (DPEL_STRUCT);
-
-  xxdepei[2] = makeDynInt (0,DPEL_STRING);
-
-  
-
-// Create the datapoint type
-
-  n = dpTypeCreate(xxdepes,xxdepei);
-
-  DebugN ("Datapoint Type created ");
-
+    DebugN ("Datapoint Type created ");
   }
-
-  
-  
-  
-  }
+}
 
 
 
